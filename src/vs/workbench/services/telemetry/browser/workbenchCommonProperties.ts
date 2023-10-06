@@ -8,7 +8,7 @@ import * as Platform from 'vs/base/common/platform';
 import * as uuid from 'vs/base/common/uuid';
 import { cleanRemoteAuthority } from 'vs/platform/telemetry/common/telemetryUtils';
 import { mixin } from 'vs/base/common/objects';
-import { firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { ICommonProperties, firstSessionDateStorageKey, lastSessionDateStorageKey, machineIdKey } from 'vs/platform/telemetry/common/telemetry';
 import { Gesture } from 'vs/base/browser/touch';
 
 /**
@@ -20,16 +20,17 @@ function cleanUserAgent(userAgent: string): string {
 	return userAgent.replace(/(\d+\.\d+)(\.\d+)+/g, '$1');
 }
 
-export async function resolveWorkbenchCommonProperties(
+export function resolveWorkbenchCommonProperties(
 	storageService: IStorageService,
 	commit: string | undefined,
 	version: string | undefined,
+	isInternalTelemetry: boolean,
 	remoteAuthority?: string,
 	productIdentifier?: string,
 	removeMachineId?: boolean,
 	resolveAdditionalProperties?: () => { [key: string]: any }
-): Promise<{ [name: string]: string | undefined }> {
-	const result: { [name: string]: string | undefined } = Object.create(null);
+): ICommonProperties {
+	const result: ICommonProperties = Object.create(null);
 	const firstSessionDate = storageService.get(firstSessionDateStorageKey, StorageScope.APPLICATION)!;
 	const lastSessionDate = storageService.get(lastSessionDateStorageKey, StorageScope.APPLICATION)!;
 
@@ -74,6 +75,11 @@ export async function resolveWorkbenchCommonProperties(
 	result['common.userAgent'] = Platform.userAgent ? cleanUserAgent(Platform.userAgent) : undefined;
 	// __GDPR__COMMON__ "common.isTouchDevice" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	result['common.isTouchDevice'] = String(Gesture.isTouchDevice());
+
+	if (isInternalTelemetry) {
+		// __GDPR__COMMON__ "common.msftInternal" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		result['common.msftInternal'] = isInternalTelemetry;
+	}
 
 	// dynamic properties which value differs on each call
 	let seq = 0;

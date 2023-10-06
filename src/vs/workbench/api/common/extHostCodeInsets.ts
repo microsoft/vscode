@@ -8,14 +8,14 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ExtHostTextEditor } from 'vs/workbench/api/common/extHostTextEditor';
 import { ExtHostEditors } from 'vs/workbench/api/common/extHostTextEditors';
-import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from 'vs/workbench/common/webview';
+import { asWebviewUri, webviewGenericCspSource, WebviewRemoteInfo } from 'vs/workbench/contrib/webview/common/webview';
 import type * as vscode from 'vscode';
 import { ExtHostEditorInsetsShape, MainThreadEditorInsetsShape } from './extHost.protocol';
 
 export class ExtHostEditorInsets implements ExtHostEditorInsetsShape {
 
 	private _handlePool = 0;
-	private _disposables = new DisposableStore();
+	private readonly _disposables = new DisposableStore();
 	private _insets = new Map<number, { editor: vscode.TextEditor; inset: vscode.WebviewEditorInset; onDidReceiveMessage: Emitter<any> }>();
 
 	constructor(

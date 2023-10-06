@@ -21,6 +21,7 @@ export interface IAccessibilityService {
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 	alert(message: string): void;
+	alertCleared(): void;
 }
 
 export const enum AccessibilitySupport {
@@ -39,4 +40,10 @@ export const CONTEXT_ACCESSIBILITY_MODE_ENABLED = new RawContextKey<boolean>('ac
 export interface IAccessibilityInformation {
 	label: string;
 	role?: string;
+}
+
+export function isAccessibilityInformation(obj: any): obj is IAccessibilityInformation {
+	return obj && typeof obj === 'object'
+		&& typeof obj.label === 'string'
+		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }

@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getFileNamesMessage, IConfirmation, IDialogService, IFileDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
 import { ByteSize, FileSystemProviderCapabilities, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IProgress, IProgressService, IProgressStep, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -23,13 +23,13 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { triggerDownload } from 'vs/base/browser/dom';
+import { isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { listenStream } from 'vs/base/common/stream';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { coalesce } from 'vs/base/common/arrays';
 import { canceled } from 'vs/base/common/errors';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -105,7 +105,7 @@ export class BrowserFileUpload {
 	}
 
 	private toTransfer(source: DragEvent | FileList): IWebkitDataTransfer {
-		if (source instanceof DragEvent) {
+		if (isDragEvent(source)) {
 			return source.dataTransfer as unknown as IWebkitDataTransfer;
 		}
 
@@ -318,8 +318,7 @@ export class BrowserFileUpload {
 
 		// Read the file in chunks using File.stream() web APIs
 		try {
-			// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
-			const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
+			const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
 			let res = await reader.read();
 			while (!res.done) {
@@ -444,11 +443,18 @@ export class ExternalFileImport {
 		// Handle folders by adding to workspace if we are in workspace context and if dropped on top
 		const folders = resolvedFiles.filter(resolvedFile => resolvedFile.success && resolvedFile.stat?.isDirectory).map(resolvedFile => ({ uri: resolvedFile.stat!.resource }));
 		if (folders.length > 0 && target.isRoot) {
-			const buttons = [
-				folders.length > 1 ?
-					localize('copyFolders', "&&Copy Folders") :
-					localize('copyFolder', "&&Copy Folder"),
-				localize('cancel', "Cancel")
+			enum ImportChoice {
+				Copy = 1,
+				Add = 2
+			}
+
+			const buttons: IPromptButton<ImportChoice | undefined>[] = [
+				{
+					label: folders.length > 1 ?
+						localize('copyFolders', "&&Copy Folders") :
+						localize('copyFolder', "&&Copy Folder"),
+					run: () => ImportChoice.Copy
+				}
 			];
 
 			let message: string;
@@ -456,7 +462,12 @@ export class ExternalFileImport {
 			// We only allow to add a folder to the workspace if there is already a workspace folder with that scheme
 			const workspaceFolderSchemas = this.contextService.getWorkspace().folders.map(folder => folder.uri.scheme);
 			if (folders.some(folder => workspaceFolderSchemas.indexOf(folder.uri.scheme) >= 0)) {
-				buttons.unshift(folders.length > 1 ? localize('addFolders', "&&Add Folders to Workspace") : localize('addFolder', "&&Add Folder to Workspace"));
+				buttons.unshift({
+					label: folders.length > 1 ?
+						localize('addFolders', "&&Add Folders to Workspace") :
+						localize('addFolder', "&&Add Folder to Workspace"),
+					run: () => ImportChoice.Add
+				});
 				message = folders.length > 1 ?
 					localize('dropFolders', "Do you want to copy the folders or add the folders to the workspace?") :
 					localize('dropFolder', "Do you want to copy '{0}' or add '{0}' as a folder to the workspace?", basename(folders[0].uri));
@@ -466,15 +477,20 @@ export class ExternalFileImport {
 					localize('copyfolder', "Are you sure to want to copy '{0}'?", basename(folders[0].uri));
 			}
 
-			const { choice } = await this.dialogService.show(Severity.Info, message, buttons);
+			const { result } = await this.dialogService.prompt({
+				type: Severity.Info,
+				message,
+				buttons,
+				cancelButton: true
+			});
 
 			// Add folders
-			if (choice === buttons.length - 3) {
+			if (result === ImportChoice.Add) {
 				return this.workspaceEditingService.addFolders(folders);
 			}
 
 			// Copy resources
-			if (choice === buttons.length - 2) {
+			if (result === ImportChoice.Copy) {
 				return this.importResources(target, files, token);
 			}
 		}
@@ -672,7 +688,7 @@ export class FileDownload {
 			try {
 				bufferOrUri = (await this.fileService.readFile(stat.resource, { limits: { size: maxBlobDownloadSize } }, cts.token)).value.buffer;
 			} catch (error) {
-				bufferOrUri = FileAccess.asBrowserUri(stat.resource);
+				bufferOrUri = FileAccess.uriToBrowserUri(stat.resource);
 			}
 
 			if (!cts.token.isCancellationRequested) {
@@ -694,12 +710,12 @@ export class FileDownload {
 			const disposables = new DisposableStore();
 			disposables.add(toDisposable(() => target.close()));
 
-			disposables.add(once(token.onCancellationRequested)(() => {
+			disposables.add(createSingleCallFunction(token.onCancellationRequested)(() => {
 				disposables.dispose();
 				reject(canceled());
 			}));
 
-			disposables.add(listenStream(sourceStream, {
+			listenStream(sourceStream, {
 				onData: data => {
 					target.write(data.buffer);
 					this.reportProgress(contents.name, contents.size, data.byteLength, operation);
@@ -712,7 +728,7 @@ export class FileDownload {
 					disposables.dispose();
 					resolve();
 				}
-			}));
+			}, token);
 		});
 	}
 

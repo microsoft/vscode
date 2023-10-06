@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -39,12 +40,15 @@ interface IEditorLayoutProviderOpts {
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
 		const options = new ComputedEditorOptions();
 		options._write(EditorOption.glyphMargin, input.showGlyphMargin);
 		options._write(EditorOption.lineNumbersMinChars, input.lineNumbersMinChars);
 		options._write(EditorOption.lineDecorationsWidth, input.lineDecorationsWidth);
 		options._write(EditorOption.folding, false);
+		options._write(EditorOption.padding, { top: 0, bottom: 0 });
 		const minimapOptions: EditorMinimapOptions = {
 			enabled: input.minimap,
 			autohide: false,
@@ -95,6 +99,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			typicalHalfwidthCharacterWidth: input.typicalHalfwidthCharacterWidth,
 			maxDigitWidth: input.maxDigitWidth,
 			pixelRatio: input.pixelRatio,
+			glyphMarginDecorationLaneCount: 1,
 		});
 		assert.deepStrictEqual(actual, expected);
 	}
@@ -126,6 +131,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -194,6 +200,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -262,6 +269,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -330,6 +338,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -398,6 +407,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -466,6 +476,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
@@ -534,6 +545,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 50,
@@ -602,6 +614,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 60,
@@ -670,6 +683,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
@@ -738,6 +752,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 30,
@@ -806,6 +821,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -874,6 +890,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -942,6 +959,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1010,6 +1028,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 55,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 55,
 			lineNumbersWidth: 0,
@@ -1080,6 +1099,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1150,6 +1170,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1220,6 +1241,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1290,6 +1312,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 0,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 0,
 			lineNumbersWidth: 0,
@@ -1358,6 +1381,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 
 			glyphMarginLeft: 0,
 			glyphMarginWidth: 30,
+			glyphMarginDecorationLaneCount: 1,
 
 			lineNumbersLeft: 30,
 			lineNumbersWidth: 36,

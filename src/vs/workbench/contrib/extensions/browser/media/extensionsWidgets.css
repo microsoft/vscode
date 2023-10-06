@@ -31,6 +31,16 @@
 	opacity: .75;
 }
 
+.extension-verified-publisher {
+	display: flex;
+	align-items: center;
+}
+
+.extension-verified-publisher > .extension-verified-publisher-domain {
+	padding-left: 2px;
+	color: var(--vscode-extensionIcon-verifiedForeground);
+}
+
 .extension-bookmark {
 	display: inline-block;
 	height: 20px;
@@ -57,4 +67,9 @@
 	left: 1px;
 	color: inherit;
 	font-size: 80%;
+}
+
+.extension-bookmark .recommendation {
+	border-top-color: var(--vscode-extensionButton-prominentBackground);
+	color: var(--vscode-extensionButton-prominentForeground);
 }

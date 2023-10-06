@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TrimTrailingWhitespaceCommand, trimTrailingWhitespace } from 'vs/editor/common/commands/trimTrailingWhitespaceCommand';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
@@ -25,7 +26,7 @@ function createInsertDeleteSingleEditOp(text: string | null, positionLineNumber:
 /**
  * Create single edit operation
  */
-export function createSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
+function createSingleEditOp(text: string | null, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): ISingleEditOperation {
 	return {
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
 		text: text,
@@ -49,6 +50,8 @@ function assertTrimTrailingWhitespace(text: string[], cursors: Position[], expec
 }
 
 suite('Editor Commands - Trim Trailing Whitespace Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('remove trailing whitespace', function () {
 		assertTrimTrailingWhitespaceCommand([''], []);

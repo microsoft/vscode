@@ -13,14 +13,14 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 
 	const listener: EventListener = (event: Event): void => {
 		// uninstall handler
-		self.removeEventListener('message', listener);
+		globalThis.removeEventListener('message', listener);
 
 		// get data
 		const port = <MessagePort>(<MessageEvent>event).data;
 
 		// postMessage
 		// onmessage
-		Object.defineProperties(self, {
+		Object.defineProperties(globalThis, {
 			'postMessage': {
 				value(data: any, transferOrOptions?: any) {
 					port.postMessage(data, transferOrOptions);
@@ -38,19 +38,19 @@ const _bootstrapFnSource = (function _bootstrapFn(workerUrl: string) {
 		});
 
 		port.addEventListener('message', msg => {
-			self.dispatchEvent(new MessageEvent('message', { data: msg.data }));
+			globalThis.dispatchEvent(new MessageEvent('message', { data: msg.data, ports: msg.ports ? [...msg.ports] : undefined }));
 		});
 
 		port.start();
 
 		// fake recursively nested worker
-		self.Worker = <any>class { constructor() { throw new TypeError('Nested workers from within nested worker are NOT supported.'); } };
+		globalThis.Worker = <any>class { constructor() { throw new TypeError('Nested workers from within nested worker are NOT supported.'); } };
 
 		// load module
 		importScripts(workerUrl);
 	};
 
-	self.addEventListener('message', listener);
+	globalThis.addEventListener('message', listener);
 }).toString();
 
 

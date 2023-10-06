@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
@@ -37,14 +37,6 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           config-path: commands
 
-      # only here.
-      - name: Run Subscribers
-        uses: ./actions/topic-subscribe
-        with:
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
-          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
-          config-path: subscribers
-
       # source of truth in ./feature-request.yml
       - name: Run Feature Request Manager
         if: contains(github.event.issue.labels.*.name, 'feature-request')
@@ -71,7 +63,8 @@ jobs:
         if: contains(github.event.issue.labels.*.name, 'testplan-item') || contains(github.event.issue.labels.*.name, 'invalid-testplan-item')
         uses: ./actions/test-plan-item-validator
         with:
-          appInsightsKey: ${{secrets.TRIAGE_ACTIONS_APP_INSIGHTS}}
+          token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
+          refLabel: on-testplan
           label: testplan-item
           invalidLabel: invalid-testplan-item
           comment: Invalid test plan item. See errors below and the [test plan item spec](https://github.com/microsoft/vscode/wiki/Writing-Test-Plan-Items) for more information. This comment will go away when the issues are resolved.
@@ -85,6 +78,6 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
           nonEnglishLabel: "*english-please"
-          needsMoreInfoLabel: "needs more info"
+          needsMoreInfoLabel: "info-needed"
           translatorRequestedLabelPrefix: "translation-required-"
           translatorRequestedLabelColor: "c29cff"

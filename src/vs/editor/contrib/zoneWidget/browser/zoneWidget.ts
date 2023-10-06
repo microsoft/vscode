@@ -28,6 +28,9 @@ export interface IOptions {
 	frameColor?: Color;
 	arrowColor?: Color;
 	keepEditorSelection?: boolean;
+	allowUnlimitedHeight?: boolean;
+	ordinal?: number;
+	showInHiddenAreas?: boolean;
 }
 
 export interface IStyles {
@@ -48,25 +51,31 @@ const defaultOptions: IOptions = {
 
 const WIDGET_ID = 'vs.editor.contrib.zoneWidget';
 
-export class ViewZoneDelegate implements IViewZone {
+class ViewZoneDelegate implements IViewZone {
 
 	domNode: HTMLElement;
 	id: string = ''; // A valid zone id should be greater than 0
 	afterLineNumber: number;
 	afterColumn: number;
 	heightInLines: number;
+	readonly showInHiddenAreas: boolean | undefined;
+	readonly ordinal: number | undefined;
 
 	private readonly _onDomNodeTop: (top: number) => void;
 	private readonly _onComputedHeight: (height: number) => void;
 
 	constructor(domNode: HTMLElement, afterLineNumber: number, afterColumn: number, heightInLines: number,
 		onDomNodeTop: (top: number) => void,
-		onComputedHeight: (height: number) => void
+		onComputedHeight: (height: number) => void,
+		showInHiddenAreas: boolean | undefined,
+		ordinal: number | undefined
 	) {
 		this.domNode = domNode;
 		this.afterLineNumber = afterLineNumber;
 		this.afterColumn = afterColumn;
 		this.heightInLines = heightInLines;
+		this.showInHiddenAreas = showInHiddenAreas;
+		this.ordinal = ordinal;
 		this._onDomNodeTop = onDomNodeTop;
 		this._onComputedHeight = onComputedHeight;
 	}
@@ -261,7 +270,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 	}
 
-	private _getWidth(info: EditorLayoutInfo): number {
+	protected _getWidth(info: EditorLayoutInfo): number {
 		return info.width - info.minimap.minimapWidth - info.verticalScrollbarWidth;
 	}
 
@@ -287,9 +296,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this._doLayout(containerHeight, this._getWidth(layoutInfo));
 		}
 
-		if (this._resizeSash) {
-			this._resizeSash.layout();
-		}
+		this._resizeSash?.layout();
 	}
 
 	get position(): Position | undefined {
@@ -298,6 +305,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			return undefined;
 		}
 		return range.getStartPosition();
+	}
+
+	hasFocus() {
+		return this.domNode.contains(dom.getActiveElement());
 	}
 
 	protected _isShowing: boolean = false;
@@ -323,9 +334,8 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 			this.editor.removeOverlayWidget(this._overlayWidget);
 			this._overlayWidget = null;
 		}
-		if (this._arrow) {
-			this._arrow.hide();
-		}
+		this._arrow?.hide();
+		this._positionMarkerId.clear();
 	}
 
 	private _decoratingElementsHeight(): number {
@@ -358,8 +368,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		const lineHeight = this.editor.getOption(EditorOption.lineHeight);
 
 		// adjust heightInLines to viewport
-		const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
-		heightInLines = Math.min(heightInLines, maxHeightInLines);
+		if (!this.options.allowUnlimitedHeight) {
+			const maxHeightInLines = Math.max(12, (this.editor.getLayoutInfo().height / lineHeight) * 0.8);
+			heightInLines = Math.min(heightInLines, maxHeightInLines);
+		}
 
 		let arrowHeight = 0;
 		let frameThickness = 0;
@@ -392,7 +404,9 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 				position.column,
 				heightInLines,
 				(top: number) => this._onViewZoneTop(top),
-				(height: number) => this._onViewZoneHeight(height)
+				(height: number) => this._onViewZoneHeight(height),
+				this.options.showInHiddenAreas,
+				this.options.ordinal
 			);
 			this._viewZone.id = accessor.addZone(this._viewZone);
 			this._overlayWidget = new OverlayWidgetDelegate(WIDGET_ID + this._viewZone.id, this.domNode);
@@ -421,22 +435,16 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		const model = this.editor.getModel();
 		if (model) {
-			const revealLine = where.endLineNumber + 1;
-			if (revealLine <= model.getLineCount()) {
-				// reveal line below the zone widget
-				this.revealLine(revealLine, false);
-			} else {
-				// reveal last line atop
-				this.revealLine(model.getLineCount(), true);
-			}
+			const range = model.validateRange(new Range(where.startLineNumber, 1, where.endLineNumber + 1, 1));
+			this.revealRange(range, range.startLineNumber === model.getLineCount());
 		}
 	}
 
-	protected revealLine(lineNumber: number, isLastLine: boolean) {
+	protected revealRange(range: Range, isLastLine: boolean) {
 		if (isLastLine) {
-			this.editor.revealLineInCenter(lineNumber, ScrollType.Smooth);
+			this.editor.revealLineNearTop(range.endLineNumber, ScrollType.Smooth);
 		} else {
-			this.editor.revealLine(lineNumber, ScrollType.Smooth);
+			this.editor.revealRange(range, ScrollType.Smooth);
 		}
 	}
 

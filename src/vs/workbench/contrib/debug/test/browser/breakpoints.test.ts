@@ -4,23 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { URI as uri } from 'vs/base/common/uri';
-import { DebugModel, Breakpoint } from 'vs/workbench/contrib/debug/common/debugModel';
-import { getExpandedBodySize, getBreakpointMessageAndIcon } from 'vs/workbench/contrib/debug/browser/breakpointsView';
-import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
-import { Range } from 'vs/editor/common/core/range';
-import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
-import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
-import { OverviewRulerLane } from 'vs/editor/common/model';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { createMockSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
-import { createMockDebugModel, MockDebugService } from 'vs/workbench/contrib/debug/test/browser/mockDebug';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { DisposableStore, dispose } from 'vs/base/common/lifecycle';
+import { URI as uri } from 'vs/base/common/uri';
+import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { OverviewRulerLane } from 'vs/editor/common/model';
 import { LanguageService } from 'vs/editor/common/services/languageService';
+import { createTextModel } from 'vs/editor/test/common/testTextModel';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { NullLogService } from 'vs/platform/log/common/log';
+import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { createBreakpointDecorations } from 'vs/workbench/contrib/debug/browser/breakpointEditorContribution';
+import { getBreakpointMessageAndIcon, getExpandedBodySize } from 'vs/workbench/contrib/debug/browser/breakpointsView';
+import { IBreakpointData, IBreakpointUpdateData, IDebugService, State } from 'vs/workbench/contrib/debug/common/debug';
+import { Breakpoint, DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { createMockDebugModel, mockUriIdentityService } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
+import { MockDebugService, MockDebugStorage } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
-function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]): void {
+function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakpointData[]) {
 	let eventCount = 0;
 	const toDispose = model.onDidChangeBreakpoints(e => {
 		assert.strictEqual(e?.sessionOnly, false);
@@ -36,20 +40,22 @@ function addBreakpointsAndCheckEvents(model: DebugModel, uri: uri, data: IBreakp
 			assert.strictEqual((e!.added![i] as Breakpoint).lineNumber, data[i].lineNumber);
 		}
 	});
-	model.addBreakpoints(uri, data);
+	const bps = model.addBreakpoints(uri, data);
 	assert.strictEqual(eventCount, 1);
+	return bps;
 }
 
 suite('Debug - Breakpoints', () => {
 	let model: DebugModel;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	setup(() => {
-		model = createMockDebugModel();
+		disposables = new DisposableStore();
+		model = createMockDebugModel(disposables);
 	});
 
 	teardown(() => {
-		disposables.clear();
+		disposables.dispose();
 	});
 
 	// Breakpoints
@@ -99,10 +105,10 @@ suite('Debug - Breakpoints', () => {
 		const modelUri1 = uri.file('/myfolder/my file first.js');
 		const modelUri2 = uri.file('/secondfolder/second/second file.js');
 		addBreakpointsAndCheckEvents(model, modelUri1, [{ lineNumber: 5, enabled: true }, { lineNumber: 10, enabled: false }]);
-		assert.strictEqual(getExpandedBodySize(model, 9), 44);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 44);
 
 		addBreakpointsAndCheckEvents(model, modelUri2, [{ lineNumber: 1, enabled: true }, { lineNumber: 2, enabled: true }, { lineNumber: 3, enabled: false }]);
-		assert.strictEqual(getExpandedBodySize(model, 9), 110);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 110);
 
 		assert.strictEqual(model.getBreakpoints().length, 5);
 		assert.strictEqual(model.getBreakpoints({ uri: modelUri1 }).length, 2);
@@ -136,7 +142,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(bp.enabled, true);
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
-		assert.strictEqual(getExpandedBodySize(model, 9), 66);
+		assert.strictEqual(getExpandedBodySize(model, undefined, 9), 66);
 
 		assert.strictEqual(model.getBreakpoints().length, 3);
 	});
@@ -174,7 +180,7 @@ suite('Debug - Breakpoints', () => {
 		const modelUri = uri.file('/myfolder/myfile.js');
 		addBreakpointsAndCheckEvents(model, modelUri, [{ lineNumber: 5, enabled: true, condition: 'x > 5' }, { lineNumber: 10, enabled: false }]);
 		const breakpoints = model.getBreakpoints();
-		const session = createMockSession(model);
+		const session = disposables.add(createTestSession(model));
 		const data = new Map<string, DebugProtocol.Breakpoint>();
 
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
@@ -186,7 +192,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(breakpoints[0].lineNumber, 5);
 		assert.strictEqual(breakpoints[1].lineNumber, 50);
 
-		const session2 = createMockSession(model);
+		const session2 = disposables.add(createTestSession(model));
 		const data2 = new Map<string, DebugProtocol.Breakpoint>();
 		data2.set(breakpoints[0].getId(), { verified: true, line: 100 });
 		data2.set(breakpoints[1].getId(), { verified: true, line: 500 });
@@ -211,30 +217,83 @@ suite('Debug - Breakpoints', () => {
 
 	test('exception breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
-		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
+		model.setExceptionBreakpointsForSession("session-id-1", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }]);
 		assert.strictEqual(eventCount, 1);
-		let exceptionBreakpoints = model.getExceptionBreakpoints();
+		let exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-1");
 		assert.strictEqual(exceptionBreakpoints.length, 1);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 
-		model.setExceptionBreakpoints([{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointsForSession("session-id-2", [{ filter: 'uncaught', label: 'UNCAUGHT' }, { filter: 'caught', label: 'CAUGHT' }]);
 		assert.strictEqual(eventCount, 2);
-		exceptionBreakpoints = model.getExceptionBreakpoints();
+		exceptionBreakpoints = model.getExceptionBreakpointsForSession("session-id-2");
 		assert.strictEqual(exceptionBreakpoints.length, 2);
 		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
 		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
 		assert.strictEqual(exceptionBreakpoints[1].filter, 'caught');
 		assert.strictEqual(exceptionBreakpoints[1].label, 'CAUGHT');
 		assert.strictEqual(exceptionBreakpoints[1].enabled, false);
+
+		model.setExceptionBreakpointsForSession("session-id-3", [{ filter: 'all', label: 'ALL' }]);
+		assert.strictEqual(eventCount, 3);
+		assert.strictEqual(model.getExceptionBreakpointsForSession("session-id-3").length, 1);
+		exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.strictEqual(exceptionBreakpoints[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpoints[0].enabled, true);
+		assert.strictEqual(exceptionBreakpoints[1].filter, 'caught');
+		assert.strictEqual(exceptionBreakpoints[1].label, 'CAUGHT');
+		assert.strictEqual(exceptionBreakpoints[1].enabled, false);
+		assert.strictEqual(exceptionBreakpoints[2].filter, 'all');
+		assert.strictEqual(exceptionBreakpoints[2].label, 'ALL');
+	});
+
+	test('exception breakpoints multiple sessions', () => {
+		let eventCount = 0;
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
+
+		model.setExceptionBreakpointsForSession("session-id-4", [{ filter: 'uncaught', label: 'UNCAUGHT', default: true }, { filter: 'caught', label: 'CAUGHT' }]);
+		model.setExceptionBreakpointFallbackSession("session-id-4");
+		assert.strictEqual(eventCount, 1);
+		let exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-4");
+		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
+		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForSession[1].filter, 'caught');
+
+		model.setExceptionBreakpointsForSession("session-id-5", [{ filter: 'all', label: 'ALL' }, { filter: 'caught', label: 'CAUGHT' }]);
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForSession = model.getExceptionBreakpointsForSession("session-id-5");
+		let exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForSession.length, 2);
+		assert.strictEqual(exceptionBreakpointsForSession[0].filter, 'caught');
+		assert.strictEqual(exceptionBreakpointsForSession[1].filter, 'all');
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
+
+		model.removeExceptionBreakpointsForSession("session-id-4");
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'uncaught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'caught');
+
+		model.setExceptionBreakpointFallbackSession("session-id-5");
+		assert.strictEqual(eventCount, 2);
+		exceptionBreakpointsForUndefined = model.getExceptionBreakpointsForSession(undefined);
+		assert.strictEqual(exceptionBreakpointsForUndefined.length, 2);
+		assert.strictEqual(exceptionBreakpointsForUndefined[0].filter, 'caught');
+		assert.strictEqual(exceptionBreakpointsForUndefined[1].filter, 'all');
+
+		const exceptionBreakpoints = model.getExceptionBreakpoints();
+		assert.strictEqual(exceptionBreakpoints.length, 3);
 	});
 
 	test('instruction breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 		//address: string, offset: number, condition?: string, hitCondition?: string
-		model.addInstructionBreakpoint('0xCCCCFFFF', 0);
+		model.addInstructionBreakpoint('0xCCCCFFFF', 0, 0n);
 
 		assert.strictEqual(eventCount, 1);
 		let instructionBreakpoints = model.getInstructionBreakpoints();
@@ -242,7 +301,7 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(instructionBreakpoints[0].instructionReference, '0xCCCCFFFF');
 		assert.strictEqual(instructionBreakpoints[0].offset, 0);
 
-		model.addInstructionBreakpoint('0xCCCCEEEE', 1);
+		model.addInstructionBreakpoint('0xCCCCEEEE', 1, 0n);
 		assert.strictEqual(eventCount, 2);
 		instructionBreakpoints = model.getInstructionBreakpoints();
 		assert.strictEqual(instructionBreakpoints.length, 2);
@@ -254,7 +313,7 @@ suite('Debug - Breakpoints', () => {
 
 	test('data breakpoints', () => {
 		let eventCount = 0;
-		model.onDidChangeBreakpoints(() => eventCount++);
+		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
 		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
 		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite');
@@ -376,5 +435,33 @@ suite('Debug - Breakpoints', () => {
 		assert.strictEqual(decorations[0].options.overviewRuler, null);
 
 		textModel.dispose();
+		instantiationService.dispose();
+	});
+
+	test('updates when storage changes', () => {
+		const storage1 = disposables.add(new TestStorageService());
+		const debugStorage1 = disposables.add(new MockDebugStorage(storage1));
+		const model1 = disposables.add(new DebugModel(debugStorage1, <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
+
+		// 1. create breakpoints in the first model
+		const modelUri = uri.file('/myfolder/my file first.js');
+		const first = [
+			{ lineNumber: 1, enabled: true, condition: 'x > 5' },
+			{ lineNumber: 2, column: 4, enabled: false },
+		];
+
+		addBreakpointsAndCheckEvents(model1, modelUri, first);
+		debugStorage1.storeBreakpoints(model1);
+		const stored = storage1.get('debug.breakpoint', StorageScope.WORKSPACE);
+
+		// 2. hydrate a new model and ensure external breakpoints get applied
+		const storage2 = disposables.add(new TestStorageService());
+		const model2 = disposables.add(new DebugModel(disposables.add(new MockDebugStorage(storage2)), <any>{ isDirty: (e: any) => false }, mockUriIdentityService, new NullLogService()));
+		storage2.store('debug.breakpoint', stored, StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ true);
+		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));
+
+		// 3. ensure non-external changes are ignored
+		storage2.store('debug.breakpoint', '[]', StorageScope.WORKSPACE, StorageTarget.USER, /* external= */ false);
+		assert.deepStrictEqual(model2.getBreakpoints().map(b => b.getId()), model1.getBreakpoints().map(b => b.getId()));
 	});
 });

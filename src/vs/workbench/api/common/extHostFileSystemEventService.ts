@@ -16,7 +16,7 @@ import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { Lazy } from 'vs/base/common/lazy';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -134,6 +134,20 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
+class LazyRevivedFileSystemEvents implements FileSystemEvents {
+
+	constructor(private readonly _events: FileSystemEvents) { }
+
+	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
+	get created(): URI[] { return this._created.value; }
+
+	private _changed = new Lazy(() => this._events.changed.map(URI.revive) as URI[]);
+	get changed(): URI[] { return this._changed.value; }
+
+	private _deleted = new Lazy(() => this._events.deleted.map(URI.revive) as URI[]);
+	get deleted(): URI[] { return this._deleted.value; }
+}
+
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
 	private readonly _onFileSystemEvent = new Emitter<FileSystemEvents>();
@@ -164,7 +178,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(events);
+		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
 	}
 
 
@@ -250,11 +264,11 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 		// concat all WorkspaceEdits collected via waitUntil-call and send them over to the renderer
 		const dto: IWorkspaceEditDto = { edits: [] };
-		for (const [extension, edit] of edits) {
+		for (const [, edit] of edits) {
 			const { edits } = typeConverter.WorkspaceEdit.from(edit, {
 				getTextDocumentVersion: uri => this._extHostDocumentsAndEditors.getDocument(uri)?.version,
 				getNotebookDocumentVersion: () => undefined,
-			}, isProposedApiEnabled(extension, 'snippetWorkspaceEdit'));
+			});
 			dto.edits = dto.edits.concat(edits);
 		}
 		return { edit: dto, extensionNames: Array.from(extensionNames) };

@@ -50,9 +50,23 @@ export interface ILanguageService {
 	readonly languageIdCodec: ILanguageIdCodec;
 
 	/**
-	 * An event emitted when a language is needed for the first time.
+	 * An event emitted when basic language features are requested for the first time.
+	 * This event is emitted when embedded languages are encountered (e.g. JS code block inside Markdown)
+	 * or when a language is associated to a text model.
+	 *
+	 * **Note**: Basic language features refers to language configuration related features.
+	 * **Note**: This event is a superset of `onDidRequestRichLanguageFeatures`
 	 */
-	onDidEncounterLanguage: Event<string>;
+	onDidRequestBasicLanguageFeatures: Event<string>;
+
+	/**
+	 * An event emitted when rich language features are requested for the first time.
+	 * This event is emitted when a language is associated to a text model.
+	 *
+	 * **Note**: Rich language features refers to tokenizers, language features based on providers, etc.
+	 * **Note**: This event is a subset of `onDidRequestRichLanguageFeatures`
+	 */
+	onDidRequestRichLanguageFeatures: Event<string>;
 
 	/**
 	 * An event emitted when languages have changed.
@@ -140,4 +154,15 @@ export interface ILanguageService {
 	 * Will fall back to 'plaintext' if the `languageId` cannot be determined.
 	 */
 	createByFilepathOrFirstLine(resource: URI | null, firstLine?: string): ILanguageSelection;
+
+	/**
+	 * Request basic language features for a language.
+	 */
+	requestBasicLanguageFeatures(languageId: string): void;
+
+	/**
+	 * Request rich language features for a language.
+	 */
+	requestRichLanguageFeatures(languageId: string): void;
+
 }

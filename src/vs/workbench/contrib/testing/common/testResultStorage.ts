@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { bufferToStream, newWriteableBufferStream, VSBuffer, VSBufferReadableStream, VSBufferWriteableStream } from 'vs/base/common/buffer';
-import { Lazy } from 'vs/base/common/lazy';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -14,8 +14,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { HydratedTestResult, ITestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ISerializedTestResults } from 'vs/workbench/contrib/testing/common/testTypes';
-import { HydratedTestResult, ITestResult, LiveOutputController, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 
 export const RETAIN_MAX_RESULTS = 128;
 const RETAIN_MIN_RESULTS = 16;
@@ -34,11 +34,6 @@ export interface ITestResultStorage {
 	 * Persists the list of test results.
 	 */
 	persist(results: ReadonlyArray<ITestResult>): Promise<void>;
-
-	/**
-	 * Gets the output controller for a new or existing test result.
-	 */
-	getOutputController(resultId: string): LiveOutputController;
 }
 
 export const ITestResultStorage = createDecorator('ITestResultStorage');
@@ -50,19 +45,20 @@ export const ITestResultStorage = createDecorator('ITestResultStorage');
  */
 const currentRevision = 1;
 
-export abstract class BaseTestResultStorage implements ITestResultStorage {
+export abstract class BaseTestResultStorage extends Disposable implements ITestResultStorage {
 	declare readonly _serviceBrand: undefined;
 
-	protected readonly stored = new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
+	protected readonly stored = this._register(new StoredValue<ReadonlyArray<{ rev: number; id: string; bytes: number }>>({
 		key: 'storedTestResults',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.MACHINE
-	}, this.storageService);
+	}, this.storageService));
 
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
 	) {
+		super();
 	}
 
 	/**
@@ -80,7 +76,7 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 					return undefined;
 				}
 
-				return new HydratedTestResult(contents, () => this.readOutputForResultId(id));
+				return new HydratedTestResult(contents);
 			} catch (e) {
 				this.logService.warn(`Error deserializing stored test result ${id}`, e);
 				return undefined;
@@ -88,20 +84,6 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 		}));
 
 		return results.filter(isDefined);
-	}
-
-	/**
-	 * @override
-	 */
-	public getOutputController(resultId: string) {
-		return new LiveOutputController(
-			new Lazy(() => {
-				const stream = newWriteableBufferStream();
-				const promise = this.storeOutputForResultId(resultId, stream);
-				return [stream, promise];
-			}),
-			() => this.readOutputForResultId(resultId),
-		);
 	}
 
 	/**
@@ -149,10 +131,6 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 			todo.push(this.storeForResultId(result.id, obj));
 			toStore.push({ id: result.id, rev: currentRevision, bytes: contents.byteLength });
 			budget -= contents.byteLength;
-
-			if (result instanceof LiveTestResult && result.completedAt !== undefined) {
-				todo.push(result.output.close());
-			}
 		}
 
 		for (const id of toDelete.keys()) {
@@ -169,9 +147,14 @@ export abstract class BaseTestResultStorage implements ITestResultStorage {
 	protected abstract readForResultId(id: string): Promise<ISerializedTestResults | undefined>;
 
 	/**
-	 * Reads serialized results for the test. Is allowed to throw.
+	 * Reads output as a stream for the test.
 	 */
 	protected abstract readOutputForResultId(id: string): Promise<VSBufferReadableStream>;
+
+	/**
+	 * Reads an output range for the test.
+	 */
+	protected abstract readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer>;
 
 	/**
 	 * Deletes serialized results for the test.
@@ -213,6 +196,10 @@ export class InMemoryResultStorage extends BaseTestResultStorage {
 	protected storeOutputForResultId(id: string, input: VSBufferWriteableStream): Promise<void> {
 		throw new Error('Method not implemented.');
 	}
+
+	protected readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer> {
+		throw new Error('Method not implemented.');
+	}
 }
 
 export class TestResultStorage extends BaseTestResultStorage {
@@ -241,6 +228,16 @@ export class TestResultStorage extends BaseTestResultStorage {
 	protected deleteForResultId(id: string) {
 		return this.fileService.del(this.getResultJsonPath(id)).catch(() => undefined);
 	}
+
+	protected async readOutputRangeForResultId(id: string, offset: number, length: number): Promise<VSBuffer> {
+		try {
+			const { value } = await this.fileService.readFile(this.getResultOutputPath(id), { position: offset, length });
+			return value;
+		} catch {
+			return VSBuffer.alloc(0);
+		}
+	}
+
 
 	protected async readOutputForResultId(id: string): Promise<VSBufferReadableStream> {
 		try {

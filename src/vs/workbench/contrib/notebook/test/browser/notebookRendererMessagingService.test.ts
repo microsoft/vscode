@@ -5,20 +5,23 @@
 
 import { NullExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { stub } from 'sinon';
-import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/notebookRendererMessagingServiceImpl';
+import { NotebookRendererMessagingService } from 'vs/workbench/contrib/notebook/browser/services/notebookRendererMessagingServiceImpl';
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookRendererMessaging', () => {
 	let extService: NullExtensionService;
 	let m: NotebookRendererMessagingService;
 	let sent: unknown[] = [];
 
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
 	setup(() => {
 		sent = [];
 		extService = new NullExtensionService();
-		m = new NotebookRendererMessagingService(extService);
-		m.onShouldPostMessage(e => sent.push(e));
+		m = ds.add(new NotebookRendererMessagingService(extService));
+		ds.add(m.onShouldPostMessage(e => sent.push(e)));
 	});
 
 	test('activates on prepare', () => {

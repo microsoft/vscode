@@ -11,7 +11,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStatusbarEntry, IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { ILanguageDetectionService, LanguageDetectionHintConfig } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
+import { ILanguageDetectionService, LanguageDetectionHintConfig, LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -35,7 +35,7 @@ class LanguageDetectionStatusContribution implements IWorkbenchContribution {
 	private readonly _disposables = new DisposableStore();
 	private _combinedEntry?: IStatusbarEntryAccessor;
 	private _delayer = new ThrottledDelayer(1000);
-	private _renderDisposables = new DisposableStore();
+	private readonly _renderDisposables = new DisposableStore();
 
 	constructor(
 		@ILanguageDetectionService private readonly _languageDetectionService: ILanguageDetectionService,
@@ -139,7 +139,7 @@ registerAction2(class extends Action2 {
 		if (editorUri) {
 			const lang = await languageDetectionService.detectLanguage(editorUri);
 			if (lang) {
-				editor.getModel()?.setMode(lang);
+				editor.getModel()?.setLanguage(lang, LanguageDetectionLanguageEventSource);
 			} else {
 				notificationService.warn(localize('noDetection', "Unable to detect editor language"));
 			}

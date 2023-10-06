@@ -10,7 +10,7 @@ jobs:
     if: contains(github.event.issue.labels.*.name, '*english-please')
     steps:
       - name: Checkout Actions
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
@@ -24,6 +24,6 @@ jobs:
           token: ${{secrets.VSCODE_ISSUE_TRIAGE_BOT_PAT}}
           cognitiveServicesAPIKey: ${{secrets.AZURE_TEXT_TRANSLATOR_KEY}}
           nonEnglishLabel: "*english-please"
-          needsMoreInfoLabel: "needs more info"
+          needsMoreInfoLabel: "info-needed"
           translatorRequestedLabelPrefix: "translation-required-"
           translatorRequestedLabelColor: "c29cff"

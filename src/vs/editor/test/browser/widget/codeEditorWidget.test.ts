@@ -5,13 +5,16 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { Selection } from 'vs/editor/common/core/selection';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
-import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { Selection } from 'vs/editor/common/core/selection';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 
 suite('CodeEditorWidget', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('onDidChangeModelDecorations', () => {
 		withTestCodeEditor('', {}, (editor, viewModel) => {
@@ -41,7 +44,7 @@ suite('CodeEditorWidget', () => {
 				invoked = true;
 			}));
 
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			assert.deepStrictEqual(invoked, true);
 
@@ -55,7 +58,7 @@ suite('CodeEditorWidget', () => {
 			const languageService = instantiationService.get(ILanguageService);
 			const disposables = new DisposableStore();
 			disposables.add(languageService.registerLanguage({ id: 'testMode' }));
-			viewModel.model.setMode('testMode');
+			viewModel.model.setLanguage('testMode');
 
 			let invoked = false;
 			disposables.add(editor.onDidChangeModelLanguageConfiguration((e) => {

@@ -7,7 +7,8 @@ import * as dom from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { coalesce } from 'vs/base/common/arrays';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -29,11 +30,21 @@ class StandaloneLayoutService implements ILayoutService {
 
 	get container(): HTMLElement {
 		// On a page, multiple editors can be created. Therefore, there are multiple containers, not
-		// just a single one. Please use `ICodeEditorService` to get the current focused code editor
+		// just a single one. Please use `activeContainer` to get the current focused code editor
 		// and use its container if necessary. You can also instantiate `EditorScopedLayoutService`
 		// which implements `ILayoutService` but is not a part of the service collection because
 		// it is code editor instance specific.
 		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
+	}
+
+	get containers(): Iterable<HTMLElement> {
+		return coalesce(this._codeEditorService.listCodeEditors().map(codeEditor => codeEditor.getContainerDomNode()));
+	}
+
+	get activeContainer(): HTMLElement {
+		const activeCodeEditor = this._codeEditorService.getFocusedCodeEditor() ?? this._codeEditorService.getActiveCodeEditor();
+
+		return activeCodeEditor?.getContainerDomNode() ?? this.container;
 	}
 
 	focus(): void {
@@ -63,4 +74,4 @@ export class EditorScopedLayoutService extends StandaloneLayoutService {
 	}
 }
 
-registerSingleton(ILayoutService, StandaloneLayoutService);
+registerSingleton(ILayoutService, StandaloneLayoutService, InstantiationType.Delayed);

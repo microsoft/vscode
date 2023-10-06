@@ -5,14 +5,19 @@
 
 import * as assert from 'assert';
 import { FoldingModel, updateFoldingStateAtIndex } from 'vs/workbench/contrib/notebook/browser/viewModel/foldingModel';
-import { changeCellToKind, computeCellLinesContents, copyCellRange, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
+import { changeCellToKind, computeCellLinesContents, copyCellRange, insertCell, joinNotebookCells, moveCellRange, runDeleteAction } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { CellEditType, CellKind, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { withTestNotebook } from 'vs/workbench/contrib/notebook/test/browser/testNotebookEditor';
 import { Range } from 'vs/editor/common/core/range';
 import { ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ITextBuffer, ValidAnnotatedEditOperation } from 'vs/editor/common/model';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('CellOperations', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('Move cells - single cell', async function () {
 		await withTestNotebook(
 			[
@@ -24,8 +29,11 @@ suite('CellOperations', () => {
 			],
 			async (editor, viewModel) => {
 				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
-				await moveCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				const cell = viewModel.cellAt(1);
+				assert.ok(cell);
+				await moveCellRange({ notebookEditor: editor, cell: cell }, 'down');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+				assert.strictEqual(cell, viewModel.cellAt(2));
 			});
 	});
 
@@ -56,8 +64,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -139,8 +147,8 @@ suite('CellOperations', () => {
 				['var b = 2;', 'javascript', CellKind.Code, [], {}],
 				['var c = 3;', 'javascript', CellKind.Code, [], {}]
 			],
-			async (editor, viewModel) => {
-				const foldingModel = new FoldingModel();
+			async (editor, viewModel, ds) => {
+				const foldingModel = ds.add(new FoldingModel());
 				foldingModel.attachViewModel(viewModel);
 				updateFoldingStateAtIndex(foldingModel, 0, true);
 				updateFoldingStateAtIndex(foldingModel, 1, true);
@@ -155,6 +163,30 @@ suite('CellOperations', () => {
 				assert.strictEqual(viewModel.cellAt(1)?.getText(), 'var b = 1;');
 				assert.strictEqual(viewModel.cellAt(2)?.getText(), '# header a');
 				assert.strictEqual(viewModel.cellAt(3)?.getText(), 'var b = 1;');
+			});
+	});
+
+	test('Copy/duplicate cells - should not share the same text buffer #102423', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel) => {
+				viewModel.updateSelectionsState({ kind: SelectionStateType.Index, focus: { start: 1, end: 2 }, selections: [{ start: 1, end: 2 }] });
+				await copyCellRange({ notebookEditor: editor, cell: viewModel.cellAt(1)! }, 'down');
+				assert.strictEqual(viewModel.length, 3);
+				const cell1 = viewModel.cellAt(1);
+				const cell2 = viewModel.cellAt(2);
+				assert.ok(cell1);
+				assert.ok(cell2);
+				assert.strictEqual(cell1.getText(), 'var b = 1;');
+				assert.strictEqual(viewModel.cellAt(2)?.getText(), 'var b = 1;');
+
+				(cell1.textBuffer as ITextBuffer).applyEdits([
+					new ValidAnnotatedEditOperation(null, new Range(1, 1, 1, 4), '', false, false, false)
+				], false, true);
+				assert.notStrictEqual(cell1.getText(), cell2.getText());
 			});
 	});
 
@@ -498,4 +530,25 @@ suite('CellOperations', () => {
 		);
 	});
 
+	test('Insert cell', async function () {
+		await withTestNotebook(
+			[
+				['# header a', 'markdown', CellKind.Markup, [], {}],
+				['var b = 1;', 'javascript', CellKind.Code, [], {}],
+				['# header b', 'markdown', CellKind.Markup, [], {}],
+				['var b = 2;', 'javascript', CellKind.Code, [], {}],
+				['var c = 3;', 'javascript', CellKind.Code, [], {}]
+			],
+			async (editor, viewModel, _ds, accessor) => {
+				const languageService = accessor.get(ILanguageService);
+
+				const insertedCellAbove = insertCell(languageService, editor, 4, CellKind.Code, 'above', 'var a = 0;');
+				assert.strictEqual(viewModel.length, 6);
+				assert.strictEqual(viewModel.cellAt(4), insertedCellAbove);
+
+				const insertedCellBelow = insertCell(languageService, editor, 1, CellKind.Code, 'below', 'var a = 0;');
+				assert.strictEqual(viewModel.length, 7);
+				assert.strictEqual(viewModel.cellAt(2), insertedCellBelow);
+			});
+	});
 });

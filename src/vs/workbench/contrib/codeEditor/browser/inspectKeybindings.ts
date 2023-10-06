@@ -8,7 +8,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { CATEGORIES } from 'vs/workbench/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 
 class InspectKeyMap extends Action2 {
@@ -17,7 +17,7 @@ class InspectKeyMap extends Action2 {
 		super({
 			id: 'workbench.action.inspectKeyMappings',
 			title: { value: localize('workbench.action.inspectKeyMap', "Inspect Key Mappings"), original: 'Inspect Key Mappings' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}
@@ -38,7 +38,7 @@ class InspectKeyMapJSON extends Action2 {
 		super({
 			id: 'workbench.action.inspectKeyMappingsJSON',
 			title: { value: localize('workbench.action.inspectKeyMapJSON', "Inspect Key Mappings (JSON)"), original: 'Inspect Key Mappings (JSON)' },
-			category: CATEGORIES.Developer,
+			category: Categories.Developer,
 			f1: true
 		});
 	}

@@ -8,6 +8,7 @@ import * as glob from 'vs/base/common/glob';
 import { sep } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Glob', () => {
 
@@ -1091,6 +1092,22 @@ suite('Glob', () => {
 		}
 	});
 
+	test('relative pattern - trailing slash / backslash (#162498)', function () {
+		if (isWindows) {
+			let p: glob.IRelativePattern = { base: 'C:\\', pattern: 'foo.cs' };
+			assertGlobMatch(p, 'C:\\foo.cs');
+
+			p = { base: 'C:\\bar\\', pattern: 'foo.cs' };
+			assertGlobMatch(p, 'C:\\bar\\foo.cs');
+		} else {
+			let p: glob.IRelativePattern = { base: '/', pattern: 'foo.cs' };
+			assertGlobMatch(p, '/foo.cs');
+
+			p = { base: '/bar/', pattern: 'foo.cs' };
+			assertGlobMatch(p, '/bar/foo.cs');
+		}
+	});
+
 	test('pattern with "base" does not explode - #36081', function () {
 		assert.ok(glob.match({ 'base': true }, 'base'));
 	});
@@ -1140,4 +1157,6 @@ suite('Glob', () => {
 		assert.ok(!glob.patternsEquals(undefined, ['b']));
 		assert.ok(!glob.patternsEquals(['a'], undefined));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

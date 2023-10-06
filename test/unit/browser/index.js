@@ -14,8 +14,12 @@ const createStatsCollector = require('../../../node_modules/mocha/lib/stats-coll
 const MochaJUnitReporter = require('mocha-junit-reporter');
 const url = require('url');
 const minimatch = require('minimatch');
+const fs = require('fs');
 const playwright = require('@playwright/test');
 const { applyReporter } = require('../reporter');
+const yaserver = require('yaserver');
+const http = require('http');
+const { randomBytes } = require('crypto');
 
 // opts
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
@@ -59,7 +63,8 @@ const withReporter = (function () {
 })();
 
 const outdir = argv.build ? 'out-build' : 'out';
-const out = path.join(__dirname, `../../../${outdir}`);
+const rootDir = path.resolve(__dirname, '..', '..', '..');
+const out = path.join(rootDir, `${outdir}`);
 
 function ensureIsArray(a) {
 	return Array.isArray(a) ? a : [a];
@@ -67,7 +72,7 @@ function ensureIsArray(a) {
 
 const testModules = (async function () {
 
-	const excludeGlob = '**/{node,electron-sandbox,electron-browser,electron-main}/**/*.test.js';
+	const excludeGlob = '**/{node,electron-sandbox,electron-main}/**/*.test.js';
 	let isDefaultModules = true;
 	let promise;
 
@@ -125,20 +130,82 @@ function consoleLogFn(msg) {
 	return console.log;
 }
 
+async function createServer() {
+	// Demand a prefix to avoid issues with other services on the
+	// machine being able to access the test server.
+	const prefix = '/' + randomBytes(16).toString('hex');
+	const serveStatic = await yaserver.createServer({ rootDir });
+
+	/** Handles a request for a remote method call, invoking `fn` and returning the result */
+	const remoteMethod = async (/** @type {http.IncomingMessage} */ req, /** @type {http.ServerResponse} */ response, fn) => {
+		const params = await new Promise((resolve, reject) => {
+			const body = [];
+			req.on('data', chunk => body.push(chunk));
+			req.on('end', () => resolve(JSON.parse(Buffer.concat(body).toString())));
+			req.on('error', reject);
+		});
+
+		const result = await fn(...params);
+		response.writeHead(200, { 'Content-Type': 'application/json' });
+		response.end(JSON.stringify(result));
+	};
+
+	const server = http.createServer((request, response) => {
+		if (!request.url?.startsWith(prefix)) {
+			return response.writeHead(404).end();
+		}
+
+		// rewrite the URL so the static server can handle the request correctly
+		request.url = request.url.slice(prefix.length);
+
+		switch (request.url) {
+			case '/remoteMethod/__readFileInTests':
+				return remoteMethod(request, response, p => fs.promises.readFile(p, 'utf-8'));
+			case '/remoteMethod/__writeFileInTests':
+				return remoteMethod(request, response, (p, contents) => fs.promises.writeFile(p, contents));
+			case '/remoteMethod/__readDirInTests':
+				return remoteMethod(request, response, p => fs.promises.readdir(p));
+			case '/remoteMethod/__unlinkInTests':
+				return remoteMethod(request, response, p => fs.promises.unlink(p));
+			case '/remoteMethod/__mkdirPInTests':
+				return remoteMethod(request, response, p => fs.promises.mkdir(p, { recursive: true }));
+			default:
+				return serveStatic.handle(request, response);
+		}
+	});
+
+	return new Promise((resolve, reject) => {
+		server.listen(0, 'localhost', () => {
+			resolve({
+				dispose: () => server.close(),
+				// @ts-ignore
+				url: `http://localhost:${server.address().port}${prefix}`
+			});
+		});
+		server.on('error', reject);
+	});
+}
+
 async function runTestsInBrowser(testModules, browserType) {
+	const server = await createServer();
 	const browser = await playwright[browserType].launch({ headless: !Boolean(argv.debug), devtools: Boolean(argv.debug) });
 	const context = await browser.newContext();
 	const page = await context.newPage();
-	const target = url.pathToFileURL(path.join(__dirname, 'renderer.html'));
+	const target = new URL(server.url + '/test/unit/browser/renderer.html');
+	target.searchParams.set('baseUrl', url.pathToFileURL(path.join(rootDir, 'src')).toString());
 	if (argv.build) {
-		target.search = `?build=true`;
+		target.searchParams.set('build', 'true');
 	}
-	await page.goto(target.href);
+	if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+		target.searchParams.set('ci', 'true');
+	}
 
 	const emitter = new events.EventEmitter();
 	await page.exposeFunction('mocha_report', (type, data1, data2) => {
 		emitter.emit(type, data1, data2);
 	});
+
+	await page.goto(target.href);
 
 	page.on('console', async msg => {
 		consoleLogFn(msg)(msg.text(), await Promise.all(msg.args().map(async arg => await arg.jsonValue())));
@@ -150,6 +217,8 @@ async function runTestsInBrowser(testModules, browserType) {
 	const failingModuleIds = [];
 	const failingTests = [];
 	emitter.on('fail', (test, err) => {
+		failingTests.push({ title: test.fullTitle, message: err.message });
+
 		if (err.stack) {
 			const regex = /(vs\/.*\.test)\.js/;
 			for (const line of String(err.stack).split('\n')) {
@@ -160,9 +229,6 @@ async function runTestsInBrowser(testModules, browserType) {
 				}
 			}
 		}
-
-		// We could not determine the module id
-		failingTests.push(test.fullTitle);
 	});
 
 	try {
@@ -174,13 +240,17 @@ async function runTestsInBrowser(testModules, browserType) {
 	} catch (err) {
 		console.error(err);
 	}
+	server.dispose();
 	await browser.close();
 
-	if (failingModuleIds.length > 0) {
-		return `to DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
-	}
 	if (failingTests.length > 0) {
-		return `The followings tests are failing:\n - ${failingTests.join('\n - ')}`;
+		let res = `The followings tests are failing:\n - ${failingTests.map(({ title, message }) => `${title} (reason: ${message})`).join('\n - ')}`;
+
+		if (failingModuleIds.length > 0) {
+			res += `\n\nTo DEBUG, open ${browserType.toUpperCase()} and navigate to ${target.href}?${failingModuleIds.map(module => `m=${module}`).join('&')}`;
+		}
+
+		return `${res}\n`;
 	}
 }
 

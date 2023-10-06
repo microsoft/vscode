@@ -14,9 +14,9 @@ import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { BreadcrumbsConfig } from 'vs/workbench/browser/parts/editor/breadcrumbs';
 import { FileKind } from 'vs/platform/files/common/files';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IOutline, IOutlineService, OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { IEditorPane } from 'vs/workbench/common/editor';
+import { matchesSomeScheme } from 'vs/platform/opener/common/opener';
 
 export class FileElement {
 	constructor(
@@ -116,7 +116,7 @@ export class BreadcrumbsModel {
 
 	private _initFilePathInfo(uri: URI): FileInfo {
 
-		if (uri.scheme === Schemas.untitled) {
+		if (matchesSomeScheme(uri, Schemas.untitled, Schemas.data)) {
 			return {
 				folder: undefined,
 				path: []
@@ -124,7 +124,7 @@ export class BreadcrumbsModel {
 		}
 
 		const info: FileInfo = {
-			folder: withNullAsUndefined(this._workspaceService.getWorkspaceFolder(uri)),
+			folder: this._workspaceService.getWorkspaceFolder(uri) ?? undefined,
 			path: []
 		};
 

@@ -3,39 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Terminal } from 'xterm';
+import type { Terminal } from 'xterm';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';
-import { timeout } from 'vs/base/common/async';
-
-async function writeP(terminal: Terminal, data: string): Promise<void> {
-	return new Promise<void>((resolve, reject) => {
-		const failTimeout = timeout(2000);
-		failTimeout.then(() => reject('Writing to xterm is taking longer than 2 seconds'));
-		terminal.write(data, () => {
-			failTimeout.cancel();
-			resolve();
-		});
-	});
-}
+import { importAMDNodeModule } from 'vs/amdX';
+import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('LineDataEventAddon', () => {
 	let xterm: Terminal;
 	let lineDataEventAddon: LineDataEventAddon;
 
+	let store: DisposableStore;
+	setup(() => store = new DisposableStore());
+	teardown(() => store.dispose());
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('onLineData', () => {
 		let events: string[];
 
-		setup(() => {
-			xterm = new Terminal({
-				cols: 4
-			});
-			lineDataEventAddon = new LineDataEventAddon();
+		setup(async () => {
+			const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+			xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 4 }));
+			lineDataEventAddon = store.add(new LineDataEventAddon());
 			xterm.loadAddon(lineDataEventAddon);
 
 			events = [];
-			lineDataEventAddon.onLineData(e => events.push(e));
+			store.add(lineDataEventAddon.onLineData(e => events.push(e)));
 		});
 
 		test('should fire when a non-wrapped line ends with a line feed', async () => {

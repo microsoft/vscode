@@ -52,7 +52,7 @@ export class TextFileSaveParticipant extends Disposable {
 					const promise = saveParticipant.participate(model, context, progress, cts.token);
 					await raceCancellation(promise, cts.token);
 				} catch (err) {
-					this.logService.warn(err);
+					this.logService.error(err);
 				}
 			}
 
@@ -60,11 +60,15 @@ export class TextFileSaveParticipant extends Disposable {
 			model.textEditorModel?.pushStackElement();
 		}, () => {
 			// user cancel
-			cts.dispose(true);
+			cts.cancel();
+		}).finally(() => {
+			cts.dispose();
 		});
 	}
 
 	override dispose(): void {
 		this.saveParticipants.splice(0, this.saveParticipants.length);
+
+		super.dispose();
 	}
 }

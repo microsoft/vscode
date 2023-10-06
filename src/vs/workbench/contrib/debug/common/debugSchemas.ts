@@ -72,6 +72,11 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					type: 'string',
 					default: ''
 				},
+				hiddenWhen: {
+					description: nls.localize('vscode.extension.contributes.debuggers.hiddenWhen', "When this condition is true, this debugger type is hidden from the debugger list, but is still enabled."),
+					type: 'string',
+					default: ''
+				},
 				deprecated: {
 					description: nls.localize('vscode.extension.contributes.debuggers.deprecated', "Optional message to mark this debug type as being deprecated."),
 					type: 'string',
@@ -103,6 +108,16 @@ export const debuggersExtPoint = extensionsRegistry.ExtensionsRegistry.registerE
 					properties: {
 						runtime: {
 							description: nls.localize('vscode.extension.contributes.debuggers.linux.runtime', "Runtime used for Linux."),
+							type: 'string'
+						}
+					}
+				},
+				strings: {
+					description: nls.localize('vscode.extension.contributes.debuggers.strings', "UI strings contributed by this debug adapter."),
+					type: 'object',
+					properties: {
+						unverifiedBreakpoints: {
+							description: nls.localize('vscode.extension.contributes.debuggers.strings.unverifiedBreakpoints', "When there are unverified breakpoints in a language supported by this debug adapter, this message will appear on the breakpoint hover and in the breakpoints view. Markdown and command links are supported."),
 							type: 'string'
 						}
 					}

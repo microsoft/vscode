@@ -1,0 +1,67 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 6
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 7
+      },
+      agent: {
+        id: "agent",
+        metadata: {
+          description: "",
+          subCommands: [ { name: "subCommand" } ]
+        }
+      },
+      kind: "agent"
+    },
+    {
+      range: {
+        start: 6,
+        endExclusive: 17
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 7,
+        endLineNumber: 1,
+        endColumn: 18
+      },
+      text: " Please do ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 17,
+        endExclusive: 28
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 18,
+        endLineNumber: 1,
+        endColumn: 29
+      },
+      command: { name: "subCommand" },
+      kind: "subcommand"
+    },
+    {
+      range: {
+        start: 28,
+        endExclusive: 35
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 29,
+        endLineNumber: 1,
+        endColumn: 36
+      },
+      text: " thanks",
+      kind: "text"
+    }
+  ],
+  text: "@agent Please do /subCommand thanks"
+}

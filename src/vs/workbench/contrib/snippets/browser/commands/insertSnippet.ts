@@ -55,7 +55,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 			},
 			f1: true,
 			precondition: EditorContextKeys.writable,
-			description: {
+			metadata: {
 				description: `Insert Snippet`,
 				args: [{
 					name: 'args',
@@ -147,6 +147,7 @@ export class InsertSnippetAction extends SnippetEditorAction {
 		if (snippet.needsClipboard) {
 			clipboardText = await clipboardService.readText();
 		}
+		editor.focus();
 		SnippetController2.get(editor)?.insert(snippet.codeSnippet, { clipboardText });
 		snippetService.updateUsageTimestamp(snippet);
 	}

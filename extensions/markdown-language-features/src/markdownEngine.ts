@@ -10,14 +10,8 @@ import { ILogger } from './logging';
 import { MarkdownContributionProvider } from './markdownExtensions';
 import { Slugifier } from './slugify';
 import { ITextDocument } from './types/textDocument';
-import { Disposable } from './util/dispose';
-import { stringHash } from './util/hash';
 import { WebviewResourceProvider } from './util/resources';
 import { isOfScheme, Schemes } from './util/schemes';
-import { MdDocumentInfoCache } from './util/workspaceCache';
-import { IMdWorkspace } from './workspace';
-
-const UNICODE_NEWLINE_REGEX = /\u2028|\u2029/g;
 
 /**
  * Adds begin line index to the output via the 'data-line' data attribute.
@@ -50,47 +44,47 @@ const pluginSourceMap: MarkdownIt.PluginSimple = (md): void => {
 type MarkdownItConfig = Readonly<Required<Pick<MarkdownIt.Options, 'breaks' | 'linkify' | 'typographer'>>>;
 
 class TokenCache {
-	private cachedDocument?: {
+	private _cachedDocument?: {
 		readonly uri: vscode.Uri;
 		readonly version: number;
 		readonly config: MarkdownItConfig;
 	};
-	private tokens?: Token[];
+	private _tokens?: Token[];
 
 	public tryGetCached(document: ITextDocument, config: MarkdownItConfig): Token[] | undefined {
-		if (this.cachedDocument
-			&& this.cachedDocument.uri.toString() === document.uri.toString()
-			&& this.cachedDocument.version === document.version
-			&& this.cachedDocument.config.breaks === config.breaks
-			&& this.cachedDocument.config.linkify === config.linkify
+		if (this._cachedDocument
+			&& this._cachedDocument.uri.toString() === document.uri.toString()
+			&& this._cachedDocument.version === document.version
+			&& this._cachedDocument.config.breaks === config.breaks
+			&& this._cachedDocument.config.linkify === config.linkify
 		) {
-			return this.tokens;
+			return this._tokens;
 		}
 		return undefined;
 	}
 
 	public update(document: ITextDocument, config: MarkdownItConfig, tokens: Token[]) {
-		this.cachedDocument = {
+		this._cachedDocument = {
 			uri: document.uri,
 			version: document.version,
 			config,
 		};
-		this.tokens = tokens;
+		this._tokens = tokens;
 	}
 
 	public clean(): void {
-		this.cachedDocument = undefined;
-		this.tokens = undefined;
+		this._cachedDocument = undefined;
+		this._tokens = undefined;
 	}
 }
 
 export interface RenderOutput {
 	html: string;
-	containingImages: { src: string }[];
+	containingImages: Set<string>;
 }
 
 interface RenderEnv {
-	containingImages: { src: string }[];
+	containingImages: Set<string>;
 	currentDocument: vscode.Uri | undefined;
 	resourceProvider: WebviewResourceProvider | undefined;
 }
@@ -103,7 +97,7 @@ export interface IMdParser {
 
 export class MarkdownItEngine implements IMdParser {
 
-	private md?: Promise<MarkdownIt>;
+	private _md?: Promise<MarkdownIt>;
 
 	private _slugCount = new Map<string, number>();
 	private _tokenCache = new TokenCache();
@@ -111,26 +105,27 @@ export class MarkdownItEngine implements IMdParser {
 	public readonly slugifier: Slugifier;
 
 	public constructor(
-		private readonly contributionProvider: MarkdownContributionProvider,
+		private readonly _contributionProvider: MarkdownContributionProvider,
 		slugifier: Slugifier,
-		private readonly logger: ILogger,
+		private readonly _logger: ILogger,
 	) {
 		this.slugifier = slugifier;
 
-		contributionProvider.onContributionsChanged(() => {
+		_contributionProvider.onContributionsChanged(() => {
 			// Markdown plugin contributions may have changed
-			this.md = undefined;
+			this._md = undefined;
+			this._tokenCache.clean();
 		});
 	}
 
-	private async getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
-		if (!this.md) {
-			this.md = (async () => {
+	private async _getEngine(config: MarkdownItConfig): Promise<MarkdownIt> {
+		if (!this._md) {
+			this._md = (async () => {
 				const markdownIt = await import('markdown-it');
 				let md: MarkdownIt = markdownIt(await getMarkdownOptions(() => md));
 				md.linkify.set({ fuzzyLink: false });
 
-				for (const plugin of this.contributionProvider.contributions.markdownItPlugins.values()) {
+				for (const plugin of this._contributionProvider.contributions.markdownItPlugins.values()) {
 					try {
 						md = (await plugin)(md);
 					} catch (e) {
@@ -153,63 +148,63 @@ export class MarkdownItEngine implements IMdParser {
 					alt: ['paragraph', 'reference', 'blockquote', 'list']
 				});
 
-				this.addImageRenderer(md);
-				this.addFencedRenderer(md);
-				this.addLinkNormalizer(md);
-				this.addLinkValidator(md);
-				this.addNamedHeaders(md);
-				this.addLinkRenderer(md);
+				this._addImageRenderer(md);
+				this._addFencedRenderer(md);
+				this._addLinkNormalizer(md);
+				this._addLinkValidator(md);
+				this._addNamedHeaders(md);
+				this._addLinkRenderer(md);
 				md.use(pluginSourceMap);
 				return md;
 			})();
 		}
 
-		const md = await this.md!;
+		const md = await this._md!;
 		md.set(config);
 		return md;
 	}
 
 	public reloadPlugins() {
-		this.md = undefined;
+		this._md = undefined;
 	}
 
-	private tokenizeDocument(
+	private _tokenizeDocument(
 		document: ITextDocument,
 		config: MarkdownItConfig,
 		engine: MarkdownIt
 	): Token[] {
 		const cached = this._tokenCache.tryGetCached(document, config);
 		if (cached) {
-			this.resetSlugCount();
+			this._resetSlugCount();
 			return cached;
 		}
 
-		this.logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
-		const tokens = this.tokenizeString(document.getText(), engine);
+		this._logger.verbose('MarkdownItEngine', `tokenizeDocument - ${document.uri}`);
+		const tokens = this._tokenizeString(document.getText(), engine);
 		this._tokenCache.update(document, config, tokens);
 		return tokens;
 	}
 
-	private tokenizeString(text: string, engine: MarkdownIt) {
-		this.resetSlugCount();
+	private _tokenizeString(text: string, engine: MarkdownIt) {
+		this._resetSlugCount();
 
-		return engine.parse(text.replace(UNICODE_NEWLINE_REGEX, ''), {});
+		return engine.parse(text, {});
 	}
 
-	private resetSlugCount(): void {
+	private _resetSlugCount(): void {
 		this._slugCount = new Map<string, number>();
 	}
 
 	public async render(input: ITextDocument | string, resourceProvider?: WebviewResourceProvider): Promise<RenderOutput> {
-		const config = this.getConfig(typeof input === 'string' ? undefined : input.uri);
-		const engine = await this.getEngine(config);
+		const config = this._getConfig(typeof input === 'string' ? undefined : input.uri);
+		const engine = await this._getEngine(config);
 
 		const tokens = typeof input === 'string'
-			? this.tokenizeString(input, engine)
-			: this.tokenizeDocument(input, config, engine);
+			? this._tokenizeString(input, engine)
+			: this._tokenizeDocument(input, config, engine);
 
 		const env: RenderEnv = {
-			containingImages: [],
+			containingImages: new Set<string>(),
 			currentDocument: typeof input === 'string' ? undefined : input.uri,
 			resourceProvider,
 		};
@@ -226,16 +221,16 @@ export class MarkdownItEngine implements IMdParser {
 	}
 
 	public async tokenize(document: ITextDocument): Promise<Token[]> {
-		const config = this.getConfig(document.uri);
-		const engine = await this.getEngine(config);
-		return this.tokenizeDocument(document, config, engine);
+		const config = this._getConfig(document.uri);
+		const engine = await this._getEngine(config);
+		return this._tokenizeDocument(document, config, engine);
 	}
 
 	public cleanCache(): void {
 		this._tokenCache.clean();
 	}
 
-	private getConfig(resource?: vscode.Uri): MarkdownItConfig {
+	private _getConfig(resource?: vscode.Uri): MarkdownItConfig {
 		const config = vscode.workspace.getConfiguration('markdown', resource ?? null);
 		return {
 			breaks: config.get<boolean>('preview.breaks', false),
@@ -244,20 +239,16 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addImageRenderer(md: MarkdownIt): void {
+	private _addImageRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.image;
 		md.renderer.rules.image = (tokens: Token[], idx: number, options, env: RenderEnv, self) => {
 			const token = tokens[idx];
-			token.attrJoin('class', 'loading');
-
 			const src = token.attrGet('src');
 			if (src) {
-				env.containingImages?.push({ src });
-				const imgHash = stringHash(src);
-				token.attrSet('id', `image-hash-${imgHash}`);
+				env.containingImages?.add(src);
 
 				if (!token.attrGet('data-src')) {
-					token.attrSet('src', this.toResourceUri(src, env.currentDocument, env.resourceProvider));
+					token.attrSet('src', this._toResourceUri(src, env.currentDocument, env.resourceProvider));
 					token.attrSet('data-src', src);
 				}
 			}
@@ -270,11 +261,11 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addFencedRenderer(md: MarkdownIt): void {
+	private _addFencedRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules['fenced'];
 		md.renderer.rules['fenced'] = (tokens: Token[], idx: number, options, env, self) => {
 			const token = tokens[idx];
-			if (token.map && token.map.length) {
+			if (token.map?.length) {
 				token.attrJoin('class', 'hljs');
 			}
 
@@ -286,7 +277,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addLinkNormalizer(md: MarkdownIt): void {
+	private _addLinkNormalizer(md: MarkdownIt): void {
 		const normalizeLink = md.normalizeLink;
 		md.normalizeLink = (link: string) => {
 			try {
@@ -302,7 +293,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addLinkValidator(md: MarkdownIt): void {
+	private _addLinkValidator(md: MarkdownIt): void {
 		const validateLink = md.validateLink;
 		md.validateLink = (link: string) => {
 			return validateLink(link)
@@ -312,7 +303,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addNamedHeaders(md: MarkdownIt): void {
+	private _addNamedHeaders(md: MarkdownIt): void {
 		const original = md.renderer.rules.heading_open;
 		md.renderer.rules.heading_open = (tokens: Token[], idx: number, options, env, self) => {
 			const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
@@ -336,7 +327,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private addLinkRenderer(md: MarkdownIt): void {
+	private _addLinkRenderer(md: MarkdownIt): void {
 		const original = md.renderer.rules.link_open;
 
 		md.renderer.rules.link_open = (tokens: Token[], idx: number, options, env, self) => {
@@ -354,7 +345,7 @@ export class MarkdownItEngine implements IMdParser {
 		};
 	}
 
-	private toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
+	private _toResourceUri(href: string, currentDocument: vscode.Uri | undefined, resourceProvider: WebviewResourceProvider | undefined): string {
 		try {
 			// Support file:// links
 			if (isOfScheme(Schemes.file, href)) {
@@ -422,6 +413,12 @@ async function getMarkdownOptions(md: () => MarkdownIt): Promise<MarkdownIt.Opti
 
 function normalizeHighlightLang(lang: string | undefined) {
 	switch (lang && lang.toLowerCase()) {
+		case 'shell':
+			return 'sh';
+
+		case 'py3':
+			return 'python';
+
 		case 'tsx':
 		case 'typescriptreact':
 			// Workaround for highlight not supporting tsx: https://github.com/isagalaev/highlight.js/issues/1155
@@ -437,29 +434,5 @@ function normalizeHighlightLang(lang: string | undefined) {
 
 		default:
 			return lang;
-	}
-}
-
-export class MdParsingProvider extends Disposable implements IMdParser {
-
-	private readonly _cache: MdDocumentInfoCache<Token[]>;
-
-	public readonly slugifier: Slugifier;
-
-	constructor(
-		engine: MarkdownItEngine,
-		workspace: IMdWorkspace,
-	) {
-		super();
-
-		this.slugifier = engine.slugifier;
-
-		this._cache = this._register(new MdDocumentInfoCache<Token[]>(workspace, doc => {
-			return engine.tokenize(doc);
-		}));
-	}
-
-	public tokenize(document: ITextDocument): Promise<Token[]> {
-		return this._cache.getForDocument(document);
 	}
 }

@@ -12,6 +12,9 @@ performance.mark('code/fork/start');
 const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 
+// Crash reporter
+configureCrashReporter();
+
 // Remove global paths from the node module lookup
 bootstrapNode.removeGlobalNodeModuleLookupPaths();
 
@@ -35,11 +38,6 @@ if (!process.env['VSCODE_HANDLES_UNCAUGHT_ERRORS']) {
 // Terminate when parent terminates
 if (process.env['VSCODE_PARENT_PID']) {
 	terminateWhenParentTerminates();
-}
-
-// Listen for message ports
-if (process.env['VSCODE_WILL_SEND_MESSAGE_PORT']) {
-	listenForMessagePort();
 }
 
 // Load AMD entry point
@@ -237,17 +235,17 @@ function terminateWhenParentTerminates() {
 	}
 }
 
-function listenForMessagePort() {
-	// We need to listen for the 'port' event as soon as possible,
-	// otherwise we might miss the event. But we should also be
-	// prepared in case the event arrives late.
-	process.on('port', (e) => {
-		if (global.vscodePortsCallback) {
-			global.vscodePortsCallback(e.ports);
-		} else {
-			global.vscodePorts = e.ports;
+function configureCrashReporter() {
+	const crashReporterProcessType = process.env['VSCODE_CRASH_REPORTER_PROCESS_TYPE'];
+	if (crashReporterProcessType) {
+		try {
+			if (process['crashReporter'] && typeof process['crashReporter'].addExtraParameter === 'function' /* Electron only */) {
+				process['crashReporter'].addExtraParameter('processType', crashReporterProcessType);
+			}
+		} catch (error) {
+			console.error(error);
 		}
-	});
+	}
 }
 
 //#endregion
