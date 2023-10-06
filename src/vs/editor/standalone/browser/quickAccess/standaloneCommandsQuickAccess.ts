@@ -20,6 +20,7 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
@@ -31,9 +32,10 @@ export class StandaloneCommandsQuickAccessProvider extends AbstractEditorCommand
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IDialogService dialogService: IDialogService
+		@IDialogService dialogService: IDialogService,
+		@ILogService logService: ILogService,
 	) {
-		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService);
+		super({ showAlias: false }, instantiationService, keybindingService, commandService, telemetryService, dialogService, logService);
 	}
 
 	protected async getCommandPicks(): Promise<Array<ICommandQuickPick>> {

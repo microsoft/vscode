@@ -19,6 +19,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { FastAndSlowPicks, IPickerQuickAccessItem, IPickerQuickAccessProviderOptions, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
@@ -57,7 +58,8 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@ICommandService private readonly commandService: ICommandService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(AbstractCommandsQuickAccessProvider.PREFIX, options);
 
@@ -86,6 +88,14 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				.slice(0, AbstractCommandsQuickAccessProvider.TFIDF_MAX_RESULTS);
 		});
 
+		this.logService.info(`Received ${allCommandPicks.length} command picks`);
+		if (allCommandPicks.every(pick => pick.commandId !== 'workbench.extensions.action.focusExtensionsView')) {
+			this.logService.info('NO workbench.extensions.action.focusExtensionsView FOUND!!');
+		}
+		if (allCommandPicks.length < 610) {
+			this.logService.info(`Received command picks: ${allCommandPicks.map(pick => pick.commandId).join(', ')}`);
+		}
+
 		// Filter
 		let filteredCommandPicks: ICommandQuickPick[] = [];
 		for (const commandPick of allCommandPicks) {
@@ -105,6 +115,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			// If we have a 100% command ID match then have that be
 			// the only result to pick from.
 			else if (filter === commandPick.commandId) {
+				this.logService.info(`100% match on command '${commandPick.commandId}'`);
 				filteredCommandPicks = [commandPick];
 				break;
 			}
