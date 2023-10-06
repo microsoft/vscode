@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -34,7 +34,7 @@ export interface IChatAddRequestEvent {
 }
 
 export interface IChatViewModel {
-	readonly isInitialized: boolean;
+	readonly initState: ChatModelInitState;
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
@@ -123,8 +123,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		return this._model.providerId;
 	}
 
-	get isInitialized() {
-		return this._model.isInitialized;
+	get initState() {
+		return this._model.initState;
 	}
 
 	constructor(
@@ -197,7 +197,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+		return this.id + (this._model.session.initState ? '' : '_initializing');
 	}
 
 	get sessionId() {
@@ -236,7 +236,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.isInitialized ? '' : '_initializing');
+		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.initState ? '' : '_initializing');
 	}
 
 	get providerId() {
