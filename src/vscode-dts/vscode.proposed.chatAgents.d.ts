@@ -23,12 +23,7 @@ declare module 'vscode' {
 		// Workspace
 	}
 
-	export interface SlashResponse {
-		message: MarkdownString | InteractiveProgressFileTree;
-		// edits?: TextEdit[] | WorkspaceEdit;
-	}
-
-	export interface SlashResult {
+	export interface SlashResult extends InteractiveResponseForProgress {
 		// Should be able to compute these async, because they typically will involve a separate LLM call.
 		// That can be a separate call (provideFollowups) or ChatAgentResult contains a promise to it (so ChatAgent returns a promise to a promise).
 		// Or, we can just be ok with the UI showing that the response is still continuing when the actual response is done but the followups are being computed.
@@ -51,6 +46,7 @@ declare module 'vscode' {
 		slashCommands: SlashCommand[];
 		onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
 		dispose(): void;
+		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}
 
 	export interface ChatAgentMetadata {
@@ -60,7 +56,7 @@ declare module 'vscode' {
 	}
 
 	// Could include "slashCommand: SlashCommand | undefined" here instead of the invoke method.
-	export type ChatAgentHandler = (request: InteractiveRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<InteractiveResponseForProgress>;
+	export type ChatAgentHandler = (request: InteractiveRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<SlashResult>;
 
 	export namespace chat {
 		// Invoking slash commands vs the agent with no slash command?
