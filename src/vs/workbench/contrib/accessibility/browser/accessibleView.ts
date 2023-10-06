@@ -491,7 +491,6 @@ export class AccessibleView extends Disposable {
 				}
 			}
 		});
-
 		this._updateToolbar(provider.actions, provider.options.type);
 
 		const handleEscape = (e: KeyboardEvent | IKeyboardEvent): void => {
