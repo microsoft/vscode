@@ -152,8 +152,7 @@ export class EditorPart extends Part implements IEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -169,7 +168,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this._register(this.editorGroupService.onDidChangeActiveGroup(this.showActiveEditorGroupsIfHidden));
+		this._register(this.onDidChangeActiveGroup(this.showActiveEditorGroupsIfHidden));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
 	}
@@ -1349,7 +1348,7 @@ export class MainEditorPart extends EditorPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService, editorGroupsService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
 	}
 }
 
@@ -1367,11 +1366,10 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService, editorGroupsService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
 	}
 
 	protected override saveState(): void {
