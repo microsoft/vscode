@@ -58,7 +58,8 @@
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "tmp": "^0.2.1",
-    "vscode-universal-bundler": "^0.0.2"
+    "vscode-universal-bundler": "^0.0.2",
+    "workerpool": "^6.4.0"
   },
   "scripts": {
     "compile": "../node_modules/.bin/tsc -p tsconfig.build.json",
@@ -69,8 +70,5 @@
     "tree-sitter": "https://github.com/joaomoreno/node-tree-sitter/releases/download/v0.20.0/tree-sitter-0.20.0.tgz",
     "tree-sitter-typescript": "^0.20.1",
     "vscode-gulp-watch": "^5.0.3"
-  },
-  "dependencies": {
-    "workerpool": "^6.4.0"
   }
 }
