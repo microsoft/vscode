@@ -59,6 +59,7 @@ steps:
 
   - script: |
       set -e
+      export PATH=$PATH:$(pwd)/build/bin
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then
