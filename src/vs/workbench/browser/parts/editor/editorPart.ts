@@ -32,8 +32,7 @@ import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { MaximizedEditorGroupContext } from 'vs/workbench/common/contextkeys';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -103,6 +102,9 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
+	private readonly _onDidChangeMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	readonly onDidChangeMaximizeGroup = this._onDidChangeMaximizeGroup.event;
+
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
@@ -142,8 +144,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
-	private maximizedEditorGroupContext: IContextKey<boolean>;
-
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
 		id: string,
@@ -153,18 +153,14 @@ export class EditorPart extends Part implements IEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
 		this.registerListeners();
 
-		this.maximizedEditorGroupContext = MaximizedEditorGroupContext.bindTo(this.contextKeyService);
-
 		this.whenRestored.then(() => {
-			if (this.isGroupMaximized(this.activeGroup)) {
-				this.maximizedEditorGroupContext.set(true);
-			}
+			this._onDidChangeMaximizeGroup.fire({ group: this.activeGroup, maximized: this.isGroupMaximized(this.activeGroup) });
+
 		});
 	}
 
@@ -407,7 +403,7 @@ export class EditorPart extends Part implements IEditorPart {
 					return; // need at least 2 groups to be maximized
 				}
 				this.gridWidget.setViewsVisible(false, target);
-				this.maximizedEditorGroupContext.set(true);
+				this._onDidChangeMaximizeGroup.fire({ group: target, maximized: true });
 				if (this.activeGroup !== target) {
 					this.activateGroup(target);
 				}
@@ -429,8 +425,8 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private unmaximizeGroup(): void {
-		this.maximizedEditorGroupContext.set(false);
 		this.gridWidget.setViewsVisible(true);
+		this._onDidChangeMaximizeGroup.fire({ group: this.activeGroup, maximized: false });
 	}
 
 	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
@@ -1347,10 +1343,9 @@ export class MainEditorPart extends EditorPart {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 }
 
@@ -1371,7 +1366,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
 	}
 
 	protected override saveState(): void {

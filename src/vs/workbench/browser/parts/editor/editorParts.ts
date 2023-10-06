@@ -175,6 +175,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
+	private readonly _onDidChangeMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	readonly onDidChangeMaximizeGroup = this._onDidChangeMaximizeGroup.event;
+
 	//#endregion
 
 	//#region Editor Groups Service

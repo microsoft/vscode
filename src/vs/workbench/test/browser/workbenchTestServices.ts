@@ -828,6 +828,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
+	onDidChangeMaximizeGroup: Event<{ group: IEditorGroup; maximized: boolean }> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
 	onDidChangeEditorPartOptions = Event.None;
 	onDidScroll = Event.None;

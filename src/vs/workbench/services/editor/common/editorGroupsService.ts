@@ -223,6 +223,11 @@ export interface IEditorPart {
 	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
 
 	/**
+	 * An event for when the locked state of a group changes.
+	 */
+	readonly onDidChangeMaximizeGroup: Event<{ group: IEditorGroup; maximized: boolean }>;
+
+	/**
 	 * The size of the editor groups area.
 	 */
 	readonly contentDimension: IDimension;
