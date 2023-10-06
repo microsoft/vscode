@@ -778,10 +778,14 @@ export function registerTerminalActions() {
 					c.service.setEditable(firstInstance, null);
 					c.service.setEditingTerminal(undefined);
 					if (success) {
-						try {
-							for (const instance of instances) {
+						const promises: Promise<void>[] = [];
+						for (const instance of instances) {
+							promises.push((async () => {
 								await instance.rename(value);
-							}
+							})());
+						}
+						try {
+							await Promise.all(promises);
 						} catch (e) {
 							notificationService.error(e);
 						}
