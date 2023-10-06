@@ -2292,6 +2292,36 @@ export namespace InteractiveEditorResponseFeedbackKind {
 	}
 }
 
+export namespace ChatResponseProgress {
+	export function from(progress: vscode.InteractiveProgress): extHostProtocol.IChatResponseProgressDto {
+		if ('placeholder' in progress && 'resolvedContent' in progress) {
+			return { placeholder: progress.placeholder };
+		} else if ('responseId' in progress) {
+			return { requestId: progress.responseId };
+		} else if ('content' in progress) {
+			return { content: typeof progress.content === 'string' ? progress.content : MarkdownString.from(progress.content) };
+		} else if ('documents' in progress) {
+			return {
+				documents: progress.documents.map(d => ({
+					uri: d.uri,
+					version: d.version,
+					ranges: d.ranges.map(r => Range.from(r))
+				}))
+			};
+		} else if ('reference' in progress) {
+			return {
+				reference: 'uri' in progress.reference ?
+					{
+						uri: progress.reference.uri,
+						range: Range.from(progress.reference.range)
+					} : progress.reference
+			};
+		} else {
+			return progress;
+		}
+	}
+}
+
 
 export namespace TerminalQuickFix {
 	export function from(quickFix: vscode.TerminalQuickFixExecuteTerminalCommand | vscode.TerminalQuickFixOpener | vscode.Command, converter: Command.ICommandsConverter, disposables: DisposableStore): extHostProtocol.ITerminalQuickFixExecuteTerminalCommandDto | extHostProtocol.ITerminalQuickFixOpenerDto | extHostProtocol.ICommandDto | undefined {

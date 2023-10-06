@@ -1225,7 +1225,8 @@ export type IChatResponseProgressDto =
 	| { requestId: string }
 	| { placeholder: string }
 	| { treeData: IChatResponseProgressFileTreeData }
-	| { documents: IDocumentContextDto[] };
+	| { documents: IDocumentContextDto[] }
+	| { reference: UriComponents | ILocationDto };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;

@@ -115,6 +115,10 @@ declare module 'vscode' {
 		errorDetails?: InteractiveResponseErrorDetails;
 	}
 
+	export interface InteractiveContentReference {
+		reference: Uri | Location;
+	}
+
 	export interface InteractiveProgressContent {
 		content: string | MarkdownString;
 	}
@@ -153,7 +157,8 @@ declare module 'vscode' {
 		| InteractiveProgressId
 		| InteractiveProgressTask
 		| InteractiveProgressFileTree
-		| InteractiveProgressUsedContext;
+		| InteractiveProgressUsedContext
+		| InteractiveContentReference;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
