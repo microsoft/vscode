@@ -76,11 +76,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			if (this._terminalService.activeInstance !== this._instance) {
 				return false;
 			}
-			let cachedPosition;
-			if (_configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
-				cachedPosition = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal);
-			}
-			this.show(cachedPosition);
+			this.show();
 			return true;
 		}, TerminalContextKeys.focus));
 		this._register(_instance.onDidRunText(() => {
@@ -99,16 +95,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				const cached = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
-				this.show(cached);
+				this.show();
 			}
 		}));
 
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
 			if (this._isTerminalAccessibleViewOpen()) {
-				const cached = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
-				this.show(cached);
+				this.show();
 			}
 		}));
 	}
@@ -117,7 +111,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		return accessibleViewCurrentProviderId.getValue(this._contextKeyService) === AccessibleViewProviderId.Terminal;
 	}
 
-	show(position?: Position): void {
+	show(): void {
 		if (!this._xterm) {
 			return;
 		}
@@ -129,6 +123,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
 			}));
 		}
+		const position = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
 		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
