@@ -1310,10 +1310,12 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void>;
 
+	$ensureActivation(scheme: string): Promise<void>;
+}
+
+export interface MainThreadFileSystemEventServiceShape extends IDisposable {
 	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
 	$unwatch(session: number): void;
-
-	$ensureActivation(scheme: string): Promise<void>;
 }
 
 export interface MainThreadLabelServiceShape extends IDisposable {
@@ -2692,6 +2694,7 @@ export const MainContext = {
 	MainThreadProfileContentHandlers: createProxyIdentifier<MainThreadProfileContentHandlersShape>('MainThreadProfileContentHandlers'),
 	MainThreadWorkspace: createProxyIdentifier<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createProxyIdentifier<MainThreadFileSystemShape>('MainThreadFileSystem'),
+	MainThreadFileSystemEventService: createProxyIdentifier<MainThreadFileSystemEventServiceShape>('MainThreadFileSystemEventService'),
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),

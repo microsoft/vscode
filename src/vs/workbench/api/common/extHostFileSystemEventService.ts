@@ -99,7 +99,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			return disposable; // a pattern alone does not carry sufficient information to start watching anything
 		}
 
-		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystem);
+		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
 
 		let recursive = false;
 		if (globPattern.pattern.includes(GLOBSTAR) || globPattern.pattern.includes(GLOB_SPLIT)) {
