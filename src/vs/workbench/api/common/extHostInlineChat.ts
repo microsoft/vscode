@@ -18,6 +18,7 @@ import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { raceCancellation } from 'vs/base/common/async';
 
 class ProviderWrapper {
 
@@ -170,50 +171,53 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			}
 		};
 
-		const task = entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token);
+		const task = Promise.resolve(entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token));
 
-		Promise.resolve(task).finally(() => done = true);
-
-		const res = await task;
-
-		if (res) {
-
-			const id = sessionData.responses.push(res) - 1;
-
-			const stub: Partial<IInlineChatResponseDto> = {
-				wholeRange: typeConvert.Range.from(res.wholeRange),
-				placeholder: res.placeholder,
-			};
-
-			if (ExtHostInteractiveEditor._isMessageResponse(res)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.Message,
-					message: typeConvert.MarkdownString.from(res.contents),
-				};
-			}
-
-			const { edits } = res;
-			if (edits instanceof extHostTypes.WorkspaceEdit) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.BulkEdit,
-					edits: typeConvert.WorkspaceEdit.from(edits),
-				};
-
-			} else if (Array.isArray(edits)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.EditorEdit,
-					edits: edits.map(typeConvert.TextEdit.from),
-				};
-			}
+		let res: vscode.InteractiveEditorResponse | vscode.InteractiveEditorMessageResponse | null | undefined;
+		try {
+			res = await raceCancellation(task, token);
+		} finally {
+			done = true;
 		}
 
-		return undefined;
+		if (!res) {
+			return undefined;
+		}
+
+
+		const id = sessionData.responses.push(res) - 1;
+
+		const stub: Partial<IInlineChatResponseDto> = {
+			wholeRange: typeConvert.Range.from(res.wholeRange),
+			placeholder: res.placeholder,
+		};
+
+		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.Message,
+				message: typeConvert.MarkdownString.from(res.contents),
+			};
+		}
+
+		const { edits } = res;
+		if (edits instanceof extHostTypes.WorkspaceEdit) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.BulkEdit,
+				edits: typeConvert.WorkspaceEdit.from(edits),
+			};
+
+		} else {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+			};
+		}
 	}
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
