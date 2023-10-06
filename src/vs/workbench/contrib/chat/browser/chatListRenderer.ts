@@ -131,12 +131,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private _isVisible = true;
 	private _onDidChangeVisibility = this._register(new Emitter<boolean>());
 
+	private _usedReferencesEnabled = false;
+
 	constructor(
 		private readonly editorOptions: ChatEditorOptions,
 		private readonly rendererOptions: IChatListItemRendererOptions,
 		private readonly delegate: IChatRendererDelegate,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configService: IConfigurationService,
+		@IConfigurationService configService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -149,6 +151,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._usedContextListPool = this._register(this.instantiationService.createInstance(UsedContextListPool, this._onDidChangeVisibility.event));
+
+		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
+		this._register(configService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
+				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
+			}
+		}));
 	}
 
 	get templateId(): string {
@@ -163,16 +172,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private progressiveRenderEnabled(): boolean {
-		return !this.configService.getValue('interactive.experimental.disableProgressiveRendering');
-	}
-
 	private getProgressiveRenderRate(element: IChatResponseViewModel): number {
-		const configuredRate = this.configService.getValue('interactive.experimental.progressiveRenderingRate');
-		if (typeof configuredRate === 'number') {
-			return configuredRate;
-		}
-
 		if (element.isComplete) {
 			return 60;
 		}
@@ -299,7 +299,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && !element.isPlaceholder && (!element.isComplete || element.renderData) && this.progressiveRenderEnabled()) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && !element.isPlaceholder && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
@@ -341,7 +341,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.elementDisposables.add(result);
 		}
 
-		if (isResponseVM(element) && element.response.usedContext?.documents.length) {
+		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.usedContext?.documents.length) {
 			const usedContextListResult = this.renderUsedContextListData(element.response.usedContext, element, templateData);
 			templateData.value.appendChild(usedContextListResult.element);
 			templateData.elementDisposables.add(usedContextListResult);
@@ -1223,7 +1223,6 @@ class UsedContextListPool extends Disposable {
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
@@ -1241,7 +1240,7 @@ class UsedContextListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new UsedContextListDelegate(),
-			[new UsedContextListRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
+			[new UsedContextListRenderer(resourceLabels)],
 			{});
 
 		return list;
@@ -1280,7 +1279,7 @@ class UsedContextListRenderer implements IListRenderer<IDocumentContext, IUsedCo
 	static TEMPLATE_ID = 'usedContextListRenderer';
 	readonly templateId: string = UsedContextListRenderer.TEMPLATE_ID;
 
-	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
+	constructor(private labels: ResourceLabels) { }
 
 	renderTemplate(container: HTMLElement): IUsedContextListTemplate {
 		const templateDisposables = new DisposableStore();
@@ -1292,7 +1291,8 @@ class UsedContextListRenderer implements IListRenderer<IDocumentContext, IUsedCo
 		templateData.label.element.style.display = 'flex';
 		templateData.label.setFile(element.uri, {
 			fileKind: FileKind.FILE,
-			fileDecorations: this.decorations,
+			// Should not have this live-updating data on a historical reference
+			fileDecorations: { badges: false, colors: false },
 		});
 	}
 
