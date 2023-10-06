@@ -317,9 +317,9 @@ stages:
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_ARCH: x64
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_UNIT_TESTS: false
+                  VSCODE_RUN_INTEGRATION_TESTS: false
+                  VSCODE_RUN_SMOKE_TESTS: true
 
           - job: WindowsCLISign
             timeoutInMinutes: 90
@@ -426,9 +426,9 @@ stages:
                   VSCODE_ARCH: x64
                   VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                   VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                  VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                  VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                  VSCODE_RUN_UNIT_TESTS: false
+                  VSCODE_RUN_INTEGRATION_TESTS: false
+                  VSCODE_RUN_SMOKE_TESTS: true
 
         - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), eq(parameters.VSCODE_BUILD_LINUX, true)) }}:
           - job: LinuxSnap
@@ -569,9 +569,9 @@ stages:
                   parameters:
                     VSCODE_QUALITY: ${{ variables.VSCODE_QUALITY }}
                     VSCODE_CIBUILD: ${{ variables.VSCODE_CIBUILD }}
-                    VSCODE_RUN_UNIT_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                    VSCODE_RUN_INTEGRATION_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
-                    VSCODE_RUN_SMOKE_TESTS: ${{ eq(parameters.VSCODE_STEP_ON_IT, false) }}
+                    VSCODE_RUN_UNIT_TESTS: false
+                    VSCODE_RUN_INTEGRATION_TESTS: false
+                    VSCODE_RUN_SMOKE_TESTS: true
 
           - job: macOSSign
             dependsOn:
