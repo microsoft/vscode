@@ -27,6 +27,8 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 	private _disposable: Disposable;
 	private _config: number;
 
+	private _correlationId?: number;
+
 	get ignoreCreateEvents(): boolean {
 		return Boolean(this._config & 0b001);
 	}
@@ -63,6 +65,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
 		const subscription = dispatcher(events => {
+			if (typeof events.correlationId === 'number' && typeof this._correlationId === 'number' && events.correlationId !== this._correlationId) {
+				return;
+			}
+
 			if (!ignoreCreateEvents) {
 				for (const created of events.created) {
 					const uri = URI.revive(created);
@@ -106,8 +112,8 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		const session = Math.random();
-		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { correlationId: session, recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		const session = this._correlationId = Math.random();
+		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { correlationId: this._correlationId, recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}
@@ -137,6 +143,8 @@ interface IExtensionListener<E> {
 class LazyRevivedFileSystemEvents implements FileSystemEvents {
 
 	constructor(private readonly _events: FileSystemEvents) { }
+
+	readonly correlationId?: number = this._events.correlationId;
 
 	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
 	get created(): URI[] { return this._created.value; }
