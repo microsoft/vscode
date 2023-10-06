@@ -13,7 +13,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -35,12 +35,14 @@ export type ResponsePart =
 			string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }
 		>;
 	}
-	| IUsedContext;
+	| IUsedContext
+	| IChatContentReference;
 
 export interface IResponse {
 	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
+	readonly usedContext: IUsedContext | undefined;
+	readonly contentReferences: IChatContentReference[];
 	onDidChangeValue: Event<void>;
-	usedContext: IUsedContext | undefined;
 	updateContent(responsePart: ResponsePart, quiet?: boolean): void;
 	asString(): string;
 }
@@ -108,6 +110,11 @@ export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
+	}
+
+	private _contentReferences: IChatContentReference[] = [];
+	public get contentReferences(): IChatContentReference[] {
+		return this._contentReferences;
 	}
 
 	private _usedContext: IUsedContext | undefined;
@@ -182,6 +189,8 @@ export class Response implements IResponse {
 			this._updateRepr(quiet);
 		} else if ('documents' in responsePart) {
 			this._usedContext = responsePart;
+		} else if ('reference' in responsePart) {
+			this._contentReferences.push(responsePart);
 		}
 	}
 
@@ -349,6 +358,7 @@ export interface ISerializableChatRequestData {
 	vote: InteractiveSessionVoteDirection | undefined;
 	/** For backward compat: should be optional */
 	usedContext?: IUsedContext;
+	contentReferences?: IChatContentReference[];
 }
 
 export interface IExportableChatData {
@@ -620,7 +630,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress.content, quiet);
 		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
 			request.response.updateContent(progress, quiet);
-		} else if ('documents' in progress) {
+		} else if ('documents' in progress || 'reference' in progress) {
 			request.response.updateContent(progress);
 		} else {
 			request.setProviderRequestId(progress.requestId);
