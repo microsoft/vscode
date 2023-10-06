@@ -1826,9 +1826,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.style.position = 'absolute';
 		this._overlayContainer.style.overflow = 'hidden';
 
-		if (this._isVisible) {
-			this.layoutContainerOverShadowElement(dimension, position);
-		}
+		this.layoutContainerOverShadowElement(dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
