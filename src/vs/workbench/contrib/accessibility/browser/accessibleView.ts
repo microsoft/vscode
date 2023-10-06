@@ -76,7 +76,6 @@ export interface IAccessibleViewService {
 	readonly _serviceBrand: undefined;
 	show(provider: IAccessibleContentProvider, position?: Position): void;
 	showLastProvider(id: AccessibleViewProviderId): void;
-	clearLastProvider(): void;
 	showAccessibleViewHelp(): void;
 	next(): void;
 	previous(): void;
@@ -251,10 +250,6 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		this.show(this._lastProvider);
-	}
-
-	clearLastProvider(): void {
-		this._lastProvider = undefined;
 	}
 
 	show(provider?: IAccessibleContentProvider, symbol?: IAccessibleViewSymbol, showAccessibleViewHelp?: boolean, position?: Position): void {
@@ -680,9 +675,6 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 	}
 	showLastProvider(id: AccessibleViewProviderId): void {
 		this._accessibleView?.showLastProvider(id);
-	}
-	clearLastProvider(): void {
-		this._accessibleView?.clearLastProvider();
 	}
 	next(): void {
 		this._accessibleView?.next();
