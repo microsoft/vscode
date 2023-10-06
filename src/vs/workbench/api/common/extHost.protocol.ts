@@ -1757,8 +1757,6 @@ export interface ExtHostExtensionServiceShape {
 }
 
 export interface FileSystemEvents {
-	correlationId?: number;
-
 	created: UriComponents[];
 	changed: UriComponents[];
 	deleted: UriComponents[];

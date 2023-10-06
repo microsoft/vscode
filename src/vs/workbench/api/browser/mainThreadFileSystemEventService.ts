@@ -300,7 +300,6 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		if (isFileSystemWatcher(subscription)) {
 			watcherDisposables.add(subscription.onDidChange(event => {
 				this._proxy.$onFileEvent({
-					correlationId: opts.correlationId,
 					created: event.rawAdded,
 					changed: event.rawUpdated,
 					deleted: event.rawDeleted
