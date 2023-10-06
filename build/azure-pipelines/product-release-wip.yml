@@ -1,0 +1,14 @@
+pool:
+  vmImage: "ubuntu-latest"
+
+trigger: none
+pr: none
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+  - script: |
+      set -e
+      wget https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -P $(Build.ArtifactStagingDirectory)
