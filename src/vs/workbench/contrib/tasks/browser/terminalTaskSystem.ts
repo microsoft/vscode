@@ -32,7 +32,7 @@ import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IShellLaunchConfig, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, TerminalLocation, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { TaskTerminalStatus } from 'vs/workbench/contrib/tasks/browser/taskTerminalStatus';
@@ -1045,7 +1045,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
-			this._terminalGroupService.showPanel(task.command.presentation.focus);
+			if (terminal.target !== TerminalLocation.Editor) {
+				this._terminalGroupService.showPanel(task.command.presentation.focus);
+			}
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;
 		this._fireTaskEvent(TaskEvent.changed());
