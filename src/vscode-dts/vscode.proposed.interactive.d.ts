@@ -116,7 +116,6 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveContentReference {
-		// Should be an array?
 		reference: Uri | Location;
 	}
 

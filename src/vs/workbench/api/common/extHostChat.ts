@@ -193,10 +193,9 @@ export class ExtHostChat implements ExtHostChatShape {
 					firstProgress = stopWatch.elapsed();
 				}
 
-				if ('responseId' in progress) {
-					this._proxy.$acceptResponseProgress(handle, sessionId, { requestId: progress.responseId });
-				} else if ('placeholder' in progress && 'resolvedContent' in progress) {
-					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, { placeholder: progress.placeholder }), progress.resolvedContent]);
+				const convertedProgress = typeConvert.ChatResponseProgress.from(progress);
+				if ('placeholder' in progress && 'resolvedContent' in progress) {
+					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress), progress.resolvedContent]);
 					raceCancellation(resolvedContent, token).then((res) => {
 						if (!res) {
 							return; /* Cancelled */
@@ -204,28 +203,8 @@ export class ExtHostChat implements ExtHostChatShape {
 						const [progressHandle, progressContent] = res;
 						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
 					});
-				} else if ('content' in progress) {
-					this._proxy.$acceptResponseProgress(handle, sessionId, {
-						content: typeof progress.content === 'string' ? progress.content : typeConvert.MarkdownString.from(progress.content)
-					});
-				} else if ('documents' in progress) {
-					this._proxy.$acceptResponseProgress(handle, sessionId, {
-						documents: progress.documents.map(d => ({
-							uri: d.uri,
-							version: d.version,
-							ranges: d.ranges.map(r => typeConvert.Range.from(r))
-						}))
-					});
-				} else if ('reference' in progress) {
-					this._proxy.$acceptResponseProgress(handle, sessionId, {
-						reference: 'uri' in progress.reference ?
-							{
-								uri: progress.reference.uri,
-								range: typeConvert.Range.from(progress.reference.range)
-							} : progress.reference
-					});
 				} else {
-					this._proxy.$acceptResponseProgress(handle, sessionId, progress);
+					this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress);
 				}
 			}
 		};
