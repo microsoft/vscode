@@ -1345,8 +1345,7 @@ export class MainEditorPart extends EditorPart {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
 	}
