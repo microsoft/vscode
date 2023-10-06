@@ -103,7 +103,7 @@ import { FileAccess } from 'vs/base/common/network';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string): Promise<IDiskFileChange[]> {
+	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number): Promise<IDiskFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
@@ -112,7 +112,7 @@ import { FileAccess } from 'vs/base/common/network';
 		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.resource.fsPath === path && event.type === type) {
+					if (event.resource.fsPath === path && event.type === type && event.cId === correlationId) {
 						disposable.dispose();
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
@@ -287,20 +287,20 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string): Promise<void> {
+	async function basicCrudTest(filePath: string, correlationId?: number): Promise<void> {
 
 		// New file
-		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, correlationId);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, undefined, correlationId);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId);
 		await Promises.unlink(filePath);
 		await changeFuture;
 	}
@@ -553,6 +553,13 @@ import { FileAccess } from 'vs/base/common/network';
 		const changeFuture = awaitEvent(watcher, newFilePath, FileChangeType.ADDED);
 		await Promises.writeFile(newFilePath, 'Hello World');
 		await changeFuture;
+	});
+
+	test('correlationId is supported', async function () {
+		const correlationId = Math.random();
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], includes: ['**/deep/**'], recursive: true }]);
+
+		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'), correlationId);
 	});
 
 	test('should not exclude roots that do not overlap', () => {

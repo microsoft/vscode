@@ -105,7 +105,7 @@ import { FileAccess } from 'vs/base/common/network';
 		}
 	}
 
-	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType): Promise<void> {
+	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType, correlationId?: number): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
@@ -114,7 +114,7 @@ import { FileAccess } from 'vs/base/common/network';
 		await new Promise<void>(resolve => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.resource.fsPath === path && event.type === type) {
+					if (event.resource.fsPath === path && event.type === type && correlationId === event.cId) {
 						disposable.dispose();
 						resolve();
 						break;
@@ -406,6 +406,13 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(testDir, 'files-includes.txt'));
 	});
 
+	test('pasero correlationId is supported', async function () {
+		const correlationId = Math.random();
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'newFile.txt'), undefined, correlationId);
+	});
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
@@ -416,23 +423,23 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
 		if (!skipAdd) {
-			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
 		}
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, correlationId);
 		await Promises.unlink(await Promises.realpath(filePath)); // support symlinks
 		await changeFuture;
 	}
