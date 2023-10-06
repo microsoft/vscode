@@ -510,13 +510,9 @@ class LanguageServiceHost implements ts.LanguageServiceHost {
 		this._projectVersion = 1;
 	}
 
-	log(_s: string): void {
-		// console.log(s);
-	}
+	log(_s: string): void { }
 
-	trace(_s: string): void {
-		// console.log(s);
-	}
+	trace(_s: string): void { }
 
 	error(s: string): void {
 		console.error(s);

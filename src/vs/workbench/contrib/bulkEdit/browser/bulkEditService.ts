@@ -252,8 +252,6 @@ export class BulkEditService implements IBulkEditService {
 
 			return { ariaSummary: bulkEdit.ariaMessage(), isApplied: edits.length > 0 };
 		} catch (err) {
-			// console.log('apply FAILED');
-			// console.log(err);
 			this._logService.error(err);
 			throw err;
 		} finally {

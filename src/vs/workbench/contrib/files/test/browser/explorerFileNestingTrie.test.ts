@@ -497,10 +497,8 @@ suite('StarTrie', () => {
 		]).flat();
 
 		const start = performance.now();
-		// const _bigResult =
 		bigNester.nest(bigFiles, 'mydir');
 		const end = performance.now();
 		assert(end - start < 1000, 'too slow...' + (end - start));
-		// console.log(bigResult)
 	});
 });

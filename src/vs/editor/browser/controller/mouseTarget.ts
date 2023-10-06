@@ -515,7 +515,6 @@ export class MouseTargetFactory {
 			// console.log(MouseTarget.toString(r));
 			return r;
 		} catch (err) {
-			// console.log(err);
 			return request.fulfillUnknown();
 		}
 	}
