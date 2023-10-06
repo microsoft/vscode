@@ -78,6 +78,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { CONTEXT_KEYBINDINGS_EDITOR } from 'vs/workbench/contrib/preferences/common/preferences';
 import { DeprecatedExtensionsChecker } from 'vs/workbench/contrib/extensions/browser/deprecatedExtensionsChecker';
+import { ILogService } from 'vs/platform/log/common/log';
 
 // Singletons
 registerSingleton(IExtensionsWorkbenchService, ExtensionsWorkbenchService, InstantiationType.Eager /* Auto updates extensions */);
@@ -472,6 +473,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ICommandService private readonly commandService: ICommandService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		const hasGalleryContext = CONTEXT_HAS_GALLERY.bindTo(contextKeyService);
@@ -532,6 +534,7 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 			order: 3
 		}));
 
+		this.logService.info('workbench.extensions.action.focusExtensionsView is registereddddddddddddddddd');
 		this.registerExtensionAction({
 			id: 'workbench.extensions.action.focusExtensionsView',
 			title: { value: localize('focusExtensions', "Focus on Extensions View"), original: 'Focus on Extensions View' },
