@@ -110,7 +110,9 @@ export interface IAccessibleViewOptions {
 	language?: string;
 	type: AccessibleViewType;
 	/**
-	 * By default, places the cursor on the last line of the accessible view.
+	 * By default, places the cursor on the top line of the accessible view.
+	 * If set to 'initial-bottom', places the cursor on the bottom line of the accessible view and preserves it henceforth.
+	 * If set to 'bottom', places the cursor on the bottom line of the accessible view.
 	 */
 	position?: 'bottom' | 'initial-bottom';
 	/**
