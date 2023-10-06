@@ -57,7 +57,7 @@ suite('EditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		testLocalInstantiationService = instantiationService;
@@ -72,23 +72,35 @@ suite('EditorService', () => {
 	test('openEditor() - basics', async () => {
 		const [, service] = await createEditorService();
 
+		await testOpenBasics(service);
+	});
+
+	test('pasero openEditor() - basics (scoped)', async () => {
+		const [part, service] = await createEditorService();
+		const scoped = service.createScoped('main', disposables);
+		await part.whenReady;
+
+		await testOpenBasics(scoped);
+	});
+
+	async function testOpenBasics(service: IEditorService) {
 		let input = createTestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		let otherInput = createTestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
 
 		let activeEditorChangeEventCounter = 0;
-		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+		disposables.add(service.onDidActiveEditorChange(() => {
 			activeEditorChangeEventCounter++;
-		});
+		}));
 
 		let visibleEditorChangeEventCounter = 0;
-		const visibleEditorChangeListener = service.onDidVisibleEditorsChange(() => {
+		disposables.add(service.onDidVisibleEditorsChange(() => {
 			visibleEditorChangeEventCounter++;
-		});
+		}));
 
 		let didCloseEditorListenerCounter = 0;
-		const didCloseEditorListener = service.onDidCloseEditor(() => {
+		disposables.add(service.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
-		});
+		}));
 
 		// Open input
 		let editor = await service.openEditor(input, { pinned: true });
@@ -170,11 +182,7 @@ suite('EditorService', () => {
 		assert.strictEqual(mruEditorsExcludingSticky.length, 2);
 		assert.strictEqual(input, sequentialEditorsExcludingSticky[0].editor);
 		assert.strictEqual(otherInput, sequentialEditorsExcludingSticky[1].editor);
-
-		activeEditorChangeListener.dispose();
-		visibleEditorChangeListener.dispose();
-		didCloseEditorListener.dispose();
-	});
+	}
 
 	test('openEditor() - multiple calls are cancelled and indicated as such', async () => {
 		const [, service] = await createEditorService();
@@ -1683,7 +1691,7 @@ suite('EditorService', () => {
 		editor = await service.openEditor(input2, { pinned: true, activation: EditorActivation.ACTIVATE }, sideGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
 
-		part.arrangeGroups(GroupsArrangement.MAXIMIZE);
+		part.arrangeGroups(GroupsArrangement.EXPAND);
 		editor = await service.openEditor(input1, { pinned: true, preserveFocus: true, activation: EditorActivation.RESTORE }, rootGroup);
 		assert.strictEqual(part.activeGroup, sideGroup);
 	});
@@ -1703,13 +1711,13 @@ suite('EditorService', () => {
 		assert.strictEqual(part.activeGroup, sideGroup);
 		assert.notStrictEqual(rootGroup, sideGroup);
 
-		part.arrangeGroups(GroupsArrangement.MAXIMIZE, part.activeGroup);
+		part.arrangeGroups(GroupsArrangement.EXPAND, part.activeGroup);
 
 		await rootGroup.closeEditor(input2);
 		assert.strictEqual(part.activeGroup, sideGroup);
 
-		assert(!part.isGroupMaximized(rootGroup));
-		assert(part.isGroupMaximized(part.activeGroup));
+		assert(!part.isGroupExpanded(rootGroup));
+		assert(part.isGroupExpanded(part.activeGroup));
 	});
 
 	test('active editor change / visible editor change events', async function () {

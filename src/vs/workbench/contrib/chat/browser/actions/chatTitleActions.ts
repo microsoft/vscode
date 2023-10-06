@@ -16,7 +16,7 @@ import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellEditType, CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -52,12 +52,15 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
+			chatService.notifyUserAction({
 				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
-					responseId: item.providerResponseId
+					responseId: item.providerResponseId!,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Up);
@@ -92,12 +95,15 @@ export function registerChatTitleActions() {
 			}
 
 			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
+			chatService.notifyUserAction({
 				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
-					responseId: item.providerResponseId
+					responseId: item.providerResponseId!,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Down);

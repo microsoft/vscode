@@ -181,6 +181,7 @@ export class WatchExpressionsView extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 	}
 

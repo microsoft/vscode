@@ -53,14 +53,26 @@
 	outline: 0 !important;
 }
 
-.xterm.dev-mode .xterm-helper-textarea {
+.monaco-workbench .xterm.dev-mode .xterm-helper-textarea {
 	z-index: 36 !important;
-	opacity: 1 !important;
-	left: 0 !important;
-	width: fit-content !important;
+	opacity: 0.8 !important;
+	right: 0 !important;
+	left: initial !important;
+	width: 50% !important;
+	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
+	color: var(--vscode-terminal-foreground);
+	transform: translateY(-100%);
 }
 .monaco-workbench .xterm.dev-mode .xterm-helper-textarea:focus {
-	opacity: 1 !important;
+	opacity: 0.8 !important;
+}
+.monaco-workbench .xterm.dev-mode .xterm-helpers {
+	/* This could maybe be done outside of .dev-mode, but I'm scared to break something */
+	left: 0;
+	right: 0;
+}
+.monaco-workbench .xterm.dev-mode .xterm-helper-textarea:hover {
+	opacity: 0.25 !important;
 }
 
 .monaco-workbench .xterm .xterm-helper-textarea:focus {
@@ -550,34 +562,6 @@
 
 .monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
-}
-
-.monaco-workbench .terminal-accessible-widget {
-	position: absolute;
-	left: 10px;
-	top: 0;
-	bottom: 0;
-	right: 0;
-	opacity: 0;
-	/* Reset cursor style as monaco controls it here */
-	cursor: default;
-	padding: 0;
-	overflow: initial;
-	overflow-x: initial;
-	pointer-events: none;
-	z-index: 0;
-}
-
-.monaco-workbench .terminal-accessible-widget div {
-	white-space: pre-wrap;
-}
-
-.monaco-workbench .terminal-accessible-widget.focus-within,
-.monaco-workbench .terminal-accessible-widget.active {
-	pointer-events: all;
-	opacity: 1;
-	z-index: 33;
-	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 
 .monaco-workbench .xterm.terminal.hide {

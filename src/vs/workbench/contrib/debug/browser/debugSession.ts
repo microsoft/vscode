@@ -1012,7 +1012,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 								}
 
 								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-									await this.hostService.focus({ force: true /* Application may not be active */ });
+									await this.hostService.focus(window, { force: true /* Application may not be active */ });
 								}
 							}
 						}

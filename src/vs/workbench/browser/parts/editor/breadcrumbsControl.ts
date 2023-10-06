@@ -442,6 +442,7 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				if (!pickerAnchor) {
+					const window = dom.getWindow(this.domNode);
 					const maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	constants::{get_default_user_agent, PRODUCT_NAME_LONG},
+	constants::{get_default_user_agent, APPLICATION_NAME, IS_INTERACTIVE_CLI, PRODUCT_NAME_LONG},
 	debug, error, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
@@ -37,7 +37,7 @@ struct DeviceCodeResponse {
 	expires_in: i64,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 struct AuthenticationResponse {
 	access_token: String,
 	refresh_token: Option<String>,
@@ -76,7 +76,7 @@ impl AuthProvider {
 	pub fn code_uri(&self) -> &'static str {
 		match self {
 			AuthProvider::Microsoft => {
-				"https://login.microsoftonline.com/common/oauth2/v2.0/devicecode"
+				"https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode"
 			}
 			AuthProvider::Github => "https://github.com/login/device/code",
 		}
@@ -84,7 +84,9 @@ impl AuthProvider {
 
 	pub fn grant_uri(&self) -> &'static str {
 		match self {
-			AuthProvider::Microsoft => "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			AuthProvider::Microsoft => {
+				"https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+			}
 			AuthProvider::Github => "https://github.com/login/oauth/access_token",
 		}
 	}
@@ -622,11 +624,11 @@ impl Auth {
 			return Ok(StoredCredential::from_response(body, provider));
 		}
 
-		return Err(Auth::handle_grant_error(
+		Err(Auth::handle_grant_error(
 			provider.grant_uri(),
 			status_code,
 			body,
-		));
+		))
 	}
 
 	/// GH doesn't have a refresh token, but does limit to the 10 most recently
@@ -670,7 +672,12 @@ impl Auth {
 	}
 
 	async fn prompt_for_provider(&self) -> Result<AuthProvider, AnyError> {
-		if std::env::var("VSCODE_CLI_ALLOW_MS_AUTH").is_err() {
+		if !*IS_INTERACTIVE_CLI {
+			info!(
+				self.log,
+				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				APPLICATION_NAME
+			);
 			return Ok(AuthProvider::Github);
 		}
 
@@ -772,7 +779,7 @@ impl Auth {
 					error!(this.log, "failed to keep token alive: {:?}", e);
 					return Err(e.into());
 				}
-				Err(e) if matches!(e, AnyError::RefreshTokenNotAvailableError(_)) => {
+				Err(AnyError::RefreshTokenNotAvailableError(_)) => {
 					return Ok(());
 				}
 				Err(e) => {

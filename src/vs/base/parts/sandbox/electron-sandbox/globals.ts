@@ -120,3 +120,12 @@ export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;
+
+/**
+ * A set of globals that are available in all windows that either
+ * depend on `preload.js` or `preload-aux.js`.
+ */
+export interface ISandboxGlobals {
+	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send' | 'invoke'>;
+	readonly webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
+}
