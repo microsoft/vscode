@@ -69,24 +69,29 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
 				return false;
 			}
-			this.show();
+			let cachedPosition;
+			if (_configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
+				cachedPosition = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal);
+			}
+			this.show(cachedPosition);
 			return true;
 		}, TerminalContextKeys.focus));
 		this._register(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
 				this.show();
 			}
 		}));
+		this._register(this._terminalService.onDidChangeActiveInstance(() => this._accessibleViewService.clearLastProvider()));
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
@@ -95,7 +100,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
-				const cached = this._accessibleViewService.getPosition();
+				const cached = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
 				this.show(cached);
 			}
 		}));
@@ -103,7 +108,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
 			if (this._isTerminalAccessibleViewOpen()) {
-				const cached = this._accessibleViewService.getPosition();
+				const cached = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
 				this.show(cached);
 			}
 		}));
@@ -128,7 +133,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
-		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
+		const currentLine = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal)?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;
