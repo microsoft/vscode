@@ -115,13 +115,14 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidMoveGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidMoveGroup = this._onDidMoveGroup.event;
 
-	private readonly onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number } | undefined>());
+	private readonly _onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number } | undefined>());
+	private readonly onDidSetGridWidget = this._onDidSetGridWidget.event;
 
 	private readonly _onDidChangeSizeConstraints = this._register(new Relay<{ width: number; height: number } | undefined>());
-	readonly onDidChangeSizeConstraints = Event.any(this.onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
+	readonly onDidChangeSizeConstraints = Event.any(this._onDidSetGridWidget.event, this._onDidChangeSizeConstraints.event);
 
 	private readonly _onDidScroll = this._register(new Relay<void>());
-	readonly onDidScroll = Event.any(this.onDidSetGridWidget.event, this._onDidScroll.event);
+	readonly onDidScroll = Event.any(this._onDidSetGridWidget.event, this._onDidScroll.event);
 
 	private readonly _onDidChangeEditorPartOptions = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
 	readonly onDidChangeEditorPartOptions = this._onDidChangeEditorPartOptions.event;
@@ -168,7 +169,9 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
-		this._register(this.onDidChangeActiveGroup(this.showActiveEditorGroupsIfHidden));
+		this._register(this.onDidSetGridWidget(() => {
+			this._register(this.onDidChangeActiveGroup(() => this.showActiveEditorGroupsIfHidden()));
+		}));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
 	}
@@ -965,7 +968,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 	get snap(): boolean { return this.layoutService.getPanelAlignment() === 'center'; }
 
-	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this.onDidSetGridWidget.event); }
+	override get onDidChange(): Event<IViewSize | undefined> { return Event.any(this.centeredLayoutWidget.onDidChange, this._onDidSetGridWidget.event); }
 	readonly priority: LayoutPriority = LayoutPriority.High;
 
 	private get gridSeparatorBorder(): Color {
@@ -1233,7 +1236,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
 
-		this.onDidSetGridWidget.fire(undefined);
+		this._onDidSetGridWidget.fire(undefined);
 	}
 
 	private updateContainer(): void {
