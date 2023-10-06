@@ -382,6 +382,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
 			'default': false
 		},
+		'search.quickOpen.seedStringFromSelection': {
+			'type': 'boolean',
+			'description': nls.localize('search.quickOpen.seedStringFromSelection', "Controls whether the search string in the Quick Open is seeded from the editor selection."),
+			'default': false
+		},
 	}
 });
 
