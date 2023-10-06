@@ -91,7 +91,7 @@ steps:
   - powershell: |
       mkdir -Force .build/node-gyp
     displayName: Create custom node-gyp directory
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    # condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - powershell: |
       . ../../build/azure-pipelines/win32/exec.ps1
@@ -106,7 +106,7 @@ steps:
       exec { npm install } "Building node-gyp failed"
     displayName: Install custom node-gyp
     workingDirectory: .build/node-gyp
-    condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+    # condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - powershell: |
       . build/azure-pipelines/win32/exec.ps1
