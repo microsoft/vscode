@@ -7,7 +7,7 @@ yarn config set registry "$NPM_REGISTRY"
 
 if [ -z "$CC" ] || [ -z "$CXX" ]; then
   # Download clang based on chromium revision used by vscode
-  curl -s https://raw.githubusercontent.com/chromium/chromium/108.0.5359.215/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
+  curl -s https://raw.githubusercontent.com/chromium/chromium/114.0.5735.199/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux
 
   # Download libcxx headers and objects from upstream electron releases
   DEBUG=libcxx-fetcher \
@@ -19,9 +19,9 @@ if [ -z "$CC" ] || [ -z "$CXX" ]; then
 
   # Set compiler toolchain
   # Flags for the client build are based on
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/arm.gni
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/compiler/BUILD.gn
-  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/108.0.5359.215:build/config/c++/BUILD.gn
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/arm.gni
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/compiler/BUILD.gn
+  # https://source.chromium.org/chromium/chromium/src/+/refs/tags/114.0.5735.199:build/config/c++/BUILD.gn
   export CC=$PWD/.build/CR_Clang/bin/clang
   export CXX=$PWD/.build/CR_Clang/bin/clang++
   export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr"

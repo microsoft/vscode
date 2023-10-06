@@ -10,6 +10,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 
 export class DeltaExtensionsResult {
 	constructor(
+		public readonly versionId: number,
 		public readonly removedDueToLooping: IExtensionDescription[]
 	) { }
 }
@@ -45,6 +46,7 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 	private readonly _onDidChange = new Emitter<void>();
 	public readonly onDidChange = this._onDidChange.event;
 
+	private _versionId: number = 0;
 	private _extensionDescriptions: IExtensionDescription[];
 	private _extensionsMap!: ExtensionIdentifierMap<IExtensionDescription>;
 	private _extensionsArr!: IExtensionDescription[];
@@ -93,10 +95,14 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 		}
 	}
 
-	public set(extensionDescriptions: IExtensionDescription[]): void {
+	public set(extensionDescriptions: IExtensionDescription[]): { versionId: number } {
 		this._extensionDescriptions = extensionDescriptions;
 		this._initialize();
+		this._versionId++;
 		this._onDidChange.fire(undefined);
+		return {
+			versionId: this._versionId
+		};
 	}
 
 	public deltaExtensions(toAdd: IExtensionDescription[], toRemove: ExtensionIdentifier[]): DeltaExtensionsResult {
@@ -112,8 +118,9 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 		this._extensionDescriptions = removeExtensions(this._extensionDescriptions, looping.map(ext => ext.identifier));
 
 		this._initialize();
+		this._versionId++;
 		this._onDidChange.fire(undefined);
-		return new DeltaExtensionsResult(looping);
+		return new DeltaExtensionsResult(this._versionId, looping);
 	}
 
 	private static _findLoopingExtensions(extensionDescriptions: IExtensionDescription[]): IExtensionDescription[] {
@@ -217,6 +224,13 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 		return this._extensionsArr.slice(0);
 	}
 
+	public getSnapshot(): ExtensionDescriptionRegistrySnapshot {
+		return new ExtensionDescriptionRegistrySnapshot(
+			this._versionId,
+			this.getAllExtensionDescriptions()
+		);
+	}
+
 	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
 		const extension = this._extensionsMap.get(extensionId);
 		return extension ? extension : undefined;
@@ -237,6 +251,13 @@ export class ExtensionDescriptionRegistry implements IReadOnlyExtensionDescripti
 			?? (uuid ? this.getExtensionDescriptionByUUID(uuid) : undefined)
 		);
 	}
+}
+
+export class ExtensionDescriptionRegistrySnapshot {
+	constructor(
+		public readonly versionId: number,
+		public readonly extensions: readonly IExtensionDescription[]
+	) { }
 }
 
 export interface IActivationEventsReader {
@@ -281,6 +302,9 @@ export class LockableExtensionDescriptionRegistry implements IReadOnlyExtensionD
 	}
 	public getAllExtensionDescriptions(): IExtensionDescription[] {
 		return this._actual.getAllExtensionDescriptions();
+	}
+	public getSnapshot(): ExtensionDescriptionRegistrySnapshot {
+		return this._actual.getSnapshot();
 	}
 	public getExtensionDescription(extensionId: ExtensionIdentifier | string): IExtensionDescription | undefined {
 		return this._actual.getExtensionDescription(extensionId);

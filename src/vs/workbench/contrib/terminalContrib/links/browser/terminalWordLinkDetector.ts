@@ -127,6 +127,10 @@ export class TerminalWordLinkDetector extends Disposable implements ITerminalLin
 
 	private _refreshSeparatorCodes(): void {
 		const separators = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION).wordSeparators;
-		this._separatorRegex = new RegExp(`[${escapeRegExpCharacters(separators)}]`, 'g');
+		let powerlineSymbols = '';
+		for (let i = 0xe0b0; i <= 0xe0bf; i++) {
+			powerlineSymbols += String.fromCharCode(i);
+		}
+		this._separatorRegex = new RegExp(`[${escapeRegExpCharacters(separators)}${powerlineSymbols}]`, 'g');
 	}
 }

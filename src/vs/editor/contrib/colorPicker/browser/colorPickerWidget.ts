@@ -264,7 +264,7 @@ class SaturationBox extends Disposable {
 
 		this.monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangePosition(event.pageX - origin.left, event.pageY - origin.top), () => null);
 
-		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
+		const pointerUpListener = dom.addDisposableListener(e.target.ownerDocument, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
 			pointerUpListener.dispose();
 			if (this.monitor) {
@@ -321,11 +321,13 @@ class SaturationBox extends Disposable {
 		this.selection.style.top = `${this.height - v * this.height}px`;
 	}
 
-	private onDidChangeColor(): void {
+	private onDidChangeColor(color: Color): void {
 		if (this.monitor && this.monitor.isMonitoring()) {
 			return;
 		}
 		this.paint();
+		const hsva = color.hsva;
+		this.paintSelection(hsva.s, hsva.v);
 	}
 }
 
@@ -355,6 +357,7 @@ abstract class Strip extends Disposable {
 		this.slider.style.top = `0px`;
 
 		this._register(dom.addDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, e => this.onPointerDown(e)));
+		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.layout();
 	}
 
@@ -362,6 +365,11 @@ abstract class Strip extends Disposable {
 		this.height = this.domNode.offsetHeight - this.slider.offsetHeight;
 
 		const value = this.getValue(this.model.color);
+		this.updateSliderPosition(value);
+	}
+
+	protected onDidChangeColor(color: Color) {
+		const value = this.getValue(color);
 		this.updateSliderPosition(value);
 	}
 
@@ -379,7 +387,7 @@ abstract class Strip extends Disposable {
 
 		monitor.startMonitoring(e.target, e.pointerId, e.buttons, event => this.onDidChangeTop(event.pageY - origin.top), () => null);
 
-		const pointerUpListener = dom.addDisposableListener(document, dom.EventType.POINTER_UP, () => {
+		const pointerUpListener = dom.addDisposableListener(e.target.ownerDocument, dom.EventType.POINTER_UP, () => {
 			this._onColorFlushed.fire();
 			pointerUpListener.dispose();
 			monitor.stopMonitoring(true);
@@ -407,11 +415,11 @@ class OpacityStrip extends Strip {
 		super(container, model, showingStandaloneColorPicker);
 		this.domNode.classList.add('opacity-strip');
 
-		this._register(model.onDidChangeColor(this.onDidChangeColor, this));
 		this.onDidChangeColor(this.model.color);
 	}
 
-	private onDidChangeColor(color: Color): void {
+	protected override onDidChangeColor(color: Color): void {
+		super.onDidChangeColor(color);
 		const { r, g, b } = color.rgba;
 		const opaque = new Color(new RGBA(r, g, b, 1));
 		const transparent = new Color(new RGBA(r, g, b, 0));

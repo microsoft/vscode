@@ -31,7 +31,7 @@
           ".jslintrc",
           ".jsonld",
           ".geojson",
-		      ".ipynb",
+          ".ipynb",
           ".vuerc"
         ],
         "filenames": [
@@ -77,6 +77,20 @@
         ],
         "filenames": [],
         "configuration": "./language-configuration.json"
+      },
+      {
+        "id": "snippets",
+        "aliases": [
+            "Code Snippets"
+        ],
+        "extensions": [
+          ".code-snippets"
+        ],
+        "filenamePatterns": [
+          "**/User/snippets/*.json",
+          "**/User/profiles/*/snippets/*.json"
+        ],
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -94,6 +108,11 @@
         "language": "jsonl",
         "scopeName": "source.json.lines",
         "path": "./syntaxes/JSONL.tmLanguage.json"
+      },
+      {
+        "language": "snippets",
+        "scopeName": "source.json.comments.snippets",
+        "path": "./syntaxes/snippets.tmLanguage.json"
       }
     ]
   },

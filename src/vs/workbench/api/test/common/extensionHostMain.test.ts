@@ -63,6 +63,7 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 		}]
 	);
 
+	const originalPrepareStackTrace = Error.prepareStackTrace;
 	const insta = new InstantiationService(collection, false);
 
 	let existingErrorHandler: (e: any) => void;
@@ -79,6 +80,10 @@ suite('ExtensionHostMain#ErrorHandler - Wrapping prepareStackTrace can cause slo
 
 	setup(async function () {
 		findSubstrCount = 0;
+	});
+
+	teardown(() => {
+		Error.prepareStackTrace = originalPrepareStackTrace;
 	});
 
 	test('basics', function () {

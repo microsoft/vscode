@@ -399,7 +399,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 				if (threadToReveal && isCodeEditor(editor)) {
 					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, true);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, !preserveFocus);
 				}
 
 				return true;
@@ -421,7 +421,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = CommentController.get(control);
-					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
+					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true, !preserveFocus);
 				}
 			}
 		});

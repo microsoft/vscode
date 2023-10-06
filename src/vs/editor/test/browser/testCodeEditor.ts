@@ -45,7 +45,8 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { BrandedService, IInstantiationService, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
@@ -99,6 +100,7 @@ export class TestCodeEditor extends CodeEditorWidget implements ICodeEditor {
 
 class TestEditorDomElement {
 	parentElement: IContextKeyServiceTarget | null = null;
+	ownerDocument = document;
 	setAttribute(attr: string, value: string): void { }
 	removeAttribute(attr: string): void { }
 	hasAttribute(attr: string): boolean { return false; }
@@ -176,6 +178,7 @@ export function createCodeEditorServices(disposables: DisposableStore, services:
 	};
 
 	define(IAccessibilityService, TestAccessibilityService);
+	define(IKeybindingService, MockKeybindingService);
 	define(IClipboardService, TestClipboardService);
 	define(IEditorWorkerService, TestEditorWorkerService);
 	defineInstance(IOpenerService, NullOpenerService);

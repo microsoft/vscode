@@ -109,7 +109,7 @@
     "watch-web": "npx webpack-cli --config extension-browser.webpack.config --mode none --watch --info-verbosity verbose"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/node-fetch": "^2.5.7",
     "@types/randombytes": "^2.0.0",
     "@types/sha.js": "^2.4.0",
@@ -118,7 +118,7 @@
   "dependencies": {
     "node-fetch": "2.6.7",
     "@azure/ms-rest-azure-env": "^2.0.0",
-    "@vscode/extension-telemetry": "0.7.5"
+    "@vscode/extension-telemetry": "^0.8.5"
   },
   "repository": {
     "type": "git",

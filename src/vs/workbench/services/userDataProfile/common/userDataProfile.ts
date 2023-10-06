@@ -80,6 +80,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 
 export interface IProfileImportOptions extends IUserDataProfileOptions {
 	readonly name?: string;
+	readonly icon?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
 }
 
@@ -95,7 +96,6 @@ export interface IUserDataProfileImportExportService {
 	showProfileContents(): Promise<void>;
 	createProfile(from?: IUserDataProfile | URI): Promise<void>;
 	editProfile(profile: IUserDataProfile): Promise<void>;
-	createFromProfile(profile: IUserDataProfile, name: string, options?: IUserDataProfileOptions): Promise<void>;
 	createTroubleshootProfile(): Promise<void>;
 	setProfile(profile: IUserDataProfileTemplate): Promise<void>;
 }

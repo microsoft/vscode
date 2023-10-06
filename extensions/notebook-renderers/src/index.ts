@@ -37,6 +37,7 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 	if (alt) {
 		image.alt = alt;
 	}
+	image.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', outputId: outputInfo.id, 'preventDefaultContextMenuItems': true }));
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
@@ -227,7 +228,9 @@ function onKeypressHandler(e: KeyboardEvent) {
 	if (e.ctrlKey || e.shiftKey) {
 		return;
 	}
-	if (e.code === 'ArrowDown' || e.code === 'End' || e.code === 'ArrowUp' || e.code === 'Home') {
+	if (e.code === 'ArrowDown' || e.code === 'ArrowUp' ||
+		e.code === 'End' || e.code === 'Home' ||
+		e.code === 'PageUp' || e.code === 'PageDown') {
 		// These should change the scroll position, not adjust the selected cell in the notebook
 		e.stopPropagation();
 	}

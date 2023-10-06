@@ -14,9 +14,10 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatExecuteActionContext {
 	widget: IChatWidget;
+	inputValue?: string;
 }
 
-function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
+export function isExecuteActionContext(thing: unknown): thing is IChatExecuteActionContext {
 	return typeof thing === 'object' && thing !== null && 'widget' in thing;
 }
 
@@ -48,7 +49,7 @@ export class SubmitAction extends Action2 {
 			return;
 		}
 
-		context.widget.acceptInput();
+		context.widget.acceptInput(context.inputValue);
 	}
 }
 

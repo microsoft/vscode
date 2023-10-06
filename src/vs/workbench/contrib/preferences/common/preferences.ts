@@ -114,10 +114,10 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
 	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
 		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
-		Object.keys(productService.extensionRecommendations).forEach(key => {
-			const value = productService.extensionRecommendations![key];
-			if (value.onSettingsEditorOpen) {
-				settingsEditorRecommendedExtensions[key] = value;
+		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
+			const extensionInfo = productService.extensionRecommendations![extensionId];
+			if (extensionInfo.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
 			}
 		});
 		cachedExtensionToggleData = {
@@ -127,4 +127,19 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 		return cachedExtensionToggleData;
 	}
 	return undefined;
+}
+
+/**
+ * Compares two nullable numbers such that null values always come after defined ones.
+ */
+export function compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
+	const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
+	const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
+	if (aOrMax < bOrMax) {
+		return -1;
+	} else if (aOrMax > bOrMax) {
+		return 1;
+	} else {
+		return 0;
+	}
 }

@@ -354,7 +354,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const lastTextModelChanges = this._session.lastTextModelChanges;
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
-			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			const changeEndLineNumber = change.modified.endLineNumberExclusive - 1;
 			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
@@ -409,7 +409,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -436,7 +436,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override getWidgetPosition(): Position | undefined {
 		if (this._session.lastTextModelChanges.length) {
-			return this._session.wholeRange.value.getEndPosition();
+			return this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 		return;
 	}

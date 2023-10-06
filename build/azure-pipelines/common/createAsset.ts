@@ -197,15 +197,19 @@ async function main(): Promise<void> {
 
 	const uploadPromises: Promise<void>[] = [];
 
-	if (await blobClient.exists()) {
-		uploadPromises.push(Promise.reject(new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`)));
-	} else {
-		uploadPromises.push(retry(async (attempt) => {
-			console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
-			await blobClient.uploadFile(filePath, blobOptions);
-			console.log('Blob successfully uploaded to Azure storage.');
-		}));
-	}
+	uploadPromises.push((async () => {
+		console.log(`Checking for blob in Azure...`);
+
+		if (await retry(() => blobClient.exists())) {
+			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		} else {
+			await retry(async (attempt) => {
+				console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
+				await blobClient.uploadFile(filePath, blobOptions);
+				console.log('Blob successfully uploaded to Azure storage.');
+			});
+		}
+	})());
 
 	const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
 
@@ -215,26 +219,33 @@ async function main(): Promise<void> {
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
-		if (await mooncakeBlobClient.exists()) {
-			uploadPromises.push(Promise.reject(new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`)));
-		} else {
-			uploadPromises.push(retry(async (attempt) => {
-				console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
-				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-				console.log('Blob successfully uploaded to Mooncake Azure storage.');
-			}));
-		}
+		uploadPromises.push((async () => {
+			console.log(`Checking for blob in Mooncake Azure...`);
+
+			if (await retry(() => mooncakeBlobClient.exists())) {
+				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
+			} else {
+				await retry(async (attempt) => {
+					console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
+					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+					console.log('Blob successfully uploaded to Mooncake Azure storage.');
+				});
+			}
+		})());
 	}
 
 	const promiseResults = await Promise.allSettled(uploadPromises);
+	const rejectedPromiseResults = promiseResults.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
 
-	for (const result of promiseResults) {
-		if (result.status === 'rejected') {
-			throw result.reason;
-		}
+	if (rejectedPromiseResults.length === 0) {
+		console.log('All blobs successfully uploaded.');
+	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
+		console.warn(rejectedPromiseResults[0].reason.message);
+		console.log('Some blobs successfully uploaded.');
+	} else {
+		// eslint-disable-next-line no-throw-literal
+		throw rejectedPromiseResults[0]?.reason;
 	}
-
-	console.log('All blobs successfully uploaded.');
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;

@@ -26,7 +26,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -210,6 +210,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const window = this.windowById(windowId);
 		if (window?.win) {
 			window.win.minimize();
+		}
+	}
+
+	async moveWindowTop(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window?.win) {
+			window.win.moveTop();
 		}
 	}
 
@@ -449,7 +456,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (isWindows) {
 			isAdmin = (await import('native-is-elevated'))();
 		} else {
-			isAdmin = process.getuid() === 0;
+			isAdmin = process.getuid?.() === 0;
 		}
 
 		return isAdmin;
@@ -650,7 +657,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.setReady();
 	}
 
-	async relaunch(windowId: number | undefined, options?: { addArgs?: string[]; removeArgs?: string[] }): Promise<void> {
+	async relaunch(windowId: number | undefined, options?: IRelaunchOptions): Promise<void> {
 		return this.lifecycleMainService.relaunch(options);
 	}
 
@@ -741,6 +748,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (window?.win) {
 			const contents = window.win.webContents;
 			contents.toggleDevTools();
+		}
+
+		for (const browserWindow of BrowserWindow.getAllWindows()) {
+			if (browserWindow.webContents.getURL() === 'about:blank') {
+				browserWindow.webContents.toggleDevTools();
+			}
 		}
 	}
 

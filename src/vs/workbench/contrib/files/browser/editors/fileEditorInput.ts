@@ -433,8 +433,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
-				if (model?.isDirty()) {
-					return model.textEditorModel.getValue(); // only if dirty
+				if (model?.isDirty() && !model.textEditorModel.isTooLargeForHeapOperation()) {
+					return model.textEditorModel.getValue(); // only if dirty and not too large
 				}
 
 				return undefined;

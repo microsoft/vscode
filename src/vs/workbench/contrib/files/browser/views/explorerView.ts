@@ -333,6 +333,10 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	isItemVisible(item: ExplorerItem): boolean {
+		// If filter is undefined it means the tree hasn't been rendered yet, so nothing is visible
+		if (!this.filter) {
+			return false;
+		}
 		return this.filter.filter(item, TreeVisibility.Visible);
 	}
 
@@ -446,7 +450,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return false;
 			},
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
+			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
 			}
@@ -473,7 +477,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			const shiftDown = DOM.isKeyboardEvent(e.browserEvent) && e.browserEvent.shiftKey;
 			if (!shiftDown) {
 				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
 					// Do not react if user is clicking on explorer items while some are being edited #70276
@@ -569,15 +573,17 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		const stat = e.element;
 		let anchor = e.anchor;
 
-		// Compressed folders
-		if (stat) {
-			const controller = this.renderer.getCompressedNavigationController(stat);
+		// Adjust for compressed folders (except when mouse is used)
+		if (anchor instanceof HTMLElement) {
+			if (stat) {
+				const controller = this.renderer.getCompressedNavigationController(stat);
 
-			if (controller) {
-				if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
-					anchor = controller.labels[controller.index];
-				} else {
-					controller.last();
+				if (controller) {
+					if (DOM.isKeyboardEvent(e.browserEvent) || isCompressedFolderName(e.browserEvent.target)) {
+						anchor = controller.labels[controller.index];
+					} else {
+						controller.last();
+					}
 				}
 			}
 		}
@@ -653,7 +659,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		return this.tree.updateChildren(toRefresh, recursive, false, {
+		return this.tree.updateChildren(toRefresh, recursive, !!item, {
 			diffIdentityProvider: identityProvider
 		});
 	}
@@ -902,7 +908,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 }
 
-function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
+export function createFileIconThemableTreeContainerScope(container: HTMLElement, themeService: IThemeService): IDisposable {
 	container.classList.add('file-icon-themable-tree');
 	container.classList.add('show-file-icons');
 

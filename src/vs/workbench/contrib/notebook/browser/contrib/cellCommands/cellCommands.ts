@@ -501,7 +501,7 @@ registerAction2(class extends NotebookMultiCellAction {
 				value: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
 				original: 'Toggle Outputs'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
 				args: cellExecutionArgs
 			}
@@ -617,7 +617,6 @@ registerAction2(class ToggleCellOutputScrolling extends NotebookMultiCellAction 
 			const currentlyEnabled = cellMetadata['scrollable'] !== undefined ? cellMetadata['scrollable'] : globalScrollSetting;
 			const shouldEnableScrolling = collapsed || !currentlyEnabled;
 			cellMetadata['scrollable'] = shouldEnableScrolling;
-			viewModel.model.bumpVersion();
 			viewModel.resetRenderer();
 		}
 	}

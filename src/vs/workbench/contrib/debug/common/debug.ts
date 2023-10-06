@@ -581,9 +581,11 @@ export interface IDataBreakpoint extends IBaseBreakpoint {
 }
 
 export interface IInstructionBreakpoint extends IBaseBreakpoint {
-	// instructionReference is the instruction 'address' from the debugger.
 	readonly instructionReference: string;
 	readonly offset?: number;
+	/** Original instruction memory address; display purposes only */
+	readonly address: bigint;
+	toJSON(): DebugProtocol.InstructionBreakpoint;
 }
 
 export interface IExceptionInfo {
@@ -677,7 +679,7 @@ export interface IDebugConfiguration {
 	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean | 'auto' | 'on' | 'off'; // boolean for back-compat
-	toolBarLocation: 'floating' | 'docked' | 'hidden';
+	toolBarLocation: 'floating' | 'docked' | 'commandCenter' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
@@ -837,6 +839,7 @@ export interface IDebuggerContribution extends IPlatformSpecificAdapterContribut
 	configurationSnippets?: IJSONSchemaSnippet[];
 	variables?: { [key: string]: string };
 	when?: string;
+	hiddenWhen?: string;
 	deprecated?: string;
 	strings?: { [key in DebuggerString]: string };
 }
@@ -1097,14 +1100,14 @@ export interface IDebugService {
 	/**
 	 * Adds a new instruction breakpoint.
 	 */
-	addInstructionBreakpoint(address: string, offset: number, condition?: string, hitCondition?: string): Promise<void>;
+	addInstructionBreakpoint(instructionReference: string, offset: number, address: bigint, condition?: string, hitCondition?: string): Promise<void>;
 
 	/**
 	 * Removes all instruction breakpoints. If address is passed only removes the instruction breakpoint with the passed address.
 	 * The address should be the address string supplied by the debugger from the "Disassemble" request.
 	 * Notifies debug adapter of breakpoint changes.
 	 */
-	removeInstructionBreakpoints(address?: string): Promise<void>;
+	removeInstructionBreakpoints(instructionReference?: string, offset?: number): Promise<void>;
 
 	setExceptionBreakpointCondition(breakpoint: IExceptionBreakpoint, condition: string | undefined): Promise<void>;
 

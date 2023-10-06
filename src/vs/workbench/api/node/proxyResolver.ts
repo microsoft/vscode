@@ -14,11 +14,11 @@ import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protoc
 import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch } from '@vscode/proxy-agent';
 
-const systemCertificatesV2Default = true;
+const systemCertificatesV2Default = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
@@ -32,7 +32,7 @@ export function connectProxyResolver(
 	const doUseHostProxy = typeof useHostProxy === 'boolean' ? useHostProxy : !initData.remote.isRemote;
 	const params: ProxyAgentParams = {
 		resolveProxy: url => extHostWorkspace.resolveProxy(url),
-		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, configProvider, {}),
+		lookupProxyAuthorization: lookupProxyAuthorization.bind(undefined, extHostLogService, mainThreadTelemetry, configProvider, {}, initData.remote.isRemote),
 		getProxyURL: () => configProvider.getConfiguration('http').get('proxy'),
 		getProxySupport: () => configProvider.getConfiguration('http').get<ProxySupportSetting>('proxySupport') || 'off',
 		getSystemCertificatesV1: () => certSettingV1(configProvider),
@@ -53,8 +53,22 @@ export function connectProxyResolver(
 				extHostLogService.error(message, ...args);
 			}
 		},
-		getLogLevel: () => extHostLogService.getLevel(),
-		// TODO @chrmarti Remove this from proxy agent
+		getLogLevel: () => {
+			const level = extHostLogService.getLevel();
+			switch (level) {
+				case LogServiceLevel.Trace: return LogLevel.Trace;
+				case LogServiceLevel.Debug: return LogLevel.Debug;
+				case LogServiceLevel.Info: return LogLevel.Info;
+				case LogServiceLevel.Warning: return LogLevel.Warning;
+				case LogServiceLevel.Error: return LogLevel.Error;
+				case LogServiceLevel.Off: return LogLevel.Off;
+				default: return never(level);
+			}
+			function never(level: never) {
+				extHostLogService.error('Unknown log level', level);
+				return LogLevel.Debug;
+			}
+		},
 		proxyResolveTelemetry: () => { },
 		useHostProxy: doUseHostProxy,
 		addCertificates: [],
@@ -119,8 +133,10 @@ function configureModuleLoading(extensionService: ExtHostExtensionService, looku
 
 async function lookupProxyAuthorization(
 	extHostLogService: ILogService,
+	mainThreadTelemetry: MainThreadTelemetryShape,
 	configProvider: ExtHostConfigProvider,
 	proxyAuthenticateCache: Record<string, string | string[] | undefined>,
+	isRemote: boolean,
 	proxyURL: string,
 	proxyAuthenticate: string | string[] | undefined,
 	state: { kerberosRequested?: boolean }
@@ -132,6 +148,7 @@ async function lookupProxyAuthorization(
 	extHostLogService.trace('ProxyResolver#lookupProxyAuthorization callback', `proxyURL:${proxyURL}`, `proxyAuthenticate:${proxyAuthenticate}`, `proxyAuthenticateCache:${cached}`);
 	const header = proxyAuthenticate || cached;
 	const authenticate = Array.isArray(header) ? header : typeof header === 'string' ? [header] : [];
+	sendTelemetry(mainThreadTelemetry, authenticate, isRemote);
 	if (authenticate.some(a => /^(Negotiate|Kerberos)( |$)/i.test(a)) && !state.kerberosRequested) {
 		try {
 			state.kerberosRequested = true;
@@ -148,4 +165,30 @@ async function lookupProxyAuthorization(
 		}
 	}
 	return undefined;
+}
+
+type ProxyAuthenticationClassification = {
+	owner: 'chrmarti';
+	comment: 'Data about proxy authentication requests';
+	authenticationType: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'Type of the authentication requested' };
+	extensionHostType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Type of the extension host' };
+};
+
+type ProxyAuthenticationEvent = {
+	authenticationType: string;
+	extensionHostType: string;
+};
+
+let telemetrySent = false;
+
+function sendTelemetry(mainThreadTelemetry: MainThreadTelemetryShape, authenticate: string[], isRemote: boolean) {
+	if (telemetrySent || !authenticate.length) {
+		return;
+	}
+	telemetrySent = true;
+
+	mainThreadTelemetry.$publicLog2<ProxyAuthenticationEvent, ProxyAuthenticationClassification>('proxyAuthenticationRequest', {
+		authenticationType: authenticate.map(a => a.split(' ')[0]).join(','),
+		extensionHostType: isRemote ? 'remote' : 'local',
+	});
 }

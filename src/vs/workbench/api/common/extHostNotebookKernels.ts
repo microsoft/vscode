@@ -12,7 +12,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
-import { Cache } from 'vs/workbench/api/common/cache';
 import { ExtHostNotebookKernelsShape, ICellExecuteUpdateDto, IMainContext, INotebookKernelDto2, MainContext, MainThreadNotebookKernelsShape, NotebookOutputDto } from 'vs/workbench/api/common/extHost.protocol';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitDataService';
@@ -51,7 +50,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 
 	private _kernelSourceActionProviders = new Map<number, vscode.NotebookKernelSourceActionProvider>();
 	private _kernelSourceActionProviderHandlePool: number = 0;
-	private _kernelSourceActionProviderCache = new Cache<IDisposable>('NotebookKernelSourceActionProviderCache');
 
 	private readonly _kernelData = new Map<number, IKernelData>();
 	private _handlePool: number = 0;
@@ -111,7 +109,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const _defaultExecutHandler = () => console.warn(`NO execute handler from notebook controller '${data.id}' of extension: '${extension.identifier}'`);
 
 		let isDisposed = false;
-		const commandDisposables = new DisposableStore();
 
 		const onDidChangeSelection = new Emitter<{ selected: boolean; notebook: vscode.NotebookDocument }>();
 		const onDidReceiveMessage = new Emitter<{ editor: vscode.NotebookEditor; message: any }>();
@@ -236,7 +233,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 					this._logService.trace(`NotebookController[${handle}], DISPOSED`);
 					isDisposed = true;
 					this._kernelData.delete(handle);
-					commandDisposables.dispose();
 					onDidChangeSelection.dispose();
 					onDidReceiveMessage.dispose();
 					this._proxy.$removeKernel(handle);
@@ -327,7 +323,6 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		const provider = this._kernelSourceActionProviders.get(handle);
 		if (provider) {
 			const disposables = new DisposableStore();
-			this._kernelSourceActionProviderCache.add([disposables]);
 			const ret = await provider.provideNotebookKernelSourceActions(token);
 			return (ret ?? []).map(item => extHostTypeConverters.NotebookKernelSourceAction.from(item, this._commands.converter, disposables));
 		}

@@ -6,7 +6,7 @@
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { INotificationViewItem, isNotificationViewItem, NotificationsModel } from 'vs/workbench/common/notifications';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
@@ -68,9 +68,19 @@ export function getNotificationFromContext(listService: IListService, context?: 
 
 	const list = listService.lastFocusedList;
 	if (list instanceof WorkbenchList) {
-		const focusedElement = list.getFocusedElements()[0];
-		if (isNotificationViewItem(focusedElement)) {
-			return focusedElement;
+		let element = list.getFocusedElements()[0];
+		if (!isNotificationViewItem(element)) {
+			if (list.isDOMFocused()) {
+				// the notification list might have received focus
+				// via keyboard and might not have a focussed element.
+				// in that case just return the first element
+				// https://github.com/microsoft/vscode/issues/191705
+				element = list.element(0);
+			}
+		}
+
+		if (isNotificationViewItem(element)) {
+			return element;
 		}
 	}
 
@@ -80,9 +90,14 @@ export function getNotificationFromContext(listService: IListService, context?: 
 export function registerNotificationCommands(center: INotificationsCenterController, toasts: INotificationsToastController, model: NotificationsModel): void {
 
 	// Show Notifications Cneter
-	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
-		toasts.hide();
-		center.show();
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: SHOW_NOTIFICATIONS_CENTER,
+		weight: KeybindingWeight.WorkbenchContrib,
+		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyN),
+		handler: () => {
+			toasts.hide();
+			center.show();
+		}
 	});
 
 	// Hide Notifications Center
@@ -104,7 +119,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	});
 
 	// Toggle Notifications Center
-	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, accessor => {
+	CommandsRegistry.registerCommand(TOGGLE_NOTIFICATIONS_CENTER, () => {
 		if (center.isVisible) {
 			center.hide();
 		} else {
@@ -146,11 +161,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationsToastsVisibleContext),
+		when: ContextKeyExpr.and(NotificationFocusedContext),
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = firstOrDefault(model.notifications);
+			const notification = getNotificationFromContext(accessor.get(IListService));
 			if (!notification) {
 				return;
 			}

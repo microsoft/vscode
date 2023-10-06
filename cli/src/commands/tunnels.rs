@@ -8,13 +8,21 @@ use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{
+	net::{IpAddr, Ipv4Addr, SocketAddr},
+	str::FromStr,
+	time::Duration,
+};
 use sysinfo::Pid;
+use tokio::{
+	io::{AsyncBufReadExt, BufReader},
+	sync::watch,
+};
 
 use super::{
 	args::{
-		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelRenameArgs,
-		TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
+		AuthProvider, CliCore, CommandShellArgs, ExistingTunnelArgs, TunnelForwardArgs,
+		TunnelRenameArgs, TunnelServeArgs, TunnelServiceSubCommands, TunnelUserSubCommands,
 	},
 	CommandContext,
 };
@@ -22,12 +30,16 @@ use super::{
 use crate::{
 	async_pipe::{get_socket_name, listen_socket_rw_stream, AsyncRWAccepter},
 	auth::Auth,
-	constants::{APPLICATION_NAME, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME},
+	constants::{
+		APPLICATION_NAME, CONTROL_PORT, IS_A_TTY, TUNNEL_CLI_LOCK_NAME, TUNNEL_SERVICE_LOCK_NAME,
+	},
 	log,
 	state::LauncherPaths,
 	tunnels::{
 		code_server::CodeServerArgs,
-		create_service_manager, dev_tunnels, legal,
+		create_service_manager,
+		dev_tunnels::{self, DevTunnels},
+		legal, local_forwarding,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -39,6 +51,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -124,6 +137,11 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -132,7 +150,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
 	};
 
@@ -149,8 +167,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(true, _) => {
-			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+		(Some(p), _) => {
+			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
+			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
 
@@ -200,7 +219,7 @@ pub async fn service(
 
 			if let Some(name) = &args.name {
 				// ensure the name matches, and tunnel exists
-				dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths)
+				dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths)
 					.rename_tunnel(name)
 					.await?;
 			} else {
@@ -274,7 +293,7 @@ pub async fn user(ctx: CommandContext, user_args: TunnelUserSubCommands) -> Resu
 /// Remove the tunnel used by this tunnel, if any.
 pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 	dt.rename_tunnel(&rename_args.name).await?;
 	ctx.log.result(format!(
 		"Successfully renamed this tunnel to {}",
@@ -287,7 +306,7 @@ pub async fn rename(ctx: CommandContext, rename_args: TunnelRenameArgs) -> Resul
 /// Remove the tunnel used by this tunnel, if any.
 pub async fn unregister(ctx: CommandContext) -> Result<i32, AnyError> {
 	let auth = Auth::new(&ctx.paths, ctx.log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&ctx.log, auth, &ctx.paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&ctx.log, auth, &ctx.paths);
 	dt.remove_tunnel().await?;
 	Ok(0)
 }
@@ -318,12 +337,12 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 
 #[derive(Serialize)]
 pub struct StatusOutput {
-	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub tunnel: Option<protocol::singleton::StatusWithTunnelName>,
 	pub service_installed: bool,
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
+	let tunnel = do_single_rpc_call::<_, protocol::singleton::StatusWithTunnelName>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
@@ -339,8 +358,8 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	ctx.log.result(
 		serde_json::to_string(&StatusOutput {
 			service_installed,
-			tunnel: match tunnel_status {
-				Ok(s) => Some(s.tunnel),
+			tunnel: match tunnel {
+				Ok(s) => Some(s),
 				Err(CodeError::NoRunningTunnel) => None,
 				Err(e) => return Err(e.into()),
 			},
@@ -395,6 +414,85 @@ pub async fn serve(ctx: CommandContext, gateway_args: TunnelServeArgs) -> Result
 	result
 }
 
+/// Internal command used by port forwarding. It reads requests for forwarded ports
+/// on lines from stdin, as JSON. It uses singleton logic as well (though on
+/// a different tunnel than the main one used for the control server) so that
+/// all forward requests on a single machine go through a single hosted tunnel
+/// process. Without singleton logic, requests could get routed to processes
+/// that aren't forwarding a given port and then fail.
+pub async fn forward(
+	ctx: CommandContext,
+	mut forward_args: TunnelForwardArgs,
+) -> Result<i32, AnyError> {
+	// Spooky: check IS_A_TTY before starting the stdin reader, since IS_A_TTY will
+	// access stdin but a lock will later be held on stdin by the line-reader.
+	if *IS_A_TTY {
+		trace!(ctx.log, "port forwarding is an internal preview feature");
+	}
+
+	// #region stdin reading logic:
+	let (own_ports_tx, own_ports_rx) = watch::channel(vec![]);
+	let ports_process_log = ctx.log.clone();
+	tokio::spawn(async move {
+		let mut lines = BufReader::new(tokio::io::stdin()).lines();
+		while let Ok(Some(line)) = lines.next_line().await {
+			match serde_json::from_str(&line) {
+				Ok(p) => {
+					let _ = own_ports_tx.send(p);
+				}
+				Err(e) => warning!(ports_process_log, "error parsing ports: {}", e),
+			}
+		}
+	});
+
+	// #region singleton acquisition
+	let shutdown = ShutdownRequest::create_rx([ShutdownRequest::CtrlC]);
+	let server = loop {
+		if shutdown.is_open() {
+			return Ok(0);
+		}
+
+		match acquire_singleton(&ctx.paths.forwarding_lockfile()).await {
+			Ok(SingletonConnection::Client(stream)) => {
+				debug!(ctx.log, "starting as client to singleton");
+				let r = local_forwarding::client(local_forwarding::SingletonClientArgs {
+					log: ctx.log.clone(),
+					shutdown: shutdown.clone(),
+					stream,
+					port_requests: own_ports_rx.clone(),
+				})
+				.await;
+				if let Err(e) = r {
+					warning!(ctx.log, "error contacting forwarding singleton: {}", e);
+				}
+			}
+			Ok(SingletonConnection::Singleton(server)) => break server,
+			Err(e) => {
+				warning!(ctx.log, "error access singleton, retrying: {}", e);
+				tokio::time::sleep(Duration::from_secs(2)).await
+			}
+		}
+	};
+
+	// #region singleton handler
+	let auth = Auth::new(&ctx.paths, ctx.log.clone());
+	if let (Some(p), Some(at)) = (
+		forward_args.login.provider.take(),
+		forward_args.login.access_token.take(),
+	) {
+		auth.login(Some(p.into()), Some(at)).await?;
+	}
+
+	let mut tunnels = DevTunnels::new_port_forwarding(&ctx.log, auth, &ctx.paths);
+	let tunnel = tunnels
+		.start_new_launcher_tunnel(None, true, &forward_args.ports)
+		.await?;
+
+	local_forwarding::server(ctx.log, tunnel, server, own_ports_rx, shutdown).await?;
+
+	Ok(0)
+}
+
 fn get_connection_token(tunnel: &ActiveTunnel) -> String {
 	let mut hash = Sha256::new();
 	hash.update(tunnel.id.as_bytes());
@@ -442,7 +540,7 @@ async fn serve_with_csa(
 			return Ok(0);
 		}
 
-		match acquire_singleton(paths.tunnel_lockfile()).await {
+		match acquire_singleton(&paths.tunnel_lockfile()).await {
 			Ok(SingletonConnection::Client(stream)) => {
 				debug!(log, "starting as client to singleton");
 				let should_exit = start_singleton_client(SingletonClientArgs {
@@ -471,15 +569,19 @@ async fn serve_with_csa(
 	let _lock = app_mutex_name.map(AppMutex::new);
 
 	let auth = Auth::new(&paths, log.clone());
-	let mut dt = dev_tunnels::DevTunnels::new(&log, auth, &paths);
+	let mut dt = dev_tunnels::DevTunnels::new_remote_tunnel(&log, auth, &paths);
 	loop {
 		let tunnel = if let Some(t) =
 			fulfill_existing_tunnel_args(gateway_args.tunnel.clone(), &gateway_args.name)
 		{
 			dt.start_existing_tunnel(t).await
 		} else {
-			dt.start_new_launcher_tunnel(gateway_args.name.as_deref(), gateway_args.random_name)
-				.await
+			dt.start_new_launcher_tunnel(
+				gateway_args.name.as_deref(),
+				gateway_args.random_name,
+				&[CONTROL_PORT],
+			)
+			.await
 		}?;
 
 		csa.connection_token = Some(get_connection_token(&tunnel));
@@ -503,7 +605,7 @@ async fn serve_with_csa(
 				// reuse current args, but specify no-forward since tunnels will
 				// already be running in this process, and we cannot do a login
 				let args = std::env::args().skip(1).collect::<Vec<String>>();
-				let exit = std::process::Command::new(current_exe)
+				let exit = new_std_command(current_exe)
 					.args(args)
 					.spawn()
 					.map_err(|e| wrap(e, "error respawning after update"))?

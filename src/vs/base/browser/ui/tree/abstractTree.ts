@@ -19,10 +19,10 @@ import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTr
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
 import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
+import { Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -61,6 +61,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	private autoExpandNode: ITreeNode<T, TFilterData> | undefined;
 	private autoExpandDisposable: IDisposable = Disposable.None;
+	private disposables = new DisposableStore();
 
 	constructor(private modelProvider: () => ITreeModel<T, TFilterData, TRef>, private dnd: ITreeDragAndDrop<T>) { }
 
@@ -103,7 +104,7 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 				}
 
 				this.autoExpandNode = undefined;
-			}, 500);
+			}, 500, this.disposables);
 		}
 
 		if (typeof result === 'boolean' || !result.accept || typeof result.bubble === 'undefined' || result.feedback) {
@@ -143,6 +144,11 @@ class TreeNodeListDragAndDrop<T, TFilterData, TRef> implements IListDragAndDrop<
 
 	onDragEnd(originalEvent: DragEvent): void {
 		this.dnd.onDragEnd?.(originalEvent);
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+		this.dnd.dispose();
 	}
 }
 
@@ -814,9 +820,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 		this.mode = mode;
 
 		const emitter = this._register(new DomEmitter(this.findInput.inputBox.inputElement, 'keydown'));
-		const onKeyDown = this._register(Event.chain(emitter.event))
-			.map(e => new StandardKeyboardEvent(e))
-			.event;
+		const onKeyDown = Event.chain(emitter.event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
 		this._register(onKeyDown((e): any => {
 			// Using equals() so we reserve modified keys for future use
@@ -886,9 +890,7 @@ class FindWidget<T, TFilterData> extends Disposable {
 			}));
 		}));
 
-		const onGrabKeyDown = this._register(Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event))
-			.map(e => new StandardKeyboardEvent(e))
-			.event;
+		const onGrabKeyDown = Event.chain(this._register(new DomEmitter(this.elements.grab, 'keydown')).event, $ => $.map(e => new StandardKeyboardEvent(e)));
 
 		this._register(onGrabKeyDown((e): any => {
 			let right: number | undefined;
@@ -1031,7 +1033,7 @@ class FindController<T, TFilterData> implements IDisposable {
 	private readonly _onDidChangeOpenState = new Emitter<boolean>();
 	readonly onDidChangeOpenState = this._onDidChangeOpenState.event;
 
-	private enabledDisposables = new DisposableStore();
+	private readonly enabledDisposables = new DisposableStore();
 	private readonly disposables = new DisposableStore();
 
 	constructor(
@@ -1089,8 +1091,7 @@ class FindController<T, TFilterData> implements IDisposable {
 		this._history = this.widget.getHistory();
 		this.widget = undefined;
 
-		this.enabledDisposables.dispose();
-		this.enabledDisposables = new DisposableStore();
+		this.enabledDisposables.clear();
 
 		this.previousPattern = this.pattern;
 		this.onDidChangeValue('');
@@ -1218,7 +1219,7 @@ export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTr
 	readonly collapseByDefault?: boolean; // defaults to false
 	readonly filter?: ITreeFilter<T, TFilterData>;
 	readonly dnd?: ITreeDragAndDrop<T>;
-	readonly additionalScrollHeight?: number;
+	readonly paddingBottom?: number;
 	readonly findWidgetEnabled?: boolean;
 	readonly findWidgetStyles?: IFindWidgetStyles;
 	readonly defaultFindVisibility?: TreeVisibility | ((e: T) => TreeVisibility);
@@ -1624,9 +1625,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		// We debounce it with 0 delay since these events may fire in the same stack and we only
 		// want to run this once. It also doesn't matter if it runs on the next tick since it's only
 		// a nice to have UI feature.
-		onDidChangeActiveNodes.input = Event.chain(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange))
-			.debounce(() => null, 0)
-			.map(() => {
+		const activeNodesEmitter = this.disposables.add(new Emitter<ITreeNode<T, TFilterData>[]>());
+		const activeNodesDebounce = this.disposables.add(new Delayer(0));
+		this.disposables.add(Event.any<any>(onDidModelSplice, this.focus.onDidChange, this.selection.onDidChange)(() => {
+			activeNodesDebounce.trigger(() => {
 				const set = new Set<ITreeNode<T, TFilterData>>();
 
 				for (const node of this.focus.getNodes()) {
@@ -1637,17 +1639,20 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 					set.add(node);
 				}
 
-				return [...set.values()];
-			}).event;
+				activeNodesEmitter.fire([...set.values()]);
+			});
+		}));
+		onDidChangeActiveNodes.input = activeNodesEmitter.event;
 
 		if (_options.keyboardSupport !== false) {
-			const onKeyDown = Event.chain(this.view.onKeyDown)
-				.filter(e => !isInputElement(e.target as HTMLElement))
-				.map(e => new StandardKeyboardEvent(e));
+			const onKeyDown = Event.chain(this.view.onKeyDown, $ =>
+				$.filter(e => !isInputElement(e.target as HTMLElement))
+					.map(e => new StandardKeyboardEvent(e))
+			);
 
-			onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
-			onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
-			onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.LeftArrow))(this.onLeftArrow, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.RightArrow))(this.onRightArrow, this, this.disposables);
+			Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Space))(this.onSpace, this, this.disposables);
 		}
 
 		if ((_options.findWidgetEnabled ?? true) && _options.keyboardNavigationLabelProvider && _options.contextViewProvider) {

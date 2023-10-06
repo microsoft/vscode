@@ -9,7 +9,15 @@ import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensio
 import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
 
+export interface IExtensionDescriptionSnapshot {
+	readonly versionId: number;
+	readonly allExtensions: IExtensionDescription[];
+	readonly activationEvents: { [extensionId: string]: string[] };
+	readonly myExtensions: ExtensionIdentifier[];
+}
+
 export interface IExtensionDescriptionDelta {
+	readonly versionId: number;
 	readonly toRemove: ExtensionIdentifier[];
 	readonly toAdd: IExtensionDescription[];
 	readonly addActivationEvents: { [extensionId: string]: string[] };
@@ -27,9 +35,7 @@ export interface IExtensionHostInitData {
 	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
-	activationEvents: { [extensionId: string]: string[] };
-	allExtensions: IExtensionDescription[];
-	myExtensions: ExtensionIdentifier[];
+	extensions: IExtensionDescriptionSnapshot;
 	nlsBaseUrl?: URI;
 	telemetryInfo: {
 		readonly sessionId: string;

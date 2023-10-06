@@ -11,7 +11,6 @@ import { SaveReason, IEditorIdentifier, GroupIdentifier, ISaveOptions, EditorInp
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -75,7 +74,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		const activeEditor = this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
+		const activeEditor = this.lastActiveEditor = activeGroup.activeEditor ?? undefined;
 		this.lastActiveGroupId = activeGroup.id;
 
 		// Dispose previous active control listeners
@@ -192,7 +191,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		const handle = setTimeout(() => {
 
 			// Clear disposable
-			this.pendingAutoSavesAfterDelay.delete(workingCopy);
+			this.discardAutoSave(workingCopy);
 
 			// Save if dirty
 			if (workingCopy.isDirty()) {

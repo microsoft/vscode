@@ -20,8 +20,8 @@
 }
 
 .mtkoverflow {
-	background-color: var(--vscode-button-background, --vscode-editor-background);
-	color: var(--vscode-button-foreground, --vscode-editor-foreground);
+	background-color: var(--vscode-button-background, var(--vscode-editor-background));
+	color: var(--vscode-button-foreground, var(--vscode-editor-foreground));
 	border-width: 1px;
 	border-style: solid;
 	border-color: var(--vscode-contrastBorder);
