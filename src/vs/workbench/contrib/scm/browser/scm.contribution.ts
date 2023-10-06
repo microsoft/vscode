@@ -227,7 +227,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
 				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
 			],
-			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the \"Source Control\", and \"Source Control Sync\" views when there is more than one provider or when the `#scm.alwaysShowRepositories#` setting is enabled, as well as in the \"Source Control Repositories\" view."),
+			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the \"Source Control\", and \"Source Control Sync\" views when there is more than one provider or when the {0} setting is enabled, as well as in the \"Source Control Repositories\" view.", `\`#scm.alwaysShowRepositories#\``),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
