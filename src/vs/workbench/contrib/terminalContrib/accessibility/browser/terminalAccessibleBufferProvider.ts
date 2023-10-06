@@ -22,6 +22,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
+	private _focusedInstance: ITerminalInstance | undefined;
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
@@ -34,11 +35,17 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		super();
 		this.options.customHelp = customHelp;
 		this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
-		this.add(this._instance.onDidRequestFocus(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 		this.add(_configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
 				this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+			}
+		}));
+		this._focusedInstance = _terminalService.activeInstance;
+		this.add(_terminalService.onDidChangeActiveInstance(() => {
+			if (_terminalService.activeInstance && this._focusedInstance?.instanceId !== _terminalService.activeInstance?.instanceId) {
+				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
+				this._focusedInstance = _terminalService.activeInstance;
 			}
 		}));
 	}

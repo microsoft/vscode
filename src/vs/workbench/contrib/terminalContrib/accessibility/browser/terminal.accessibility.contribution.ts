@@ -91,7 +91,6 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				this.show();
 			}
 		}));
-		this._register(this._terminalService.onDidChangeActiveInstance(() => this._accessibleViewService.clearLastProvider()));
 	}
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
