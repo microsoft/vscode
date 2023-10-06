@@ -87,6 +87,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
+		disposables.add(part.onDidChangeMaximizeGroup(group => this._onDidChangeMaximizeGroup.fire(group)));
 
 		disposables.add(part.onDidLayout(dimension => this._onDidLayout.fire(dimension)));
 		disposables.add(part.onDidScroll(() => this._onDidScroll.fire()));
