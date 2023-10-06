@@ -361,6 +361,10 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 			'disable-chromium-sandbox': {
 				type: 'boolean',
 				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
+			},
+			'use-inmemory-secretstorage': {
+				type: 'boolean',
+				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
 			}
 		}
 	};
@@ -368,6 +372,10 @@ import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 
 		schema.properties!['force-renderer-accessibility'] = {
 			type: 'boolean',
 			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+		schema.properties!['password-store'] = {
+			type: 'string',
+			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
 	}
 
