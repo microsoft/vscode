@@ -34,14 +34,13 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'win32':
 			switch (product) {
 				case 'client': {
-					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
 					switch (type) {
 						case 'archive':
-							return `${asset}-archive`;
+							return `win32-${arch}-archive`;
 						case 'setup':
-							return asset;
+							return `win32-${arch}`;
 						case 'user-setup':
-							return `${asset}-user`;
+							return `win32-${arch}-user`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -50,12 +49,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
+					return `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+					return `server-win32-${arch}-web`;
 				case 'cli':
 					return `cli-win32-${arch}`;
 				default:

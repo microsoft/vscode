@@ -8,7 +8,7 @@ import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/con
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor } from 'vs/editor/common/editorCommon';
 
 export const inQuickPickContextKeyValue = 'inQuickOpen';
@@ -48,7 +48,17 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 	};
 }
 
-export function getFileSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
+
+	let editor = activeEditor;
+
+	if (isDiffEditor(editor)) {
+		if (editor.getOriginalEditor().hasTextFocus()) {
+			editor = editor.getOriginalEditor();
+		} else {
+			editor = editor.getModifiedEditor();
+		}
+	}
 
 	if (!isCodeEditor(editor) || !editor.hasModel()) {
 		return null;

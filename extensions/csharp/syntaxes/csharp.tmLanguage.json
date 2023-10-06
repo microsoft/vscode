@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/29a37e5e2d66deefe5a06afad793a820871f4fdf",
+	"version": "https://github.com/dotnet/csharp-tmLanguage/commit/6666eb1d5e6fb565a4110d6db645cc534fb3c6d2",
 	"name": "C#",
 	"scopeName": "source.cs",
 	"patterns": [
@@ -4182,7 +4182,7 @@
 			]
 		},
 		"invocation-expression": {
-			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?                                    # preceding null-conditional operator?\n  (\\.)\\s*|                                        # preceding dot?\n  (->)\\s*                                         # preceding pointer arrow?\n)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                  # method name\n(\n  <\n  (?<type_args>\n    [^<>()]+|\n    <\\g<type_args>+>|\n    \\(\\g<type_args>+\\)\n  )+\n  >\\s*\n)?                                                # type arguments\n(?=\\()                                            # open paren of argument list",
+			"begin": "(?x)\n(?:\n  (?:(\\?)\\s*)?                                    # preceding null-conditional operator?\n  (\\.)\\s*|                                        # preceding dot?\n  (->)\\s*                                         # preceding pointer arrow?\n)?\n(@?[_[:alpha:]][_[:alnum:]]*)\\s*                  # method name\n(\n  <\n  (?<type_args>\n    [^<>()]++|\n    <\\g<type_args>*+>|\n    \\(\\g<type_args>*+\\)\n  )*+\n  >\\s*\n)?                                                # type arguments\n(?=\\()                                            # open paren of argument list",
 			"beginCaptures": {
 				"1": {
 					"name": "keyword.operator.null-conditional.cs"

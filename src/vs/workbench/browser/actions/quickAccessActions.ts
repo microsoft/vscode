@@ -11,13 +11,14 @@ import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/commo
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler, getFileSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
+import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler, getSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Codicon } from 'vs/base/common/codicons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
 //#region Quick access management commands and keys
 
@@ -167,13 +168,13 @@ function getFileSearchText(accessor: ServicesAccessor): string | null {
 		return null;
 	}
 
-	// only happen if it would also happen for the search view
-	const seedSearchStringFromSelection = configurationService.getValue<boolean>('editor.find.seedSearchStringFromSelection');
-	if (!seedSearchStringFromSelection) {
+	const seedStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').quickOpen.seedStringFromSelection ?? false;
+
+	if (!seedStringFromSelection) {
 		return null;
 	}
 
-	return getFileSelectionTextFromEditor(false, activeEditor);
+	return getSelectionTextFromEditor(seedStringFromSelection, activeEditor);
 }
 
 registerAction2(class QuickAccessAction extends Action2 {
@@ -183,7 +184,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 			title: localize('quickOpenWithModes', "Quick Open"),
 			icon: Codicon.search,
 			menu: {
-				id: MenuId.CommandCenterCenter,
+				id: MenuId.CommandCenter,
 				order: 100
 			}
 		});

@@ -175,6 +175,7 @@ const enum CharBoundaryCategory {
 	WordNumber,
 	End,
 	Other,
+	Separator,
 	Space,
 	LineBreakCR,
 	LineBreakLF,
@@ -186,6 +187,7 @@ const score: Record<CharBoundaryCategory, number> = {
 	[CharBoundaryCategory.WordNumber]: 0,
 	[CharBoundaryCategory.End]: 10,
 	[CharBoundaryCategory.Other]: 2,
+	[CharBoundaryCategory.Separator]: 3,
 	[CharBoundaryCategory.Space]: 3,
 	[CharBoundaryCategory.LineBreakCR]: 10,
 	[CharBoundaryCategory.LineBreakLF]: 10,
@@ -210,6 +212,8 @@ function getCategory(charCode: number): CharBoundaryCategory {
 		return CharBoundaryCategory.WordNumber;
 	} else if (charCode === -1) {
 		return CharBoundaryCategory.End;
+	} else if (charCode === CharCode.Comma || charCode === CharCode.Semicolon) {
+		return CharBoundaryCategory.Separator;
 	} else {
 		return CharBoundaryCategory.Other;
 	}

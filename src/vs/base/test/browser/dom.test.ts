@@ -88,7 +88,7 @@ suite('dom', () => {
 			assert(!div.firstChild);
 		});
 
-		test('should buld nodes with id', () => {
+		test('should build nodes with id', () => {
 			const div = $('div#foo');
 			assert(div);
 			assert(div instanceof HTMLElement);
@@ -96,7 +96,7 @@ suite('dom', () => {
 			assert.strictEqual(div.id, 'foo');
 		});
 
-		test('should buld nodes with class-name', () => {
+		test('should build nodes with class-name', () => {
 			const div = $('div.foo');
 			assert(div);
 			assert(div instanceof HTMLElement);

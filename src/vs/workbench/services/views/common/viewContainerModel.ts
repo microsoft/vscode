@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon, VIEWS_LOG_ID, VIEWS_LOG_NAME } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -16,15 +16,11 @@ import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { localize } from 'vs/nls';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { CounterSet } from 'vs/base/common/map';
-
-const VIEWS_LOG_ID = 'views';
-const VIEWS_LOG_NAME = localize('views log', "Views");
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -368,7 +364,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
-		const title = useDefaultContainerInfo ? (typeof this.viewContainer.title === 'string' ? this.viewContainer.title : this.viewContainer.title.value) : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
+		const title = useDefaultContainerInfo ? (typeof this.viewContainer.title === 'string' ? this.viewContainer.title : this.viewContainer.title.value) : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name?.value || '';
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;

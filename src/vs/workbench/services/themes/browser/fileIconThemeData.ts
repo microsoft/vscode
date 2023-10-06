@@ -172,6 +172,8 @@ interface IconsAssociation {
 	folderExpanded?: string;
 	rootFolder?: string;
 	rootFolderExpanded?: string;
+	rootFolderNames?: { [folderName: string]: string };
+	rootFolderNamesExpanded?: { [folderName: string]: string };
 	folderNames?: { [folderName: string]: string };
 	folderNamesExpanded?: { [folderName: string]: string };
 	fileExtensions?: { [extension: string]: string };
@@ -305,6 +307,23 @@ export class FileIconThemeLoader {
 						const name = handleParentFolder(key.toLowerCase(), selectors);
 						selectors.push(`.${escapeCSS(name)}-name-folder-icon`);
 						addSelector(`${qualifier} ${expanded} ${selectors.join('')}.folder-icon::before`, folderNamesExpanded[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+
+				const rootFolderNames = associations.rootFolderNames;
+				if (rootFolderNames) {
+					for (const key in rootFolderNames) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
+						result.hasFolderIcons = true;
+					}
+				}
+				const rootFolderNamesExpanded = associations.rootFolderNamesExpanded;
+				if (rootFolderNamesExpanded) {
+					for (const key in rootFolderNamesExpanded) {
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} ${expanded} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}

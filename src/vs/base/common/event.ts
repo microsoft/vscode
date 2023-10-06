@@ -615,8 +615,10 @@ export namespace Event {
 	 * runAndSubscribe(dataChangeEvent, () => this._updateUI());
 	 * ```
 	 */
-	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable {
-		handler(undefined);
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T) => any, initial: T): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any): IDisposable;
+	export function runAndSubscribe<T>(event: Event<T>, handler: (e: T | undefined) => any, initial?: T): IDisposable {
+		handler(initial);
 		return event(e => handler(e));
 	}
 

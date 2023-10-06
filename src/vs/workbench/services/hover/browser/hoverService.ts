@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -45,10 +45,11 @@ export class HoverService implements IHoverService {
 		this._currentHoverOptions = options;
 		this._lastHoverOptions = options;
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
+		const activeElement = getActiveElement();
 		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
-			if (trapFocus && document.activeElement) {
-				this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
+			if (trapFocus && activeElement) {
+				this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
 			} else {
 				this._lastFocusedElementBeforeOpen = undefined;
 			}
@@ -79,7 +80,7 @@ export class HoverService implements IHoverService {
 		} else {
 			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
 		}
-		const focusedElement = <HTMLElement | null>document.activeElement;
+		const focusedElement = getActiveElement();
 		if (focusedElement) {
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));

@@ -156,7 +156,8 @@ export class FileUserDataProvider extends Disposable implements
 			if (this.watchResources.findSubstr(userDataResource)) {
 				userDataChanges.push({
 					resource: userDataResource,
-					type: change.type
+					type: change.type,
+					cId: change.cId
 				});
 			}
 		}

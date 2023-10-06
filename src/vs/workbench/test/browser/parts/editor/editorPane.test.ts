@@ -488,7 +488,7 @@ suite('EditorPane', () => {
 		const editorPart = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, editorPart);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		const group = editorPart.activeGroup;

@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
+import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault, focusWindow } from 'vs/base/browser/dom';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -370,7 +370,7 @@ export abstract class ViewPane extends Pane implements IView {
 		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
-		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
 	}
 
@@ -406,10 +406,7 @@ export abstract class ViewPane extends Pane implements IView {
 		if (changed) {
 			this._onDidChangeBodyVisibility.fire(expanded);
 		}
-		if (this.twistiesContainer) {
-			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!expanded)));
-			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(expanded)));
-		}
+		this.updateTwistyIcon();
 		return changed;
 	}
 
@@ -425,7 +422,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.twistiesContainer = append(container, $(ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))));
+		this.twistiesContainer = append(container, $(`.twisty-container${ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))}`));
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -457,6 +454,18 @@ export abstract class ViewPane extends Pane implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
+	}
+
+	protected override updateHeader(): void {
+		super.updateHeader();
+		this.updateTwistyIcon();
+	}
+
+	private updateTwistyIcon(): void {
+		if (this.twistiesContainer) {
+			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!this._expanded)));
+			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(this._expanded)));
+		}
 	}
 
 	protected getTwistyIcon(expanded: boolean): ThemeIcon {
@@ -613,6 +622,8 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
+		focusWindow(this.element);
+
 		if (this.viewWelcomeController.enabled) {
 			this.viewWelcomeController.focus();
 		} else if (this.element) {
