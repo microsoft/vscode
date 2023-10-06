@@ -13,6 +13,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import { LRUCache } from 'vs/base/common/map';
 import { TfIdfCalculator, normalizeTfIdfScores } from 'vs/base/common/tfIdf';
 import { localize } from 'vs/nls';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -27,6 +28,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 export interface ICommandQuickPick extends IPickerQuickAccessItem {
 	readonly commandId: string;
 	readonly commandAlias?: string;
+	readonly commandDescription?: ILocalizedString;
 	tfIdfScore?: number;
 	readonly args?: any[];
 }
@@ -75,7 +77,7 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 			const tfidf = new TfIdfCalculator();
 			tfidf.updateDocuments(allCommandPicks.map(commandPick => ({
 				key: commandPick.commandId,
-				textChunks: [commandPick.label + (commandPick.commandAlias ? ` ${commandPick.commandAlias}` : '')]
+				textChunks: [this.getTfIdfChunk(commandPick)]
 			})));
 			const result = tfidf.calculateScores(filter, token);
 
@@ -279,6 +281,19 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 				}
 			}
 		};
+	}
+
+	// TF-IDF string to be indexed
+	private getTfIdfChunk({ label, commandAlias, commandDescription }: ICommandQuickPick) {
+		let chunk = label;
+		if (commandAlias) {
+			chunk += ` - ${commandAlias}`;
+		}
+		if (commandDescription) {
+			// If the original is the same as the value, don't add it
+			chunk += ` - ${commandDescription.value === commandDescription.original ? commandDescription.value : `${commandDescription.value} (${commandDescription.original})`}`;
+		}
+		return chunk;
 	}
 
 	protected abstract getCommandPicks(token: CancellationToken): Promise<Array<ICommandQuickPick>>;
