@@ -151,6 +151,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, this.editorOptions));
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._usedContextListPool = this._register(this.instantiationService.createInstance(UsedContextListPool, this._onDidChangeVisibility.event));
+
+		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
 		this._register(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
 				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
@@ -1221,7 +1223,6 @@ class UsedContextListPool extends Disposable {
 	constructor(
 		private _onDidChangeVisibility: Event<boolean>,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
@@ -1239,7 +1240,7 @@ class UsedContextListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new UsedContextListDelegate(),
-			[new UsedContextListRenderer(resourceLabels, this.configService.getValue('explorer.decorations'))],
+			[new UsedContextListRenderer(resourceLabels)],
 			{});
 
 		return list;
@@ -1278,7 +1279,7 @@ class UsedContextListRenderer implements IListRenderer<IDocumentContext, IUsedCo
 	static TEMPLATE_ID = 'usedContextListRenderer';
 	readonly templateId: string = UsedContextListRenderer.TEMPLATE_ID;
 
-	constructor(private labels: ResourceLabels, private decorations: IFilesConfiguration['explorer']['decorations']) { }
+	constructor(private labels: ResourceLabels) { }
 
 	renderTemplate(container: HTMLElement): IUsedContextListTemplate {
 		const templateDisposables = new DisposableStore();
@@ -1290,7 +1291,8 @@ class UsedContextListRenderer implements IListRenderer<IDocumentContext, IUsedCo
 		templateData.label.element.style.display = 'flex';
 		templateData.label.setFile(element.uri, {
 			fileKind: FileKind.FILE,
-			fileDecorations: this.decorations,
+			// Should not have this live-updating data on a historical reference
+			fileDecorations: { badges: false, colors: false },
 		});
 	}
 
