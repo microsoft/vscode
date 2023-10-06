@@ -196,6 +196,10 @@ export class CellMatch {
 		this._context = new Map<number, string>();
 	}
 
+	public hasCellViewModel() {
+		return !(this._cell instanceof CellSearchModel);
+	}
+
 	get context(): Map<number, string> {
 		return new Map(this._context);
 	}
@@ -302,6 +306,10 @@ export class MatchInNotebook extends Match {
 
 	public isWebviewMatch() {
 		return this._webviewIndex !== undefined;
+	}
+
+	public isReadonly() {
+		return (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -448,8 +456,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._closestRoot;
 	}
 
-	hasWebviewMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isWebviewMatch());
+	hasReadonlyMatches(): boolean {
+		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
 	}
 
 	createMatches(): void {
@@ -727,7 +735,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => (match instanceof MatchInNotebook && match.isWebviewMatch()));
+		return this.matches().every(match => (match instanceof MatchInNotebook && match.isReadonly()));
 	}
 
 	// #region strictly notebook methods
@@ -1269,7 +1277,7 @@ export class FolderMatch extends Disposable {
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
 			if (this._fileMatches.get(match.resource)) {
-				if (keepReadonly && match.hasWebviewMatches()) {
+				if (keepReadonly && match.hasReadonlyMatches()) {
 					continue;
 				}
 				this._fileMatches.delete(match.resource);
