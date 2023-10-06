@@ -1081,11 +1081,8 @@ export class MaximizeGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
 		const editorsGroupService = accessor.get(IEditorGroupsService);
-		const editorService = accessor.get(IEditorService);
 		const { group } = resolveCommandsContext(editorsGroupService, getCommandsContext(resourceOrContext, context));
-		if (editorService.activeEditor) {
-			editorsGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE, group);
-		}
+		editorsGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE, group);
 	}
 }
 
@@ -1140,11 +1137,7 @@ export class UnmaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		const editorService = accessor.get(IEditorService);
-
-		if (editorService.activeEditor) {
-			editorGroupService.toggleGroupArrangement();
-		}
+		editorGroupService.toggleGroupArrangement();
 	}
 }
 

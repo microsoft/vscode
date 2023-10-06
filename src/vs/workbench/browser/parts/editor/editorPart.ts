@@ -9,7 +9,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGrid, Sizing, ISerializedGrid, ISerializedNode, Orientation, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
@@ -152,7 +152,8 @@ export class EditorPart extends Part implements IEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -168,8 +169,19 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private registerListeners(): void {
+		this._register(this.editorGroupService.onDidChangeActiveGroup(this.showActiveEditorGroupsIfHidden));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
+	}
+
+	// If hidden group becomes active, show all groups
+	private showActiveEditorGroupsIfHidden(): void {
+		for (const group of this.groups) {
+			if (this.activeGroup !== group && this.isGroupMaximized(group)) {
+				this.toggleGroupArrangement();
+				break;
+			}
+		}
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -378,7 +390,7 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		if (this.isGroupMaximized(target)) {
-			if (arrangement === GroupsArrangement.MAXIMIZE) {
+			if (arrangement === GroupsArrangement.MAXIMIZE && this.activeGroup === target) {
 				return; // already maximized
 			}
 			this.unmaximizeGroup();
@@ -614,7 +626,7 @@ export class EditorPart extends Part implements IEditorPart {
 		// Notify group index change given a new group was added
 		this.notifyGroupIndexChange();
 
-		// expand new group, if the reference view was previously expanded
+		// Expand new group, if the reference view was previously expanded
 		if (shouldExpand) {
 			this.arrangeGroups(GroupsArrangement.EXPAND, newGroupView);
 		}
@@ -1334,9 +1346,10 @@ export class MainEditorPart extends EditorPart {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService, editorGroupsService);
 	}
 }
 
@@ -1354,10 +1367,11 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IEditorGroupsService editorGroupsService: IEditorGroupsService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, contextKeyService, editorGroupsService);
 	}
 
 	protected override saveState(): void {

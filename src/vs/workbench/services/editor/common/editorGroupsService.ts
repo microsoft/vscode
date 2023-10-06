@@ -57,7 +57,7 @@ export const enum GroupsArrangement {
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN,
+	EVEN
 }
 
 export interface GroupLayoutArgument {

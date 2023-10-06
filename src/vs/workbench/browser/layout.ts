@@ -48,7 +48,6 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 
 //#region Layout Implementation
 
@@ -279,17 +278,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			}
 		};
 
-		// If hidden group becomes active, show all groups
-		const showEditorGroupsIfHidden = () => {
-			const editorPart: EditorPart = this.getPart(Parts.EDITOR_PART) as EditorPart;
-			for (const editorGroup of editorPart.groups) {
-				if (editorPart.activeGroup !== editorGroup && editorPart.isGroupMaximized(editorGroup)) {
-					editorPart.toggleGroupArrangement();
-					break;
-				}
-			}
-		};
-
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.whenRestored.then(() => {
@@ -297,7 +285,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
-			this._register(this.editorGroupService.onDidChangeActiveGroup(showEditorGroupsIfHidden));
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
 		});
