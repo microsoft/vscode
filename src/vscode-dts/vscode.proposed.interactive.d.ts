@@ -48,6 +48,12 @@ declare module 'vscode' {
 		wholeRange?: Range;
 	}
 
+	export interface InteractiveEditorProgressItem {
+		message?: string;
+		edits?: TextEdit[];
+		slashCommand?: InteractiveEditorSlashCommand;
+	}
+
 	export enum InteractiveEditorResponseFeedbackKind {
 		Unhelpful = 0,
 		Helpful = 1,
@@ -69,7 +75,7 @@ declare module 'vscode' {
 		// Create a session. The lifetime of this session is the duration of the editing session with the input mode widget.
 		prepareInteractiveEditorSession(context: TextDocumentContext, token: CancellationToken): ProviderResult<S>;
 
-		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<{ message: string; edits: TextEdit[] }>, token: CancellationToken): ProviderResult<R>;
+		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
