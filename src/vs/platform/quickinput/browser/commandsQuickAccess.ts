@@ -286,10 +286,10 @@ export abstract class AbstractCommandsQuickAccessProvider extends PickerQuickAcc
 	// TF-IDF string to be indexed
 	private getTfIdfChunk({ label, commandAlias, commandDescription }: ICommandQuickPick) {
 		let chunk = label;
-		if (commandAlias && commandAlias !== label) {
+		if (commandAlias) {
 			chunk += ` - ${commandAlias}`;
 		}
-		if (commandDescription && commandDescription.value !== label) {
+		if (commandDescription) {
 			// If the original is the same as the value, don't add it
 			chunk += ` - ${commandDescription.value === commandDescription.original ? commandDescription.value : `${commandDescription.value} (${commandDescription.original})`}`;
 		}
