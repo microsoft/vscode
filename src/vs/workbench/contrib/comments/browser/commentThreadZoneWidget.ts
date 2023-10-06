@@ -231,7 +231,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
 			this._commentOptions,
 			{
-				actionRunner: () => {
+				actionRunner: async () => {
 					if (!this._commentThread.comments || !this._commentThread.comments.length) {
 						const newPosition = this.getPosition();
 
@@ -250,7 +250,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
 							}
-							this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
+							await this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
