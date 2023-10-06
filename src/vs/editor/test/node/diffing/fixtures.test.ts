@@ -120,7 +120,7 @@ suite('diffing fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('invalid-diff-trimws', 'advanced');
+		runTest('false-positive-move', 'advanced');
 	});
 
 	for (const folder of folders) {
