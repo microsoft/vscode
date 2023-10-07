@@ -25,7 +25,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { URI } from 'vs/base/common/uri';
-import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 
 export interface ICompositeBar {
 
@@ -212,12 +212,12 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		// Badge
 		if (this.badgeContent) {
-			const badgeForeground = colors.badgeForeground;
-			const badgeBackground = colors.badgeBackground;
+			const badgeFg = colors.badgeForeground ?? theme.getColor(badgeForeground);
+			const badgeBg = colors.badgeBackground ?? theme.getColor(badgeBackground);
 			const contrastBorderColor = theme.getColor(contrastBorder);
 
-			this.badgeContent.style.color = badgeForeground ? badgeForeground.toString() : '';
-			this.badgeContent.style.backgroundColor = badgeBackground ? badgeBackground.toString() : '';
+			this.badgeContent.style.color = badgeFg ? badgeFg.toString() : '';
+			this.badgeContent.style.backgroundColor = badgeBg ? badgeBg.toString() : '';
 
 			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
 			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
