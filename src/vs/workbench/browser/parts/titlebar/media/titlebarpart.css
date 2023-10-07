@@ -380,7 +380,7 @@
 	margin-left: auto;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
+.monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
 .monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
 	right: 8px;
 }
