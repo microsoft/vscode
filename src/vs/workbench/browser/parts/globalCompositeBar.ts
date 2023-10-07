@@ -75,7 +75,18 @@ export class GlobalCompositeBar extends Disposable {
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(AccountsActivityActionViewItem, this.contextMenuActionsProvider, this.colors, this.activityHoverOptions, anchorAlignment, anchorAxisAlignment);
+					return this.instantiationService.createInstance(AccountsActivityActionViewItem,
+						this.contextMenuActionsProvider,
+						this.colors,
+						this.activityHoverOptions,
+						anchorAlignment,
+						anchorAxisAlignment,
+						(actions: IAction[]) => {
+							actions.unshift(...[
+								toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.PROFILE, StorageTarget.USER) }),
+								new Separator()
+							]);
+						});
 				}
 
 				throw new Error(`No view item for action '${action.id}'`);
@@ -285,6 +296,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		activityHoverOptions: IActivityHoverOptions,
 		anchorAlignment: AnchorAlignment | undefined,
 		anchorAxisAlignment: AnchorAxisAlignment | undefined,
+		private readonly fillContextMenuActions: (actions: IAction[]) => void,
 		@IThemeService themeService: IThemeService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IHoverService hoverService: IHoverService,
@@ -295,7 +307,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService private readonly productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -437,12 +448,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 
 	protected override async resolveContextMenuActions(disposables: DisposableStore): Promise<IAction[]> {
 		const actions = await super.resolveContextMenuActions(disposables);
-
-		actions.unshift(...[
-			toAction({ id: 'hideAccounts', label: localize('hideAccounts', "Hide Accounts"), run: () => this.storageService.store(AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, false, StorageScope.PROFILE, StorageTarget.USER) }),
-			new Separator()
-		]);
-
+		this.fillContextMenuActions(actions);
 		return actions;
 	}
 
@@ -616,14 +622,13 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IStorageService storageService: IStorageService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@ISecretStorageService secretStorageService: ISecretStorageService,
 		@ILogService logService: ILogService,
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(() => [], () => ({}), hoverOptions, undefined, undefined, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, storageService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+		super(() => [], () => ({}), hoverOptions, undefined, undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
 	}
 }
 
