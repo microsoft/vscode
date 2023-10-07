@@ -762,9 +762,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._session?.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
-		if (!this._isInitializedDeferred.isSettled) {
-			this._isInitializedDeferred.error(new Error('model disposed before initialization'));
-		}
 
 		super.dispose();
 	}
