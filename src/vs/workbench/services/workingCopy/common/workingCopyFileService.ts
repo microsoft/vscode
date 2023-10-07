@@ -449,12 +449,14 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		}
 
 		// now actually delete from disk
+		const deletedFiles: URI[] = [];
 		try {
 			for (const operation of operations) {
 				if (token.isCancellationRequested) {
 					break;
 				}
 				await this.fileService.del(operation.resource, { recursive: operation.recursive, useTrash: operation.useTrash });
+				deletedFiles.push(operation.resource);
 			}
 		} catch (error) {
 
@@ -464,6 +466,7 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 			throw error;
 		}
 
+		event.files = deletedFiles.map(resource => ({ target: resource }));
 		// after event
 		await this._onDidRunWorkingCopyFileOperation.fireAsync(event, CancellationToken.None /* intentional: we currently only forward cancellation to participants */);
 	}
