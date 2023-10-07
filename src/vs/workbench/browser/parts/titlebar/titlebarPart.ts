@@ -36,7 +36,7 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -279,6 +279,17 @@ export class TitlebarPart extends Part implements ITitleService {
 			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
 				contextMenu: MenuId.TitleBarContext,
 				toolbarOptions: { primaryGroup: () => true },
+				actionViewItemProvider: action => {
+					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
+				}
+			}));
+
+			const globalActionControls = append(this.rightContent, $('div.global-actions-container.show-control'));
+
+			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, globalActionControls, MenuId.TitleBarGlobalControlMenu, {
+				contextMenu: MenuId.TitleBarContext,
+				toolbarOptions: { primaryGroup: () => true },
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
 				}

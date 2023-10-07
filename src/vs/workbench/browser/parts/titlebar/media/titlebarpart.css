@@ -362,6 +362,7 @@
 }
 
 /* Layout Controls */
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
 	display: none;
 	padding-right: 2px;
@@ -372,19 +373,25 @@
 	z-index: 2500;
 	-webkit-app-region: no-drag;
 	height: 100%;
-	margin-left: auto;
 	min-width: 28px;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
+	margin-left: auto;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container,
 .monaco-workbench.mac:not(.web) .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container {
 	right: 8px;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container:not(.has-no-actions),
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container.show-layout-control {
 	display: flex;
 	justify-content: center;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .codicon,
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .layout-controls-container .codicon {
 	color: inherit;
 }
