@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { realpathSync } from 'fs';
 import { tmpdir } from 'os';
 import { timeout } from 'vs/base/common/async';
-import { join } from 'vs/base/common/path';
+import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
@@ -26,6 +26,8 @@ import { FileAccess } from 'vs/base/common/network';
 ((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
+
+		skipRequestNormalization = false;
 
 		testNormalizePaths(paths: string[], excludes: string[] = []): string[] {
 
@@ -46,6 +48,14 @@ import { FileAccess } from 'vs/base/common/network';
 			for (const [, watcher] of this.watchers) {
 				await watcher.ready;
 			}
+		}
+
+		protected override normalizeRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
+			if (this.skipRequestNormalization) {
+				return requests;
+			}
+
+			return super.normalizeRequests(requests, validatePaths);
 		}
 	}
 
@@ -103,16 +113,22 @@ import { FileAccess } from 'vs/base/common/network';
 		}
 	}
 
-	async function awaitEvent(service: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number): Promise<IDiskFileChange[]> {
+	async function awaitEvent(watcher: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number, expectedCount?: number): Promise<IDiskFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
 		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
-			const disposable = service.onDidChangeFile(events => {
+			let counter = 0;
+			const disposable = watcher.onDidChangeFile(events => {
 				for (const event of events) {
 					if (event.resource.fsPath === path && event.type === type && event.cId === correlationId) {
+						counter++;
+						if (typeof expectedCount === 'number' && counter < expectedCount) {
+							continue; // not yet
+						}
+
 						disposable.dispose();
 						if (failOnEventReason) {
 							reject(new Error(`Unexpected file event: ${failOnEventReason}`));
@@ -134,14 +150,14 @@ import { FileAccess } from 'vs/base/common/network';
 		return res;
 	}
 
-	function awaitMessage(service: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
+	function awaitMessage(watcher: TestParcelWatcher, type: 'trace' | 'warn' | 'error' | 'info' | 'debug'): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting message of type ${type}`);
 		}
 
 		// Await the message
 		return new Promise<void>(resolve => {
-			const disposable = service.onDidLogMessage(msg => {
+			const disposable = watcher.onDidLogMessage(msg => {
 				if (msg.type === type) {
 					disposable.dispose();
 					resolve();
@@ -287,20 +303,20 @@ import { FileAccess } from 'vs/base/common/network';
 		return basicCrudTest(join(testDir, 'deep', 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, correlationId?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, correlationId?: number, expectedCount?: number): Promise<void> {
 
 		// New file
-		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, correlationId);
+		let changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello World');
 		await changeFuture;
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, undefined, correlationId);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, undefined, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, undefined, correlationId, expectedCount);
 		await Promises.unlink(filePath);
 		await changeFuture;
 	}
@@ -590,5 +606,51 @@ import { FileAccess } from 'vs/base/common/network';
 
 	test('should ignore when everything excluded', () => {
 		assert.deepStrictEqual(watcher.testNormalizePaths(['/foo/bar', '/bar'], ['**', 'something']), []);
+	});
+
+	test('watching same or overlapping paths', async () => {
+		watcher.skipRequestNormalization = true;
+
+		// same path, same options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: testDir, excludes: [], recursive: true },
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, 3);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, 3);
+
+		// same path, different options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'deep')], recursive: true },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'other')], recursive: true },
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, 5);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, 5);
+
+		// overlapping paths (same options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true },
+			{ path: testDir, excludes: [], recursive: true },
+			{ path: join(testDir, 'deep'), excludes: [], recursive: true },
+		]);
+
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), undefined, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), undefined, 3);
+
+		// overlapping paths (different options)
+		await watcher.watch([
+			{ path: dirname(testDir), excludes: [], recursive: true },
+			{ path: testDir, excludes: [join(realpathSync(testDir), 'some')], recursive: true },
+			{ path: join(testDir, 'deep'), excludes: [join(realpathSync(testDir), 'other')], recursive: true },
+		]);
+
+		await basicCrudTest(join(testDir, 'deep', 'newFile.txt'), undefined, 3);
+		await basicCrudTest(join(testDir, 'deep', 'otherNewFile.txt'), undefined, 3);
 	});
 });
