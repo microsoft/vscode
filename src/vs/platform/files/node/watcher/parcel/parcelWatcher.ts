@@ -150,7 +150,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlation: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
@@ -354,7 +354,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const { events: filteredEvents, rootDeleted } = this.filterEvents(coalescedEvents, watcher);
 
 		// Broadcast to clients
-		this.emitEvents(filteredEvents);
+		this.emitEvents(filteredEvents, watcher);
 
 		// Handle root path deletes
 		if (rootDeleted) {
@@ -362,7 +362,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private emitEvents(events: IDiskFileChange[]): void {
+	private emitEvents(events: IDiskFileChange[], watcher: IParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
 		}
@@ -370,7 +370,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
-				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+				const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
+				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlation: ${watcher.request.correlationId})` : traceMsg);
 			}
 		}
 

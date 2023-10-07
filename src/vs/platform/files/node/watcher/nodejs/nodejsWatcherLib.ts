@@ -396,7 +396,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 			// Logging
 			if (this.verboseLogging) {
 				for (const event of coalescedFileChanges) {
-					this.trace(`>> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+					this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 				}
 			}
 
