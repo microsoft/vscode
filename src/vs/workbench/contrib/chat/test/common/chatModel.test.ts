@@ -96,6 +96,6 @@ suite('ChatModel', () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 		model.dispose();
 
-		await assert.rejects(() => model.waitForInitialization());
+		assert.throws(() => model.initialize({} as any, undefined));
 	});
 });
