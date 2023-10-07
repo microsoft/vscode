@@ -37,6 +37,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
+import { TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
 
 export class ActivitybarPart extends Part {
 
@@ -318,7 +319,6 @@ registerAction2(class extends Action2 {
 			},
 			shortTitle: localize('side', "Side"),
 			category: Categories.View,
-			f1: true,
 			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.SIDE),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
@@ -346,14 +346,14 @@ registerAction2(class extends Action2 {
 			},
 			shortTitle: localize('top', "Top"),
 			category: Categories.View,
-			f1: true,
 			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
+				when: TitleBarVisibleContext.isEqualTo(true),
 				order: 2
 			}, {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+				when: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarVisibleContext.isEqualTo(true)),
 			}]
 		});
 	}
@@ -374,7 +374,6 @@ registerAction2(class extends Action2 {
 			},
 			shortTitle: localize('hide', "Hidden"),
 			category: Categories.View,
-			f1: true,
 			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.HIDDEN),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,

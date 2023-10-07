@@ -179,7 +179,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return this.configurationService.getValue('workbench.activityBar.location') === ActivityBarPosition.TOP;
+		return this.layoutService.isVisible(Parts.TITLEBAR_PART) && this.configurationService.getValue('workbench.activityBar.location') === ActivityBarPosition.TOP;
 	}
 
 	override getPinnedPaneCompositeIds(): string[] {
