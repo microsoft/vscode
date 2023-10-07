@@ -264,7 +264,7 @@ class DeleteOperation implements IFileOperation {
 				}
 			}
 			if (fileContent !== undefined) {
-				undoes.push(new CreateEdit(edit.oldUri, edit.options, fileContent.value));
+				undoes.push(new CreateEdit(edit.oldUri, { ...edit.options, ignoreIfExists: true }, fileContent.value));
 			}
 		}
 

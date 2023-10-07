@@ -451,6 +451,9 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 		// now actually delete from disk
 		try {
 			for (const operation of operations) {
+				if (token.isCancellationRequested) {
+					break;
+				}
 				await this.fileService.del(operation.resource, { recursive: operation.recursive, useTrash: operation.useTrash });
 			}
 		} catch (error) {
