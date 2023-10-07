@@ -35,6 +35,6 @@
     "xterm-addon-webgl": "0.17.0-beta.26",
     "xterm-headless": "5.4.0-beta.27",
     "yauzl": "^2.9.2",
-    "yazl": "^2.4.3"
+    "yazl": "^2.10.0"
   }
 }
