@@ -40,8 +40,6 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 	}
 
 	constructor(mainContext: IMainContext, workspace: IExtHostWorkspace, extension: IExtensionDescription, dispatcher: Event<FileSystemEvents>, globPattern: string | IRelativePatternDto, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean) {
-		const watcherDisposable = this.ensureWatching(mainContext, extension, globPattern);
-
 		this._config = 0;
 		if (ignoreCreateEvents) {
 			this._config += 0b001;
@@ -89,14 +87,14 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			}
 		});
 
-		this._disposable = Disposable.from(watcherDisposable, this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(this.ensureWatching(mainContext, extension, globPattern), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
 	}
 
 	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto): Disposable {
 		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
-			return disposable; // a pattern alone does not carry sufficient information to start watching anything
+			return disposable; // workspace is already watched by default, no need to watch again!
 		}
 
 		const proxy = mainContext.getProxy(MainContext.MainThreadFileSystemEventService);
@@ -107,7 +105,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		}
 
 		const session = Math.random();
-		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { correlationId: session, recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
 	}

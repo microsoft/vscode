@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
-import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions, isFileSystemWatcher } from 'vs/platform/files/common/files';
+import { FileOperation, IFileService, IFilesConfiguration, IWatchOptions, IWatchOptionsWithCorrelation } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemEventServiceShape, MainContext, MainThreadFileSystemEventServiceShape } from '../common/extHost.protocol';
 import { localize } from 'vs/nls';
@@ -33,6 +33,8 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 export class MainThreadFileSystemEventService implements MainThreadFileSystemEventServiceShape {
 
 	static readonly MementoKeyAdditionalEdits = `file.particpants.additionalEdits`;
+
+	private static WATCH_CORRELATION_IDS = 0;
 
 	private readonly _proxy: ExtHostFileSystemEventServiceShape;
 
@@ -216,7 +218,13 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		const uri = URI.revive(resource);
 		const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 
-		const opts = { ...unvalidatedOpts };
+		const opts: IWatchOptionsWithCorrelation = {
+			...unvalidatedOpts,
+			// Explicitly set a correlation id so that file events that originate
+			// from requests from extensions are exclusively routed back to the
+			// extension host and not into the workbench.
+			correlationId: MainThreadFileSystemEventService.WATCH_CORRELATION_IDS++
+		};
 
 		// Convert a recursive watcher to a flat watcher if the path
 		// turns out to not be a folder. Recursive watching is only
@@ -297,15 +305,13 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 		const watcherDisposables = new DisposableStore();
 		const subscription = watcherDisposables.add(this._fileService.watch(uri, opts));
-		if (isFileSystemWatcher(subscription)) {
-			watcherDisposables.add(subscription.onDidChange(event => {
-				this._proxy.$onFileEvent({
-					created: event.rawAdded,
-					changed: event.rawUpdated,
-					deleted: event.rawDeleted
-				});
-			}));
-		}
+		watcherDisposables.add(subscription.onDidChange(event => {
+			this._proxy.$onFileEvent({
+				created: event.rawAdded,
+				changed: event.rawUpdated,
+				deleted: event.rawDeleted
+			});
+		}));
 
 		this._watches.set(session, watcherDisposables);
 	}

@@ -500,7 +500,7 @@ export interface IWatchOptions {
 	 * Set to `true` to watch for changes recursively in a folder
 	 * and all of its children.
 	 */
-	readonly recursive: boolean;
+	recursive: boolean;
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
