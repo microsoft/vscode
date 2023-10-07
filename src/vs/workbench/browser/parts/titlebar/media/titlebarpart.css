@@ -396,6 +396,34 @@
 	color: inherit;
 }
 
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item {
+	display: flex;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .badge {
+	margin-left: 8px;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge {
+	margin-left: 0px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .badge .badge-content {
+	padding: 3px 5px;
+	border-radius: 11px;
+	font-size: 11px;
+	min-width: 18px;
+	height: 18px;
+	line-height: 11px;
+	font-weight: normal;
+	text-align: center;
+	display: inline-block;
+	box-sizing: border-box;
+	position: relative;
+}
+
 .monaco-workbench .part.titlebar .window-controls-container .window-icon {
 	color: var(--vscode-titleBar-activeForeground);
 }

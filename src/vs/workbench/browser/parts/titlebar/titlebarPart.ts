@@ -37,6 +37,9 @@ import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from 'vs/workbench/browser/parts/globalCompositeBar';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -291,6 +294,12 @@ export class TitlebarPart extends Part implements ITitleService {
 				toolbarOptions: { primaryGroup: () => true },
 				hiddenItemStrategy: HiddenItemStrategy.NoHide,
 				actionViewItemProvider: action => {
+					if (action.id === GLOBAL_ACTIVITY_ID) {
+						return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW });
+					}
+					if (action.id === ACCOUNTS_ACTIVITY_ID) {
+						return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW });
+					}
 					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
 				}
 			}));

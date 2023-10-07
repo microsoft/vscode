@@ -49,9 +49,10 @@ export class GlobalCompositeBar extends Disposable {
 	static readonly ACCOUNTS_ICON = registerIcon('accounts-view-bar-icon', Codicon.account, localize('accountsViewBarIcon', "Accounts icon in the view bar."));
 
 	readonly element: HTMLElement;
+
+	private readonly globalActivityAction = this._register(new Action(GLOBAL_ACTIVITY_ID));
+	private readonly accountAction = this._register(new Action(ACCOUNTS_ACTIVITY_ID));
 	private readonly globalActivityActionBar: ActionBar;
-	private readonly globalActivityAction: CompositeBarAction;
-	private accountsActivityAction: CompositeBarAction | undefined;
 
 	constructor(
 		private readonly contextMenuActionsProvider: () => IAction[],
@@ -70,11 +71,11 @@ export class GlobalCompositeBar extends Disposable {
 		this.globalActivityActionBar = this._register(new ActionBar(this.element, {
 			actionViewItemProvider: action => {
 				if (action.id === GLOBAL_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(GlobalActivityActionViewItem, action as CompositeBarAction, this.contextMenuActionsProvider, this.colors, this.activityHoverOptions, anchorAlignment, anchorAxisAlignment);
+					return this.instantiationService.createInstance(GlobalActivityActionViewItem, this.contextMenuActionsProvider, this.colors, this.activityHoverOptions, anchorAlignment, anchorAxisAlignment);
 				}
 
 				if (action.id === ACCOUNTS_ACTIVITY_ID) {
-					return this.instantiationService.createInstance(AccountsActivityActionViewItem, action as CompositeBarAction, this.contextMenuActionsProvider, this.colors, this.activityHoverOptions, anchorAlignment, anchorAxisAlignment);
+					return this.instantiationService.createInstance(AccountsActivityActionViewItem, this.contextMenuActionsProvider, this.colors, this.activityHoverOptions, anchorAlignment, anchorAxisAlignment);
 				}
 
 				throw new Error(`No view item for action '${action.id}'`);
@@ -85,19 +86,8 @@ export class GlobalCompositeBar extends Disposable {
 			preventLoopNavigation: true
 		}));
 
-		this.globalActivityAction = this._register(instantiationService.createInstance(CompositeBarAction, {
-			id: GLOBAL_ACTIVITY_ID,
-			name: localize('manage', "Manage"),
-		}));
-
 		if (this.accountsVisibilityPreference) {
-			this.accountsActivityAction = this._register(instantiationService.createInstance(CompositeBarAction, {
-				id: ACCOUNTS_ACTIVITY_ID,
-				name: localize('accounts', "Accounts"),
-				classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON)
-			}));
-
-			this.globalActivityActionBar.push(this.accountsActivityAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
+			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
 
 		this.globalActivityActionBar.push(this.globalActivityAction);
@@ -134,19 +124,13 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private toggleAccountsActivity() {
-		if (!!this.accountsActivityAction === this.accountsVisibilityPreference) {
+		if (this.globalActivityActionBar.length() === 2 && this.accountsVisibilityPreference) {
 			return;
 		}
-		if (this.accountsActivityAction) {
+		if (this.globalActivityActionBar.length() === 2) {
 			this.globalActivityActionBar.pull(GlobalCompositeBar.ACCOUNTS_ACTION_INDEX);
-			this.accountsActivityAction = undefined;
 		} else {
-			this.accountsActivityAction = this._register(this.instantiationService.createInstance(CompositeBarAction, {
-				id: ACCOUNTS_ACTIVITY_ID,
-				name: localize('accounts', "Accounts"),
-				classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON)
-			}));
-			this.globalActivityActionBar.push(this.accountsActivityAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
+			this.globalActivityActionBar.push(this.accountAction, { index: GlobalCompositeBar.ACCOUNTS_ACTION_INDEX });
 		}
 	}
 
@@ -296,7 +280,6 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 	private sessionFromEmbedder = new Lazy<Promise<AuthenticationSessionInfo | undefined>>(() => getCurrentAuthenticationSessionInfo(this.secretStorageService, this.productService));
 
 	constructor(
-		action: CompositeBarAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
@@ -317,8 +300,15 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		@ISecretStorageService private readonly secretStorageService: ISecretStorageService,
 		@ILogService private readonly logService: ILogService,
 		@IActivityService activityService: IActivityService,
+		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+		const action = instantiationService.createInstance(CompositeBarAction, {
+			id: ACCOUNTS_ACTIVITY_ID,
+			name: localize('accounts', "Accounts"),
+			classNames: ThemeIcon.asClassNameArray(GlobalCompositeBar.ACCOUNTS_ICON)
+		});
 		super(MenuId.AccountsContext, action, contextMenuActionsProvider, colors, activityHoverOptions, anchorAlignment, anchorAxisAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
+		this._register(action);
 		this.registerListeners();
 		this.initialize();
 	}
@@ -537,7 +527,6 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 	private profileBadgeContent: HTMLElement | undefined;
 
 	constructor(
-		action: CompositeBarAction,
 		contextMenuActionsProvider: () => IAction[],
 		colors: (theme: IColorTheme) => ICompositeBarColors,
 		activityHoverOptions: IActivityHoverOptions,
@@ -555,11 +544,13 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActivityService activityService: IActivityService,
 	) {
-		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, anchorAlignment, anchorAxisAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
-		action.compositeBarActionItem = {
-			...action.compositeBarActionItem,
+		const action = instantiationService.createInstance(CompositeBarAction, {
+			id: GLOBAL_ACTIVITY_ID,
+			name: localize('manage', "Manage"),
 			classNames: ThemeIcon.asClassNameArray(userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(userDataProfileService.currentProfile.icon) : DEFAULT_ICON)
-		};
+		});
+		super(MenuId.GlobalActivity, action, contextMenuActionsProvider, colors, activityHoverOptions, anchorAlignment, anchorAxisAlignment, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, keybindingService, activityService);
+		this._register(action);
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(e => {
 			action.compositeBarActionItem = {
 				...action.compositeBarActionItem,
@@ -608,5 +599,50 @@ export class GlobalActivityActionViewItem extends AbstractGlobalActivityActionVi
 
 	protected override computeTitle(): string {
 		return this.userDataProfileService.currentProfile.isDefault ? super.computeTitle() : localize('manage profile', "Manage {0} (Profile)", this.userDataProfileService.currentProfile.name);
+	}
+}
+
+export class SimpleAccountActivityActionViewItem extends AccountsActivityActionViewItem {
+
+	constructor(
+		hoverOptions: IActivityHoverOptions,
+		@IThemeService themeService: IThemeService,
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IHoverService hoverService: IHoverService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAuthenticationService authenticationService: IAuthenticationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IProductService productService: IProductService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@ISecretStorageService secretStorageService: ISecretStorageService,
+		@ILogService logService: ILogService,
+		@IActivityService activityService: IActivityService,
+		@IInstantiationService instantiationService: IInstantiationService
+	) {
+		super(() => [], () => ({}), hoverOptions, undefined, undefined, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, storageService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+	}
+}
+
+export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionViewItem {
+
+	constructor(
+		hoverOptions: IActivityHoverOptions,
+		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
+		@IThemeService themeService: IThemeService,
+		@IHoverService hoverService: IHoverService,
+		@IMenuService menuService: IMenuService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IActivityService activityService: IActivityService,
+	) {
+		super(() => [], () => ({}), hoverOptions, undefined, undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
 	}
 }

@@ -26,16 +26,13 @@ import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activity
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Separator } from 'vs/base/common/actions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
-import { ThemeIcon } from 'vs/base/common/themables';
-import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
-import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { GlobalCompositeBar } from 'vs/workbench/browser/parts/globalCompositeBar';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -81,7 +78,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -116,7 +112,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerGlobalActions();
-		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.registerGlobalActions()));
 	}
 
 	override updateStyles(): void {
@@ -203,23 +198,41 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}
 	}
 
-	private globalActionDisposables = this._register(new DisposableStore());
 	private registerGlobalActions() {
-		this.globalActionDisposables.clear();
-		this.globalActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.TitleBarGlobalControlMenu, {
-			submenu: MenuId.GlobalActivity,
-			title: localize('manage', "Manage"),
-			icon: this.userDataProfileService.currentProfile.icon ? ThemeIcon.fromId(this.userDataProfileService.currentProfile.icon) : DEFAULT_ICON,
-			when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
-			order: 2,
-		}));
-		this.globalActionDisposables.add(MenuRegistry.appendMenuItem(MenuId.TitleBarGlobalControlMenu, {
-			submenu: MenuId.AccountsContext,
-			title: localize('accounts', "Accounts"),
-			when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
-			icon: GlobalCompositeBar.ACCOUNTS_ICON,
-			order: 1,
-		}));
+		this._register(registerAction2(
+			class extends Action2 {
+				constructor() {
+					super({
+						id: GLOBAL_ACTIVITY_ID,
+						title: { value: localize('manage', "Manage"), original: 'Manage' },
+						menu: [{
+							id: MenuId.TitleBarGlobalControlMenu,
+							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+							order: 2
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+				}
+			}));
+		this._register(registerAction2(
+			class extends Action2 {
+				constructor() {
+					super({
+						id: ACCOUNTS_ACTIVITY_ID,
+						title: { value: localize('accounts', "Accounts"), original: 'Accounts' },
+						menu: [{
+							id: MenuId.TitleBarGlobalControlMenu,
+							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+							order: 2
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+				}
+			}));
 	}
 
 	toJSON(): object {
