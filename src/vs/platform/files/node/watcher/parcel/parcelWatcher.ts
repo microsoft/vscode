@@ -150,7 +150,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlation: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
@@ -371,7 +371,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		if (this.verboseLogging) {
 			for (const event of events) {
 				const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
-				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlation: ${watcher.request.correlationId})` : traceMsg);
+				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlationId: ${watcher.request.correlationId})` : traceMsg);
 			}
 		}
 
