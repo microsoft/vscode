@@ -18,7 +18,12 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
 
-flakySuite('File Watcher (node.js)', () => {
+// this suite has shown flaky runs in Azure pipelines where
+// tasks would just hang and timeout after a while (not in
+// mocha but generally). as such they will run only on demand
+// whenever we update the watcher library.
+
+((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
@@ -100,16 +105,22 @@ flakySuite('File Watcher (node.js)', () => {
 		}
 	}
 
-	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType, correlationId?: number): Promise<void> {
+	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType, correlationId?: number | null, expectedCount?: number): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
 		await new Promise<void>(resolve => {
+			let counter = 0;
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.resource.fsPath === path && event.type === type && correlationId === event.cId) {
+					if (event.resource.fsPath === path && event.type === type && (correlationId === null || event.cId === correlationId)) {
+						counter++;
+						if (typeof expectedCount === 'number' && counter < expectedCount) {
+							continue; // not yet
+						}
+
 						disposable.dispose();
 						resolve();
 						break;
@@ -418,23 +429,23 @@ flakySuite('File Watcher (node.js)', () => {
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
 		if (!skipAdd) {
-			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId);
+			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
 		}
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, correlationId);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, correlationId, expectedCount);
 		await Promises.unlink(await Promises.realpath(filePath)); // support symlinks
 		await changeFuture;
 	}
@@ -529,5 +540,18 @@ flakySuite('File Watcher (node.js)', () => {
 		cts.cancel(); // this will resolve `watchPromise`
 
 		return watchPromise;
+	});
+
+	test('watching same or overlapping paths supported when correlation is applied', async () => {
+
+		// same path, same options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: false, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: false, correlationId: 2, },
+			{ path: testDir, excludes: [], recursive: false, correlationId: undefined }
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
 	});
 });

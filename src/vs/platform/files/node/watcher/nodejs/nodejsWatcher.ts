@@ -107,15 +107,22 @@ export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 	}
 
 	private normalizeRequests(requests: INonRecursiveWatchRequest[]): INonRecursiveWatchRequest[] {
-		const requestsMap = new Map<string, INonRecursiveWatchRequest>();
+		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, INonRecursiveWatchRequest>>();
 
-		// Ignore requests for the same paths
+		// Ignore requests for the same paths that have the same correlation
 		for (const request of requests) {
 			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
-			requestsMap.set(path, request);
+
+			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
+			if (!requestsForCorrelation) {
+				requestsForCorrelation = new Map<string, INonRecursiveWatchRequest>();
+				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
+			}
+
+			requestsForCorrelation.set(path, request);
 		}
 
-		return Array.from(requestsMap.values());
+		return Array.from(mapCorrelationtoRequests.values()).map(requests => Array.from(requests.values())).flat();
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {

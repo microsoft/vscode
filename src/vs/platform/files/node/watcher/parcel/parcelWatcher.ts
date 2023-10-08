@@ -570,62 +570,86 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	}
 
 	protected normalizeRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
 		// parents exist.
 		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
 
-		// Only consider requests for watching that are not
-		// a child of an existing request path to prevent
-		// duplication. In addition, drop any request where
-		// everything is excluded (via `**` glob).
-		//
-		// However, allow explicit requests to watch folders
-		// that are symbolic links because the Parcel watcher
-		// does not allow to recursively watch symbolic links.
+		// Map request paths to correlation and ignore identical paths
+		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
 			if (request.excludes.includes(GLOBSTAR)) {
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
-			// Check for overlapping requests
-			if (requestTrie.findSubstr(request.path)) {
-				try {
-					const realpath = realpathSync(request.path);
-					if (realpath === request.path) {
-						this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
-						continue;
-					}
-				} catch (error) {
-					this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
-
-					continue;
-				}
+			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
+			if (!requestsForCorrelation) {
+				requestsForCorrelation = new Map<string, IRecursiveWatchRequest>();
+				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
-			// Check for invalid paths
-			if (validatePaths) {
-				try {
-					const stat = statSync(request.path);
-					if (!stat.isDirectory()) {
-						this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
-
-						continue;
-					}
-				} catch (error) {
-					this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
-
-					continue;
-				}
-			}
-
-			requestTrie.set(request.path, request);
+			requestsForCorrelation.set(path, request);
 		}
 
-		return Array.from(requestTrie).map(([, request]) => request);
+		const normalizedRequests: IRecursiveWatchRequest[] = [];
+
+		for (const requestsForCorrelation of mapCorrelationtoRequests.values()) {
+
+			// Only consider requests for watching that are not
+			// a child of an existing request path to prevent
+			// duplication. In addition, drop any request where
+			// everything is excluded (via `**` glob).
+			//
+			// However, allow explicit requests to watch folders
+			// that are symbolic links because the Parcel watcher
+			// does not allow to recursively watch symbolic links.
+
+			const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
+
+			for (const request of requestsForCorrelation.values()) {
+
+				// Check for overlapping requests
+				if (requestTrie.findSubstr(request.path)) {
+					try {
+						const realpath = realpathSync(request.path);
+						if (realpath === request.path) {
+							this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+
+							continue;
+						}
+					} catch (error) {
+						this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
+
+						continue;
+					}
+				}
+
+				// Check for invalid paths
+				if (validatePaths) {
+					try {
+						const stat = statSync(request.path);
+						if (!stat.isDirectory()) {
+							this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
+
+							continue;
+						}
+					} catch (error) {
+						this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
+
+						continue;
+					}
+				}
+
+				requestTrie.set(request.path, request);
+			}
+
+			normalizedRequests.push(...Array.from(requestTrie).map(([, request]) => request));
+		}
+
+		return normalizedRequests;
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
