@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IActivityService, IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, DisposableStore, Disposable, DisposableMap } from 'vs/base/common/lifecycle';
@@ -89,14 +89,14 @@ export class PaneCompositeBar extends Disposable {
 	private hasExtensionsRegistered: boolean = false;
 
 	constructor(
-		private readonly options: IPaneCompositeBarOptions,
+		protected readonly options: IPaneCompositeBarOptions,
 		private readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
@@ -247,10 +247,6 @@ export class PaneCompositeBar extends Disposable {
 				}
 			}
 		}
-	}
-
-	showActivity(viewContainerOrActionId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return Disposable.None;
 	}
 
 	create(parent: HTMLElement): HTMLElement {

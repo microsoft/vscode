@@ -11,8 +11,7 @@ import { Extensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegist
 // import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
@@ -89,11 +88,6 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of visible view containers following the visual order.
 	 */
 	getVisiblePaneCompositeIds(): string[];
-
-	/**
-	 * Show activity on the view pane
-	 */
-	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -386,10 +380,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		return this.openComposite(id, focus) as PaneComposite;
-	}
-
-	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return this.paneCompositeBar.value?.showActivity(id, badge, clazz, priority) ?? Disposable.None;
 	}
 
 	getPaneComposite(id: string): PaneCompositeDescriptor | undefined {
