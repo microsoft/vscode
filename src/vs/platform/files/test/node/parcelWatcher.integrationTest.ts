@@ -25,7 +25,7 @@ import { URI } from 'vs/base/common/uri';
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (parcel)', () => {
+flakySuite('File Watcher (parcel)', () => {
 
 	class TestParcelWatcher extends ParcelWatcher {
 
@@ -540,7 +540,7 @@ import { URI } from 'vs/base/common/uri';
 		await watcher.watch([{ path: invalidPath, excludes: [], recursive: true }]);
 	});
 
-	test('deleting watched path is handled properly', async function () {
+	(isWindows /* flaky on windows */ ? test.skip : test)('deleting watched path is handled properly', async function () {
 		const watchedPath = join(testDir, 'deep');
 
 		await watcher.watch([{ path: watchedPath, excludes: [], recursive: true }]);
