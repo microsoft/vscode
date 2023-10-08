@@ -944,12 +944,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
-		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
-
-		// Get the default profile as a contributed profile if it exists
-		if (!contributedProfile && (!options || !options.config)) {
-			contributedProfile = await this._terminalProfileService.getContributedDefaultProfile(shellLaunchConfig);
-		}
+		const contributedProfile = await this._getContributedProfile(shellLaunchConfig, options);
 
 		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 
@@ -997,6 +992,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
 		return this._createTerminal(shellLaunchConfig, location, options);
+	}
+
+	private async _getContributedProfile(shellLaunchConfig: IShellLaunchConfig, options?: ICreateTerminalOptions): Promise<IExtensionTerminalProfile | undefined> {
+		if (options?.config && 'extensionIdentifier' in options.config) {
+			return options.config;
+		}
+
+		return this._terminalProfileService.getContributedDefaultProfile(shellLaunchConfig);
 	}
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
