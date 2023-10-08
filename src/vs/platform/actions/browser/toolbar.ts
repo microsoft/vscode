@@ -328,6 +328,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				{ primary, secondary },
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
+			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
 			super.setActions(primary, secondary);
 		};
 

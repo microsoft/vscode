@@ -8,16 +8,14 @@ import { Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import { Extensions, PaneComposite, PaneCompositeDescriptor, PaneCompositeRegistry } from 'vs/workbench/browser/panecomposite';
-// import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
-import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { IView } from 'vs/base/browser/ui/grid/grid';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { Dimension, EventHelper, clearNode, trackFocus, $, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -89,11 +87,6 @@ export interface IPaneCompositePart extends IView {
 	 * Returns id of visible view containers following the visual order.
 	 */
 	getVisiblePaneCompositeIds(): string[];
-
-	/**
-	 * Show activity on the view pane
-	 */
-	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable;
 }
 
 export abstract class AbstractPaneCompositePart extends CompositePart<PaneComposite> implements IPaneCompositePart {
@@ -110,9 +103,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	readonly onDidPaneCompositeClose = this.onDidCompositeClose.event as Event<IPaneComposite>;
 
 	private readonly location: ViewContainerLocation;
-	private titleDisposables = this._register(new DisposableStore());
 	private titleContainer: HTMLElement | undefined;
-	private paneTitleLabel: ICompositeTitleLabel | undefined;
+	private paneCompositeBarContainer: HTMLElement | undefined;
 	private paneCompositeBar = this._register(new MutableDisposable<PaneCompositeBar>());
 	private emptyPaneMessageElement: HTMLElement | undefined;
 
@@ -304,46 +296,36 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	protected override createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
 		this.titleContainer = parent;
-		this.updateTitleArea();
-		return {
-			updateTitle: (id, title, keybinding) => {
-				if (!this.updateTitleArea() && this.paneTitleLabel) {
-					this.paneTitleLabel.updateTitle(id, title, keybinding);
-				}
-			},
-			updateStyles: () => this.paneTitleLabel?.updateStyles()
+
+		const titleLabel = super.createTitleLabel(parent);
+		this.titleLabelElement!.draggable = true;
+		const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
+			const activeViewlet = this.getActivePaneComposite()!;
+			return { type: 'composite', id: activeViewlet.getId() };
 		};
+		this._register(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
+
+		this.updateTitleArea();
+		return titleLabel;
 	}
 
-	protected updateTitleArea(): boolean {
+	protected updateTitleArea(): void {
 		if (!this.titleContainer) {
-			return false;
+			return;
 		}
-		if (!this.paneCompositeBar.value && this.shouldShowCompositeBar()) {
-			this.titleContainer.classList.add('composite-bar-container');
-			this.titleDisposables.clear();
-			this.titleLabelElement = undefined;
-			clearNode(this.titleContainer);
-			this.paneCompositeBar.value = this.createCompisteBar();
-			const titleArea = this.paneCompositeBar.value.create(this.titleContainer);
-			titleArea.classList.add('pane-composite-bar');
-			return true;
-		}
-		if (!this.titleLabelElement && !this.shouldShowCompositeBar()) {
+		if (this.shouldShowCompositeBar()) {
+			if (!this.paneCompositeBar.value) {
+				this.titleContainer.classList.add('has-composite-bar');
+				this.paneCompositeBarContainer = prepend(this.titleContainer, $('.composite-bar-container'));
+				this.paneCompositeBar.value = this.createCompisteBar();
+				this.paneCompositeBar.value.create(this.paneCompositeBarContainer);
+			}
+		} else {
+			this.titleContainer.classList.remove('has-composite-bar');
+			this.paneCompositeBarContainer?.remove();
+			this.paneCompositeBarContainer = undefined;
 			this.paneCompositeBar.clear();
-			this.titleDisposables.clear();
-			clearNode(this.titleContainer);
-			this.titleContainer.classList.remove('pane-composite-bar-container');
-			this.paneTitleLabel = super.createTitleLabel(this.titleContainer);
-			this.titleLabelElement!.draggable = true;
-			const draggedItemProvider = (): { type: 'view' | 'composite'; id: string } => {
-				const activeViewlet = this.getActivePaneComposite()!;
-				return { type: 'composite', id: activeViewlet.getId() };
-			};
-			this.titleDisposables.add(CompositeDragAndDropObserver.INSTANCE.registerDraggable(this.titleLabelElement!, draggedItemProvider, {}));
-			return false;
 		}
-		return false;
 	}
 
 	protected createCompisteBar(): PaneCompositeBar {
@@ -386,10 +368,6 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		}
 
 		return this.openComposite(id, focus) as PaneComposite;
-	}
-
-	showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return this.paneCompositeBar.value?.showActivity(id, badge, clazz, priority) ?? Disposable.None;
 	}
 
 	getPaneComposite(id: string): PaneCompositeDescriptor | undefined {
@@ -482,19 +460,26 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
 		if (this.shouldShowCompositeBar()) {
-			return;
-		}
-		const activeViewlet = this.getActivePaneComposite() as PaneComposite;
-		if (activeViewlet) {
-			const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
-			if (contextMenuActions.length) {
+			const actions = this.paneCompositeBar.value?.getContextMenuActions() ?? [];
+			if (actions.length) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
-					getActions: () => contextMenuActions.slice(),
-					getActionViewItem: action => this.actionViewItemProvider(action),
-					actionRunner: activeViewlet.getActionRunner(),
-					skipTelemetry: true
+					getActions: () => actions,
 				});
+			}
+		} else {
+			const activeViewlet = this.getActivePaneComposite() as PaneComposite;
+			if (activeViewlet) {
+				const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
+				if (contextMenuActions.length) {
+					this.contextMenuService.showContextMenu({
+						getAnchor: () => event,
+						getActions: () => contextMenuActions.slice(),
+						getActionViewItem: action => this.actionViewItemProvider(action),
+						actionRunner: activeViewlet.getActionRunner(),
+						skipTelemetry: true
+					});
+				}
 			}
 		}
 	}
