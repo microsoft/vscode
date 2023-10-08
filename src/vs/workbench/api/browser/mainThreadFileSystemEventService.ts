@@ -301,6 +301,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		const subscription = watcherDisposables.add(this._fileService.createWatcher(uri, opts));
 		watcherDisposables.add(subscription.onDidChange(event => {
 			this._proxy.$onFileEvent({
+				session,
 				created: event.rawAdded,
 				changed: event.rawUpdated,
 				deleted: event.rawDeleted

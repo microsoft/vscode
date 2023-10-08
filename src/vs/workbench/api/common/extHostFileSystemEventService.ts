@@ -20,6 +20,8 @@ import { Lazy } from 'vs/base/common/lazy';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
+	private readonly session = Math.random();
+
 	private readonly _onDidCreate = new Emitter<vscode.Uri>();
 	private readonly _onDidChange = new Emitter<vscode.Uri>();
 	private readonly _onDidDelete = new Emitter<vscode.Uri>();
@@ -61,6 +63,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
 		const subscription = dispatcher(events => {
+			if (typeof events.session === 'number' && events.session !== this.session) {
+				return; // ignore events from other file watchers
+			}
+
 			if (!ignoreCreateEvents) {
 				for (const created of events.created) {
 					const uri = URI.revive(created);
@@ -104,10 +110,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		const session = Math.random();
-		proxy.$watch(extension.identifier.value, session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: [] /* excludes are not yet surfaced in the API */ });
 
-		return Disposable.from({ dispose: () => proxy.$unwatch(session) });
+		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}
 
 	dispose() {
@@ -135,6 +140,8 @@ interface IExtensionListener<E> {
 class LazyRevivedFileSystemEvents implements FileSystemEvents {
 
 	constructor(private readonly _events: FileSystemEvents) { }
+
+	readonly session = this._events.session;
 
 	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
 	get created(): URI[] { return this._created.value; }

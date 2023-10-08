@@ -1757,6 +1757,7 @@ export interface ExtHostExtensionServiceShape {
 }
 
 export interface FileSystemEvents {
+	session?: number;
 	created: UriComponents[];
 	changed: UriComponents[];
 	deleted: UriComponents[];
