@@ -241,6 +241,14 @@ export interface IFileService {
 	 * The watcher runs correlated and thus, file events will be reported on the returned
 	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
 	 */
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher;
+
+	/**
+	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 *
+	 * The watcher runs correlated and thus, file events will be reported on the returned
+	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
+	 */
 	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
 
 	/**
@@ -494,7 +502,7 @@ export interface IStat {
 	readonly permissions?: FilePermission;
 }
 
-export interface IWatchOptions {
+export interface IWatchOptionsWithoutCorrelation {
 
 	/**
 	 * Set to `true` to watch for changes recursively in a folder
@@ -519,6 +527,9 @@ export interface IWatchOptions {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+}
+
+export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
 
 	/**
 	 * If provided, file change events from the watcher that
@@ -531,8 +542,6 @@ export interface IWatchOptions {
 export interface IWatchOptionsWithCorrelation extends IWatchOptions {
 	readonly correlationId: number;
 }
-
-export interface IWatchOptionsWithoutCorrelation extends IWatchOptions { }
 
 export interface IFileSystemWatcher extends IDisposable {
 
