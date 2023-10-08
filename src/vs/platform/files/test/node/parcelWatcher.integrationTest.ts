@@ -19,6 +19,7 @@ import { ltrim } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
 import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -517,6 +518,7 @@ flakySuite('File Watcher (parcel)', () => {
 	});
 
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support', async function () {
+		addUNCHostToAllowlist('localhost');
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
