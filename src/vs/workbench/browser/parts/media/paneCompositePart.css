@@ -68,8 +68,8 @@
 	transition-delay: 100ms;
 }
 
-.monaco-workbench .pane-composite-part > .title.dragged-over > .pane-composite-bar > .monaco-action-bar .action-item::before,
-.monaco-workbench .pane-composite-part > .title.dragged-over > .pane-composite-bar > .monaco-action-bar .action-item::after {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::before,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over > .composite-bar > .monaco-action-bar .action-item::after {
 	display: block;
 }
 
@@ -103,8 +103,8 @@
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.right + .action-item::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.left::before,
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:last-of-type.right::after,
-.monaco-workbench .pane-composite-part > .title.dragged-over-head > .pane-composite-bar > .monaco-action-bar .action-item:first-of-type::before,
-.monaco-workbench .pane-composite-part > .title.dragged-over-tail > .pane-composite-bar > .monaco-action-bar .action-item:last-of-type::after {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-head  > .composite-bar > .monaco-action-bar .action-item:first-of-type::before,
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container.dragged-over-tail > .composite-bar > .monaco-action-bar .action-item:last-of-type::after {
 	opacity: 1;
 }
 
@@ -173,7 +173,7 @@
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked .active-item-indicator:before,
-	.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item:focus .active-item-indicator:before {
 	content: "";
 	position: absolute;
 	z-index: 1;
