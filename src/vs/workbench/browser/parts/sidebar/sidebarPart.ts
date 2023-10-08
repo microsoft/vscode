@@ -22,12 +22,9 @@ import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import { ActivityBarCompositeBar, ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { Separator } from 'vs/base/common/actions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -146,6 +143,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
+	protected override createCompisteBar(): ActivityBarCompositeBar {
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompoisteBarOptions(), this.partId, this, false);
+	}
+
 	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
 		return {
 			partContainerClass: 'activitybar',
@@ -157,11 +158,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => HoverPosition.BELOW,
 			},
-			fillExtraContextMenuActions: actions => {
-				// Toggle Sidebar
-				actions.push(new Separator());
-				actions.push(...this.acitivityBarPart.getActivityBarContextMenuActions());
-			},
+			fillExtraContextMenuActions: actions => { },
 			compositeSize: 0,
 			iconSize: 16,
 			overflowActionSize: 44,
@@ -188,14 +185,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	override getVisiblePaneCompositeIds(): string[] {
 		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
-	}
-
-	override showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (this.shouldShowCompositeBar()) {
-			return super.showActivity(id, badge, clazz, priority);
-		} else {
-			return this.acitivityBarPart.showActivity(id, badge, clazz, priority);
-		}
 	}
 
 	private registerGlobalActions() {
