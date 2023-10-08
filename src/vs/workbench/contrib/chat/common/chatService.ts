@@ -223,7 +223,7 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string | (IMarkdownString | IChatResponseProgressFileTreeData)[];
+	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>;
 	errorDetails?: IChatResponseErrorDetails;
 	followups?: IChatFollowup[];
 }
