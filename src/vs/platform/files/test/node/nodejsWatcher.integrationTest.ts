@@ -18,12 +18,7 @@ import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
 
-// this suite has shown flaky runs in Azure pipelines where
-// tasks would just hang and timeout after a while (not in
-// mocha but generally). as such they will run only on demand
-// whenever we update the watcher library.
-
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
+flakySuite('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
