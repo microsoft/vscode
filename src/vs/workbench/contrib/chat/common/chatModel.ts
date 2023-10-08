@@ -39,9 +39,9 @@ export type ResponsePart =
 	| IChatContentReference;
 
 export interface IResponse {
-	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
+	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData>;
 	readonly usedContext: IUsedContext | undefined;
-	readonly contentReferences: IChatContentReference[];
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	onDidChangeValue: Event<void>;
 	updateContent(responsePart: ResponsePart, quiet?: boolean): void;
 	asString(): string;
@@ -133,7 +133,7 @@ export class Response implements IResponse {
 		return this._responseData;
 	}
 
-	constructor(value: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[]) {
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>) {
 		this._responseData = Array.isArray(value) ? value : [value];
 		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
 		this._responseRepr = this._responseParts.map((part) => {
@@ -269,8 +269,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this.agent?.metadata.icon ?? this.session.responderAvatarIconUri;
 	}
 
+	private _followups?: IChatFollowup[];
+
 	constructor(
-		_response: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[],
+		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>,
 		public readonly session: ChatModel,
 		public readonly agent: IChatAgentData | undefined,
 		private _isComplete: boolean = false,
@@ -278,9 +280,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _vote?: InteractiveSessionVoteDirection,
 		private _providerResponseId?: string,
 		private _errorDetails?: IChatResponseErrorDetails,
-		private _followups?: IChatFollowup[]
+		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
+		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
@@ -350,15 +353,15 @@ export interface ISerializableChatAgentData {
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string | IParsedChatRequest;
-	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> | undefined;
 	agent?: ISerializableChatAgentData;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
-	followups: IChatFollowup[] | undefined;
+	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
 	/** For backward compat: should be optional */
 	usedContext?: IUsedContext;
-	contentReferences?: IChatContentReference[];
+	contentReferences?: ReadonlyArray<IChatContentReference>;
 }
 
 export interface IExportableChatData {
@@ -540,6 +543,10 @@ export class ChatModel extends Disposable implements IChatModel {
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.updateContent(raw.usedContext);
 					}
+
+					if (raw.contentReferences) {
+						raw.contentReferences.forEach(r => request.response!.updateContent(r));
+					}
 				}
 				return request;
 			});
@@ -720,6 +727,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						icon: r.response.agent.metadata.icon
 					} : undefined,
 					usedContext: r.response?.response.usedContext,
+					contentReferences: r.response?.response.contentReferences
 				};
 			}),
 			providerId: this.providerId,
