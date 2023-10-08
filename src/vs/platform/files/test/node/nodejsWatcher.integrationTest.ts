@@ -17,6 +17,8 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
 import { FileAccess } from 'vs/base/common/network';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -115,7 +117,7 @@ import { FileAccess } from 'vs/base/common/network';
 			let counter = 0;
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.resource.fsPath === path && event.type === type && (correlationId === null || event.cId === correlationId)) {
+					if (extUriBiasedIgnorePathCase.isEqual(event.resource, URI.file(path)) && event.type === type && (correlationId === null || event.cId === correlationId)) {
 						counter++;
 						if (typeof expectedCount === 'number' && counter < expectedCount) {
 							continue; // not yet

@@ -179,7 +179,6 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
 	}
 
-
 	//--- file operations
 
 	$onDidRunFileOperation(operation: FileOperation, files: SourceTargetPair[]): void {

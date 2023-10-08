@@ -17,6 +17,8 @@ import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/commo
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
@@ -113,7 +115,7 @@ import { FileAccess } from 'vs/base/common/network';
 			let counter = 0;
 			const disposable = watcher.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.resource.fsPath === path && event.type === type && (correlationId === null || event.cId === correlationId)) {
+					if (extUriBiasedIgnorePathCase.isEqual(event.resource, URI.file(path)) && event.type === type && (correlationId === null || event.cId === correlationId)) {
 						counter++;
 						if (typeof expectedCount === 'number' && counter < expectedCount) {
 							continue; // not yet
