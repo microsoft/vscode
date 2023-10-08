@@ -417,6 +417,7 @@ export interface ISearchConfigurationProperties {
 		closedNotebookRichContentResults: boolean;
 		quickAccess: {
 			preserveInput: boolean;
+			seedFileSearchStringFromSelection: boolean;
 		};
 	};
 }

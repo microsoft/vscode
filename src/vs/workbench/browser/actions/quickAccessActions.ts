@@ -18,6 +18,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEditor } from 'vs/editor/common/editorCommon';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
 //#region Quick access management commands and keys
 
@@ -167,13 +168,13 @@ function getFileSearchText(accessor: ServicesAccessor): string | null {
 		return null;
 	}
 
-	// only happen if it would also happen for the search view
-	const seedSearchStringFromSelection = configurationService.getValue<boolean>('editor.find.seedSearchStringFromSelection');
-	if (!seedSearchStringFromSelection) {
+	const seedFileSearchStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.quickAccess.seedFileSearchStringFromSelection ?? false;
+
+	if (!seedFileSearchStringFromSelection) {
 		return null;
 	}
 
-	return getFileSelectionTextFromEditor(false, activeEditor);
+	return getFileSelectionTextFromEditor(seedFileSearchStringFromSelection, activeEditor);
 }
 
 registerAction2(class QuickAccessAction extends Action2 {
