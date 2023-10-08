@@ -43,21 +43,35 @@
 	<script>
 		const isBuild = urlParams.get('build');
 
-		// configure loader
-		const baseUrl = window.location.href;
-		require.config({
-			catchError: true,
-			baseUrl: urlParams.get('baseUrl'),
-			paths: {
-				vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
-				assert: new URL('../assert.js', baseUrl).href,
-				sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
-				'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
-				xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
-				'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
-				jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
-			}
-		});
+		function loaderScript(href) {
+			return new Promise((resolve, reject) => {
+				const script = document.createElement('script');
+				script.src = href;
+				script.onload = () => resolve();
+				script.onerror = () => reject();
+				document.head.appendChild(script);
+			});
+		}
+
+		(async () => {
+			await loaderScript(`../../../${!!isBuild ? 'out-build' : 'out'}/vs/loader.js`);
+
+			// configure loader
+			const baseUrl = window.location.href;
+			require.config({
+				catchError: true,
+				baseUrl: urlParams.get('baseUrl'),
+				paths: {
+					vs: new URL(`../../../${!!isBuild ? 'out-build' : 'out'}/vs`, baseUrl).href,
+					assert: new URL('../assert.js', baseUrl).href,
+					sinon: new URL('../../../node_modules/sinon/pkg/sinon.js', baseUrl).href,
+					'sinon-test': new URL('../../../node_modules/sinon-test/dist/sinon-test.js', baseUrl).href,
+					xterm: new URL('../../../node_modules/xterm/lib/xterm.js', baseUrl).href,
+					'@vscode/iconv-lite-umd': new URL('../../../node_modules/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js', baseUrl).href,
+					jschardet: new URL('../../../node_modules/jschardet/dist/jschardet.min.js', baseUrl).href
+				}
+			});
+		})();
 	</script>
 
 	<script>
