@@ -361,35 +361,78 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
-	private _handleCommandStartWindows(): void {
+	private async _handleCommandStartWindows(): Promise<void> {
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
-		// HACK: Fire command started on the following frame on Windows to allow the cursor
-		// position to update as conpty often prints the sequence on a different line to the
-		// actual line the command started on.
-		timeout(0).then(() => {
-			if (!this._currentCommand.commandExecutedMarker) {
-				this._onCursorMoveListener = this._terminal.onCursorMove(() => {
-					if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
-						const marker = this._terminal.registerMarker(0);
-						if (marker) {
-							this._commandMarkers.push(marker);
-						}
-					}
-				});
-			}
-			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-			if (this._currentCommand.commandStartMarker) {
-				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
-				if (line) {
-					this._currentCommand.commandStartLineContent = line.translateToString(true);
+
+		let shouldAdjustPosition = false;
+
+		// If the cursor position is not within a previous command
+		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
+		const lastCommand = this.commands.at(-1);
+		let lastCommandEndAbsoluteY: number = -1;
+		if (lastCommand) {
+			lastCommandEndAbsoluteY = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
+			shouldAdjustPosition ||= cursorYAbsolute <= lastCommandEndAbsoluteY;
+		}
+
+		// TODO: Clean up variables
+		// If it does not look like a prompt
+		const line = this._terminal.buffer.active.getLine(cursorYAbsolute);
+		const lineString = line!.translateToString(true);
+		shouldAdjustPosition ||= lineString.match(/^(PS.+>)|([A-Z]:\\.*>)/) === null;
+
+		if (shouldAdjustPosition) {
+
+			// Poll for 200ms waiting until the prompt looks correct
+			// TODO: Better comment explaining case, conpty, etc.
+			for (let i = 0; i < 20; i++) {
+				await timeout(10);
+
+				let looksCorrect = true;
+				const cursorYAbsolute2 = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
+				if (lastCommandEndAbsoluteY >= 0) {
+					looksCorrect &&= cursorYAbsolute2 > lastCommandEndAbsoluteY;
+				}
+
+				// If it does not look like a prompt
+				const line2 = this._terminal.buffer.active.getLine(cursorYAbsolute2);
+				const lineString2 = line2!.translateToString(true);
+				looksCorrect &&= lineString2.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
+
+				if (looksCorrect) {
+					break;
 				}
 			}
-			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
-			this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
-		});
+
+		} else {
+			// HACK: Fire command started on the following frame on Windows to allow the cursor
+			// position to update as conpty often prints the sequence on a different line to the
+			// actual line the command started on.
+			await timeout(0);
+		}
+
+		if (!this._currentCommand.commandExecutedMarker) {
+			this._onCursorMoveListener = this._terminal.onCursorMove(() => {
+				if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+					const marker = this._terminal.registerMarker(0);
+					if (marker) {
+						this._commandMarkers.push(marker);
+					}
+				}
+			});
+		}
+		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		if (this._currentCommand.commandStartMarker) {
+			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+			if (line) {
+				this._currentCommand.commandStartLineContent = line.translateToString(true);
+			}
+		}
+		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
@@ -439,6 +482,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _handleCommandExecutedWindows(): void {
+		// TODO: Flush the command started sequence if it's currently polling
+
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
