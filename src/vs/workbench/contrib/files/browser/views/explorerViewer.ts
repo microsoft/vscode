@@ -23,7 +23,7 @@ import { IFilesConfiguration, UndoConfirmLevel } from 'vs/workbench/contrib/file
 import { dirname, joinPath, distinctParents } from 'vs/base/common/resources';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { localize } from 'vs/nls';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { equals, deepClone } from 'vs/base/common/objects';
 import * as path from 'vs/base/common/path';
@@ -559,7 +559,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -1039,7 +1039,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	private compressedDragOverElement: HTMLElement | undefined;
 	private compressedDropTargetDisposable: IDisposable = Disposable.None;
 
-	private toDispose: IDisposable[];
+	private disposables = new DisposableStore();
 	private dropEnabled = false;
 
 	constructor(
@@ -1054,15 +1054,13 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService
 	) {
-		this.toDispose = [];
-
 		const updateDropEnablement = (e: IConfigurationChangeEvent | undefined) => {
 			if (!e || e.affectsConfiguration('explorer.enableDragAndDrop')) {
 				this.dropEnabled = this.configurationService.getValue('explorer.enableDragAndDrop');
 			}
 		};
 		updateDropEnablement(undefined);
-		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
+		this.disposables.add(this.configurationService.onDidChangeConfiguration(e => updateDropEnablement(e)));
 	}
 
 	onDragOver(data: IDragAndDropData, target: ExplorerItem | undefined, targetIndex: number | undefined, originalEvent: DragEvent): boolean | ITreeDragOverReaction {
@@ -1391,11 +1389,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 			const resourceEdit = new ResourceFileEdit(resource, newResource, { copy: true, overwrite: allowOverwrite });
 			resourceFileEdits.push(resourceEdit);
 		}
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		await this.explorerService.applyBulkEdit(resourceFileEdits, {
 			confirmBeforeUndo: explorerConfig.confirmUndo === UndoConfirmLevel.Default || explorerConfig.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('copy', "Copy {0}", labelSufix),
-			progressLabel: localize('copying', "Copying {0}", labelSufix),
+			undoLabel: localize('copy', "Copy {0}", labelSuffix),
+			progressLabel: localize('copying', "Copying {0}", labelSuffix),
 		});
 
 		const editors = resourceFileEdits.filter(edit => {
@@ -1410,11 +1408,11 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 		// Do not allow moving readonly items
 		const resourceFileEdits = sources.filter(source => !source.isReadonly).map(source => new ResourceFileEdit(source.resource, joinPath(target.resource, source.name)));
-		const labelSufix = getFileOrFolderLabelSufix(sources);
+		const labelSuffix = getFileOrFolderLabelSuffix(sources);
 		const options = {
 			confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-			undoLabel: localize('move', "Move {0}", labelSufix),
-			progressLabel: localize('moving', "Moving {0}", labelSufix)
+			undoLabel: localize('move', "Move {0}", labelSuffix),
+			progressLabel: localize('moving', "Moving {0}", labelSuffix)
 		};
 
 		try {
@@ -1482,6 +1480,10 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 	onDragEnd(): void {
 		this.compressedDropTargetDisposable.dispose();
 	}
+
+	dispose(): void {
+		this.compressedDropTargetDisposable.dispose();
+	}
 }
 
 function getIconLabelNameFromHTMLElement(target: HTMLElement | EventTarget | Element | null): { element: HTMLElement; count: number; index: number } | null {
@@ -1518,7 +1520,7 @@ export class ExplorerCompressionDelegate implements ITreeCompressionDelegate<Exp
 	}
 }
 
-function getFileOrFolderLabelSufix(items: ExplorerItem[]): string {
+function getFileOrFolderLabelSuffix(items: ExplorerItem[]): string {
 	if (items.length === 1) {
 		return items[0].name;
 	}

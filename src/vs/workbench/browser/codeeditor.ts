@@ -3,28 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Widget } from 'vs/base/browser/ui/widget';
-import { IOverlayWidget, ICodeEditor, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { IAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { $, append, clearNode } from 'vs/base/browser/dom';
-import { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder, asCssVariableWithDefault, asCssVariable } from 'vs/platform/theme/common/colorRegistry';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference, isCodeEditor, isCompositeEditor } from 'vs/editor/browser/editorBrowser';
+import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
-import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
+import { AbstractFloatingClickMenu, FloatingClickWidget } from 'vs/platform/actions/browser/floatingMenu';
 import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IAction } from 'vs/base/common/actions';
-import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -134,41 +131,23 @@ export class RangeHighlightDecorations extends Disposable {
 	}
 }
 
-export class FloatingClickWidget extends Widget implements IOverlayWidget {
-
-	private readonly _onClick = this._register(new Emitter<void>());
-	readonly onClick = this._onClick.event;
-
-	private _domNode: HTMLElement;
+export class FloatingEditorClickWidget extends FloatingClickWidget implements IOverlayWidget {
 
 	constructor(
 		private editor: ICodeEditor,
-		private label: string,
+		label: string,
 		keyBindingAction: string | null,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super();
-
-		this._domNode = $('.floating-click-widget');
-		this._domNode.style.padding = '6px 11px';
-		this._domNode.style.borderRadius = '2px';
-		this._domNode.style.cursor = 'pointer';
-		this._domNode.style.zIndex = '1';
-
-		if (keyBindingAction) {
-			const keybinding = keybindingService.lookupKeybinding(keyBindingAction);
-			if (keybinding) {
-				this.label += ` (${keybinding.getLabel()})`;
-			}
-		}
+		super(
+			keyBindingAction && keybindingService.lookupKeybinding(keyBindingAction)
+				? `${label} (${keybindingService.lookupKeybinding(keyBindingAction)!.getLabel()})`
+				: label
+		);
 	}
 
 	getId(): string {
 		return 'editor.overlayWidget.floatingClickWidget';
-	}
-
-	getDomNode(): HTMLElement {
-		return this._domNode;
 	}
 
 	getPosition(): IOverlayWidgetPosition {
@@ -177,63 +156,40 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 		};
 	}
 
-	render() {
-		clearNode(this._domNode);
-		this._domNode.style.backgroundColor = asCssVariableWithDefault(buttonBackground, asCssVariable(editorBackground));
-		this._domNode.style.color = asCssVariableWithDefault(buttonForeground, asCssVariable(editorForeground));
-		this._domNode.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
-
-		append(this._domNode, $('')).textContent = this.label;
-
-		this.onclick(this._domNode, e => this._onClick.fire());
-
+	override render() {
+		super.render();
 		this.editor.addOverlayWidget(this);
 	}
 
 	override dispose(): void {
 		this.editor.removeOverlayWidget(this);
-
 		super.dispose();
 	}
+
 }
 
-export class FloatingClickMenu extends Disposable implements IEditorContribution {
-
+export class FloatingEditorClickMenu extends AbstractFloatingClickMenu implements IEditorContribution {
 	static readonly ID = 'editor.contrib.floatingClickMenu';
 
 	constructor(
-		editor: ICodeEditor,
-		@IInstantiationService instantiationService: IInstantiationService,
+		private readonly editor: ICodeEditor,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IMenuService menuService: IMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super();
+		super(MenuId.EditorContent, menuService, contextKeyService);
+		this.render();
+	}
 
-		// DISABLED for embedded editors. In the future we can use a different MenuId for embedded editors
-		if (!(editor instanceof EmbeddedCodeEditorWidget)) {
-			const menu = menuService.createMenu(MenuId.EditorContent, contextKeyService);
-			const menuDisposables = new DisposableStore();
-			const renderMenuAsFloatingClickBtn = () => {
-				menuDisposables.clear();
-				if (!editor.hasModel() || editor.getOption(EditorOption.inDiffEditor)) {
-					return;
-				}
-				const actions: IAction[] = [];
-				createAndFillInActionBarActions(menu, { renderShortTitle: true, shouldForwardArgs: true }, actions);
-				if (actions.length === 0) {
-					return;
-				}
-				// todo@jrieken find a way to handle N actions, like showing a context menu
-				const [first] = actions;
-				const widget = instantiationService.createInstance(FloatingClickWidget, editor, first.label, first.id);
-				menuDisposables.add(widget);
-				menuDisposables.add(widget.onClick(() => first.run(editor.getModel().uri)));
-				widget.render();
-			};
-			this._store.add(menu);
-			this._store.add(menuDisposables);
-			this._store.add(menu.onDidChange(renderMenuAsFloatingClickBtn));
-			renderMenuAsFloatingClickBtn();
-		}
+	protected override createWidget(action: IAction): FloatingClickWidget {
+		return this.instantiationService.createInstance(FloatingEditorClickWidget, this.editor, action.label, action.id);
+	}
+
+	protected override isVisible() {
+		return !(this.editor instanceof EmbeddedCodeEditorWidget) && this.editor?.hasModel() && !this.editor.getOption(EditorOption.inDiffEditor);
+	}
+
+	protected override getActionArg(): unknown {
+		return this.editor.getModel()?.uri;
 	}
 }

@@ -41,9 +41,7 @@ import 'vs/workbench/services/keybinding/browser/keyboardLayoutService';
 import 'vs/workbench/services/extensions/browser/extensionService';
 import 'vs/workbench/services/extensionManagement/browser/webExtensionsScannerService';
 import 'vs/workbench/services/extensionManagement/common/extensionManagementServerService';
-import 'vs/workbench/services/extensionManagement/browser/extensionUrlTrustService';
 import 'vs/workbench/services/telemetry/browser/telemetryService';
-import 'vs/workbench/services/credentials/browser/credentialsService';
 import 'vs/workbench/services/url/browser/urlService';
 import 'vs/workbench/services/update/browser/updateService';
 import 'vs/workbench/services/workspaces/browser/workspacesService';
@@ -65,6 +63,7 @@ import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementServ
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/platform/extensionResourceLoader/browser/extensionResourceLoaderService';
+import 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -76,9 +75,9 @@ import { IWorkbenchExtensionManagementService } from 'vs/workbench/services/exte
 import { ExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagementService';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { UserDataSyncMachinesService, IUserDataSyncMachinesService } from 'vs/platform/userDataSync/common/userDataSyncMachines';
-import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncBackupStoreService, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
+import { IUserDataSyncStoreService, IUserDataSyncService, IUserDataAutoSyncService, IUserDataSyncLocalStoreService, IUserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSync';
 import { UserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSyncStoreService';
-import { UserDataSyncBackupStoreService } from 'vs/platform/userDataSync/common/userDataSyncBackupStoreService';
+import { UserDataSyncLocalStoreService } from 'vs/platform/userDataSync/common/userDataSyncLocalStoreService';
 import { UserDataSyncService } from 'vs/platform/userDataSync/common/userDataSyncService';
 import { IUserDataSyncAccountService, UserDataSyncAccountService } from 'vs/platform/userDataSync/common/userDataSyncAccount';
 import { UserDataAutoSyncService } from 'vs/platform/userDataSync/common/userDataAutoSyncService';
@@ -97,7 +96,7 @@ registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType
 registerSingleton(IContextMenuService, ContextMenuService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncStoreService, UserDataSyncStoreService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncMachinesService, UserDataSyncMachinesService, InstantiationType.Delayed);
-registerSingleton(IUserDataSyncBackupStoreService, UserDataSyncBackupStoreService, InstantiationType.Delayed);
+registerSingleton(IUserDataSyncLocalStoreService, UserDataSyncLocalStoreService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncAccountService, UserDataSyncAccountService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncService, UserDataSyncService, InstantiationType.Delayed);
 registerSingleton(IUserDataSyncResourceProviderService, UserDataSyncResourceProviderService, InstantiationType.Delayed);
@@ -157,6 +156,9 @@ import 'vs/workbench/contrib/issue/browser/issue.contribution';
 
 // Splash
 import 'vs/workbench/contrib/splash/browser/splash.contribution';
+
+// Remote Start Entry for the Web
+import 'vs/workbench/contrib/remote/browser/remoteStartEntry.contribution';
 
 //#endregion
 

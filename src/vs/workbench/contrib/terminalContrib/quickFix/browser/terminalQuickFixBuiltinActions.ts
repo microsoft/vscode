@@ -5,8 +5,7 @@
 
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
+import { ITerminalQuickFixInternalOptions, ITerminalCommandMatchResult, ITerminalQuickFixExecuteTerminalCommandAction, TerminalQuickFixActionInternal, TerminalQuickFixType } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFix';
 
 export const GitCommandLineRegex = /git/;
 export const GitPushCommandLineRegex = /git\s+push/;
@@ -49,7 +48,7 @@ export function gitSimilar(): ITerminalQuickFixInternalOptions {
 				if (fixedCommand) {
 					actions.push({
 						id: 'Git Similar',
-						type: TerminalQuickFixType.Command,
+						type: TerminalQuickFixType.TerminalCommand,
 						terminalCommand: matchResult.commandLine.replace(/git\s+[^\s]+/, () => `git ${fixedCommand}`),
 						addNewLine: true,
 						source: QuickFixSource.Builtin
@@ -79,7 +78,7 @@ export function gitTwoDashes(): ITerminalQuickFixInternalOptions {
 				return;
 			}
 			return {
-				type: TerminalQuickFixType.Command,
+				type: TerminalQuickFixType.TerminalCommand,
 				id: 'Git Two Dashes',
 				terminalCommand: matchResult.commandLine.replace(` -${problemArg}`, () => ` --${problemArg}`),
 				addNewLine: true,
@@ -88,7 +87,7 @@ export function gitTwoDashes(): ITerminalQuickFixInternalOptions {
 		}
 	};
 }
-export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITerminalQuickFixInternalOptions {
+export function freePort(runCallback: (port: string, commandLine: string) => Promise<void>): ITerminalQuickFixInternalOptions {
 	return {
 		id: 'Free Port',
 		type: 'internal',
@@ -114,9 +113,7 @@ export function freePort(terminalInstance?: Partial<ITerminalInstance>): ITermin
 				label,
 				enabled: true,
 				source: QuickFixSource.Builtin,
-				run: async () => {
-					await terminalInstance?.freePortKillProcess?.(port, matchResult.commandLine);
-				}
+				run: () => runCallback(port, matchResult.commandLine)
 			};
 		}
 	};
@@ -175,7 +172,7 @@ export function gitPushSetUpstream(): ITerminalQuickFixInternalOptions {
 			}
 			if (fixedCommand) {
 				actions.push({
-					type: TerminalQuickFixType.Command,
+					type: TerminalQuickFixType.TerminalCommand,
 					id: 'Git Push Set Upstream',
 					terminalCommand: fixedCommand,
 					addNewLine: true,
@@ -268,11 +265,11 @@ export function pwshGeneralError(): ITerminalQuickFixInternalOptions {
 			if (!suggestions) {
 				return;
 			}
-			const result: ITerminalQuickFixCommandAction[] = [];
+			const result: ITerminalQuickFixExecuteTerminalCommandAction[] = [];
 			for (const suggestion of suggestions) {
 				result.push({
 					id: 'Pwsh General Error',
-					type: TerminalQuickFixType.Command,
+					type: TerminalQuickFixType.TerminalCommand,
 					terminalCommand: suggestion,
 					source: QuickFixSource.Builtin
 				});
@@ -314,7 +311,7 @@ export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions
 			}
 
 			// Always remove the first element as it's the "Suggestion [cmd-not-found]"" line
-			const result: ITerminalQuickFixCommandAction[] = [];
+			const result: ITerminalQuickFixExecuteTerminalCommandAction[] = [];
 			let inSuggestions = false;
 			for (; i < lines.length; i++) {
 				const line = lines[i].trim();
@@ -325,7 +322,7 @@ export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions
 				if (installCommand) {
 					result.push({
 						id: 'Pwsh Unix Command Not Found Error',
-						type: TerminalQuickFixType.Command,
+						type: TerminalQuickFixType.TerminalCommand,
 						terminalCommand: installCommand,
 						source: QuickFixSource.Builtin
 					});
@@ -339,7 +336,7 @@ export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions
 				if (inSuggestions) {
 					result.push({
 						id: 'Pwsh Unix Command Not Found Error',
-						type: TerminalQuickFixType.Command,
+						type: TerminalQuickFixType.TerminalCommand,
 						terminalCommand: line.trim(),
 						source: QuickFixSource.Builtin
 					});

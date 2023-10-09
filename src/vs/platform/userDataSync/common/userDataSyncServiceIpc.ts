@@ -9,10 +9,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IChannel, IServerChannel } from 'vs/base/parts/ipc/common/ipc';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IUserDataProfile, IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import {
 	IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError, IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, IUserDataSyncService,
-	SyncResource, SyncStatus, UserDataSyncError, ISyncUserDataProfile
+	SyncResource, SyncStatus, UserDataSyncError
 } from 'vs/platform/userDataSync/common/userDataSync';
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
@@ -76,13 +76,10 @@ export class UserDataSyncChannel implements IServerChannel {
 			case 'hasLocalData': return this.service.hasLocalData();
 			case 'resolveContent': return this.service.resolveContent(URI.revive(args[0]));
 			case 'accept': return this.service.accept(reviewSyncResource(args[0], this.userDataProfilesService), URI.revive(args[1]), args[2], args[3]);
-			case 'getRemoteProfiles': return this.service.getRemoteProfiles();
-			case 'getLocalSyncResourceHandles': return this.service.getLocalSyncResourceHandles(args[0], args[1] ? reviveProfile(args[1], this.userDataProfilesService.profilesHome.scheme) : undefined);
-			case 'getRemoteSyncResourceHandles': return this.service.getRemoteSyncResourceHandles(args[0], args[1]);
 			case 'replace': return this.service.replace(reviewSyncResourceHandle(args[0]));
-			case 'getAssociatedResources': return this.service.getAssociatedResources(reviewSyncResourceHandle(args[0]));
-			case 'getMachineId': return this.service.getMachineId(reviewSyncResourceHandle(args[0]));
 			case 'cleanUpRemoteData': return this.service.cleanUpRemoteData();
+			case 'getRemoteActivityData': return this.service.saveRemoteActivityData(URI.revive(args[0]));
+			case 'extractActivityData': return this.service.extractActivityData(URI.revive(args[0]), URI.revive(args[1]));
 
 			case 'createManualSyncTask': return this.createManualSyncTask();
 		}
@@ -224,35 +221,20 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 		return this.channel.call('resolveContent', [resource]);
 	}
 
-	getRemoteProfiles(): Promise<ISyncUserDataProfile[]> {
-		return this.channel.call<ISyncUserDataProfile[]>('getRemoteProfiles');
-	}
-
-	async getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getLocalSyncResourceHandles', [syncResource, profile]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
-	}
-
-	async getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]> {
-		const handles = await this.channel.call<ISyncResourceHandle[]>('getRemoteSyncResourceHandles', [syncResource, profile]);
-		return handles.map(({ created, uri }) => ({ created, uri: URI.revive(uri) }));
-	}
-
-	async getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]> {
-		const result = await this.channel.call<{ resource: URI; comparableResource: URI }[]>('getAssociatedResources', [syncResourceHandle]);
-		return result.map(({ resource, comparableResource }) => ({ resource: URI.revive(resource), comparableResource: URI.revive(comparableResource) }));
-	}
-
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined> {
-		return this.channel.call<string | undefined>('getMachineId', [syncResourceHandle]);
-	}
-
 	cleanUpRemoteData(): Promise<void> {
 		return this.channel.call('cleanUpRemoteData');
 	}
 
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void> {
 		return this.channel.call('replace', [syncResourceHandle]);
+	}
+
+	saveRemoteActivityData(location: URI): Promise<void> {
+		return this.channel.call('getRemoteActivityData', [location]);
+	}
+
+	extractActivityData(activityDataResource: URI, location: URI): Promise<void> {
+		return this.channel.call('extractActivityData', [activityDataResource, location]);
 	}
 
 	private async updateStatus(status: SyncStatus): Promise<void> {

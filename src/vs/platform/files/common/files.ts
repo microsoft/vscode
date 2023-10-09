@@ -18,6 +18,7 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 //#region file service & providers
 
@@ -656,6 +657,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
 	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
+	enforceAtomicReadFile?(resource: URI): boolean;
 }
 
 export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
@@ -668,6 +670,7 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 
 export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
 	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+	enforceAtomicWriteFile?(resource: URI): IFileAtomicOptions | false;
 }
 
 export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
@@ -680,10 +683,25 @@ export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): pro
 
 export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
 	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+	enforceAtomicDelete?(resource: URI): IFileAtomicOptions | false;
 }
 
 export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities.Readonly & FileSystemProviderCapabilities;
+
+	/**
+	 * An optional message to show in the UI to explain why the file system is readonly.
+	 */
+	readonly readOnlyMessage?: IMarkdownString;
+}
+
+export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
 }
 
 export enum FileSystemProviderErrorCode {

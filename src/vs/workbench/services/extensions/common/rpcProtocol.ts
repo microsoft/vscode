@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { CharCode } from 'vs/base/common/charCode';
 import * as errors from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IURITransformer, transformIncomingURIs } from 'vs/base/common/uriIpc';
@@ -132,7 +132,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 	private readonly _proxies: any[];
 	private _lastMessageId: number;
 	private readonly _cancelInvokedHandlers: { [req: string]: () => void };
-	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise };
+	private readonly _pendingRPCReplies: { [msgId: string]: PendingRPCReply };
 	private _responsiveState: ResponsiveState;
 	private _unacknowledgedCount: number;
 	private _unresponsiveTime: number;
@@ -167,6 +167,7 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		// Release all outstanding promises with a canceled error
 		Object.keys(this._pendingRPCReplies).forEach((msgId) => {
 			const pending = this._pendingRPCReplies[msgId];
+			delete this._pendingRPCReplies[msgId];
 			pending.resolveErr(errors.canceled());
 		});
 	}
@@ -475,20 +476,38 @@ export class RPCProtocol extends Disposable implements IRPCProtocol {
 		const callId = String(req);
 		const result = new LazyPromise();
 
+		const disposable = new DisposableStore();
 		if (cancellationToken) {
-			cancellationToken.onCancellationRequested(() => {
+			disposable.add(cancellationToken.onCancellationRequested(() => {
 				const msg = MessageIO.serializeCancel(req);
 				this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `cancel`);
 				this._protocol.send(MessageIO.serializeCancel(req));
-			});
+			}));
 		}
 
-		this._pendingRPCReplies[callId] = result;
+		this._pendingRPCReplies[callId] = new PendingRPCReply(result, disposable);
 		this._onWillSendRequest(req);
 		const msg = MessageIO.serializeRequest(req, rpcId, methodName, serializedRequestArguments, !!cancellationToken);
 		this._logger?.logOutgoing(msg.byteLength, req, RequestInitiator.LocalSide, `request: ${getStringIdentifierForProxy(rpcId)}.${methodName}(`, args);
 		this._protocol.send(msg);
 		return result;
+	}
+}
+
+class PendingRPCReply {
+	constructor(
+		private readonly _promise: LazyPromise,
+		private readonly _disposable: IDisposable
+	) { }
+
+	public resolveOk(value: any): void {
+		this._promise.resolveOk(value);
+		this._disposable.dispose();
+	}
+
+	public resolveErr(err: any): void {
+		this._promise.resolveErr(err);
+		this._disposable.dispose();
 	}
 }
 

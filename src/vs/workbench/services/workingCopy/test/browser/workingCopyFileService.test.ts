@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
 import { FileOperation } from 'vs/platform/files/common/files';
@@ -20,19 +20,18 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('WorkingCopyFileService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(<TextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('create - dirty file', async function () {
@@ -172,12 +171,12 @@ suite('WorkingCopyFileService', () => {
 	});
 
 	test('registerWorkingCopyProvider', async function () {
-		const model1 = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined);
+		const model1: TextFileEditorModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file-1.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(model1.resource, model1);
 		await model1.resolve();
 		model1.textEditorModel!.setValue('foo');
 
-		const testWorkingCopy = new TestWorkingCopy(toResource.call(this, '/path/file-2.txt'), true);
+		const testWorkingCopy: TestWorkingCopy = disposables.add(new TestWorkingCopy(toResource.call(this, '/path/file-2.txt'), true));
 		const registration = accessor.workingCopyFileService.registerWorkingCopyProvider(() => {
 			return [model1, testWorkingCopy];
 		});
@@ -192,8 +191,6 @@ suite('WorkingCopyFileService', () => {
 		dirty = accessor.workingCopyFileService.getDirty(model1.resource);
 		assert.strictEqual(dirty.length, 1, 'Should have unregistered our provider');
 		assert.strictEqual(dirty[0], model1);
-
-		model1.dispose();
 	});
 
 	test('createFolder', async function () {
@@ -202,7 +199,7 @@ suite('WorkingCopyFileService', () => {
 
 		const resource = toResource.call(this, '/path/folder');
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+		disposables.add(accessor.workingCopyFileService.addFileOperationParticipant({
 			participate: async (files, operation) => {
 				assert.strictEqual(files.length, 1);
 				const file = files[0];
@@ -210,45 +207,41 @@ suite('WorkingCopyFileService', () => {
 				assert.strictEqual(operation, FileOperation.CREATE);
 				eventCounter++;
 			}
-		});
+		}));
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+		disposables.add(accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
 			assert.strictEqual(e.files.length, 1);
 			const file = e.files[0];
 			assert.strictEqual(file.target.toString(), resource.toString());
 			assert.strictEqual(e.operation, FileOperation.CREATE);
 			correlationId = e.correlationId;
 			eventCounter++;
-		});
+		}));
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+		disposables.add(accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			assert.strictEqual(e.files.length, 1);
 			const file = e.files[0];
 			assert.strictEqual(file.target.toString(), resource.toString());
 			assert.strictEqual(e.operation, FileOperation.CREATE);
 			assert.strictEqual(e.correlationId, correlationId);
 			eventCounter++;
-		});
+		}));
 
 		await accessor.workingCopyFileService.createFolder([{ resource }], CancellationToken.None);
 
 		assert.strictEqual(eventCounter, 3);
-
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
 	});
 
 	test('cancellation of participants', async function () {
 		const resource = toResource.call(this, '/path/folder');
 
 		let canceled = false;
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+		disposables.add(accessor.workingCopyFileService.addFileOperationParticipant({
 			participate: async (files, operation, info, t, token) => {
 				await timeout(0);
 				canceled = token.isCancellationRequested;
 			}
-		});
+		}));
 
 		// Create
 		let cts = new CancellationTokenSource();
@@ -289,8 +282,6 @@ suite('WorkingCopyFileService', () => {
 		await promise;
 		assert.strictEqual(canceled, true);
 		canceled = false;
-
-		participant.dispose();
 	});
 
 	async function testEventsMoveOrCopy(files: ICopyOperation[], move?: boolean): Promise<number> {
@@ -491,7 +482,7 @@ suite('WorkingCopyFileService', () => {
 		let eventCounter = 0;
 		let correlationId: number | undefined = undefined;
 
-		const participant = accessor.workingCopyFileService.addFileOperationParticipant({
+		disposables.add(accessor.workingCopyFileService.addFileOperationParticipant({
 			participate: async (files, operation) => {
 				assert.strictEqual(files.length, 1);
 				const file = files[0];
@@ -499,34 +490,32 @@ suite('WorkingCopyFileService', () => {
 				assert.strictEqual(operation, FileOperation.CREATE);
 				eventCounter++;
 			}
-		});
+		}));
 
-		const listener1 = accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
+		disposables.add(accessor.workingCopyFileService.onWillRunWorkingCopyFileOperation(e => {
 			assert.strictEqual(e.files.length, 1);
 			const file = e.files[0];
 			assert.strictEqual(file.target.toString(), model.resource.toString());
 			assert.strictEqual(e.operation, FileOperation.CREATE);
 			correlationId = e.correlationId;
 			eventCounter++;
-		});
+		}));
 
-		const listener2 = accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
+		disposables.add(accessor.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => {
 			assert.strictEqual(e.files.length, 1);
 			const file = e.files[0];
 			assert.strictEqual(file.target.toString(), model.resource.toString());
 			assert.strictEqual(e.operation, FileOperation.CREATE);
 			assert.strictEqual(e.correlationId, correlationId);
 			eventCounter++;
-		});
+		}));
 
 		await accessor.workingCopyFileService.create([{ resource, contents }], CancellationToken.None);
 		assert.ok(!accessor.workingCopyService.isDirty(model.resource));
 		model.dispose();
 
 		assert.strictEqual(eventCounter, 3);
-
-		participant.dispose();
-		listener1.dispose();
-		listener2.dispose();
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

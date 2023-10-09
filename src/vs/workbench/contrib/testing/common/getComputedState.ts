@@ -5,7 +5,7 @@
 
 import { Iterable } from 'vs/base/common/iterator';
 import { TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
-import { maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
+import { makeEmptyCounts, maxPriority, statePriority } from 'vs/workbench/contrib/testing/common/testingStates';
 
 /**
  * Accessor for nodes in get and refresh computed state.
@@ -32,16 +32,26 @@ const isDurationAccessor = <T>(accessor: IComputedStateAccessor<T>): accessor is
  * if it was previously set.
  */
 
-const getComputedState = <T>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
+const getComputedState = <T extends object>(accessor: IComputedStateAccessor<T>, node: T, force = false) => {
 	let computed = accessor.getCurrentComputedState(node);
 	if (computed === undefined || force) {
 		computed = accessor.getOwnState(node) ?? TestResultState.Unset;
 
+		let childrenCount = 0;
+		const stateMap = makeEmptyCounts();
+
 		for (const child of accessor.getChildren(node)) {
 			const childComputed = getComputedState(accessor, child);
+			childrenCount++;
+			stateMap[childComputed]++;
+
 			// If all children are skipped, make the current state skipped too if unset (#131537)
 			computed = childComputed === TestResultState.Skipped && computed === TestResultState.Unset
 				? TestResultState.Skipped : maxPriority(computed, childComputed);
+		}
+
+		if (childrenCount > LARGE_NODE_THRESHOLD) {
+			largeNodeChildrenStates.set(node, stateMap);
 		}
 
 		accessor.setComputedState(node, computed);
@@ -72,11 +82,19 @@ const getComputedDuration = <T>(accessor: IComputedStateAndDurationAccessor<T>, 
 	return computed;
 };
 
+const LARGE_NODE_THRESHOLD = 64;
+
+/**
+ * Map of how many nodes have in each state. This is used to optimize state
+ * computation in large nodes with children above the `LARGE_NODE_THRESHOLD`.
+ */
+const largeNodeChildrenStates = new WeakMap<object, { [K in TestResultState]: number }>();
+
 /**
  * Refreshes the computed state for the node and its parents. Any changes
  * elements cause `addUpdated` to be called.
  */
-export const refreshComputedState = <T>(
+export const refreshComputedState = <T extends object>(
 	accessor: IComputedStateAccessor<T>,
 	node: T,
 	explicitNewComputedState?: TestResultState,
@@ -92,28 +110,46 @@ export const refreshComputedState = <T>(
 		accessor.setComputedState(node, newState);
 		toUpdate.add(node);
 
-		if (newPriority > oldPriority) {
-			// Update all parents to ensure they're at least this priority.
-			for (const parent of accessor.getParents(node)) {
-				const prev = accessor.getCurrentComputedState(parent);
+		let moveFromState = oldState;
+		let moveToState = newState;
+
+		for (const parent of accessor.getParents(node)) {
+			const lnm = largeNodeChildrenStates.get(parent);
+			if (lnm) {
+				lnm[moveFromState]--;
+				lnm[moveToState]++;
+			}
+
+			const prev = accessor.getCurrentComputedState(parent);
+			if (newPriority > oldPriority) {
+				// Update all parents to ensure they're at least this priority.
 				if (prev !== undefined && statePriority[prev] >= newPriority) {
 					break;
 				}
 
+				if (lnm && lnm[moveToState] > 1) {
+					break;
+				}
+
+				// moveToState remains the same, the new higher priority node state
 				accessor.setComputedState(parent, newState);
 				toUpdate.add(parent);
-			}
-		} else if (newPriority < oldPriority) {
-			// Re-render all parents of this node whose computed priority might have come from this node
-			for (const parent of accessor.getParents(node)) {
-				const prev = accessor.getCurrentComputedState(parent);
+			} else /* newProirity < oldPriority */ {
+				// Update all parts whose statese might have been based on this one
 				if (prev === undefined || statePriority[prev] > oldPriority) {
 					break;
 				}
 
-				accessor.setComputedState(parent, getComputedState(accessor, parent, true));
+				if (lnm && lnm[moveFromState] > 0) {
+					break;
+				}
+
+				moveToState = getComputedState(accessor, parent, true);
+				accessor.setComputedState(parent, moveToState);
 				toUpdate.add(parent);
 			}
+
+			moveFromState = prev;
 		}
 	}
 

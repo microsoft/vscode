@@ -12,9 +12,10 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { InlineChatNotebookContribution } from 'vs/workbench/contrib/inlineChat/browser/inlineChatNotebook';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { InlineChatAccessibleViewContribution } from './inlineChatAccessibleView';
 
 registerSingleton(IInlineChatService, InlineChatServiceImpl, InstantiationType.Delayed);
 registerSingleton(IInlineChatSessionService, InlineChatSessionService, InstantiationType.Delayed);
@@ -48,6 +49,6 @@ registerAction2(InlineChatActions.ApplyPreviewEdits);
 
 registerAction2(InlineChatActions.CopyRecordings);
 
-
-Registry.as<IWorkbenchContributionsRegistry>(Extensions.Workbench)
-	.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
+const workbenchContributionsRegistry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench);
+workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookContribution, LifecyclePhase.Restored);
+workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatAccessibleViewContribution, LifecyclePhase.Eventually);

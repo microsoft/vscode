@@ -15,8 +15,9 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { CONTEXT_SYNC_STATE, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { CONTEXT_SYNC_STATE, DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR, IUserDataSyncWorkbenchService, SYNC_TITLE } from 'vs/workbench/services/userDataSync/common/userDataSync';
+import { Schemas } from 'vs/base/common/network';
 
 class UserDataSyncServicesContribution implements IWorkbenchContribution {
 
@@ -51,9 +52,29 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 		if (await fileService.exists(syncHome)) {
 			const folderStat = await fileService.resolve(syncHome);
 			const item = folderStat.children && folderStat.children[0] ? folderStat.children[0].resource : syncHome;
-			return nativeHostService.showItemInFolder(item.fsPath);
+			return nativeHostService.showItemInFolder(item.with({ scheme: Schemas.file }).fsPath);
 		} else {
 			notificationService.info(localize('no backups', "Local backups folder does not exist"));
+		}
+	}
+});
+
+registerAction2(class DownloadSyncActivityAction extends Action2 {
+	constructor() {
+		super(DOWNLOAD_ACTIVITY_ACTION_DESCRIPTOR);
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const userDataSyncWorkbenchService = accessor.get(IUserDataSyncWorkbenchService);
+		const notificationService = accessor.get(INotificationService);
+		const hostService = accessor.get(INativeHostService);
+		const folder = await userDataSyncWorkbenchService.downloadSyncActivity();
+		if (folder) {
+			notificationService.prompt(Severity.Info, localize('download sync activity complete', "Successfully downloaded Settings Sync activity."),
+				[{
+					label: localize('open', "Open Folder"),
+					run: () => hostService.showItemInFolder(folder.fsPath)
+				}]);
 		}
 	}
 });

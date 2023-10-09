@@ -19,6 +19,8 @@ import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { isWeb } from 'vs/base/common/platform';
 import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -78,7 +80,8 @@ export interface IMemoryInfo {
 		"hasAccessibilitySupport" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"isVMLikelyhood" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 		"emptyWorkbench" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
-		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" }
+		"loadavg" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth" },
+		"isARM64Emulated" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 	}
 */
 export interface IStartupMetrics {
@@ -388,6 +391,7 @@ export interface IStartupMetrics {
 	readonly meminfo?: IMemoryInfo;
 	readonly cpus?: { count: number; speed: number; model: string };
 	readonly loadavg?: number[];
+	readonly isARM64Emulated?: boolean;
 }
 
 export interface ITimerService {
@@ -499,7 +503,8 @@ export abstract class AbstractTimerService implements ITimerService {
 		Promise.all([
 			this._extensionService.whenInstalledExtensionsRegistered(), // extensions registered
 			_lifecycleService.when(LifecyclePhase.Restored),			// workbench created and parts restored
-			layoutService.whenRestored									// layout restored (including visible editors resolved)
+			layoutService.whenRestored,									// layout restored (including visible editors resolved)
+			Promise.all(Array.from(Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values()).map(e => e.whenReady))
 		]).then(() => {
 			// set perf mark from renderer
 			this.setPerformanceMarks('renderer', perf.getMarks());
@@ -727,6 +732,7 @@ export class TimerService extends AbstractTimerService {
 	}
 	protected async _extendStartupInfo(info: Writeable<IStartupMetrics>): Promise<void> {
 		info.isVMLikelyhood = 0;
+		info.isARM64Emulated = false;
 		info.platform = navigator.userAgent;
 		info.release = navigator.appVersion;
 	}

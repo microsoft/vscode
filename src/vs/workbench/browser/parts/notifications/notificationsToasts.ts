@@ -27,10 +27,10 @@ import { assertIsDefined } from 'vs/base/common/types';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/common/contextkeys';
 
 interface INotificationToast {
-	item: INotificationViewItem;
-	list: NotificationsList;
-	container: HTMLElement;
-	toast: HTMLElement;
+	readonly item: INotificationViewItem;
+	readonly list: NotificationsList;
+	readonly container: HTMLElement;
+	readonly toast: HTMLElement;
 }
 
 enum ToastVisibility {
@@ -187,10 +187,10 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 		const notificationList = this.instantiationService.createInstance(NotificationsList, notificationToast, {
 			verticalScrollMode: ScrollbarVisibility.Hidden,
 			widgetAriaLabel: (() => {
+
 				if (!item.source) {
 					return localize('notificationAriaLabel', "{0}, notification", item.message.raw);
 				}
-
 				return localize('notificationWithSourceAriaLabel', "{0}, source: {1}, notification", item.message.raw, item.source);
 			})()
 		});

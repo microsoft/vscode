@@ -20,7 +20,7 @@ import { INotebookCellActionContext } from 'vs/workbench/contrib/notebook/browse
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CodiconActionViewItem } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellActionView';
 import { CellOverlayPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { registerStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/stickyScroll';
+import { registerCellToolbarStickyScroll } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbarStickyScroll';
 import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 
 export class BetweenCellToolbar extends CellOverlayPart {
@@ -166,12 +166,12 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			return this._view;
 		}
 
-		const toolbar = this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
+		const toolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.toolbarContainer, {
 			actionViewItemProvider: action => {
 				return createActionViewItem(this.instantiationService, action);
 			},
 			renderDropdownAsChildElement: true
-		});
+		}));
 
 		const deleteToolbar = this._register(this.instantiationService.invokeFunction(accessor => createDeleteToolbar(accessor, this.toolbarContainer, 'cell-delete-toolbar')));
 		if (model.deleteActions.primary.length !== 0 || model.deleteActions.secondary.length !== 0) {
@@ -196,7 +196,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	override didRenderCell(element: ICellViewModel): void {
 		const model = this._initializeModel();
 		const view = this._initialize(model, element);
-		this.cellDisposables.add(registerStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
+		this.cellDisposables.add(registerCellToolbarStickyScroll(this._notebookEditor, element, this.toolbarContainer, { extraOffset: 4, min: -14 }));
 
 		this.updateContext(view, <INotebookCellActionContext>{
 			ui: true,

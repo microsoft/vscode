@@ -24,6 +24,7 @@ export class ExtensionsCompletionItemsProvider extends Disposable implements IWo
 		super();
 
 		this._register(languageFeaturesService.completionProvider.register({ language: 'jsonc', pattern: '**/settings.json' }, {
+			_debugDisplayName: 'extensionsCompletionProvider',
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken): Promise<CompletionList> => {
 				const getWordRangeAtPosition = (model: ITextModel, position: Position): Range | null => {
 					const wordAtPosition = model.getWordAtPosition(position);

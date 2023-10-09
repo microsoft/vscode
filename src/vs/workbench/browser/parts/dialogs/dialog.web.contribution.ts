@@ -52,18 +52,22 @@ export class DialogHandlerContribution extends Disposable implements IWorkbenchC
 		while (this.model.dialogs.length) {
 			this.currentDialog = this.model.dialogs[0];
 
-			let result: IDialogResult | undefined = undefined;
-			if (this.currentDialog.args.confirmArgs) {
-				const args = this.currentDialog.args.confirmArgs;
-				result = await this.impl.confirm(args.confirmation);
-			} else if (this.currentDialog.args.inputArgs) {
-				const args = this.currentDialog.args.inputArgs;
-				result = await this.impl.input(args.input);
-			} else if (this.currentDialog.args.promptArgs) {
-				const args = this.currentDialog.args.promptArgs;
-				result = await this.impl.prompt(args.prompt);
-			} else {
-				await this.impl.about();
+			let result: IDialogResult | Error | undefined = undefined;
+			try {
+				if (this.currentDialog.args.confirmArgs) {
+					const args = this.currentDialog.args.confirmArgs;
+					result = await this.impl.confirm(args.confirmation);
+				} else if (this.currentDialog.args.inputArgs) {
+					const args = this.currentDialog.args.inputArgs;
+					result = await this.impl.input(args.input);
+				} else if (this.currentDialog.args.promptArgs) {
+					const args = this.currentDialog.args.promptArgs;
+					result = await this.impl.prompt(args.prompt);
+				} else {
+					await this.impl.about();
+				}
+			} catch (error) {
+				result = error;
 			}
 
 			this.currentDialog.close(result);

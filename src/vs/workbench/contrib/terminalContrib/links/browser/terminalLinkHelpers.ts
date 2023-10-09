@@ -8,7 +8,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { IPath, posix, win32 } from 'vs/base/common/path';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 
 /**
  * Converts a possibly wrapped link's range (comprised of string indices) into a buffer range that plays nicely with xterm.js
@@ -218,7 +218,7 @@ export function getXtermRangesByAttr(buffer: IBuffer, lineStart: number, lineEnd
  * For shells with the CommandDetection capability, the cwd for a command relative to the line of
  * the particular link can be used to narrow down the result for an exact file match.
  */
-export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, osPath: IPath, logService: ILogService): string[] | undefined {
+export function updateLinkWithRelativeCwd(capabilities: ITerminalCapabilityStore, y: number, text: string, osPath: IPath, logService: ITerminalLogService): string[] | undefined {
 	const cwd = capabilities.get(TerminalCapability.CommandDetection)?.getCwdForLine(y);
 	logService.trace('terminalLinkHelpers#updateLinkWithRelativeCwd cwd', cwd);
 	if (!cwd) {

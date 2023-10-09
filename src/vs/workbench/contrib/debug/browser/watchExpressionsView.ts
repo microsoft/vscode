@@ -417,6 +417,8 @@ class WatchExpressionsDragAndDrop implements ITreeDragAndDrop<IExpression> {
 		const position = targetElement instanceof Expression ? watches.indexOf(targetElement) : watches.length - 1;
 		this.debugService.moveWatchExpression(draggedElement.getId(), position);
 	}
+
+	dispose(): void { }
 }
 
 registerAction2(class Collapse extends ViewAction<WatchExpressionsView> {

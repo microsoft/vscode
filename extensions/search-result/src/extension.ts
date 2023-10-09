@@ -78,7 +78,7 @@ export function activate(context: vscode.ExtensionContext) {
 				const lineResult = parseSearchResults(document, token)[position.line];
 				if (!lineResult) { return []; }
 				if (lineResult.type === 'file') {
-					return lineResult.allLocations;
+					return lineResult.allLocations.map(l => ({ ...l, originSelectionRange: lineResult.location.originSelectionRange }));
 				}
 
 				const location = lineResult.locations.find(l => l.originSelectionRange.contains(position));

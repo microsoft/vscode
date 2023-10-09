@@ -490,7 +490,7 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 		this.wordHighlighter = null;
 		this.linkedContributions = new Set();
 		const createWordHighlighterIfPossible = () => {
-			if (editor.hasModel()) {
+			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization()) {
 				this.wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, () => Iterable.map(this.linkedContributions, c => c.wordHighlighter), contextKeyService);
 			}
 		};

@@ -10,7 +10,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#333333"
@@ -20,8 +21,7 @@
 			"name": "Comments",
 			"scope": [
 				"comment",
-				"punctuation.definition.comment",
-				"string.quoted.docstring"
+				"punctuation.definition.comment"
 			],
 			"settings": {
 				"fontStyle": "italic",

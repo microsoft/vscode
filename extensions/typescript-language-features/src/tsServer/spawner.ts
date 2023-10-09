@@ -19,6 +19,7 @@ import { PluginManager } from './plugins';
 import { GetErrRoutingTsServer, ITypeScriptServer, SingleTsServer, SyntaxRoutingTsServer, TsServerDelegate, TsServerLog, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 const enum CompositeServerType {
 	/** Run a single server that handles all commands  */
@@ -44,6 +45,7 @@ export class TypeScriptServerSpawner {
 	public constructor(
 		private readonly _versionProvider: ITypeScriptVersionProvider,
 		private readonly _versionManager: TypeScriptVersionManager,
+		private readonly _nodeVersionManager: NodeVersionManager,
 		private readonly _logDirectoryProvider: ILogDirectoryProvider,
 		private readonly _pluginPathsProvider: TypeScriptPluginPathsProvider,
 		private readonly _logger: Logger,
@@ -160,7 +162,7 @@ export class TypeScriptServerSpawner {
 		}
 
 		this._logger.info(`<${kind}> Forking...`);
-		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, tsServerLog);
+		const process = this._factory.fork(version, args, kind, configuration, this._versionManager, this._nodeVersionManager, tsServerLog);
 		this._logger.info(`<${kind}> Starting...`);
 
 		return new SingleTsServer(

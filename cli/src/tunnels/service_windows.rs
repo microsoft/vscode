@@ -78,6 +78,7 @@ impl CliServiceManager for WindowsService {
 		cmd.stderr(Stdio::null());
 		cmd.stdout(Stdio::null());
 		cmd.stdin(Stdio::null());
+		cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
 		cmd.spawn()
 			.map_err(|e| wrapdbg(e, "error starting service"))?;
 
@@ -121,8 +122,12 @@ impl CliServiceManager for WindowsService {
 
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
-		key.delete_value(TUNNEL_ACTIVITY_NAME)
-			.map_err(|e| AnyError::from(wrap(e, "error deleting registry key")))?;
+		match key.delete_value(TUNNEL_ACTIVITY_NAME) {
+			Ok(_) => {}
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+			Err(e) => return Err(wrap(e, "error deleting registry key").into()),
+		}
+
 		info!(self.log, "Tunnel service uninstalled");
 
 		let r = do_single_rpc_call::<_, ()>(

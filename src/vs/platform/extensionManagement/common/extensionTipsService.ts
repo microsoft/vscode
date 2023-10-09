@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IConfigBasedExtensionTip as IRawConfigBasedExtensionTip } from 'vs/base/common/product';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { IConfigBasedExtensionTip, IExecutableBasedExtensionTip, IExtensionManagementService, IExtensionTipsService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { disposableTimeout, timeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { join } from 'vs/base/common/path';
@@ -154,11 +154,11 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 			3s has come out to be the good number to fetch and prompt important exe based recommendations
 			Also fetch important exe based recommendations for reporting telemetry
 		*/
-		timeout(3000).then(async () => {
+		disposableTimeout(async () => {
 			await this.collectTips();
 			this.promptHighImportanceExeBasedTip();
 			this.promptMediumImportanceExeBasedTip();
-		});
+		}, 3000, this._store);
 	}
 
 	override async getImportantExecutableBasedTips(): Promise<IExecutableBasedExtensionTip[]> {
@@ -243,7 +243,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 					}
 					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
-						const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
+						const disposable = this._register(new MutableDisposable());
+						disposable.value = disposableTimeout(() => { disposable.dispose(); this.promptHighImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */);
 						break;
 					}
 				}
@@ -263,7 +264,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 		const promptInterval = 7 * 24 * 60 * 60 * 1000; // 7 Days
 		if (timeSinceLastPrompt < promptInterval) {
 			// Wait until interval and prompt
-			const disposable = this._register(disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt));
+			const disposable = this._register(new MutableDisposable());
+			disposable.value = disposableTimeout(() => { disposable.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval - timeSinceLastPrompt);
 			return;
 		}
 
@@ -278,7 +280,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 						this.addToRecommendedExecutables(tips[0].exeName, tips);
 
 						// Schedule the next recommendation for next internval
-						const disposable1 = this._register(disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval));
+						const disposable1 = this._register(new MutableDisposable());
+						disposable1.value = disposableTimeout(() => { disposable1.dispose(); this.promptMediumImportanceExeBasedTip(); }, promptInterval);
 						break;
 					}
 					case RecommendationsNotificationResult.Ignored:
@@ -295,7 +298,8 @@ export abstract class AbstractNativeExtensionTipsService extends ExtensionTipsSe
 					}
 					case RecommendationsNotificationResult.TooMany: {
 						// Too many notifications. Schedule the prompt after one hour
-						const disposable2 = this._register(disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */));
+						const disposable2 = this._register(new MutableDisposable());
+						disposable2.value = disposableTimeout(() => { disposable2.dispose(); this.promptMediumImportanceExeBasedTip(); }, 60 * 60 * 1000 /* 1 hour */);
 						break;
 					}
 				}

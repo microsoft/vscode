@@ -6,7 +6,7 @@
 import * as DomUtils from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, markAsSingleton, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export namespace EventType {
@@ -99,7 +99,7 @@ export class Gesture extends Disposable {
 			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+			Gesture.INSTANCE = markAsSingleton(new Gesture());
 		}
 
 		const remove = Gesture.INSTANCE.targets.push(element);
@@ -111,7 +111,7 @@ export class Gesture extends Disposable {
 			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+			Gesture.INSTANCE = markAsSingleton(new Gesture());
 		}
 
 		const remove = Gesture.INSTANCE.ignoreTargets.push(element);

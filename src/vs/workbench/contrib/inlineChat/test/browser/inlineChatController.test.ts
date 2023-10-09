@@ -4,30 +4,35 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { equals } from 'vs/base/common/arrays';
+import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
+import { ITextModel } from 'vs/editor/common/model';
+import { IModelService } from 'vs/editor/common/services/model';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { InlineChatController, InlineChatRunOptions, State } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IInlineChatSessionService, InlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { IInlineChatService, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { InlineChatServiceImpl } from 'vs/workbench/contrib/inlineChat/common/inlineChatServiceImpl';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { IModelService } from 'vs/editor/common/services/model';
-import { ITextModel } from 'vs/editor/common/model';
-import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
-import { mock } from 'vs/base/test/common/mock';
-import { Emitter, Event } from 'vs/base/common/event';
-import { equals } from 'vs/base/common/arrays';
-import { timeout } from 'vs/base/common/async';
 
-suite('InteractiveChatontroller', function () {
-
+suite('InteractiveChatController', function () {
 	class TestController extends InlineChatController {
 
 		static INIT_SEQUENCE: readonly State[] = [State.CREATE_SESSION, State.INIT_UI, State.WAIT_FOR_INPUT];
@@ -89,6 +94,7 @@ suite('InteractiveChatontroller', function () {
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
 			[IInlineChatService, inlineChatService],
+			[IDiffProviderFactoryService, new SyncDescriptor(TestDiffProviderFactoryService)],
 			[IInlineChatSessionService, new SyncDescriptor(InlineChatSessionService)],
 			[IEditorProgressService, new class extends mock<IEditorProgressService>() {
 				override show(total: unknown, delay?: unknown): IProgressRunner {
@@ -98,17 +104,27 @@ suite('InteractiveChatontroller', function () {
 						done() { },
 					};
 				}
+			}],
+			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
+				override acceptResponse(response?: IChatResponseViewModel): void { }
+				override acceptRequest(): void { }
+			}],
+			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
+				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
+					return null;
+				}
 			}]
 		);
 
-		instaService = workbenchInstantiationService(undefined, store).createChild(serviceCollection);
-		inlineChatSessionService = instaService.get(IInlineChatSessionService);
+		instaService = store.add(workbenchInstantiationService(undefined, store).createChild(serviceCollection));
+		inlineChatSessionService = store.add(instaService.get(IInlineChatSessionService));
 
-		model = instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null);
-		editor = instantiateTestCodeEditor(instaService, model);
+		model = store.add(instaService.get(IModelService).createModel('Hello\nWorld\nHello Again\nHello World\n', null));
+		editor = store.add(instantiateTestCodeEditor(instaService, model));
 
 		store.add(inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -128,11 +144,11 @@ suite('InteractiveChatontroller', function () {
 	});
 
 	teardown(function () {
-		editor.dispose();
-		model.dispose();
 		store.clear();
 		ctrl?.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('creation, not showing anything', function () {
 		ctrl = instaService.createInstance(TestController, editor);
@@ -142,9 +158,9 @@ suite('InteractiveChatontroller', function () {
 
 	test('run (show/hide)', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
 		ctrl.cancelSession();
 
@@ -160,6 +176,7 @@ suite('InteractiveChatontroller', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random()
@@ -188,6 +205,7 @@ suite('InteractiveChatontroller', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -212,9 +230,10 @@ suite('InteractiveChatontroller', function () {
 
 	test('typing outside of wholeRange finishes session', async function () {
 		ctrl = instaService.createInstance(TestController, editor);
-		ctrl.run({ message: 'Hello', autoSend: true });
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE_AUTO_SEND);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -224,6 +243,7 @@ suite('InteractiveChatontroller', function () {
 		editor.trigger('test', 'type', { text: 'a' });
 
 		await ctrl.waitFor([State.ACCEPT]);
+		await r;
 	});
 
 	test('\'whole range\' isn\'t updated for edits outside whole range #4346', async function () {
@@ -232,6 +252,7 @@ suite('InteractiveChatontroller', function () {
 
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
@@ -251,9 +272,10 @@ suite('InteractiveChatontroller', function () {
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
-		ctrl.run({ message: 'Hello', autoSend: false });
+		const p = ctrl.waitFor(TestController.INIT_SEQUENCE);
+		const r = ctrl.run({ message: 'Hello', autoSend: false });
 
-		await ctrl.waitFor(TestController.INIT_SEQUENCE);
+		await p;
 
 		const session = inlineChatSessionService.getSession(editor, editor.getModel()!.uri);
 		assert.ok(session);
@@ -264,40 +286,34 @@ suite('InteractiveChatontroller', function () {
 		await ctrl.waitFor([State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
+
+		ctrl.cancelSession();
+		await r;
 	});
 
 	test('Stuck inline chat widget #211', async function () {
 		const d = inlineChatService.addProvider({
 			debugName: 'Unit Test',
+			label: 'Unit Test',
 			prepareInlineChatSession() {
 				return {
 					id: Math.random(),
 					wholeRange: new Range(3, 1, 3, 3)
 				};
 			},
-			async provideResponse(session, request) {
-
-				// SLOW response
-				await timeout(50000);
-
-				return {
-					type: InlineChatResponseType.EditorEdit,
-					id: Math.random(),
-					edits: [{
-						range: new Range(1, 1, 1, 1), // EDIT happens outside of whole range
-						text: `${request.prompt}\n${request.prompt}`
-					}]
-				};
+			provideResponse(session, request) {
+				return new Promise<never>(() => { });
 			}
 		});
 		store.add(d);
 		ctrl = instaService.createInstance(TestController, editor);
-		const p = ctrl.run({ message: 'Hello', autoSend: true });
-
-		await ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
-		ctrl.acceptSession();
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST]);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
 
 		await p;
+		ctrl.acceptSession();
+
+		await r;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
 	});
 });

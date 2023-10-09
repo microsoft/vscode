@@ -6,6 +6,7 @@
 import { IDiffEditorModel } from 'vs/editor/common/editorCommon';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { DiffEditorModel } from 'vs/workbench/common/editor/diffEditorModel';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 /**
  * The base text editor model for the diff editor. It is made up of two text editor models, the original version
@@ -60,7 +61,7 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return !!this._textDiffEditorModel;
 	}
 
-	isReadonly(): boolean {
+	isReadonly(): boolean | IMarkdownString {
 		return !!this.modifiedModel && this.modifiedModel.isReadonly();
 	}
 

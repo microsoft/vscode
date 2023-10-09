@@ -62,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -98,6 +98,8 @@ export class TerminalEditor extends EditorPane {
 
 	override focus() {
 		this._editorInput?.terminalInstance?.focus();
+
+		super.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -138,7 +140,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -176,7 +178,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();

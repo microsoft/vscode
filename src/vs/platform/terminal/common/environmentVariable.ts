@@ -19,7 +19,7 @@ export interface IEnvironmentVariableMutator {
 	readonly options?: IEnvironmentVariableMutatorOptions;
 }
 
-export interface IEnvironmentDescriptionMutator {
+export interface IEnvironmentVariableCollectionDescription {
 	readonly description: string | undefined;
 	readonly scope?: EnvironmentVariableScope;
 }
@@ -35,14 +35,14 @@ export type EnvironmentVariableScope = {
 
 export interface IEnvironmentVariableCollection {
 	readonly map: ReadonlyMap<string, IEnvironmentVariableMutator>;
-	readonly descriptionMap?: ReadonlyMap<string, IEnvironmentDescriptionMutator>;
+	readonly descriptionMap?: ReadonlyMap<string, IEnvironmentVariableCollectionDescription>;
 }
 
 /** [variable, mutator] */
 export type ISerializableEnvironmentVariableCollection = [string, IEnvironmentVariableMutator][];
 
-export type ISerializableEnvironmentDescriptionMap = [string, IEnvironmentDescriptionMutator][];
-export interface IExtensionOwnedEnvironmentDescriptionMutator extends IEnvironmentDescriptionMutator {
+export type ISerializableEnvironmentDescriptionMap = [string, IEnvironmentVariableCollectionDescription][];
+export interface IExtensionOwnedEnvironmentDescriptionMutator extends IEnvironmentVariableCollectionDescription {
 	readonly extensionIdentifier: string;
 }
 

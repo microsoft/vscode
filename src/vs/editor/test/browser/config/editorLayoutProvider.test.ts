@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { EditorLayoutInfo, EditorLayoutInfoComputer, RenderMinimap, EditorOption, EditorMinimapOptions, InternalEditorScrollbarOptions, EditorOptions, RenderLineNumbersType, InternalEditorRenderLineNumbersOptions } from 'vs/editor/common/config/editorOptions';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ComputedEditorOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { EditorLayoutInfo, EditorLayoutInfoComputer, EditorMinimapOptions, EditorOption, EditorOptions, InternalEditorRenderLineNumbersOptions, InternalEditorScrollbarOptions, RenderLineNumbersType, RenderMinimap } from 'vs/editor/common/config/editorOptions';
 
 interface IEditorLayoutProviderOpts {
 	readonly outerWidth: number;
@@ -38,6 +39,8 @@ interface IEditorLayoutProviderOpts {
 }
 
 suite('Editor ViewLayout - EditorLayoutProvider', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function doTest(input: IEditorLayoutProviderOpts, expected: EditorLayoutInfo): void {
 		const options = new ComputedEditorOptions();

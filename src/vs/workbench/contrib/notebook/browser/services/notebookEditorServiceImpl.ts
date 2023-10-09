@@ -12,9 +12,12 @@ import { isCompositeNotebookEditorInput, NotebookEditorInput } from 'vs/workbenc
 import { IBorrowValue, INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { INotebookEditor, INotebookEditorCreationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { Emitter } from 'vs/base/common/event';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
+import { GroupIdentifier, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { Dimension } from 'vs/base/browser/dom';
 import { URI } from 'vs/base/common/uri';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { InteractiveWindowOpen } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export class NotebookEditorWidgetService implements INotebookEditorService {
 
@@ -34,6 +37,8 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 
 	constructor(
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 
 		const groupListener = new Map<number, IDisposable[]>();
@@ -87,6 +92,19 @@ export class NotebookEditorWidgetService implements INotebookEditorService {
 				for (const value of widgets.values()) {
 					value.token = undefined;
 					this._disposeWidget(value.widget);
+				}
+			}
+		}));
+
+		const interactiveWindowOpen = InteractiveWindowOpen.bindTo(contextKeyService);
+		this._disposables.add(editorService.onDidEditorsChange(e => {
+			if (e.event.kind === GroupModelChangeKind.EDITOR_OPEN && !interactiveWindowOpen.get()) {
+				if (editorService.editors.find(editor => editor.editorId === 'interactive')) {
+					interactiveWindowOpen.set(true);
+				}
+			} else if (e.event.kind === GroupModelChangeKind.EDITOR_CLOSE && interactiveWindowOpen.get()) {
+				if (!editorService.editors.find(editor => editor.editorId === 'interactive')) {
+					interactiveWindowOpen.set(false);
 				}
 			}
 		}));

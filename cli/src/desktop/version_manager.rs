@@ -14,9 +14,8 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-	constants::{QUALITYLESS_PRODUCT_NAME, QUALITY_DOWNLOAD_URIS},
+	constants::{PRODUCT_DOWNLOAD_URL, QUALITY, QUALITYLESS_PRODUCT_NAME},
 	log,
-	options::{self, Quality},
 	state::{LauncherPaths, PersistedState},
 	update_service::Platform,
 	util::errors::{AnyError, InvalidRequestedVersion},
@@ -26,34 +25,23 @@ use crate::{
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 #[serde(tag = "t", content = "c")]
 pub enum RequestedVersion {
-	Quality(options::Quality),
-	Version {
-		version: String,
-		quality: options::Quality,
-	},
-	Commit {
-		commit: String,
-		quality: options::Quality,
-	},
+	Default,
+	Commit(String),
 	Path(String),
 }
 
 lazy_static! {
-	static ref SEMVER_RE: Regex = Regex::new(r"^\d+\.\d+\.\d+(-insider)?$").unwrap();
-	static ref COMMIT_RE: Regex = Regex::new(r"^[a-z]+/[a-e0-f]{40}$").unwrap();
+	static ref COMMIT_RE: Regex = Regex::new(r"^[a-e0-f]{40}$").unwrap();
 }
 
 impl RequestedVersion {
 	pub fn get_command(&self) -> String {
 		match self {
-			RequestedVersion::Quality(quality) => {
-				format!("code version use {}", quality.get_machine_name())
+			RequestedVersion::Default => {
+				format!("code version use {}", QUALITY)
 			}
-			RequestedVersion::Version { version, .. } => {
-				format!("code version use {}", version)
-			}
-			RequestedVersion::Commit { commit, quality } => {
-				format!("code version use {}/{}", quality.get_machine_name(), commit)
+			RequestedVersion::Commit(commit) => {
+				format!("code version use {}/{}", QUALITY, commit)
 			}
 			RequestedVersion::Path(path) => {
 				format!("code version use {}", path)
@@ -65,12 +53,11 @@ impl RequestedVersion {
 impl std::fmt::Display for RequestedVersion {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
 		match self {
-			RequestedVersion::Quality(quality) => write!(f, "{}", quality.get_capitalized_name()),
-			RequestedVersion::Version { version, .. } => {
-				write!(f, "{}", version)
+			RequestedVersion::Default => {
+				write!(f, "{}", QUALITY)
 			}
-			RequestedVersion::Commit { commit, quality } => {
-				write!(f, "{}/{}", quality, commit)
+			RequestedVersion::Commit(commit) => {
+				write!(f, "{}/{}", QUALITY, commit)
 			}
 			RequestedVersion::Path(path) => write!(f, "{}", path),
 		}
@@ -81,19 +68,8 @@ impl TryFrom<&str> for RequestedVersion {
 	type Error = InvalidRequestedVersion;
 
 	fn try_from(s: &str) -> Result<Self, Self::Error> {
-		if let Ok(quality) = options::Quality::try_from(s) {
-			return Ok(RequestedVersion::Quality(quality));
-		}
-
-		if SEMVER_RE.is_match(s) {
-			return Ok(RequestedVersion::Version {
-				quality: if s.ends_with("-insider") {
-					options::Quality::Insiders
-				} else {
-					options::Quality::Stable
-				},
-				version: s.to_string(),
-			});
+		if s == QUALITY {
+			return Ok(RequestedVersion::Default);
 		}
 
 		if Path::is_absolute(&PathBuf::from(s)) {
@@ -101,13 +77,7 @@ impl TryFrom<&str> for RequestedVersion {
 		}
 
 		if COMMIT_RE.is_match(s) {
-			let idx = s.find('/').expect("expected a /");
-			if let Ok(quality) = options::Quality::try_from(&s[0..idx]) {
-				return Ok(RequestedVersion::Commit {
-					commit: s[idx + 1..].to_string(),
-					quality,
-				});
-			}
+			return Ok(RequestedVersion::Commit(s.to_string()));
 		}
 
 		Err(InvalidRequestedVersion())
@@ -206,7 +176,7 @@ impl CodeVersionManager {
 			.versions
 			.get(stored.current)
 			.map(|(v, _)| v.clone())
-			.unwrap_or(RequestedVersion::Quality(options::Quality::Stable))
+			.unwrap_or(RequestedVersion::Default)
 	}
 
 	/// Tries to get the entrypoint for the version, if one can be found.
@@ -221,7 +191,7 @@ impl CodeVersionManager {
 
 		// For simple quality requests, see if that's installed already on the system
 		let candidates = match &version {
-			RequestedVersion::Quality(q) => match detect_installed_program(&self.log, *q) {
+			RequestedVersion::Default => match detect_installed_program(&self.log) {
 				Ok(p) => p,
 				Err(e) => {
 					warning!(self.log, "error looking up installed applications: {}", e);
@@ -254,8 +224,8 @@ pub fn prompt_to_install(version: &RequestedVersion) {
 		QUALITYLESS_PRODUCT_NAME, version
 	);
 
-	if let RequestedVersion::Quality(quality) = version {
-		if let Some(uri) = QUALITY_DOWNLOAD_URIS.as_ref().and_then(|m| m.get(quality)) {
+	if let RequestedVersion::Default = version {
+		if let Some(uri) = PRODUCT_DOWNLOAD_URL {
 			// todo: on some platforms, we may be able to help automate installation. For example,
 			// we can unzip the app ourselves on macOS and on windows we can download and spawn the GUI installer
 			#[cfg(target_os = "linux")]
@@ -272,11 +242,12 @@ pub fn prompt_to_install(version: &RequestedVersion) {
 }
 
 #[cfg(target_os = "macos")]
-fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<Vec<PathBuf>> {
+fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::PRODUCT_NAME_LONG;
+
 	// easy, fast detection for where apps are usually installed
 	let mut probable = PathBuf::from("/Applications");
-	let app_name = quality.get_long_name();
-	probable.push(format!("{}.app", app_name));
+	probable.push(format!("{}.app", PRODUCT_NAME_LONG));
 	if probable.exists() {
 		probable.extend(["Contents/Resources", "app", "bin", "code"]);
 		return Ok(vec![probable]);
@@ -316,7 +287,7 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 		line = line.trim();
 		match state {
 			State::LookingForName => {
-				if line.starts_with(app_name) && line.ends_with(':') {
+				if line.starts_with(PRODUCT_NAME_LONG) && line.ends_with(':') {
 					state = State::LookingForLocation;
 				}
 			}
@@ -341,13 +312,13 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 }
 
 #[cfg(windows)]
-fn detect_installed_program(_log: &log::Logger, quality: Quality) -> io::Result<Vec<PathBuf>> {
-	use crate::constants::WIN32_APP_IDS;
+fn detect_installed_program(_log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::{APPLICATION_NAME, WIN32_APP_IDS};
 	use winreg::enums::{HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE};
 	use winreg::RegKey;
 
 	let mut output: Vec<PathBuf> = vec![];
-	let app_ids = match WIN32_APP_IDS.as_ref().and_then(|m| m.get(&quality)) {
+	let app_ids = match WIN32_APP_IDS.as_ref() {
 		Some(ids) => ids,
 		None => return Ok(output),
 	};
@@ -381,7 +352,7 @@ fn detect_installed_program(_log: &log::Logger, quality: Quality) -> io::Result<
 						[
 							location.as_str(),
 							"bin",
-							&format!("{}.cmd", quality.get_application_name()),
+							&format!("{}.cmd", APPLICATION_NAME),
 						]
 						.iter()
 						.collect(),
@@ -397,7 +368,9 @@ fn detect_installed_program(_log: &log::Logger, quality: Quality) -> io::Result<
 // Looks for the given binary name in the PATH, returning all candidate matches.
 // Based on https://github.dev/microsoft/vscode-js-debug/blob/7594d05518df6700df51771895fcad0ddc7f92f9/src/common/pathUtils.ts#L15
 #[cfg(target_os = "linux")]
-fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<Vec<PathBuf>> {
+fn detect_installed_program(log: &log::Logger) -> io::Result<Vec<PathBuf>> {
+	use crate::constants::APPLICATION_NAME;
+
 	let path = match std::env::var("PATH") {
 		Ok(p) => p,
 		Err(e) => {
@@ -406,11 +379,10 @@ fn detect_installed_program(log: &log::Logger, quality: Quality) -> io::Result<V
 		}
 	};
 
-	let name = quality.get_application_name();
 	let current_exe = std::env::current_exe().expect("expected to read current exe");
 	let mut output = vec![];
 	for dir in path.split(':') {
-		let target: PathBuf = [dir, name].iter().collect();
+		let target: PathBuf = [dir, APPLICATION_NAME].iter().collect();
 		match std::fs::canonicalize(&target) {
 			Ok(m) if m == current_exe => continue,
 			Ok(_) => {}
@@ -471,64 +443,9 @@ mod tests {
 	fn test_detect_installed_program() {
 		// developers can run this test and debug output manually; VS Code will not
 		// be installed in CI, so the test only makes sure it doesn't error out
-		let result = detect_installed_program(&log::Logger::test(), Quality::Insiders);
+		let result = detect_installed_program(&log::Logger::test());
 		println!("result: {:?}", result);
 		assert!(result.is_ok());
-	}
-
-	#[test]
-	fn test_requested_version_parses() {
-		assert_eq!(
-			RequestedVersion::try_from("1.2.3").unwrap(),
-			RequestedVersion::Version {
-				quality: options::Quality::Stable,
-				version: "1.2.3".to_string(),
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("1.2.3-insider").unwrap(),
-			RequestedVersion::Version {
-				quality: options::Quality::Insiders,
-				version: "1.2.3-insider".to_string(),
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("stable").unwrap(),
-			RequestedVersion::Quality(options::Quality::Stable)
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("insiders").unwrap(),
-			RequestedVersion::Quality(options::Quality::Insiders)
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("insiders/92fd228156aafeb326b23f6604028d342152313b")
-				.unwrap(),
-			RequestedVersion::Commit {
-				commit: "92fd228156aafeb326b23f6604028d342152313b".to_string(),
-				quality: options::Quality::Insiders
-			}
-		);
-
-		assert_eq!(
-			RequestedVersion::try_from("stable/92fd228156aafeb326b23f6604028d342152313b").unwrap(),
-			RequestedVersion::Commit {
-				commit: "92fd228156aafeb326b23f6604028d342152313b".to_string(),
-				quality: options::Quality::Stable
-			}
-		);
-
-		let exe = std::env::current_exe()
-			.expect("expected to get exe")
-			.to_string_lossy()
-			.to_string();
-		assert_eq!(
-			RequestedVersion::try_from(exe.as_str()).unwrap(),
-			RequestedVersion::Path(exe),
-		);
 	}
 
 	#[tokio::test]
@@ -537,31 +454,29 @@ mod tests {
 		let lp = LauncherPaths::new_without_replacements(dir.path().to_owned());
 		let vm1 = CodeVersionManager::new(log::Logger::test(), &lp, Platform::LinuxARM64);
 
-		assert_eq!(
-			vm1.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Stable)
-		);
+		assert_eq!(vm1.get_preferred_version(), RequestedVersion::Default);
 		vm1.set_preferred_version(
-			RequestedVersion::Quality(options::Quality::Exploration),
+			RequestedVersion::Commit("foobar".to_string()),
 			dir.path().join("desktop/stable"),
 		)
 		.await
 		.expect("expected to store");
 		vm1.set_preferred_version(
-			RequestedVersion::Quality(options::Quality::Insiders),
+			RequestedVersion::Commit("foobar2".to_string()),
 			dir.path().join("desktop/stable"),
 		)
 		.await
 		.expect("expected to store");
+
 		assert_eq!(
 			vm1.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Insiders)
+			RequestedVersion::Commit("foobar2".to_string()),
 		);
 
 		let vm2 = CodeVersionManager::new(log::Logger::test(), &lp, Platform::LinuxARM64);
 		assert_eq!(
 			vm2.get_preferred_version(),
-			RequestedVersion::Quality(options::Quality::Insiders)
+			RequestedVersion::Commit("foobar2".to_string()),
 		);
 	}
 
