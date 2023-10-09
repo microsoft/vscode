@@ -369,8 +369,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._commandMarkers.length = 0;
 
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
-
-		function cursorOnCorrectLine(lastCommand?: ITerminalCommand): boolean {
+		const lastCommand = this.commands.at(-1);
+		function cursorOnCorrectLine(): boolean {
 			if (!lastCommand) {
 				return false;
 			}
@@ -388,11 +388,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// Conpty could have the wrong cursor position at this point.
-		if (!cursorOnCorrectLine(this.commands.at(-1)) || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
+		if (!cursorOnCorrectLine() || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
-				if (cursorOnCorrectLine(this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
+				if (cursorOnCorrectLine() && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
 					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling attempts required: ', i + 1);
 					break;
 				}
