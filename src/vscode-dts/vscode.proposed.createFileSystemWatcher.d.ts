@@ -33,6 +33,6 @@ declare module 'vscode' {
 
 	export namespace workspace {
 
-		export function createFileSystemWatcher(globPattern: GlobPattern, options?: FileSystemWatcherOptions): FileSystemWatcher;
+		export function createFileSystemWatcher(pattern: RelativePattern, options?: FileSystemWatcherOptions): FileSystemWatcher;
 	}
 }
