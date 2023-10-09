@@ -1190,6 +1190,7 @@ fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 				is_deny: false,
 				is_inverse: false,
 				organization: None,
+				expiration: None,
 				subjects: vec![],
 				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
 			});
