@@ -24,7 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -439,6 +439,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 
 		let gotProgress = false;
@@ -508,10 +509,8 @@ export class ChatService extends Disposable implements IChatService {
 							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 						}
 					}
-					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, message.substring(agentPart.agent.id.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
-						const { content } = p;
-						const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
-						progressCallback(data);
+					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, agentSlashCommandPart?.command.name ?? '', message, new Progress<IChatProgress>(p => {
+						progressCallback(p);
 					}), history, token);
 					slashCommandFollowups = agentResult?.followUp;
 					rawResponse = { session: model.session! };

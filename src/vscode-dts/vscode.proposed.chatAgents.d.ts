@@ -30,21 +30,19 @@ declare module 'vscode' {
 		provideFollowups?(token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
 	}
 
-	export interface SlashCommandMetadata {
-		description: string;
-	}
-
 	export interface SlashCommand {
 		readonly name: string;
-		readonly metadata: SlashCommandMetadata;
+		readonly description: string;
 		invoke: ChatAgentHandler;
 	}
 
 	// All agent and slashCommand details must be fully dynamic because they can be loaded from a remote server (github copilot extensibility).
 	// But could be declared in package.json a well.
 	interface ChatAgent {
-		slashCommands: SlashCommand[];
-		onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
+		slashCommands: ReadonlyArray<SlashCommand>;
+		// Can we handle telemetry internally and ditch this?
+		// Other extensions will probably want it though.
+		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
 		dispose(): void;
 		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}

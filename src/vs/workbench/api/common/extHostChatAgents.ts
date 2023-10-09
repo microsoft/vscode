@@ -29,7 +29,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents);
 	}
 
-	createChatAgent(extension: ExtensionIdentifier, id: string, description: string, handler: vscode.ChatAgentHandler): vscode.ChatAgent {
+	createChatAgent(extension: ExtensionIdentifier, id: string, description: string, handler?: vscode.ChatAgentHandler): vscode.ChatAgent {
 		const handle = ExtHostChatAgents._idPool++;
 		const agent = new ExtHostChatAgent(extension, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
@@ -57,13 +57,18 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
 
-		const slashCommand = agent.slashCommands.find(s => s.name === command);
-		const task = slashCommand?.invoke(
+		const slashCommand = command && agent.slashCommands.find(s => s.name === command);
+		if (!slashCommand) {
+			throw new Error(`Unknown slashCommand: ${command}`);
+		}
+
+		const task = slashCommand.invoke(
 			null!,
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
-			new Progress<vscode.SlashResponse>(p => {
+			new Progress<vscode.InteractiveProgress>(p => {
 				throwIfDone();
-				this._proxy.$handleProgressChunk(requestId, { content: isInteractiveProgressFileTree(p.message) ? p.message : p.message.value });
+				const convertedProgress = typeConvert.ChatResponseProgress.from(p);
+				this._proxy.$handleProgressChunk(requestId, convertedProgress);
 			}),
 			token
 		);
@@ -71,8 +76,8 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		try {
 			return await raceCancellation(Promise.resolve(task).then((v) => {
 				if (v && 'followUp' in v) {
-					const convertedFollowup = v?.followUp?.map(f => typeConvert.ChatFollowup.from(f));
-					return { followUp: convertedFollowup };
+					// const convertedFollowup = v?.followUp?.map(f => typeConvert.ChatFollowup.from(f));
+					// return { followUp: convertedFollowup };
 				}
 				return undefined;
 			}), token);
@@ -83,9 +88,9 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 	}
 }
 
-function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
-	return !!thing && typeof thing === 'object' && 'treeData' in thing;
-}
+// function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
+// 	return !!thing && typeof thing === 'object' && 'treeData' in thing;
+// }
 
 class ExtHostChatAgent {
 	private _slashCommands: vscode.SlashCommand[] = [];
@@ -94,7 +99,7 @@ class ExtHostChatAgent {
 		public readonly extension: ExtensionIdentifier,
 		private readonly _proxy: MainThreadChatAgentsShape,
 		private readonly _handle: number,
-		private readonly _callback: vscode.ChatAgentHandler
+		private readonly _callback?: vscode.ChatAgentHandler
 	) { }
 
 	get slashCommands(): ReadonlyArray<vscode.SlashCommand> {
@@ -108,7 +113,7 @@ class ExtHostChatAgent {
 			get slashCommands() { return that._slashCommands; },
 			set slashCommands(v) {
 				that._slashCommands = v;
-				that._proxy.$updateAgent(that._handle, { subCommands: v.map(c => ({ name: c.name, description: c.metadata.description })) });
+				that._proxy.$updateAgent(that._handle, { subCommands: v.map(c => ({ name: c.name, description: c.description })) });
 			},
 			dispose() {
 				that._proxy.$unregisterAgent(that._handle);
@@ -117,6 +122,6 @@ class ExtHostChatAgent {
 	}
 
 	invoke(request: vscode.InteractiveRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken) {
-		this._callback(request, context, progress, token);
+		this._callback?.(request, context, progress, token);
 	}
 }

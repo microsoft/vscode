@@ -198,6 +198,7 @@ declare module 'vscode' {
 	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
+		// provideHelpText(): string; // to implement `/help` slash command on the vscode side
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
 		// Align this with whatever we decide for chat agents
 		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;

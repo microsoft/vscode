@@ -6,9 +6,9 @@
 import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { ExtHostChatAgentsShape, ExtHostContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape, ExtHostContext, IChatResponseProgressDto, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatAgentMetadata, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
+import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
@@ -16,7 +16,7 @@ import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/ext
 export class MainThreadChatAgents implements MainThreadChatAgentsShape, IDisposable {
 
 	private readonly _agents = new DisposableMap<number, { name: string; dispose: () => void }>;
-	private readonly _pendingProgress = new Map<number, IProgress<IChatSlashFragment>>();
+	private readonly _pendingProgress = new Map<number, IProgress<IChatProgress>>();
 	private readonly _proxy: ExtHostChatAgentsShape;
 
 	constructor(
@@ -43,11 +43,11 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape, IDisposa
 			});
 		}
 
-		const d = this._chatAgentService.registerAgentCallback(name, async (prompt, progress, history, token) => {
-			const requestId = Math.random();
+		const d = this._chatAgentService.registerAgentCallback(name, async (prompt, command, progress, history, token) => {
+			const requestId = Math.random(); // Make this a guid
 			this._pendingProgress.set(requestId, progress);
 			try {
-				return await this._proxy.$invokeAgent(handle, requestId, prompt, { history }, token);
+				return await this._proxy.$invokeAgent(handle, requestId, command, prompt, { history }, token);
 			} finally {
 				this._pendingProgress.delete(requestId);
 			}
@@ -64,8 +64,9 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape, IDisposa
 		this._chatAgentService.updateAgent(data.name, metadataUpdate);
 	}
 
-	async $handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void> {
-		this._pendingProgress.get(requestId)?.report(revive(chunk));
+	async $handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void> {
+		// TODO copy/move $acceptResponseProgress from MainThreadChat
+		this._pendingProgress.get(requestId)?.report(revive(chunk) as any);
 	}
 
 	$unregisterCommand(handle: number): void {

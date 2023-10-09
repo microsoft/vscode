@@ -170,6 +170,7 @@ export class ExtHostChat implements ExtHostChatShape {
 		}
 
 		const requestObj: vscode.InteractiveRequest = {
+			id: 'id',
 			session: realSession,
 			message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.to(request.message),
 			variables: {}
@@ -260,7 +261,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $onDidPerformUserAction(event: IChatUserActionEvent): Promise<void> {
-		this._onDidPerformUserAction.fire(event);
+		this._onDidPerformUserAction.fire(event as any);
 	}
 
 	//#endregion
