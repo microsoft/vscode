@@ -304,7 +304,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('interactive.open', "Open Interactive Window"), original: 'Open Interactive Window' },
 			f1: false,
 			category: interactiveWindowCategory,
-			description: {
+			metadata: {
 				description: localize('interactive.open', "Open Interactive Window"),
 				args: [
 					{
@@ -437,7 +437,7 @@ registerAction2(class extends Action2 {
 			],
 			icon: icons.executeIcon,
 			f1: false,
-			description: {
+			metadata: {
 				description: 'Execute the Contents of the Input Box',
 				args: [
 					{

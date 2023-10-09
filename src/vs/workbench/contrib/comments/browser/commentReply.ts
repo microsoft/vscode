@@ -278,9 +278,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
-			this._actionRunDelegate?.();
+			await this._actionRunDelegate?.();
 
-			action.run({
+			await action.run({
 				thread: this._commentThread,
 				text: this.commentEditor.getValue(),
 				$mid: MarshalledId.CommentThreadReply

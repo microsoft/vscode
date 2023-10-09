@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -13,6 +14,9 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { TunnelInformation, TunnelPrivacy } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { URI } from 'vs/base/common/uri';
 import { Attributes, CandidatePort, TunnelCloseReason, TunnelModel, TunnelProperties, TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
+import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
 
 export const IRemoteExplorerService = createDecorator<IRemoteExplorerService>('remoteExplorerService');
 export const REMOTE_EXPLORER_TYPE_KEY: string = 'remote.explorerType';
@@ -57,10 +61,67 @@ export enum TunnelEditId {
 	LocalPort = 3
 }
 
+export interface HelpInformation {
+	extensionDescription: IExtensionDescription;
+	getStarted?: string | { id: string };
+	documentation?: string;
+	issues?: string;
+	reportIssue?: string;
+	remoteName?: string[] | string;
+	virtualWorkspace?: string;
+}
+
+const getStartedWalkthrough: IJSONSchema = {
+	type: 'object',
+	required: ['id'],
+	properties: {
+		id: {
+			description: nls.localize('getStartedWalkthrough.id', 'The ID of a Get Started walkthrough to open.'),
+			type: 'string'
+		},
+	}
+};
+
+const remoteHelpExtPoint = ExtensionsRegistry.registerExtensionPoint<HelpInformation>({
+	extensionPoint: 'remoteHelp',
+	jsonSchema: {
+		description: nls.localize('RemoteHelpInformationExtPoint', 'Contributes help information for Remote'),
+		type: 'object',
+		properties: {
+			'getStarted': {
+				description: nls.localize('RemoteHelpInformationExtPoint.getStarted', "The url, or a command that returns the url, to your project's Getting Started page, or a walkthrough ID contributed by your project's extension"),
+				oneOf: [
+					{ type: 'string' },
+					getStartedWalkthrough
+				]
+			},
+			'documentation': {
+				description: nls.localize('RemoteHelpInformationExtPoint.documentation', "The url, or a command that returns the url, to your project's documentation page"),
+				type: 'string'
+			},
+			'feedback': {
+				description: nls.localize('RemoteHelpInformationExtPoint.feedback', "The url, or a command that returns the url, to your project's feedback reporter"),
+				type: 'string',
+				markdownDeprecationMessage: nls.localize('RemoteHelpInformationExtPoint.feedback.deprecated', "Use {0} instead", '`reportIssue`')
+			},
+			'reportIssue': {
+				description: nls.localize('RemoteHelpInformationExtPoint.reportIssue', "The url, or a command that returns the url, to your project's issue reporter"),
+				type: 'string'
+			},
+			'issues': {
+				description: nls.localize('RemoteHelpInformationExtPoint.issues', "The url, or a command that returns the url, to your project's issues list"),
+				type: 'string'
+			}
+		}
+	}
+});
+
 export interface IRemoteExplorerService {
 	readonly _serviceBrand: undefined;
 	onDidChangeTargetType: Event<string[]>;
 	targetType: string[];
+	onDidChangeHelpInformation: Event<readonly IExtensionPointUser<HelpInformation>[]>;
+	helpInformation: IExtensionPointUser<HelpInformation>[];
 	readonly tunnelModel: TunnelModel;
 	onDidChangeEditable: Event<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined>;
 	setEditable(tunnelItem: ITunnelItem | undefined, editId: TunnelEditId, data: IEditableData | null): void;
@@ -82,6 +143,9 @@ class RemoteExplorerService implements IRemoteExplorerService {
 	private _targetType: string[] = [];
 	private readonly _onDidChangeTargetType: Emitter<string[]> = new Emitter<string[]>();
 	public readonly onDidChangeTargetType: Event<string[]> = this._onDidChangeTargetType.event;
+	private readonly _onDidChangeHelpInformation: Emitter<readonly IExtensionPointUser<HelpInformation>[]> = new Emitter();
+	public readonly onDidChangeHelpInformation: Event<readonly IExtensionPointUser<HelpInformation>[]> = this._onDidChangeHelpInformation.event;
+	private _helpInformation: IExtensionPointUser<HelpInformation>[] = [];
 	private _tunnelModel: TunnelModel;
 	private _editable: { tunnelItem: ITunnelItem | undefined; editId: TunnelEditId; data: IEditableData } | undefined;
 	private readonly _onDidChangeEditable: Emitter<{ tunnel: ITunnelItem; editId: TunnelEditId } | undefined> = new Emitter();
@@ -97,6 +161,15 @@ class RemoteExplorerService implements IRemoteExplorerService {
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
 		this._tunnelModel = instantiationService.createInstance(TunnelModel);
+
+		remoteHelpExtPoint.setHandler((extensions) => {
+			this._helpInformation.push(...extensions);
+			this._onDidChangeHelpInformation.fire(extensions);
+		});
+	}
+
+	get helpInformation(): IExtensionPointUser<HelpInformation>[] {
+		return this._helpInformation;
 	}
 
 	set targetType(name: string[]) {

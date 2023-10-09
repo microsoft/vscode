@@ -663,7 +663,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyCode.KeyN,
 	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyN] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	description: {
+	metadata: {
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{
