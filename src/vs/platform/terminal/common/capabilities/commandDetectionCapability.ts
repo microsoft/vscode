@@ -368,18 +368,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
-		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		const lastCommand = this.commands.at(-1);
-		function cursorOnCorrectLine(): boolean {
+		function cursorOnCorrectLine(terminal: Terminal): boolean {
 			if (!lastCommand) {
 				return false;
 			}
+			const cursorYAbsolute = terminal.buffer.active.baseY + terminal.buffer.active.cursorY;
 			// If the cursor position is within the last command, we should poll.
 			const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
 			return cursorYAbsolute > lastCommandYAbsolute;
 		}
 
-		function lineIsPrompt(line?: IBufferLine): boolean {
+		function lineIsPrompt(terminal: Terminal): boolean {
+			const line = terminal.buffer.active.getLine(terminal.buffer.active.baseY + terminal.buffer.active.cursorY);
 			if (!line) {
 				return false;
 			}
@@ -388,11 +389,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// Conpty could have the wrong cursor position at this point.
-		if (!cursorOnCorrectLine() || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
+		if (!cursorOnCorrectLine(this._terminal) || !lineIsPrompt(this._terminal)) {
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
-				if (cursorOnCorrectLine() && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
+				if (cursorOnCorrectLine(this._terminal) && lineIsPrompt(this._terminal)) {
 					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling attempts required: ', i + 1);
 					break;
 				}
