@@ -20,8 +20,8 @@ import { dirname, normalize } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -49,7 +49,7 @@ export interface IParcelWatcherInstance {
 	/**
 	 * An event aggregator to coalesce events and reduce duplicates.
 	 */
-	readonly worker: RunOnceWorker<IDiskFileChange>;
+	readonly worker: RunOnceWorker<IFileChange>;
 
 	/**
 	 * Stops and disposes the watcher. This operation is async to await
@@ -70,7 +70,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
+	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
@@ -95,7 +95,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
 			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
@@ -185,7 +185,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
-			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			worker: new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
 
@@ -256,7 +256,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
-			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			worker: new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
 
@@ -323,8 +323,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
-		const events: IDiskFileChange[] = [];
+	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IFileChange[] {
+		const events: IFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
 			const type = ParcelWatcher.MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE.get(parcelEventType)!;
@@ -345,7 +345,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		return events;
 	}
 
-	private handleParcelEvents(parcelEvents: IDiskFileChange[], watcher: IParcelWatcherInstance): void {
+	private handleParcelEvents(parcelEvents: IFileChange[], watcher: IParcelWatcherInstance): void {
 
 		// Coalesce events: merge events of same kind
 		const coalescedEvents = coalesceEvents(parcelEvents);
@@ -362,7 +362,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private emitEvents(events: IDiskFileChange[], watcher: IParcelWatcherInstance): void {
+	private emitEvents(events: IFileChange[], watcher: IParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
 		}
@@ -441,8 +441,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private filterEvents(events: IDiskFileChange[], watcher: IParcelWatcherInstance): { events: IDiskFileChange[]; rootDeleted?: boolean } {
-		const filteredEvents: IDiskFileChange[] = [];
+	private filterEvents(events: IFileChange[], watcher: IParcelWatcherInstance): { events: IFileChange[]; rootDeleted?: boolean } {
+		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
 		for (const event of events) {

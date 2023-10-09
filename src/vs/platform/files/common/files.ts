@@ -930,7 +930,7 @@ export interface IFileChange {
 	/**
 	 * The type of change that occurred to the file.
 	 */
-	readonly type: FileChangeType;
+	type: FileChangeType;
 
 	/**
 	 * The unified resource identifier of the file that changed.

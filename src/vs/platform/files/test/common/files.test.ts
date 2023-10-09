@@ -8,8 +8,7 @@ import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, isParent } from 'vs/platform/files/common/files';
-import { IDiskFileChange } from 'vs/platform/files/common/watcher';
+import { FileChangesEvent, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 suite('Files', () => {
 
@@ -111,7 +110,7 @@ suite('Files', () => {
 	});
 
 	test('FileChangesEvent - correlation', function () {
-		let changes: IDiskFileChange[] = [
+		let changes: IFileChange[] = [
 			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
 			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
 			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },

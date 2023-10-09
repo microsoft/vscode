@@ -7,7 +7,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { patternsEquals } from 'vs/base/common/glob';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinux } from 'vs/base/common/platform';
-import { IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
+import { IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, INonRecursiveWatchRequest, INonRecursiveWatcher } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
 
 export interface INodeJSWatcherInstance {
@@ -25,7 +26,7 @@ export interface INodeJSWatcherInstance {
 
 export class NodeJSWatcher extends Disposable implements INonRecursiveWatcher {
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
+	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());

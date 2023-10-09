@@ -15,8 +15,8 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { realcase } from 'vs/base/node/extpath';
 import { Promises } from 'vs/base/node/pfs';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, coalesceEvents, INonRecursiveWatchRequest, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export class NodeJSFileWatcherLibrary extends Disposable {
 
@@ -36,7 +36,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	// recursive watcher because we can have many individual
 	// node.js watchers per request.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
 			maxWorkChunkSize: 100,	// only process up to 100 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
@@ -47,7 +47,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	// Aggregate file changes over FILE_CHANGES_HANDLER_DELAY
 	// to coalesce events and reduce spam.
-	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IDiskFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
+	private readonly fileChangesAggregator = this._register(new RunOnceWorker<IFileChange>(events => this.handleFileChanges(events), NodeJSFileWatcherLibrary.FILE_CHANGES_HANDLER_DELAY));
 
 	private readonly excludes = parseWatcherPatterns(this.request.path, this.request.excludes);
 	private readonly includes = this.request.includes ? parseWatcherPatterns(this.request.path, this.request.includes) : undefined;
@@ -58,7 +58,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 
 	constructor(
 		private request: INonRecursiveWatchRequest,
-		private onDidFilesChange: (changes: IDiskFileChange[]) => void,
+		private onDidFilesChange: (changes: IFileChange[]) => void,
 		private onLogMessage?: (msg: ILogMessage) => void,
 		private verboseLogging?: boolean
 	) {
@@ -363,7 +363,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		});
 	}
 
-	private onFileChange(event: IDiskFileChange, skipIncludeExcludeChecks = false): void {
+	private onFileChange(event: IFileChange, skipIncludeExcludeChecks = false): void {
 		if (this.cts.token.isCancellationRequested) {
 			return;
 		}
@@ -387,7 +387,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		}
 	}
 
-	private handleFileChanges(fileChanges: IDiskFileChange[]): void {
+	private handleFileChanges(fileChanges: IFileChange[]): void {
 
 		// Coalesce events: merge events of same kind
 		const coalescedFileChanges = coalesceEvents(fileChanges);

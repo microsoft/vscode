@@ -11,9 +11,9 @@ import { dirname, join } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
 import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
-import { FileChangeType } from 'vs/platform/files/common/files';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
 import { ParcelWatcher } from 'vs/platform/files/node/watcher/parcel/parcelWatcher';
-import { IDiskFileChange, IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
+import { IRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { getDriveLetter } from 'vs/base/common/extpath';
 import { ltrim } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
@@ -106,13 +106,13 @@ flakySuite('File Watcher (parcel)', () => {
 		}
 	}
 
-	async function awaitEvent(watcher: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number | null, expectedCount?: number): Promise<IDiskFileChange[]> {
+	async function awaitEvent(watcher: TestParcelWatcher, path: string, type: FileChangeType, failOnEventReason?: string, correlationId?: number | null, expectedCount?: number): Promise<IFileChange[]> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
-		const res = await new Promise<IDiskFileChange[]>((resolve, reject) => {
+		const res = await new Promise<IFileChange[]>((resolve, reject) => {
 			let counter = 0;
 			const disposable = watcher.onDidChangeFile(events => {
 				for (const event of events) {

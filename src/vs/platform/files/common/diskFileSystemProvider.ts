@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, reviveFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
@@ -102,7 +102,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		// Create watcher if this is the first time
 		if (!this.universalWatcher) {
 			this.universalWatcher = this._register(this.createUniversalWatcher(
-				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				changes => this._onDidChangeFile.fire(reviveFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
 			));
@@ -136,7 +136,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	protected abstract createUniversalWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient;
@@ -183,7 +183,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		// Create watcher if this is the first time
 		if (!this.nonRecursiveWatcher) {
 			this.nonRecursiveWatcher = this._register(this.createNonRecursiveWatcher(
-				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				changes => this._onDidChangeFile.fire(reviveFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
 			));
@@ -199,7 +199,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	protected abstract createNonRecursiveWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractNonRecursiveWatcherClient;
