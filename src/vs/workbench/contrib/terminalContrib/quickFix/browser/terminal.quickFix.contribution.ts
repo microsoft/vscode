@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/terminalQuickFix';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
@@ -19,7 +20,7 @@ import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/q
 import { TerminalQuickFixAddon } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { freePort, gitCreatePr, gitPushSetUpstream, gitSimilar, gitTwoDashes, pwshGeneralError, pwshUnixCommandNotFoundError } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixService';
-import { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from 'xterm';
 
 // Services
 registerSingleton(ITerminalQuickFixService, TerminalQuickFixService, InstantiationType.Delayed);
@@ -55,7 +56,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 		// Register quick fixes
 		for (const actionOption of [
 			gitTwoDashes(),
-			freePort(this),
+			freePort((port: string, command: string) => this._instance.freePortKillProcess(port, command)),
 			gitSimilar(),
 			gitPushSetUpstream(),
 			gitCreatePr(),

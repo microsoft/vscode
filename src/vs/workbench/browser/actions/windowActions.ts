@@ -30,7 +30,6 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -409,7 +408,7 @@ class BlurAction extends Action2 {
 	run(): void {
 		const el = document.activeElement;
 
-		if (isHTMLElement(el)) {
+		if (el instanceof HTMLElement) {
 			el.blur();
 		}
 	}

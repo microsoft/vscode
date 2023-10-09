@@ -114,7 +114,7 @@ import { FileAccess } from 'vs/base/common/network';
 		await new Promise<void>(resolve => {
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.path === path && event.type === type) {
+					if (event.resource.fsPath === path && event.type === type) {
 						disposable.dispose();
 						resolve();
 						break;
@@ -252,7 +252,7 @@ import { FileAccess } from 'vs/base/common/network';
 
 		// Move file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
-		await Promises.move(filePath, `${filePath}-moved`);
+		await Promises.rename(filePath, `${filePath}-moved`);
 		await changeFuture;
 	});
 

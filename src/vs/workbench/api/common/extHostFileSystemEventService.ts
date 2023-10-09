@@ -16,6 +16,7 @@ import { FileOperation } from 'vs/platform/files/common/files';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
+import { Lazy } from 'vs/base/common/lazy';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -133,6 +134,20 @@ interface IExtensionListener<E> {
 	(e: E): any;
 }
 
+class LazyRevivedFileSystemEvents implements FileSystemEvents {
+
+	constructor(private readonly _events: FileSystemEvents) { }
+
+	private _created = new Lazy(() => this._events.created.map(URI.revive) as URI[]);
+	get created(): URI[] { return this._created.value; }
+
+	private _changed = new Lazy(() => this._events.changed.map(URI.revive) as URI[]);
+	get changed(): URI[] { return this._changed.value; }
+
+	private _deleted = new Lazy(() => this._events.deleted.map(URI.revive) as URI[]);
+	get deleted(): URI[] { return this._deleted.value; }
+}
+
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
 	private readonly _onFileSystemEvent = new Emitter<FileSystemEvents>();
@@ -163,7 +178,7 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._onFileSystemEvent.fire(events);
+		this._onFileSystemEvent.fire(new LazyRevivedFileSystemEvents(events));
 	}
 
 

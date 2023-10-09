@@ -15,6 +15,7 @@
 **/extensions/typescript-language-features/test-workspace/**
 **/extensions/typescript-language-features/extension.webpack.config.js
 **/extensions/typescript-language-features/extension-browser.webpack.config.js
+**/extensions/typescript-language-features/package-manager/node-maintainer/**
 **/extensions/vscode-api-tests/testWorkspace/**
 **/extensions/vscode-api-tests/testWorkspace2/**
 **/fixtures/**

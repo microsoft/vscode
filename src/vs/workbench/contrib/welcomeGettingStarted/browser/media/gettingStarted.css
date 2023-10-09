@@ -585,6 +585,8 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
 	grid-area: title-start / media-start / steps-end / media-end;
 	align-self: unset;
+	display: flex;
+	justify-content: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.width-semi-constrained .gettingStartedSlideDetails .gettingStartedDetailsContent.image>.getting-started-media {
@@ -623,10 +625,6 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.someWalkthroughsHidden .index-list.getting-started .see-all-walkthroughs {
 	display: inline;
-}
-
-.monaco-workbench .part.editor>.content .gettingStartedContainer .index-list.getting-started div {
-	text-align: center;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer.noExtensions .index-list.featured-extensions {

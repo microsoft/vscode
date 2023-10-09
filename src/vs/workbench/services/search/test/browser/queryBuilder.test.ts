@@ -58,6 +58,10 @@ suite('QueryBuilder', () => {
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('simple text pattern', () => {
 		assertEqualTextQueries(
 			queryBuilder.text(PATTERN_INFO),

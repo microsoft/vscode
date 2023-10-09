@@ -86,7 +86,6 @@ const cliCommandCwd = process.env['VSCODE_CLIENT_COMMAND_CWD'] as string;
 const cliRemoteAuthority = process.env['VSCODE_CLI_AUTHORITY'] as string;
 const cliStdInFilePath = process.env['VSCODE_STDIN_FILE_PATH'] as string;
 
-
 export async function main(desc: ProductDescription, args: string[]): Promise<void> {
 	if (!cliPipe && !cliCommand) {
 		console.log('Command is only available in WSL or inside a Visual Studio Code terminal.');
@@ -181,7 +180,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 
 	parsedArgs['_'] = [];
 
-	if (hasReadStdinArg && fileURIs.length === 0 && folderURIs.length === 0 && hasStdinWithoutTty()) {
+	if (hasReadStdinArg && hasStdinWithoutTty()) {
 		try {
 			let stdinFilePath = cliStdInFilePath;
 			if (!stdinFilePath) {
@@ -271,7 +270,16 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			if (verbose) {
 				console.log(`Invoking: cd "${cliCwd}" && ELECTRON_RUN_AS_NODE=1 "${cliCommand}" "${newCommandline.join('" "')}"`);
 			}
-			_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit'] });
+			if (runningInWSL2()) {
+				if (verbose) {
+					console.log(`Using pipes for output.`);
+				}
+				const cp = _cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: ['inherit', 'pipe', 'pipe'] });
+				cp.stdout.on('data', data => process.stdout.write(data));
+				cp.stderr.on('data', data => process.stderr.write(data));
+			} else {
+				_cp.spawn(cliCommand, newCommandline, { cwd: cliCwd, env, stdio: 'inherit' });
+			}
 		}
 	} else {
 		if (parsedArgs.status) {
@@ -329,6 +337,17 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			waitForFileDeleted(waitMarkerFilePath);
 		}
 	}
+}
+
+function runningInWSL2(): boolean {
+	if (!!process.env['WSL_DISTRO_NAME']) {
+		try {
+			return _cp.execSync('uname -r', { encoding: 'utf8' }).includes('-microsoft-');
+		} catch (_e) {
+			// Ignore
+		}
+	}
+	return false;
 }
 
 async function waitForFileDeleted(path: string) {

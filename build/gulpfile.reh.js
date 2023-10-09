@@ -62,10 +62,6 @@ const serverResources = [
 	// Performance
 	'out-build/vs/base/common/performance.js',
 
-	// Watcher
-	'out-build/vs/platform/files/**/*.exe',
-	'out-build/vs/platform/files/**/*.md',
-
 	// Process monitor
 	'out-build/vs/base/node/cpuUsage.sh',
 	'out-build/vs/base/node/ps.sh',
@@ -138,12 +134,9 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 			break;
 
 		case 'darwin':
+		case 'alpine':
 		case 'linux':
 			expectedName = `node-v${nodeVersion}-${platform}-${arch}.tar.gz`;
-			break;
-
-		case 'alpine':
-			expectedName = `${platform}-${arch}/node`;
 			break;
 	}
 
@@ -155,6 +148,13 @@ function getNodeChecksum(nodeVersion, platform, arch) {
 		}
 	}
 	return undefined;
+}
+
+function extractAlpinefromDocker(nodeVersion, platform, arch) {
+	const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
+	log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
+	const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
+	return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
 }
 
 const { nodeVersion, internalNodeVersion } = getNodeVersion();
@@ -219,18 +219,14 @@ function nodejs(platform, arch) {
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
-		case 'alpine': {
-			const imageName = arch === 'arm64' ? 'arm64v8/node' : 'node';
-			log(`Downloading node.js ${nodeVersion} ${platform} ${arch} from docker image ${imageName}`);
-			const contents = cp.execSync(`docker run --rm ${imageName}:${nodeVersion}-alpine /bin/sh -c 'cat \`which node\`'`, { maxBuffer: 100 * 1024 * 1024, encoding: 'buffer' });
-			if (checksumSha256) {
-				const actualSHA256Checksum = crypto.createHash('sha256').update(contents).digest('hex');
-				if (actualSHA256Checksum !== checksumSha256) {
-					throw new Error(`Checksum mismatch for node.js from docker image (expected ${options.checksumSha256}, actual ${actualSHA256Checksum}))`);
-				}
-			}
-			return es.readArray([new File({ path: 'node', contents, stat: { mode: parseInt('755', 8) } })]);
-		}
+		case 'alpine':
+			return product.nodejsRepository !== 'https://nodejs.org' ?
+				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
+					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+					.pipe(filter('**/node'))
+					.pipe(util.setExecutableBit('**'))
+					.pipe(rename('node'))
+				: extractAlpinefromDocker(nodeVersion, platform, arch);
 	}
 }
 

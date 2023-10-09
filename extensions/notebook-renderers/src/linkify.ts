@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ttPolicy } from './htmlHelper';
+
 const CONTROL_CODES = '\\u0000-\\u0020\\u007f-\\u009f';
 const WEB_LINK_REGEX = new RegExp('(?:[a-zA-Z][a-zA-Z0-9+.-]{2,}:\\/\\/|data:|www\\.)[^\\s' + CONTROL_CODES + '"]{2,}[^\\s' + CONTROL_CODES + '"\')}\\],:;.!?]', 'ug');
 
@@ -13,10 +15,11 @@ const POSIX_PATH = /(?<=^|\s)((?:\~|\.)?(?:\/[\w\.-]*)+)/;
 const LINE_COLUMN = /(?:\:([\d]+))?(?:\:([\d]+))?/;
 const isWindows = (typeof navigator !== 'undefined') ? navigator.userAgent && navigator.userAgent.indexOf('Windows') >= 0 : false;
 const PATH_LINK_REGEX = new RegExp(`${isWindows ? WIN_PATH.source : POSIX_PATH.source}${LINE_COLUMN.source}`, 'g');
+const HTML_LINK_REGEX = /<a\s+(?:[^>]*?\s+)?href=(["'])(.*?)\1[^>]*?>.*?<\/a>/gi;
 
 const MAX_LENGTH = 2000;
 
-type LinkKind = 'web' | 'path' | 'text';
+type LinkKind = 'web' | 'path' | 'html' | 'text';
 type LinkPart = {
 	kind: LinkKind;
 	value: string;
@@ -24,9 +27,21 @@ type LinkPart = {
 };
 
 export class LinkDetector {
-	constructor(
-	) {
-		// noop
+
+	// used by unit tests
+	static injectedHtmlCreator: (value: string) => string;
+
+	private shouldGenerateHtml(trustHtml: boolean) {
+		return trustHtml && (!!LinkDetector.injectedHtmlCreator || !!ttPolicy);
+	}
+
+	private createHtml(value: string) {
+		if (LinkDetector.injectedHtmlCreator) {
+			return LinkDetector.injectedHtmlCreator(value);
+		}
+		else {
+			return ttPolicy?.createHTML(value).toString();
+		}
 	}
 
 	/**
@@ -36,7 +51,7 @@ export class LinkDetector {
 	 * When splitLines is true, each line of the text, even if it contains no links, is wrapped in a <span>
 	 * and added as a child of the returned <span>.
 	 */
-	linkify(text: string, splitLines?: boolean, workspaceFolder?: string): HTMLElement {
+	linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml?: boolean): HTMLElement {
 		if (splitLines) {
 			const lines = text.split('\n');
 			for (let i = 0; i < lines.length - 1; i++) {
@@ -46,7 +61,7 @@ export class LinkDetector {
 				// Remove the last element ('') that split added.
 				lines.pop();
 			}
-			const elements = lines.map(line => this.linkify(line, false, workspaceFolder));
+			const elements = lines.map(line => this.linkify(line, false, workspaceFolder, trustHtml));
 			if (elements.length === 1) {
 				// Do not wrap single line with extra span.
 				return elements[0];
@@ -66,6 +81,15 @@ export class LinkDetector {
 					case 'web':
 					case 'path':
 						container.appendChild(this.createWebLink(part.value));
+						break;
+					case 'html':
+						if (this.shouldGenerateHtml(!!trustHtml)) {
+							const span = document.createElement('span');
+							span.innerHTML = this.createHtml(part.value)!;
+							container.appendChild(span);
+						} else {
+							container.appendChild(document.createTextNode(part.value));
+						}
 						break;
 				}
 			} catch (e) {
@@ -130,8 +154,8 @@ export class LinkDetector {
 			return [{ kind: 'text', value: text, captures: [] }];
 		}
 
-		const regexes: RegExp[] = [WEB_LINK_REGEX, PATH_LINK_REGEX];
-		const kinds: LinkKind[] = ['web', 'path'];
+		const regexes: RegExp[] = [HTML_LINK_REGEX, WEB_LINK_REGEX, PATH_LINK_REGEX];
+		const kinds: LinkKind[] = ['html', 'web', 'path'];
 		const result: LinkPart[] = [];
 
 		const splitOne = (text: string, regexIndex: number) => {
@@ -168,6 +192,6 @@ export class LinkDetector {
 }
 
 const linkDetector = new LinkDetector();
-export function linkify(text: string, splitLines?: boolean, workspaceFolder?: string) {
-	return linkDetector.linkify(text, splitLines, workspaceFolder);
+export function linkify(text: string, splitLines?: boolean, workspaceFolder?: string, trustHtml = false) {
+	return linkDetector.linkify(text, splitLines, workspaceFolder, trustHtml);
 }

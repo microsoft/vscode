@@ -7,10 +7,11 @@ import * as assert from 'assert';
 import * as fs from 'fs';
 import * as encoding from 'vs/workbench/services/textfile/common/encoding';
 import * as streams from 'vs/base/common/stream';
-import * as iconv from '@vscode/iconv-lite-umd';
 import { newWriteableBufferStream, VSBuffer, VSBufferReadableStream, streamToBufferReadableStream } from 'vs/base/common/buffer';
 import { splitLines } from 'vs/base/common/strings';
 import { FileAccess } from 'vs/base/common/network';
+import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 export async function detectEncodingByBOM(file: string): Promise<typeof encoding.UTF16be | typeof encoding.UTF16le | typeof encoding.UTF8_with_bom | null> {
 	try {
@@ -213,7 +214,7 @@ suite('Encoding', () => {
 				if (err) {
 					reject(err);
 				} else {
-					resolve(iconv.decode(data, encoding.toNodeEncoding(fileEncoding!)));
+					resolve(importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js').then(iconv => iconv.decode(data, encoding.toNodeEncoding(fileEncoding!))));
 				}
 			});
 		});
@@ -385,6 +386,8 @@ suite('Encoding', () => {
 		const path = FileAccess.asFileUri('vs/workbench/services/textfile/test/node/encoding/fixtures/some_utf16be.css').fsPath;
 		const source = await readAndDecodeFromDisk(path, encoding.UTF16be);
 
+		const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
+
 		const expected = VSBuffer.wrap(
 			iconv.encode(source, encoding.toNodeEncoding(encoding.UTF16be))
 		).toString();
@@ -446,8 +449,10 @@ suite('Encoding', () => {
 			if (enc === encoding.UTF8_with_bom) {
 				continue; // skip over encodings from us
 			}
-
+			const iconv = await importAMDNodeModule<typeof import('@vscode/iconv-lite-umd')>('@vscode/iconv-lite-umd', 'lib/iconv-lite-umd.js');
 			assert.strictEqual(iconv.encodingExists(enc), true, enc);
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });
