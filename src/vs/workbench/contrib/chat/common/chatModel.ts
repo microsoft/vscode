@@ -329,7 +329,7 @@ export interface IChatModel {
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
-	readonly isInitialized: boolean;
+	readonly initState: ChatModelInitState;
 	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
@@ -421,6 +421,12 @@ export interface IChatInitEvent {
 	kind: 'initialize';
 }
 
+export enum ChatModelInitState {
+	Created,
+	Initializing,
+	Initialized
+}
+
 export class ChatModel extends Disposable implements IChatModel {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
@@ -429,6 +435,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: ChatRequestModel[];
+	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
 	private _session: IChat | undefined;
@@ -485,8 +492,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._session?.responderAvatarIconUri ?? this._initialResponderAvatarIconUri;
 	}
 
-	get isInitialized(): boolean {
-		return this._isInitializedDeferred.isSettled;
+	get initState(): ChatModelInitState {
+		return this._initState;
 	}
 
 	private _isImported = false;
@@ -565,16 +572,26 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
-	startReinitialize(): void {
+	startInitialize(): void {
+		if (this.initState !== ChatModelInitState.Created) {
+			throw new Error(`ChatModel is in the wrong state for startInitialize: ${ChatModelInitState[this.initState]}`);
+		}
+		this._initState = ChatModelInitState.Initializing;
+	}
+
+	deinitialize(): void {
 		this._session = undefined;
+		this._initState = ChatModelInitState.Created;
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
 	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
-		if (this._session || this._isInitializedDeferred.isSettled) {
-			throw new Error('ChatModel is already initialized');
+		if (this.initState !== ChatModelInitState.Initializing) {
+			// Must call startInitialize before initialize, and only call it once
+			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
+		this._initState = ChatModelInitState.Initialized;
 		this._session = session;
 		if (!this._welcomeMessage) {
 			// Could also have loaded the welcome message from persisted data
@@ -593,6 +610,10 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	setInitializationError(error: Error): void {
+		if (this.initState !== ChatModelInitState.Initializing) {
+			throw new Error(`ChatModel is in the wrong state for setInitializationError: ${ChatModelInitState[this.initState]}`);
+		}
+
 		if (!this._isInitializedDeferred.isSettled) {
 			this._isInitializedDeferred.error(error);
 		}
@@ -748,9 +769,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._session?.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
-		if (!this._isInitializedDeferred.isSettled) {
-			this._isInitializedDeferred.error(new Error('model disposed before initialization'));
-		}
 
 		super.dispose();
 	}
