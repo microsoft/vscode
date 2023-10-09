@@ -392,8 +392,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
-				const correctCursorPosition = cursorOnCorrectLine(this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
-				if (correctCursorPosition) {
+				if (cursorOnCorrectLine(this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
 					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling attempts required: ', i + 1);
 					break;
 				}
