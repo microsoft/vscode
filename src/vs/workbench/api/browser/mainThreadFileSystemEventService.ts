@@ -214,7 +214,6 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
 		const uri = URI.revive(resource);
-		const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0; // TODO@bpasero for now only correlate proposed new file system watcher API with excludes
 
 		const opts: IWatchOptions = {
@@ -264,6 +263,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			// Still allow for non-recursive watch requests as a way
 			// to bypass configured exclude rules though
 			// (see https://github.com/microsoft/vscode/issues/146066)
+			const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 			if (workspaceFolder && opts.recursive) {
 				this._logService.trace(`MainThreadFileSystemEventService#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 				return;
