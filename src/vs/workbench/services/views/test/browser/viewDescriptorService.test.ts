@@ -67,13 +67,13 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -109,13 +109,13 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -149,13 +149,13 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -209,13 +209,13 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -291,14 +291,14 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true,
 				order: 3
 			}
@@ -353,19 +353,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 4', original: 'Test View 4' },
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -402,19 +402,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 4', original: 'Test View 4' },
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -465,14 +465,14 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true,
 				order: 3
 			}
@@ -547,19 +547,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 3', original: 'Test View 3' },
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 4', original: 'Test View 4' },
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -647,7 +647,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			}
 		];
@@ -680,7 +680,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 2', original: 'Test View 2' },
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			}
 		];

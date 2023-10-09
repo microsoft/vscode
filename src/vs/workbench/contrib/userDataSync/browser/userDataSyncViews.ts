@@ -284,7 +284,7 @@ export class UserDataSyncDataViews extends Disposable {
 				const result = await dialogService.confirm({
 					message: localize({ key: 'confirm replace', comment: ['A confirmation message to replace current user data (settings, extensions, keybindings, snippets) with selected version'] }, "Would you like to replace your current {0} with selected?", getSyncAreaLabel(syncResource)),
 					type: 'info',
-					title: SYNC_TITLE
+					title: SYNC_TITLE.value
 				});
 				if (result.confirmed) {
 					return userDataSyncService.replace({ created: syncResourceHandle.created, uri: URI.revive(syncResourceHandle.uri) });
