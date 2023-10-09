@@ -329,10 +329,6 @@ export class InlineCompletionsAccessibleViewContribution extends Disposable {
 					return false;
 				}
 				const lineText = model.textModel.getLineContent(state.ghostText.lineNumber);
-				if (!lineText) {
-					return false;
-				}
-
 				const ghostText = state.ghostText.renderForScreenReader(lineText);
 				if (!ghostText) {
 					return false;

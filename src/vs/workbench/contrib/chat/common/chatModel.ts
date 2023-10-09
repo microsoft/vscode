@@ -39,9 +39,9 @@ export type ResponsePart =
 	| IChatContentReference;
 
 export interface IResponse {
-	readonly value: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
+	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData>;
 	readonly usedContext: IUsedContext | undefined;
-	readonly contentReferences: IChatContentReference[];
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	onDidChangeValue: Event<void>;
 	updateContent(responsePart: ResponsePart, quiet?: boolean): void;
 	asString(): string;
@@ -133,7 +133,7 @@ export class Response implements IResponse {
 		return this._responseData;
 	}
 
-	constructor(value: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[]) {
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>) {
 		this._responseData = Array.isArray(value) ? value : [value];
 		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
 		this._responseRepr = this._responseParts.map((part) => {
@@ -269,8 +269,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this.agent?.metadata.icon ?? this.session.responderAvatarIconUri;
 	}
 
+	private _followups?: IChatFollowup[];
+
 	constructor(
-		_response: IMarkdownString | (IMarkdownString | IChatResponseProgressFileTreeData)[],
+		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>,
 		public readonly session: ChatModel,
 		public readonly agent: IChatAgentData | undefined,
 		private _isComplete: boolean = false,
@@ -278,9 +280,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _vote?: InteractiveSessionVoteDirection,
 		private _providerResponseId?: string,
 		private _errorDetails?: IChatResponseErrorDetails,
-		private _followups?: IChatFollowup[]
+		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
+		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
 		this._id = 'response_' + ChatResponseModel.nextId++;
@@ -326,7 +329,7 @@ export interface IChatModel {
 	readonly onDidChange: Event<IChatChangeEvent>;
 	readonly sessionId: string;
 	readonly providerId: string;
-	readonly isInitialized: boolean;
+	readonly initState: ChatModelInitState;
 	readonly title: string;
 	readonly welcomeMessage: IChatWelcomeMessageModel | undefined;
 	readonly requestInProgress: boolean;
@@ -350,15 +353,15 @@ export interface ISerializableChatAgentData {
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string | IParsedChatRequest;
-	response: (IMarkdownString | IChatResponseProgressFileTreeData)[] | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> | undefined;
 	agent?: ISerializableChatAgentData;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
-	followups: IChatFollowup[] | undefined;
+	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
 	/** For backward compat: should be optional */
 	usedContext?: IUsedContext;
-	contentReferences?: IChatContentReference[];
+	contentReferences?: ReadonlyArray<IChatContentReference>;
 }
 
 export interface IExportableChatData {
@@ -418,6 +421,12 @@ export interface IChatInitEvent {
 	kind: 'initialize';
 }
 
+export enum ChatModelInitState {
+	Created,
+	Initializing,
+	Initialized
+}
+
 export class ChatModel extends Disposable implements IChatModel {
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
@@ -426,6 +435,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	readonly onDidChange = this._onDidChange.event;
 
 	private _requests: ChatRequestModel[];
+	private _initState: ChatModelInitState = ChatModelInitState.Created;
 	private _isInitializedDeferred = new DeferredPromise<void>();
 
 	private _session: IChat | undefined;
@@ -482,8 +492,8 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._session?.responderAvatarIconUri ?? this._initialResponderAvatarIconUri;
 	}
 
-	get isInitialized(): boolean {
-		return this._isInitializedDeferred.isSettled;
+	get initState(): ChatModelInitState {
+		return this._initState;
 	}
 
 	private _isImported = false;
@@ -492,9 +502,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get title(): string {
-		// const firstRequestMessage = this._requests[0]?.message;
-		// const message = typeof firstRequestMessage === 'string' ? firstRequestMessage : firstRequestMessage?.message ?? '';
-		const message = '';
+		const firstRequestMessage = this._requests[0]?.message;
+		const message = 'text' in firstRequestMessage ? firstRequestMessage.text : firstRequestMessage?.message ?? '';
 		return message.split('\n')[0].substring(0, 50);
 	}
 
@@ -541,6 +550,10 @@ export class ChatModel extends Disposable implements IChatModel {
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.updateContent(raw.usedContext);
 					}
+
+					if (raw.contentReferences) {
+						raw.contentReferences.forEach(r => request.response!.updateContent(r));
+					}
 				}
 				return request;
 			});
@@ -559,16 +572,26 @@ export class ChatModel extends Disposable implements IChatModel {
 		};
 	}
 
-	startReinitialize(): void {
+	startInitialize(): void {
+		if (this.initState !== ChatModelInitState.Created) {
+			throw new Error(`ChatModel is in the wrong state for startInitialize: ${ChatModelInitState[this.initState]}`);
+		}
+		this._initState = ChatModelInitState.Initializing;
+	}
+
+	deinitialize(): void {
 		this._session = undefined;
+		this._initState = ChatModelInitState.Created;
 		this._isInitializedDeferred = new DeferredPromise<void>();
 	}
 
 	initialize(session: IChat, welcomeMessage: ChatWelcomeMessageModel | undefined): void {
-		if (this._session || this._isInitializedDeferred.isSettled) {
-			throw new Error('ChatModel is already initialized');
+		if (this.initState !== ChatModelInitState.Initializing) {
+			// Must call startInitialize before initialize, and only call it once
+			throw new Error(`ChatModel is in the wrong state for initialize: ${ChatModelInitState[this.initState]}`);
 		}
 
+		this._initState = ChatModelInitState.Initialized;
 		this._session = session;
 		if (!this._welcomeMessage) {
 			// Could also have loaded the welcome message from persisted data
@@ -587,6 +610,10 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	setInitializationError(error: Error): void {
+		if (this.initState !== ChatModelInitState.Initializing) {
+			throw new Error(`ChatModel is in the wrong state for setInitializationError: ${ChatModelInitState[this.initState]}`);
+		}
+
 		if (!this._isInitializedDeferred.isSettled) {
 			this._isInitializedDeferred.error(error);
 		}
@@ -721,6 +748,7 @@ export class ChatModel extends Disposable implements IChatModel {
 						icon: r.response.agent.metadata.icon
 					} : undefined,
 					usedContext: r.response?.response.usedContext,
+					contentReferences: r.response?.response.contentReferences
 				};
 			}),
 			providerId: this.providerId,
@@ -741,9 +769,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._session?.dispose?.();
 		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
-		if (!this._isInitializedDeferred.isSettled) {
-			this._isInitializedDeferred.error(new Error('model disposed before initialization'));
-		}
 
 		super.dispose();
 	}

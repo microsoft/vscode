@@ -93,7 +93,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 	) {
 		const data = configurationService.inspect('search.location');
 		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, 'search.location');
 		}
 		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
@@ -202,7 +202,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (e.g., from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},

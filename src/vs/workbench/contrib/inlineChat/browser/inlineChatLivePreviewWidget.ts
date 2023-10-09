@@ -244,7 +244,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			originalDiffHidden,
 			modifiedHidden: modifiedLineRange,
 			modifiedDiffHidden,
-			anchor: new Position(modifiedLineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
+			anchor: new Position(modifiedLineRange.startLineNumber - 1, 1)
 		};
 	}
 

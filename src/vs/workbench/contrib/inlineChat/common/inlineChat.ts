@@ -86,6 +86,7 @@ export interface IInlineChatMessageResponse {
 export interface IInlineChatProgressItem {
 	edits?: TextEdit[];
 	message?: string;
+	slashCommand?: string;
 }
 
 export const enum InlineChatResponseFeedbackKind {
