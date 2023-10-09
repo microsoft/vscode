@@ -6,29 +6,11 @@
 declare module 'vscode' {
 
 	export interface ChatAgentContext {
-
 		// messages so far
 		history: ChatMessage[]; // Should be same type as request
-
-		// TODO: access to embeddings
-		// embeddings: {};
-
-		// TODO: access to "InputSourceId"
-		// DebugConsoleOutput
-		// Terminal
-		// CorrespondingTestFile
-		// CorrespondingImplementationFile
-		// ExtensionApi
-		// VSCode
-		// Workspace
 	}
 
-	export interface SlashResult extends InteractiveResponseForProgress {
-		// Should be able to compute these async, because they typically will involve a separate LLM call.
-		// That can be a separate call (provideFollowups) or ChatAgentResult contains a promise to it (so ChatAgent returns a promise to a promise).
-		// Or, we can just be ok with the UI showing that the response is still continuing when the actual response is done but the followups are being computed.
-		provideFollowups?(token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
-	}
+	export interface SlashResult extends InteractiveResponseForProgress { }
 
 	export interface SlashCommand {
 		readonly name: string;
@@ -40,8 +22,12 @@ declare module 'vscode' {
 	// But could be declared in package.json a well.
 	interface ChatAgent {
 		slashCommands: ReadonlyArray<SlashCommand>;
-		// Can we handle telemetry internally and ditch this?
-		// Other extensions will probably want it though.
+		// Extensions can assign this to provide followups.
+		// Maybe context.history is the only thing needed here, but if the extension relies on some other internal info, they could store that on SlashResult
+		// copilot chat tries to save a little time by starting to compute followups before they are requested.
+		provideFollowups?: (request: SlashRequest, result: SlashResult, context: ChatAgentContext, token: CancellationToken) => ProviderResult<InteractiveSessionFollowup[]>;
+
+		// We need this- can't handle telemetry on the vscode side yet
 		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
 		dispose(): void;
 		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
