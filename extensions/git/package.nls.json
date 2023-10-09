@@ -9,6 +9,7 @@
 	"command.openRepository": "Open Repository",
 	"command.reopenClosedRepositories": "Reopen Closed Repositories...",
 	"command.close": "Close Repository",
+	"command.closeAll": "Close All Repositories",
 	"command.refresh": "Refresh",
 	"command.openChange": "Open Changes",
 	"command.openAllChanges": "Open All Changes",

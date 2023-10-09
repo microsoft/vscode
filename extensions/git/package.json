@@ -98,6 +98,12 @@
         "enablement": "!operationInProgress"
       },
       {
+        "command": "git.closeAll",
+        "title": "%command.closeAll%",
+        "category": "Git",
+        "enablement": "!operationInProgress"
+      },
+      {
         "command": "git.refresh",
         "title": "%command.refresh%",
         "category": "Git",
@@ -809,6 +815,10 @@
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.closeAll",
+          "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.refresh",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1305,6 +1315,11 @@
       "scm/sourceControl": [
         {
           "command": "git.close",
+          "group": "navigation",
+          "when": "scmProvider == git"
+        },
+        {
+          "command": "git.closeAll",
           "group": "navigation",
           "when": "scmProvider == git"
         }

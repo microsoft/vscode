@@ -745,6 +745,14 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 		openRepository.dispose();
 	}
 
+	closeAll(): void {
+		for (const openRepository of this.openRepositories) {
+			this.logger.info(`Close repository: ${openRepository.repository.root}`);
+			this._closedRepositoriesManager.addRepository(openRepository.repository.root);
+			openRepository.dispose();
+		}
+	}
+
 	async pickRepository(): Promise<Repository | undefined> {
 		if (this.openRepositories.length === 0) {
 			throw new Error(l10n.t('There are no available repositories'));
