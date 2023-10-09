@@ -241,7 +241,7 @@ export class ViewsService extends Disposable implements IViewsService {
 	getFocusedViewName(): string {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
 		const context = this.contextKeyService.getContext(document.activeElement as HTMLElement);
-		const textEditorFocused: string | undefined = context.getValue(EditorContextKeys.editorTextFocus.key) ? localize('editor', "Editor") : undefined;
+		const textEditorFocused: string | undefined = context.getValue(EditorContextKeys.editorTextFocus.key) ? localize('text-editor', "Text Editor") : undefined;
 		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? textEditorFocused ?? '';
 	}
 
