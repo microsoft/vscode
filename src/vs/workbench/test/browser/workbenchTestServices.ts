@@ -65,7 +65,6 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { IProcessEnvironment, isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { Part } from 'vs/workbench/browser/part';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { bufferToStream, VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { Schemas } from 'vs/base/common/network';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -701,10 +700,6 @@ export class TestPaneCompositeService extends Disposable implements IPaneComposi
 		throw new Error('Method not implemented.');
 	}
 
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		throw new Error('Method not implemented.');
-	}
-
 	getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
 		return assertIsDefined(this.parts.get(viewContainerLocation));
 	}
@@ -738,7 +733,6 @@ export class TestSideBarPart implements IPaneCompositePart {
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }
 	dispose() { }
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getPinnedPaneCompositeIds() { return []; }
 	getVisiblePaneCompositeIds() { return []; }
 	layout(width: number, height: number, top: number, left: number): void { }
@@ -784,7 +778,6 @@ export class TestPanelPart implements IPaneCompositePart {
 	getActivePaneComposite(): IPaneComposite { return activeViewlet; }
 	setPanelEnablement(id: string, enabled: boolean): void { }
 	dispose() { }
-	showActivity(panelId: string, badge: IBadge, clazz?: string): IDisposable { throw new Error('Method not implemented.'); }
 	getProgressIndicator(id: string) { return null!; }
 	hideActivePaneComposite(): void { }
 	getLastActivePaneCompositeId(): string { return undefined!; }

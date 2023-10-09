@@ -73,6 +73,7 @@ export class MenuId {
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
 	static readonly GlobalActivity = new MenuId('GlobalActivity');
+	static readonly TitleBarGlobalControlMenu = new MenuId('TitleBarGlobalControlMenu');
 	static readonly CommandCenter = new MenuId('CommandCenter');
 	static readonly CommandCenterCenter = new MenuId('CommandCenterCenter');
 	static readonly LayoutControlMenuSubmenu = new MenuId('LayoutControlMenuSubmenu');
@@ -89,6 +90,7 @@ export class MenuId {
 	static readonly MenubarNewBreakpointMenu = new MenuId('MenubarNewBreakpointMenu');
 	static readonly PanelAlignmentMenu = new MenuId('PanelAlignmentMenu');
 	static readonly PanelPositionMenu = new MenuId('PanelPositionMenu');
+	static readonly ActivityBarPositionMenu = new MenuId('ActivityBarPositionMenu');
 	static readonly MenubarPreferencesMenu = new MenuId('MenubarPreferencesMenu');
 	static readonly MenubarRecentMenu = new MenuId('MenubarRecentMenu');
 	static readonly MenubarSelectionMenu = new MenuId('MenubarSelectionMenu');

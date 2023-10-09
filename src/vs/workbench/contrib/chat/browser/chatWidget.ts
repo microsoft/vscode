@@ -27,7 +27,7 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -247,7 +247,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					getId: (element) => {
 						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
 							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
-							((isWelcomeVM(element) && !this.viewModel?.isInitialized) ? '_initializing' : '') +
+							((isWelcomeVM(element) && this.viewModel) ? `_${ChatModelInitState[this.viewModel.initState]}` : '') +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will

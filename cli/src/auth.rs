@@ -622,11 +622,11 @@ impl Auth {
 			return Ok(StoredCredential::from_response(body, provider));
 		}
 
-		return Err(Auth::handle_grant_error(
+		Err(Auth::handle_grant_error(
 			provider.grant_uri(),
 			status_code,
 			body,
-		));
+		))
 	}
 
 	/// GH doesn't have a refresh token, but does limit to the 10 most recently
@@ -772,7 +772,7 @@ impl Auth {
 					error!(this.log, "failed to keep token alive: {:?}", e);
 					return Err(e.into());
 				}
-				Err(e) if matches!(e, AnyError::RefreshTokenNotAvailableError(_)) => {
+				Err(AnyError::RefreshTokenNotAvailableError(_)) => {
 					return Ok(());
 				}
 				Err(e) => {
