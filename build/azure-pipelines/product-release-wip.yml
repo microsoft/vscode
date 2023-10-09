@@ -17,3 +17,6 @@ steps:
       FolderLocation: '$(Build.ArtifactStagingDirectory)'
       Owners: 'jomo@microsoft.com'
       Approvers: 'kamaet@microsoft.com'
+      ServiceEndpointUrl: 'https://api.esrp.microsoft.com'
+      MainPublisher: 'VSCode'
+      DomainTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
