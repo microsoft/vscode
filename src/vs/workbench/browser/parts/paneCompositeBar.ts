@@ -152,14 +152,14 @@ export class PaneCompositeBar extends Disposable {
 		const viewContainer = this.viewDescriptorService.getViewContainerById(compositeId)!;
 		const defaultLocation = this.viewDescriptorService.getDefaultViewContainerLocation(viewContainer)!;
 		if (defaultLocation !== this.viewDescriptorService.getViewContainerLocation(viewContainer)) {
-			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation) }));
+			actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewContainerToLocation(viewContainer, defaultLocation, undefined, 'resetLocationAction') }));
 		} else {
 			const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 			if (viewContainerModel.allViewDescriptors.length === 1) {
 				const viewToReset = viewContainerModel.allViewDescriptors[0];
 				const defaultContainer = this.viewDescriptorService.getDefaultContainerById(viewToReset.id)!;
 				if (defaultContainer !== viewContainer) {
-					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer) }));
+					actions.push(toAction({ id: 'resetLocationAction', label: localize('resetLocation', "Reset Location"), run: () => this.viewDescriptorService.moveViewsToContainer([viewToReset], defaultContainer, undefined, 'resetLocationAction') }));
 				}
 			}
 		}

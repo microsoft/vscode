@@ -93,7 +93,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 	) {
 		const data = configurationService.inspect('search.location');
 		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, 'search.location');
 		}
 		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
