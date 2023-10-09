@@ -30,6 +30,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -75,6 +77,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@ILifecycleService lifecycleService: ILifecycleService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -109,6 +113,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		}));
 
 		this.registerGlobalActions();
+
+		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
+			telemetryService.publicLog2<{ location: string }, {
+				owner: 'sandy081';
+				location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Locaiton where the activity bar is shown' };
+				comment: 'This is used to know where activity bar is shown in the workbench.';
+			}>('activityBar:location', { location: configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) });
+		});
 	}
 
 	override updateStyles(): void {
