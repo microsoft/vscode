@@ -1821,7 +1821,22 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	@debounce(50)
 	private async _resize(): Promise<void> {
-		this._resizeNow(false);
+		this._resizeNow(false).then(() => {
+			// Adjust the layout to the latest
+			const lastKnownGridDimensions = TerminalInstance._lastKnownGridDimensions;
+			if (this._lastLayoutDimensions && lastKnownGridDimensions) {
+				const dimension = this._getDimension(this._lastLayoutDimensions.width, this._lastLayoutDimensions.height);
+				const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+				if (dimension) {
+					const newRC = getXtermScaledDimensions(font, dimension.width, dimension.height);
+					if (newRC) {
+						if (lastKnownGridDimensions.cols !== newRC.cols || lastKnownGridDimensions.rows !== newRC.rows) {
+							this.layout(this._lastLayoutDimensions);
+						}
+					}
+				}
+			}
+		});
 	}
 
 	private async _resizeNow(immediate: boolean): Promise<void> {
