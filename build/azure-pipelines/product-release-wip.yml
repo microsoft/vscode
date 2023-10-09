@@ -5,24 +5,15 @@ trigger: none
 pr: none
 
 steps:
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
-  # - task: UseDotNet@2
-  #   inputs:
-  #     version: 6.x
-  # - task: EsrpClientTool@1
-  #   continueOnError: true
-  #   displayName: Download ESRPClient
   - script: |
       set -e
-      # wget https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -P $(Build.ArtifactStagingDirectory)
-      # node build/azure-pipelines/common/esrp $(Agent.ToolsDirectory)/esrpclient/*/*/net6.0/esrpcli.dll release $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory) '*.tar.gz'
-      ls -la $(Agent.ToolsDirectory)
+      wget https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -P $(Build.ArtifactStagingDirectory)
+  - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
+    displayName: 'ESRP Release'
+    inputs:
+      ConnectedServiceName: 'VS Code ESRP Release Aug2023 (8d8254b9-c41f-4880-9d98-2c99e7b34743)'
+      Intent: GenerateCdnLink
+      ContentType: 'sw electronic'
+      FolderLocation: '$(Build.ArtifactStagingDirectory)'
+      Owners: 'jomo@microsoft.com'
+      Approvers: 'kamaet@microsoft.com'
