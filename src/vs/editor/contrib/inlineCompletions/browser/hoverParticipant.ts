@@ -103,7 +103,7 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			comment: 'This event tracks whenever an inline completion hover is shown.';
 		}>('inlineCompletionHover.shown');
 
-		if (this.accessibilityService.isScreenReaderOptimized()) {
+		if (this.accessibilityService.isScreenReaderOptimized() && !this._editor.getOption(EditorOption.screenReaderAnnounceInlineSuggestion)) {
 			this.renderScreenReaderText(context, part, disposableStore);
 		}
 
@@ -113,7 +113,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			constObservable(null),
 			model.selectedInlineCompletionIndex,
 			model.inlineCompletionsCount,
-			model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),);
+			model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+		);
 		context.fragment.appendChild(w.getDomNode());
 
 		model.triggerExplicitly();
@@ -139,7 +140,8 @@ export class InlineCompletionsHoverParticipant implements IEditorHoverParticipan
 			hoverContentsElement.replaceChildren(renderedContents.element);
 		};
 
-		disposableStore.add(autorun('update hover', (reader) => {
+		disposableStore.add(autorun(reader => {
+			/** @description update hover */
 			const ghostText = part.controller.model.read(reader)?.ghostText.read(reader);
 			if (ghostText) {
 				const lineText = this._editor.getModel()!.getLineContent(ghostText.lineNumber);

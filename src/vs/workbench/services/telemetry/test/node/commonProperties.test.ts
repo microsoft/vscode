@@ -8,6 +8,7 @@ import { release, hostname } from 'os';
 import { resolveWorkbenchCommonProperties } from 'vs/workbench/services/telemetry/common/workbenchCommonProperties';
 import { IStorageService, StorageScope, InMemoryStorageService, StorageTarget } from 'vs/platform/storage/common/storage';
 import { timeout } from 'vs/base/common/async';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Telemetry - common properties', function () {
 	const commit: string = (undefined)!;
@@ -17,6 +18,8 @@ suite('Telemetry - common properties', function () {
 	setup(() => {
 		testStorageService = new InMemoryStorageService();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('default', function () {
 		const props = resolveWorkbenchCommonProperties(testStorageService, release(), hostname(), commit, version, 'someMachineId', false, process);

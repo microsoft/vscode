@@ -33,7 +33,11 @@ export class WebviewFindWidget extends SimpleFindWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super({ showCommonFindToggles: false, checkImeCompletionState: _delegate.checkImeCompletionState }, contextViewService, contextKeyService, keybindingService);
+		super({
+			showCommonFindToggles: false,
+			checkImeCompletionState: _delegate.checkImeCompletionState,
+			enableSash: true,
+		}, contextViewService, contextKeyService, keybindingService);
 		this._findWidgetFocused = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_FOCUSED.bindTo(contextKeyService);
 
 		this._register(_delegate.hasFindResult(hasResult => {

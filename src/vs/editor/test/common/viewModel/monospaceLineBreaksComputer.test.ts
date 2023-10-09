@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { WrappingIndent, EditorOptions } from 'vs/editor/common/config/editorOptions';
-import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { EditorOptions, WrappingIndent } from 'vs/editor/common/config/editorOptions';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
-import { ModelLineProjectionData, ILineBreaksComputerFactory } from 'vs/editor/common/modelLineProjectionData';
+import { ILineBreaksComputerFactory, ModelLineProjectionData } from 'vs/editor/common/modelLineProjectionData';
+import { MonospaceLineBreaksComputerFactory } from 'vs/editor/common/viewModel/monospaceLineBreaksComputer';
 
 function parseAnnotatedText(annotatedText: string): { text: string; indices: number[] } {
 	let text = '';
@@ -80,6 +81,9 @@ function assertLineBreaks(factory: ILineBreaksComputerFactory, tabSize: number, 
 }
 
 suite('Editor ViewModel - MonospaceLineBreaksComputer', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('MonospaceLineBreaksComputer', () => {
 
 		const factory = new MonospaceLineBreaksComputerFactory('(', '\t).');

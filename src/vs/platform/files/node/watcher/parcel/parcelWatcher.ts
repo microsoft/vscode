@@ -6,6 +6,7 @@
 import * as parcelWatcher from '@parcel/watcher';
 import { existsSync, statSync, unlinkSync } from 'fs';
 import { tmpdir } from 'os';
+import { URI } from 'vs/base/common/uri';
 import { DeferredPromise, RunOnceScheduler, RunOnceWorker, ThrottledWorker } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -337,7 +338,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				events.push({ type, path });
+				events.push({ type, resource: URI.file(path) });
 			}
 		}
 
@@ -369,7 +370,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
-				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.path}`);
+				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
 			}
 		}
 
@@ -378,10 +379,10 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		// Logging
 		if (!worked) {
-			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+			this.warn(`started ignoring events due to too many file change events at once (incoming: ${events.length}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 		} else {
 			if (this.throttledFileChangesEmitter.pending > 0) {
-				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].path}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
+				this.trace(`started throttling events due to large amount of file change events at once (pending: ${this.throttledFileChangesEmitter.pending}, most recent change: ${events[0].resource.fsPath}). Use 'files.watcherExclude' setting to exclude folders with lots of changing files (e.g. compilation output).`);
 			}
 		}
 	}
@@ -444,7 +445,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		let rootDeleted = false;
 
 		for (const event of events) {
-			if (event.type === FileChangeType.DELETED && event.path === watcher.request.path) {
+			if (event.type === FileChangeType.DELETED && event.resource.fsPath === watcher.request.path) {
 
 				// Explicitly exclude changes to root if we have any
 				// to avoid VS Code closing all opened editors which
@@ -472,8 +473,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 				}
 
 				// Watcher path came back! Restart watching...
-				for (const { path, type } of changes) {
-					if (path === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
+				for (const { resource, type } of changes) {
+					if (resource.fsPath === watcher.request.path && (type === FileChangeType.ADDED || type === FileChangeType.UPDATED)) {
 						this.warn('Watcher restarts because watched path got created again', watcher);
 
 						// Stop watching that parent folder

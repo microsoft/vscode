@@ -14,6 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -114,6 +115,16 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
+	async moveTop(win: Window & typeof globalThis): Promise<void> {
+		if (win === window) {
+			return this.nativeHostService.moveWindowTop();
+		}
+
+		if (isAuxiliaryWindow(win)) {
+			return win.moveTop();
+		}
+	}
+
 	//#endregion
 
 
@@ -133,6 +144,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	close(): Promise<void> {
 		return this.nativeHostService.closeWindow();
+	}
+
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		return await expectedShutdownTask();
 	}
 
 	//#endregion

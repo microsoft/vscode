@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { distinct } from 'vs/base/common/arrays';
+import { VSBufferReadableStream } from 'vs/base/common/buffer';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { Event } from 'vs/base/common/event';
 import { FormattingOptions } from 'vs/base/common/jsonFormatter';
@@ -21,9 +22,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
-
-export const CONFIGURATION_SYNC_STORE_KEY = 'configurationSync.store';
+import { IUserDataProfile, UseDefaultProfileFlags } from 'vs/platform/userDataProfile/common/userDataProfile';
+import { IUserDataSyncMachine } from 'vs/platform/userDataSync/common/userDataSyncMachines';
 
 export function getDisallowedIgnoredSettings(): string[] {
 	const allSettings = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
@@ -35,7 +35,7 @@ export function getDefaultIgnoredSettings(): string[] {
 	const ignoreSyncSettings = Object.keys(allSettings).filter(setting => !!allSettings[setting].ignoreSync);
 	const machineSettings = Object.keys(allSettings).filter(setting => allSettings[setting].scope === ConfigurationScope.MACHINE || allSettings[setting].scope === ConfigurationScope.MACHINE_OVERRIDABLE);
 	const disallowedSettings = getDisallowedIgnoredSettings();
-	return distinct([CONFIGURATION_SYNC_STORE_KEY, ...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
+	return distinct([...ignoreSyncSettings, ...machineSettings, ...disallowedSettings]);
 }
 
 export const USER_DATA_SYNC_CONFIGURATION_SCOPE = 'settingsSync';
@@ -94,7 +94,7 @@ export function registerConfiguration(): IDisposable {
 	const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 	const registerIgnoredSettingsSchema = () => {
 		const disallowedIgnoredSettings = getDisallowedIgnoredSettings();
-		const defaultIgnoredSettings = getDefaultIgnoredSettings().filter(s => s !== CONFIGURATION_SYNC_STORE_KEY);
+		const defaultIgnoredSettings = getDefaultIgnoredSettings();
 		const settings = Object.keys(allSettings.properties).filter(setting => !defaultIgnoredSettings.includes(setting));
 		const ignoredSettings = defaultIgnoredSettings.filter(setting => !disallowedIgnoredSettings.includes(setting));
 		const ignoredSettingsSchema: IJSONSchema = {
@@ -169,6 +169,19 @@ export interface IUserDataManifest {
 	readonly collections?: IUserDataCollectionManifest;
 }
 
+export interface IUserDataActivityData {
+	resources?: {
+		[resourceId: string]: { created: number; content: string }[];
+	};
+	collections?: {
+		[collectionId: string]: {
+			resources?: {
+				[resourceId: string]: { created: number; content: string }[];
+			} | undefined;
+		};
+	};
+}
+
 export interface IResourceRefHandle {
 	ref: string;
 	created: number;
@@ -207,15 +220,17 @@ export interface IUserDataSyncStoreService {
 	createCollection(headers?: IHeaders): Promise<string>;
 	deleteCollection(collection?: string, headers?: IHeaders): Promise<void>;
 
+	getActivityData(): Promise<VSBufferReadableStream>;
+
 	clear(): Promise<void>;
 }
 
-export const IUserDataSyncBackupStoreService = createDecorator<IUserDataSyncBackupStoreService>('IUserDataSyncBackupStoreService');
-export interface IUserDataSyncBackupStoreService {
+export const IUserDataSyncLocalStoreService = createDecorator<IUserDataSyncLocalStoreService>('IUserDataSyncLocalStoreService');
+export interface IUserDataSyncLocalStoreService {
 	readonly _serviceBrand: undefined;
-	backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void>;
-	getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]>;
-	resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null>;
+	writeResource(resource: ServerResource, content: string, cTime: Date, collection?: string, root?: URI): Promise<void>;
+	getAllResourceRefs(resource: ServerResource, collection?: string, root?: URI): Promise<IResourceRefHandle[]>;
+	resolveResourceContent(resource: ServerResource, ref: string, collection?: string, root?: URI): Promise<string | null>;
 }
 
 //#endregion
@@ -327,6 +342,8 @@ export interface ISyncUserDataProfile {
 	readonly collection: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly icon?: string;
+	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 
 export type ISyncExtension = ILocalSyncExtension | IRemoteSyncExtension;
@@ -338,6 +355,7 @@ export interface ILocalSyncExtension {
 	preRelease: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -348,6 +366,7 @@ export interface IRemoteSyncExtension {
 	preRelease?: boolean;
 	disabled?: boolean;
 	installed?: boolean;
+	isApplicationScoped?: boolean;
 	state?: IStringDictionary<any>;
 }
 
@@ -538,22 +557,22 @@ export interface IUserDataSyncService {
 	hasLocalData(): Promise<boolean>;
 	hasPreviouslySynced(): Promise<boolean>;
 
-	getRemoteProfiles(): Promise<ISyncUserDataProfile[]>;
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: IUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
-	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
 	replace(syncResourceHandle: ISyncResourceHandle): Promise<void>;
+
+	saveRemoteActivityData(location: URI): Promise<void>;
+	extractActivityData(activityDataResource: URI, location: URI): Promise<void>;
 }
 
 export const IUserDataSyncResourceProviderService = createDecorator<IUserDataSyncResourceProviderService>('IUserDataSyncResourceProviderService');
 export interface IUserDataSyncResourceProviderService {
 	_serviceBrand: any;
 	getRemoteSyncedProfiles(): Promise<ISyncUserDataProfile[]>;
-	getLocalSyncResourceHandles(syncResource: SyncResource, profile: IUserDataProfile): Promise<ISyncResourceHandle[]>;
-	getRemoteSyncResourceHandles(syncResource: SyncResource, profile: ISyncUserDataProfile | undefined): Promise<ISyncResourceHandle[]>;
+	getLocalSyncedProfiles(location?: URI): Promise<ISyncUserDataProfile[]>;
+	getRemoteSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile): Promise<ISyncResourceHandle[]>;
+	getLocalSyncResourceHandles(syncResource: SyncResource, profile?: ISyncUserDataProfile, location?: URI): Promise<ISyncResourceHandle[]>;
 	getAssociatedResources(syncResourceHandle: ISyncResourceHandle): Promise<{ resource: URI; comparableResource: URI }[]>;
 	getMachineId(syncResourceHandle: ISyncResourceHandle): Promise<string | undefined>;
+	getLocalSyncedMachines(location?: URI): Promise<IUserDataSyncMachine[]>;
 	resolveContent(resource: URI): Promise<string | null>;
 	resolveUserDataSyncResource(syncResourceHandle: ISyncResourceHandle): IUserDataSyncResource | undefined;
 }

@@ -20,6 +20,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IRange } from 'vs/editor/common/core/range';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends Disposable {
 	private _commentsElement!: HTMLElement;
@@ -42,6 +43,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 
 	constructor(
+		private readonly _parentEditor: LayoutableEditor,
 		readonly owner: string,
 		readonly parentResourceUri: URI,
 		readonly container: HTMLElement,
@@ -76,7 +78,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 		this._register(dom.addDisposableListener(this._commentsElement, dom.EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e as KeyboardEvent);
-			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
+			if ((event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) && (!this._focusedComment || !this._commentElements[this._focusedComment].isEditing)) {
 				const moveFocusWithinBounds = (change: number): number => {
 					if (this._focusedComment === undefined && change >= 0) { return 0; }
 					if (this._focusedComment === undefined && change < 0) { return this._commentElements.length - 1; }
@@ -254,6 +256,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 
 	private createNewCommentNode(comment: languages.Comment): CommentNode<T> {
 		const newCommentNode = this._scopedInstatiationService.createInstance(CommentNode,
+			this._parentEditor,
 			this._commentThread,
 			comment,
 			this._pendingEdits ? this._pendingEdits[comment.uniqueIdInThread!] : undefined,

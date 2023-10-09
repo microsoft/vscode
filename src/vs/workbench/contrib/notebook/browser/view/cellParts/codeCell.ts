@@ -27,9 +27,10 @@ import { CellEditorOptions } from 'vs/workbench/contrib/notebook/browser/view/ce
 import { CellOutputContainer } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellOutput';
 import { CollapsedCodeCellExecutionIcon } from 'vs/workbench/contrib/notebook/browser/view/cellParts/codeCellExecutionIcon';
 import { CodeCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
-import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
+import { CodeCellViewModel, outputDisplayLimit } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
+import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
 
 export class CodeCell extends Disposable {
 	private _outputContainerRenderer: CellOutputContainer;
@@ -56,7 +57,7 @@ export class CodeCell extends Disposable {
 		super();
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
-		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: 500 });
+		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: outputDisplayLimit });
 		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
 
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
@@ -267,6 +268,8 @@ export class CodeCell extends Disposable {
 
 		this._register(this.templateData.editor.onDidBlurEditorWidget(() => {
 			WordHighlighterContribution.get(this.templateData.editor)?.stopHighlighting();
+			CodeActionController.get(this.templateData.editor)?.hideCodeActions();
+			CodeActionController.get(this.templateData.editor)?.hideLightBulbWidget();
 		}));
 		this._register(this.templateData.editor.onDidFocusEditorWidget(() => {
 			WordHighlighterContribution.get(this.templateData.editor)?.restoreViewState(true);

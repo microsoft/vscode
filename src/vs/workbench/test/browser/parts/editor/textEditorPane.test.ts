@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestServiceAccessor, registerTestFileEditor, createEditorPart, TestTextFileEditor } from 'vs/workbench/test/browser/workbenchTestServices';
 import { IResolvedTextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
@@ -35,7 +35,7 @@ suite('TextEditorPane', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = instantiationService.createInstance(EditorService);
+		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
 
 		return instantiationService.createInstance(TestServiceAccessor);
@@ -50,16 +50,16 @@ suite('TextEditorPane', () => {
 		assert.ok(pane && isEditorPaneWithSelection(pane));
 
 		const onDidFireSelectionEventOfEditType = new DeferredPromise<IEditorPaneSelectionChangeEvent>();
-		pane.onDidChangeSelection(e => {
+		disposables.add(pane.onDidChangeSelection(e => {
 			if (e.reason === EditorPaneSelectionChangeReason.EDIT) {
 				onDidFireSelectionEventOfEditType.complete(e);
 			}
-		});
+		}));
 
 		// Changing model reports selection change
 		// of EDIT kind
 
-		const model = await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel;
+		const model = disposables.add(await accessor.textFileService.files.resolve(resource) as IResolvedTextFileEditorModel);
 		model.textEditorModel.setValue('Hello World');
 
 		const event = await onDidFireSelectionEventOfEditType.p;
@@ -83,6 +83,9 @@ suite('TextEditorPane', () => {
 		const newSelection = pane.getSelection();
 		assert.ok(newSelection);
 		assert.strictEqual(newSelection.compare(selection), EditorPaneSelectionCompareResult.IDENTICAL);
+
+		await model.revert();
+		await pane.group?.closeAllEditors();
 	});
 
 	test('TextEditorPaneSelection', function () {
@@ -96,4 +99,6 @@ suite('TextEditorPane', () => {
 		assert.strictEqual(sel1.compare(sel3), EditorPaneSelectionCompareResult.DIFFERENT);
 		assert.strictEqual(sel1.compare(sel4), EditorPaneSelectionCompareResult.DIFFERENT);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -7,7 +7,7 @@ import { app, JumpListCategory, JumpListItem } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitRecentLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -390,7 +390,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Prefer recent label
 		if (recentLabel) {
-			return { title: splitName(recentLabel).name, description: recentLabel };
+			return { title: splitRecentLabel(recentLabel).name, description: recentLabel };
 		}
 
 		// Single Folder

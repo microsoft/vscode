@@ -2,6 +2,7 @@
 	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
 		"outDir": "./out",
+		"esModuleInterop": true,
 		"experimentalDecorators": true,
 		"types": [
 			"node"
@@ -10,6 +11,6 @@
 	"include": [
 		"src/**/*",
 		"../../src/vscode-dts/vscode.d.ts",
-		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts",
+		"../../src/vscode-dts/vscode.proposed.workspaceTrust.d.ts"
 	]
 }

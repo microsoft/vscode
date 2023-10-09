@@ -501,6 +501,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		// There seems to be no API to bring a window to front in browsers
+	}
+
 	//#endregion
 
 	//#region Lifecycle
@@ -519,6 +523,16 @@ export class BrowserHostService extends Disposable implements IHostService {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
 		window.close();
+	}
+
+	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {
+		const previousShutdownReason = this.shutdownReason;
+		try {
+			this.shutdownReason = HostShutdownReason.Api;
+			return await expectedShutdownTask();
+		} finally {
+			this.shutdownReason = previousShutdownReason;
+		}
 	}
 
 	private async handleExpectedShutdown(reason: ShutdownReason): Promise<void> {

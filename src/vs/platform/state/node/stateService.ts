@@ -5,6 +5,7 @@
 
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -19,7 +20,7 @@ export const enum SaveStrategy {
 	DELAYED
 }
 
-export class FileStorage {
+export class FileStorage extends Disposable {
 
 	private storage: StorageDatabase = Object.create(null);
 	private lastSavedStorageContents = '';
@@ -35,7 +36,9 @@ export class FileStorage {
 		private readonly logService: ILogService,
 		private readonly fileService: IFileService,
 	) {
-		this.flushDelayer = saveStrategy === SaveStrategy.IMMEDIATE ? undefined : new ThrottledDelayer<void>(100 /* buffer saves over a short time */);
+		super();
+
+		this.flushDelayer = saveStrategy === SaveStrategy.IMMEDIATE ? undefined : this._register(new ThrottledDelayer<void>(100 /* buffer saves over a short time */));
 	}
 
 	init(): Promise<void> {
@@ -157,7 +160,7 @@ export class FileStorage {
 	}
 }
 
-export class StateReadonlyService implements IStateReadService {
+export class StateReadonlyService extends Disposable implements IStateReadService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -169,7 +172,9 @@ export class StateReadonlyService implements IStateReadService {
 		@ILogService logService: ILogService,
 		@IFileService fileService: IFileService
 	) {
-		this.fileStorage = new FileStorage(environmentService.stateResource, saveStrategy, logService, fileService);
+		super();
+
+		this.fileStorage = this._register(new FileStorage(environmentService.stateResource, saveStrategy, logService, fileService));
 	}
 
 	async init(): Promise<void> {

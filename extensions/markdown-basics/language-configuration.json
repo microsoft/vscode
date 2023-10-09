@@ -8,12 +8,20 @@
 	},
 	// symbols used as brackets
 	"brackets": [
-		["{", "}"],
-		["[", "]"],
-		["(", ")"]
+		[
+			"{",
+			"}"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"(",
+			")"
+		]
 	],
-	"colorizedBracketPairs": [
-	],
+	"colorizedBracketPairs": [],
 	"autoClosingPairs": [
 		{
 			"open": "{",
@@ -33,17 +41,49 @@
 			"notIn": [
 				"string"
 			]
-		}
+		},
+		{
+			"open": "`",
+			"close": "`"
+		},
+		{
+			"open": "```",
+			"close": "```"
+		},
 	],
 	"surroundingPairs": [
-		["(", ")"],
-		["[", "]"],
-		["`", "`"],
-		["_", "_"],
-		["*", "*"],
-		["{", "}"],
-		["'", "'"],
-		["\"", "\""]
+		[
+			"(",
+			")"
+		],
+		[
+			"[",
+			"]"
+		],
+		[
+			"`",
+			"`"
+		],
+		[
+			"_",
+			"_"
+		],
+		[
+			"*",
+			"*"
+		],
+		[
+			"{",
+			"}"
+		],
+		[
+			"'",
+			"'"
+		],
+		[
+			"\"",
+			"\""
+		]
 	],
 	"folding": {
 		"offSide": true,
@@ -52,5 +92,8 @@
 			"end": "^\\s*<!--\\s*#?endregion\\b.*-->"
 		}
 	},
-	"wordPattern": { "pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})(((\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})|[_])?(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}))*", "flags": "ug" },
+	"wordPattern": {
+		"pattern": "(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})(((\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark})|[_])?(\\p{Alphabetic}|\\p{Number}|\\p{Nonspacing_Mark}))*",
+		"flags": "ug"
+	},
 }

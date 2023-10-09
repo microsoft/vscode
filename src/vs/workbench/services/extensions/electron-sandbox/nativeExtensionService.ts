@@ -40,6 +40,7 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { EnablementState, IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IWebWorkerExtensionHostDataProvider, IWebWorkerExtensionHostInitData, WebWorkerExtensionHost } from 'vs/workbench/services/extensions/browser/webWorkerExtensionHost';
 import { AbstractExtensionService, ExtensionHostCrashTracker, IExtensionHostFactory, ResolvedExtensions, checkEnabledAndProposedAPI, extensionIsEnabled } from 'vs/workbench/services/extensions/common/abstractExtensionService';
+import { ExtensionDescriptionRegistrySnapshot } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
 import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString, extensionRunningPreferenceToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
 import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
@@ -47,9 +48,9 @@ import { ExtensionHostExitCode } from 'vs/workbench/services/extensions/common/e
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionRunningLocationTracker, filterExtensionDescriptions } from 'vs/workbench/services/extensions/common/extensionRunningLocationTracker';
-import { ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
+import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost, IExtensionService, WebWorkerExtHostConfigValue, toExtension, webWorkerExtHostConfig } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
-import { IRemoteExtensionHostDataProvider, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
+import { IRemoteExtensionHostDataProvider, IRemoteExtensionHostInitData, RemoteExtensionHost } from 'vs/workbench/services/extensions/common/remoteExtensionHost';
 import { CachedExtensionScanner } from 'vs/workbench/services/extensions/electron-sandbox/cachedExtensionScanner';
 import { ILocalProcessExtensionHostDataProvider, ILocalProcessExtensionHostInitData, NativeLocalProcessExtensionHost } from 'vs/workbench/services/extensions/electron-sandbox/localProcessExtensionHost';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -91,13 +92,14 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const extensionHostFactory = new NativeExtensionHostFactory(
 			extensionsProposedApi,
 			extensionScanner,
-			() => this._getExtensions(),
+			() => this._getExtensionRegistrySnapshotWhenReady(),
 			instantiationService,
 			environmentService,
 			extensionEnablementService,
 			configurationService,
 			remoteAgentService,
-			remoteAuthorityResolverService
+			remoteAuthorityResolverService,
+			logService
 		);
 		super(
 			extensionsProposedApi,
@@ -435,6 +437,9 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 
 		if (parseExtensionDevOptions(this._environmentService).isExtensionDevTestFromCli) {
 			// When CLI testing make sure to exit with proper exit code
+			if (isCI) {
+				this._logService.info(`Asking native host service to exit with code ${code}.`);
+			}
 			this._nativeHostService.exit(code);
 		} else {
 			// Expected development extension termination: When the extension host goes down we also shutdown the window
@@ -463,7 +468,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		const allExtensions = await this._scanAllLocalExtensions();
 		const extension = allExtensions.filter(e => e.identifier.value === resolverExtensionId)[0];
 		if (extension) {
-			if (!extensionIsEnabled(this._extensionEnablementService, extension, false)) {
+			if (!extensionIsEnabled(this._logService, this._extensionEnablementService, extension, false)) {
 				const message = nls.localize('enableResolver', "Extension '{0}' is required to open the remote window.\nOK to enable?", recommendation.friendlyName);
 				this._notificationService.prompt(Severity.Info, message,
 					[{
@@ -517,13 +522,14 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 	constructor(
 		private readonly _extensionsProposedApi: ExtensionsProposedApi,
 		private readonly _extensionScanner: CachedExtensionScanner,
-		private readonly _getExtensions: () => Promise<IExtensionDescription[]>,
+		private readonly _getExtensionRegistrySnapshotWhenReady: () => Promise<ExtensionDescriptionRegistrySnapshot>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IWorkbenchExtensionEnablementService private readonly _extensionEnablementService: IWorkbenchExtensionEnablementService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
 		@IRemoteAuthorityResolverService private readonly _remoteAuthorityResolverService: IRemoteAuthorityResolverService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		this._webWorkerExtHostEnablement = determineLocalWebWorkerExtHostEnablement(environmentService, configurationService);
 	}
@@ -564,21 +570,29 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 			getInitData: async (): Promise<ILocalProcessExtensionHostInitData> => {
 				if (isInitialStart) {
 					// Here we load even extensions that would be disabled by workspace trust
-					const localExtensions = checkEnabledAndProposedAPI(this._extensionEnablementService, this._extensionsProposedApi, await this._extensionScanner.scannedExtensions, /* ignore workspace trust */true);
+					const scannedExtensions = await this._extensionScanner.scannedExtensions;
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.scannedExtensions: ${scannedExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+
+					const localExtensions = checkEnabledAndProposedAPI(this._logService, this._extensionEnablementService, this._extensionsProposedApi, scannedExtensions, /* ignore workspace trust */true);
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.localExtensions: ${localExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+
 					const runningLocation = runningLocations.computeRunningLocation(localExtensions, [], false);
 					const myExtensions = filterExtensionDescriptions(localExtensions, runningLocation, extRunningLocation => desiredRunningLocation.equals(extRunningLocation));
-					return {
-						allExtensions: localExtensions,
-						myExtensions: myExtensions.map(extension => extension.identifier)
-					};
+					const extensions = new ExtensionHostExtensions(0, localExtensions, myExtensions.map(extension => extension.identifier));
+					if (isCI) {
+						this._logService.info(`NativeExtensionHostFactory._createLocalProcessExtensionHostDataProvider.myExtensions: ${myExtensions.map(ext => ext.identifier.value).join(',')}`);
+					}
+					return { extensions };
 				} else {
 					// restart case
-					const allExtensions = await this._getExtensions();
-					const myExtensions = runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
-					return {
-						allExtensions: allExtensions,
-						myExtensions: myExtensions.map(extension => extension.identifier)
-					};
+					const snapshot = await this._getExtensionRegistrySnapshotWhenReady();
+					const myExtensions = runningLocations.filterByRunningLocation(snapshot.extensions, desiredRunningLocation);
+					const extensions = new ExtensionHostExtensions(snapshot.versionId, snapshot.extensions, myExtensions.map(extension => extension.identifier));
+					return { extensions };
 				}
 			}
 		};
@@ -587,12 +601,10 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 	private _createWebWorkerExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, desiredRunningLocation: LocalWebWorkerRunningLocation): IWebWorkerExtensionHostDataProvider {
 		return {
 			getInitData: async (): Promise<IWebWorkerExtensionHostInitData> => {
-				const allExtensions = await this._getExtensions();
-				const myExtensions = runningLocations.filterByRunningLocation(allExtensions, desiredRunningLocation);
-				return {
-					allExtensions: allExtensions,
-					myExtensions: myExtensions.map(extension => extension.identifier)
-				};
+				const snapshot = await this._getExtensionRegistrySnapshotWhenReady();
+				const myExtensions = runningLocations.filterByRunningLocation(snapshot.extensions, desiredRunningLocation);
+				const extensions = new ExtensionHostExtensions(snapshot.versionId, snapshot.extensions, myExtensions.map(extension => extension.identifier));
+				return { extensions };
 			}
 		};
 	}
@@ -600,28 +612,26 @@ class NativeExtensionHostFactory implements IExtensionHostFactory {
 	private _createRemoteExtensionHostDataProvider(runningLocations: ExtensionRunningLocationTracker, remoteAuthority: string): IRemoteExtensionHostDataProvider {
 		return {
 			remoteAuthority: remoteAuthority,
-			getInitData: async () => {
-				const allExtensions = await this._getExtensions();
+			getInitData: async (): Promise<IRemoteExtensionHostInitData> => {
+				const snapshot = await this._getExtensionRegistrySnapshotWhenReady();
 
 				const remoteEnv = await this._remoteAgentService.getEnvironment();
 				if (!remoteEnv) {
 					throw new Error('Cannot provide init data for remote extension host!');
 				}
 
-				const myExtensions = runningLocations.filterByExtensionHostKind(allExtensions, ExtensionHostKind.Remote);
+				const myExtensions = runningLocations.filterByExtensionHostKind(snapshot.extensions, ExtensionHostKind.Remote);
+				const extensions = new ExtensionHostExtensions(snapshot.versionId, snapshot.extensions, myExtensions.map(extension => extension.identifier));
 
-				const initData = {
+				return {
 					connectionData: this._remoteAuthorityResolverService.getConnectionData(remoteAuthority),
 					pid: remoteEnv.pid,
 					appRoot: remoteEnv.appRoot,
 					extensionHostLogsPath: remoteEnv.extensionHostLogsPath,
 					globalStorageHome: remoteEnv.globalStorageHome,
 					workspaceStorageHome: remoteEnv.workspaceStorageHome,
-					allExtensions: allExtensions,
-					myExtensions: myExtensions.map(extension => extension.identifier),
+					extensions,
 				};
-
-				return initData;
 			}
 		};
 	}

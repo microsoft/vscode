@@ -59,7 +59,7 @@ export class EmptyView extends ViewPane {
 			onDrop: e => {
 				container.style.backgroundColor = '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
-				dropHandler.handleDrop(e, () => undefined, () => undefined);
+				dropHandler.handleDrop(e);
 			},
 			onDragEnter: () => {
 				const color = this.themeService.getColorTheme().getColor(listDropBackground);

@@ -1,0 +1,39 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.icon-select-box > .icon-select-box-container {
+	height: 100%;
+}
+
+.icon-select-box .icon-select-icons-container {
+	height: 100%;
+	outline: 0 !important;
+}
+
+.icon-select-box .icon-select-icons-container > .icon-container {
+	display: inline-flex;
+	cursor: pointer;
+	font-size: 20px;
+	align-items: center;
+	justify-content: center;
+	border-radius: 5px;
+}
+
+.icon-select-box .icon-select-icons-container > .icon-container.focused {
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.icon-select-box .icon-select-id-container .icon-select-id-label {
+	height: 24px;
+	padding: 10px;
+	opacity: .8;
+}
+
+.icon-select-box .icon-select-id-container .icon-select-id-label .highlight {
+	color: var(--vscode-list-highlightForeground);
+	font-weight: bold;
+}

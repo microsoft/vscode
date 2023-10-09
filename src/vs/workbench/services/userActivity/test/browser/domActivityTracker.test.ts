@@ -12,12 +12,14 @@ import * as assert from 'assert';
 suite('DomActivityTracker', () => {
 	let uas: UserActivityService;
 	let dom: DomActivityTracker;
+	let insta: TestInstantiationService;
 	let clock: sinon.SinonFakeTimers;
 	const maxTimeToBecomeIdle = 3 * 30_000; // (MIN_INTERVALS_WITHOUT_ACTIVITY + 1) * CHECK_INTERVAL;
 
 	setup(() => {
 		clock = sinon.useFakeTimers();
-		uas = new UserActivityService(new TestInstantiationService());
+		insta = new TestInstantiationService();
+		uas = new UserActivityService(insta);
 		dom = new DomActivityTracker(uas);
 	});
 
@@ -25,6 +27,7 @@ suite('DomActivityTracker', () => {
 		dom.dispose();
 		uas.dispose();
 		clock.restore();
+		insta.dispose();
 	});
 
 

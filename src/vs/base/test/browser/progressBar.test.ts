@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ProgressBar', () => {
 	let fixture: HTMLElement;
@@ -29,4 +30,6 @@ suite('ProgressBar', () => {
 
 		bar.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

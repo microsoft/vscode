@@ -685,6 +685,19 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
+	public prependHistory(restoredHistory: string[]): void {
+		const newHistory = this.getHistory();
+		this.clearHistory();
+
+		restoredHistory.forEach((item) => {
+			this.history.add(item);
+		});
+
+		newHistory.forEach(item => {
+			this.history.add(item);
+		});
+	}
+
 	public getHistory(): string[] {
 		return this.history.getHistory();
 	}

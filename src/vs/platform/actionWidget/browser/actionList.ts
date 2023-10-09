@@ -6,6 +6,7 @@ import * as dom from 'vs/base/browser/dom';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { List } from 'vs/base/browser/ui/list/listWidget';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -24,6 +25,8 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
+	onFocus?(action: T | undefined): void;
 }
 
 export interface IActionListItem<T> {
@@ -32,8 +35,8 @@ export interface IActionListItem<T> {
 	readonly group?: { kind?: any; icon?: ThemeIcon; title: string };
 	readonly disabled?: boolean;
 	readonly label?: string;
-
 	readonly keybinding?: ResolvedKeybinding;
+	canPreview?: boolean | undefined;
 }
 
 interface IActionMenuTemplateData {
@@ -126,7 +129,7 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		if (element.disabled) {
 			data.container.title = element.label;
 		} else if (actionTitle && previewTitle) {
-			if (this._supportsPreview) {
+			if (this._supportsPreview && element.canPreview) {
 				data.container.title = localize({ key: 'label-preview', comment: ['placeholders are keybindings, e.g "F2 to apply, Shift+F2 to preview"'] }, "{0} to apply, {1} to preview", actionTitle, previewTitle);
 			} else {
 				data.container.title = localize({ key: 'label', comment: ['placeholder is a keybinding, e.g "F2 to apply"'] }, "{0} to apply", actionTitle);
@@ -149,6 +152,14 @@ class PreviewSelectedEvent extends UIEvent {
 	constructor() { super('previewSelectedAction'); }
 }
 
+function getKeyboardNavigationLabel<T>(item: IActionListItem<T>): string | undefined {
+	// Filter out header vs. action
+	if (item.kind === 'action') {
+		return item.label;
+	}
+	return undefined;
+}
+
 export class ActionList<T> extends Disposable {
 
 	public readonly domNode: HTMLElement;
@@ -159,6 +170,8 @@ export class ActionList<T> extends Disposable {
 	private readonly _headerLineHeight = 26;
 
 	private readonly _allMenuItems: readonly IActionListItem<T>[];
+
+	private readonly cts = this._register(new CancellationTokenSource());
 
 	constructor(
 		user: string,
@@ -182,6 +195,8 @@ export class ActionList<T> extends Disposable {
 			new HeaderRenderer(),
 		], {
 			keyboardSupport: false,
+			typeNavigationEnabled: true,
+			keyboardNavigationLabelProvider: { getKeyboardNavigationLabel },
 			accessibilityProvider: {
 				getAriaLabel: element => {
 					if (element.kind === ActionListItemKind.Action) {
@@ -195,14 +210,15 @@ export class ActionList<T> extends Disposable {
 				},
 				getWidgetAriaLabel: () => localize({ key: 'customQuickFixWidget', comment: [`An action widget option`] }, "Action Widget"),
 				getRole: (e) => e.kind === ActionListItemKind.Action ? 'option' : 'separator',
-				getWidgetRole: () => 'listbox'
+				getWidgetRole: () => 'listbox',
 			},
 		}));
+
 		this._list.style(defaultListStyles);
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
-		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
+		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		this._allMenuItems = items;
@@ -219,6 +235,7 @@ export class ActionList<T> extends Disposable {
 
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
+		this.cts.cancel();
 		this._contextViewService.hideContextView();
 	}
 
@@ -291,7 +308,29 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
-	private onListHover(e: IListMouseEvent<IActionListItem<T>>): void {
+	private onFocus() {
+		this._list.domFocus();
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const focusIndex = focused[0];
+		const element = this._list.element(focusIndex);
+		this._delegate.onFocus?.(element.item);
+	}
+
+	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
+		const element = e.element;
+		if (element && element.item && this.focusCondition(element)) {
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+				const result = await this._delegate.onHover(element.item, this.cts.token);
+				element.canPreview = result ? result.canPreview : undefined;
+			}
+			if (e.index) {
+				this._list.splice(e.index, 1, [element]);
+			}
+		}
+
 		this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
 	}
 

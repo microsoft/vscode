@@ -9,30 +9,18 @@ import path = require('path');
 import fs = require('fs');
 import { ncp } from 'ncp';
 import { promisify } from 'util';
+import { Commands } from './workbench';
 
-const SEARCH_BOX = 'div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea';
-const REFRESH_BUTTON = 'div.part.sidebar.left[id="workbench.parts.sidebar"] .codicon.codicon-extensions-refresh';
 
 export class Extensions extends Viewlet {
 
-	constructor(code: Code) {
+	constructor(code: Code, private commands: Commands) {
 		super(code);
 	}
 
-	async openExtensionsViewlet(): Promise<any> {
-		if (process.platform === 'darwin') {
-			await this.code.dispatchKeybinding('cmd+shift+x');
-		} else {
-			await this.code.dispatchKeybinding('ctrl+shift+x');
-		}
-
-		await this.code.waitForActiveElement(SEARCH_BOX);
-	}
-
 	async searchForExtension(id: string): Promise<any> {
-		await this.code.waitAndClick(SEARCH_BOX);
-		await this.code.waitForActiveElement(SEARCH_BOX);
-		await this.code.waitForTypeInEditor(SEARCH_BOX, `@id:${id}`);
+		await this.commands.runCommand('workbench.extensions.action.focusExtensionsView');
+		await this.code.waitForTypeInEditor('div.extensions-viewlet[id="workbench.view.extensions"] .monaco-editor textarea', `@id:${id}`);
 		await this.code.waitForTextContent(`div.part.sidebar div.composite.title h2`, 'Extensions: Marketplace');
 
 		let retrials = 1;
@@ -41,7 +29,7 @@ export class Extensions extends Viewlet {
 				return await this.code.waitForElement(`div.extensions-viewlet[id="workbench.view.extensions"] .monaco-list-row[data-extension-id="${id}"]`, undefined, 100);
 			} catch (error) {
 				this.code.logger.log(`Extension '${id}' is not found. Retrying count: ${retrials}`);
-				await this.code.waitAndClick(REFRESH_BUTTON);
+				await this.commands.runCommand('workbench.extensions.action.refreshExtension');
 			}
 		}
 		throw new Error(`Extension ${id} is not found`);

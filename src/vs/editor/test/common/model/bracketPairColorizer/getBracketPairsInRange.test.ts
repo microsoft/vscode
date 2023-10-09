@@ -5,18 +5,21 @@
 
 import * as assert from 'assert';
 import { DisposableStore, disposeOnReturn } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { TextModel } from 'vs/editor/common/model/textModel';
-import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
-import { ILanguageService } from 'vs/editor/common/languages/language';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { BracketPairInfo } from 'vs/editor/common/textModelBracketPairs';
+import { TokenInfo, TokenizedDocument } from 'vs/editor/test/common/model/bracketPairColorizer/tokenizer.test';
+import { createModelServices, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('Bracket Pair Colorizer - getBracketPairsInRange', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function createTextModelWithColorizedBracketPairs(store: DisposableStore, text: string): TextModel {
 		const languageId = 'testLanguage';

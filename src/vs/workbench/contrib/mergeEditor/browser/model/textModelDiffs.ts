@@ -17,8 +17,8 @@ import { UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
 
 export class TextModelDiffs extends Disposable {
 	private recomputeCount = 0;
-	private readonly _state = observableValue<TextModelDiffState, TextModelDiffChangeReason>('LiveDiffState', TextModelDiffState.initializing);
-	private readonly _diffs = observableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>('LiveDiffs', []);
+	private readonly _state = observableValue<TextModelDiffState, TextModelDiffChangeReason>(this, TextModelDiffState.initializing);
+	private readonly _diffs = observableValue<DetailedLineRangeMapping[], TextModelDiffChangeReason>(this, []);
 
 	private readonly barrier = new ReentrancyBarrier();
 	private isDisposed = false;
@@ -36,7 +36,8 @@ export class TextModelDiffs extends Disposable {
 
 		const recomputeSignal = observableSignal('recompute');
 
-		this._register(autorun('Update diff state', reader => {
+		this._register(autorun(reader => {
+			/** @description Update diff state */
 			recomputeSignal.read(reader);
 			this.recompute(reader);
 		}));

@@ -17,7 +17,13 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator, IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inputActiveOptionBackground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 
+registerColor(
+	'actionBar.toggledBackground',
+	{ dark: inputActiveOptionBackground, light: inputActiveOptionBackground, hcDark: inputActiveOptionBackground, hcLight: inputActiveOptionBackground, },
+	localize('actionBar.toggledBackground', 'Background color for toggled action items in action bar.')
+);
 
 const ActionWidgetContextKeys = {
 	Visible: new RawContextKey<boolean>('codeActionMenuVisible', false, localize('codeActionMenuVisible', "Whether the action widget list is visible"))

@@ -28,7 +28,7 @@ export class ToggleRenderControlCharacterAction extends Action2 {
 			menu: {
 				id: MenuId.MenubarAppearanceMenu,
 				group: '4_editor',
-				order: 4
+				order: 5
 			}
 		});
 	}

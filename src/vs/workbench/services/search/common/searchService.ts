@@ -21,7 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
+import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
 import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
@@ -73,37 +73,63 @@ export class SearchService extends Disposable implements ISearchService {
 		});
 	}
 
-	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
-		// Get local results from dirty/untitled
-		const localResults = this.getLocalResults(query);
+	async textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (item: ISearchProgressItem) => void): Promise<ISearchComplete> {
+		const results = this.textSearchSplitSyncAsync(query, token, onProgress);
+		const openEditorResults = results.syncResults;
+		const otherResults = await results.asyncResults;
+		return {
+			limitHit: otherResults.limitHit || openEditorResults.limitHit,
+			results: [...otherResults.results, ...openEditorResults.results],
+			messages: [...otherResults.messages, ...openEditorResults.messages]
+		};
+	}
+
+	textSearchSplitSyncAsync(
+		query: ITextQuery,
+		token?: CancellationToken | undefined,
+		onProgress?: ((result: ISearchProgressItem) => void) | undefined,
+		notebookFilesToIgnore?: ResourceSet,
+		asyncNotebookFilesToIgnore?: Promise<ResourceSet>
+	): {
+		syncResults: ISearchComplete;
+		asyncResults: Promise<ISearchComplete>;
+	} {
+		// Get open editor results from dirty/untitled
+		const openEditorResults = this.getOpenEditorResults(query);
 
 		if (onProgress) {
-			arrays.coalesce([...localResults.results.values()]).forEach(onProgress);
+			arrays.coalesce([...openEditorResults.results.values()]).filter(e => !(notebookFilesToIgnore && notebookFilesToIgnore.has(e.resource))).forEach(onProgress);
 		}
 
-		const onProviderProgress = (progress: ISearchProgressItem) => {
-			if (isFileMatch(progress)) {
-				// Match
-				if (!localResults.results.has(progress.resource) && !(notebookURIs && notebookURIs.has(progress.resource)) && onProgress) { // don't override local results
-					onProgress(progress);
-				}
-			} else if (onProgress) {
-				// Progress
-				onProgress(<IProgressMessage>progress);
-			}
-
-			if (isProgressMessage(progress)) {
-				this.logService.debug('SearchService#search', progress.message);
-			}
+		const syncResults: ISearchComplete = {
+			results: arrays.coalesce([...openEditorResults.results.values()]),
+			limitHit: openEditorResults.limitHit ?? false,
+			messages: []
 		};
 
-		const otherResults = await this.doSearch(query, token, onProviderProgress);
+		const getAsyncResults = async () => {
+			const resolvedAsyncNotebookFilesToIgnore = await asyncNotebookFilesToIgnore ?? new ResourceSet();
+			const onProviderProgress = (progress: ISearchProgressItem) => {
+				if (isFileMatch(progress)) {
+					// Match
+					if (!openEditorResults.results.has(progress.resource) && !resolvedAsyncNotebookFilesToIgnore.has(progress.resource) && onProgress) { // don't override open editor results
+						onProgress(progress);
+					}
+				} else if (onProgress) {
+					// Progress
+					onProgress(<IProgressMessage>progress);
+				}
+
+				if (isProgressMessage(progress)) {
+					this.logService.debug('SearchService#search', progress.message);
+				}
+			};
+			return await this.doSearch(query, token, onProviderProgress);
+		};
+
 		return {
-			...otherResults,
-			...{
-				limitHit: otherResults.limitHit || localResults.limitHit
-			},
-			results: [...otherResults.results, ...arrays.coalesce([...localResults.results.values()])]
+			syncResults,
+			asyncResults: getAsyncResults()
 		};
 	}
 
@@ -404,8 +430,8 @@ export class SearchService extends Disposable implements ISearchService {
 		}
 	}
 
-	private getLocalResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
-		const localResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
+	private getOpenEditorResults(query: ITextQuery): { results: ResourceMap<IFileMatch | null>; limitHit: boolean } {
+		const openEditorResults = new ResourceMap<IFileMatch | null>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		let limitHit = false;
 
 		if (query.type === QueryType.Text) {
@@ -436,7 +462,7 @@ export class SearchService extends Disposable implements ISearchService {
 				}
 
 				// Skip search results
-				if (model.getLanguageId() === 'search-result' && !(query.includePattern && query.includePattern['**/*.code-search'])) {
+				if (model.getLanguageId() === SEARCH_RESULT_LANGUAGE_ID && !(query.includePattern && query.includePattern['**/*.code-search'])) {
 					// TODO: untitled search editors will be excluded from search even when include *.code-search is specified
 					return;
 				}
@@ -465,18 +491,18 @@ export class SearchService extends Disposable implements ISearchService {
 					}
 
 					const fileMatch = new FileMatch(originalResource);
-					localResults.set(originalResource, fileMatch);
+					openEditorResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
 					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
 				} else {
-					localResults.set(originalResource, null);
+					openEditorResults.set(originalResource, null);
 				}
 			});
 		}
 
 		return {
-			results: localResults,
+			results: openEditorResults,
 			limitHit
 		};
 	}

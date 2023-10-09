@@ -7,7 +7,7 @@ import * as assert from 'assert';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { FileChangesEvent, FileChangeType, isParent } from 'vs/platform/files/common/files';
 
 suite('Files', () => {
@@ -249,4 +249,6 @@ suite('Files', () => {
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dotnet/razor/commit/8d0ae9664cb27276eab36d83e48e88356468ca67",
+	"version": "https://github.com/dotnet/razor/commit/69f60231df08319b544d3d32a588575acbb58ff0",
 	"name": "ASP.NET Razor",
 	"scopeName": "text.html.cshtml",
 	"patterns": [
@@ -531,7 +531,7 @@
 			]
 		},
 		"code-directive": {
-			"begin": "(@)(code)\\s*",
+			"begin": "(@)(code)((?=\\{)|\\s+)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [
@@ -552,7 +552,7 @@
 			"end": "(?<=})|\\s"
 		},
 		"functions-directive": {
-			"begin": "(@)(functions)\\s*",
+			"begin": "(@)(functions)((?=\\{)|\\s+)",
 			"beginCaptures": {
 				"1": {
 					"patterns": [

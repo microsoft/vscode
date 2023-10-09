@@ -28,7 +28,7 @@
     "@types/minimist": "^1.2.1",
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
-    "@types/node": "16.x",
+    "@types/node": "18.x",
     "@types/p-limit": "^2.2.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
@@ -36,6 +36,7 @@
     "@types/through2": "^2.0.36",
     "@types/tmp": "^0.2.1",
     "@types/underscore": "^1.8.9",
+    "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
     "@vscode/vsce": "^2.16.0",
@@ -68,5 +69,8 @@
     "tree-sitter": "https://github.com/joaomoreno/node-tree-sitter/releases/download/v0.20.0/tree-sitter-0.20.0.tgz",
     "tree-sitter-typescript": "^0.20.1",
     "vscode-gulp-watch": "^5.0.3"
+  },
+  "dependencies": {
+    "workerpool": "^6.4.0"
   }
 }

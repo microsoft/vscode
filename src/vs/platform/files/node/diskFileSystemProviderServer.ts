@@ -324,11 +324,11 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 	}
 
 	override dispose(): void {
-		super.dispose();
-
 		for (const [, disposable] of this.watcherRequests) {
 			disposable.dispose();
 		}
 		this.watcherRequests.clear();
+
+		super.dispose();
 	}
 }

@@ -70,7 +70,9 @@ export class TerminalStatusList extends Disposable implements ITerminalStatusLis
 		let result: ITerminalStatus | undefined;
 		for (const s of this._statuses.values()) {
 			if (!result || s.severity >= result.severity) {
-				result = s;
+				if (s.icon || !result?.icon) {
+					result = s;
+				}
 			}
 		}
 		return result;

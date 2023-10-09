@@ -39,7 +39,8 @@ function main(): Promise<void> {
 		const productionDependencies: { name: string; path: string; version: string }[] = deps.getProductionDependencies(root);
 		const productionDependenciesSrc = productionDependencies.map(d => path.relative(root, d.path)).map(d => `./${d}/**/*.map`);
 		const nodeModules = vfs.src(productionDependenciesSrc, { base: '.' })
-			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')));
+			.pipe(util.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
+			.pipe(util.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)));
 		sources.push(nodeModules);
 
 		const extensionsOut = vfs.src(['.build/extensions/**/*.js.map', '!**/node_modules/**'], { base: '.build' });

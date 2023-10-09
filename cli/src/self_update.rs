@@ -11,7 +11,7 @@ use crate::{
 	options::Quality,
 	update_service::{unzip_downloaded_release, Platform, Release, TargetKind, UpdateService},
 	util::{
-		errors::{wrap, AnyError, CorruptDownload, UpdatesNotConfigured},
+		errors::{wrap, AnyError, CodeError, CorruptDownload},
 		http,
 		io::{ReportCopyProgress, SilentCopyProgress},
 	},
@@ -24,17 +24,21 @@ pub struct SelfUpdate<'a> {
 	update_service: &'a UpdateService,
 }
 
+static OLD_UPDATE_EXTENSION: &str = "Updating CLI";
+
 impl<'a> SelfUpdate<'a> {
 	pub fn new(update_service: &'a UpdateService) -> Result<Self, AnyError> {
 		let commit = VSCODE_CLI_COMMIT
-			.ok_or_else(|| UpdatesNotConfigured("unknown build commit".to_string()))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("unknown build commit"))?;
 
 		let quality = VSCODE_CLI_QUALITY
-			.ok_or_else(|| UpdatesNotConfigured("no configured quality".to_string()))
-			.and_then(|q| Quality::try_from(q).map_err(UpdatesNotConfigured))?;
+			.ok_or_else(|| CodeError::UpdatesNotConfigured("no configured quality"))
+			.and_then(|q| {
+				Quality::try_from(q).map_err(|_| CodeError::UpdatesNotConfigured("unknown quality"))
+			})?;
 
 		let platform = Platform::env_default().ok_or_else(|| {
-			UpdatesNotConfigured("Unknown platform, please report this error".to_string())
+			CodeError::UpdatesNotConfigured("Unknown platform, please report this error")
 		})?;
 
 		Ok(Self {
@@ -55,6 +59,18 @@ impl<'a> SelfUpdate<'a> {
 	/// Gets whether the given release is what this CLI is built against
 	pub fn is_up_to_date_with(&self, release: &Release) -> bool {
 		release.commit == self.commit
+	}
+
+	/// Cleans up old self-updated binaries. Should be called with regularity.
+	/// May fail if old versions are still running.
+	pub fn cleanup_old_update(&self) -> Result<(), std::io::Error> {
+		let current_path = std::env::current_exe()?;
+		let old_path = current_path.with_extension(OLD_UPDATE_EXTENSION);
+		if old_path.exists() {
+			fs::remove_file(old_path)?;
+		}
+
+		Ok(())
 	}
 
 	/// Updates the CLI to the given release.
@@ -87,8 +103,11 @@ impl<'a> SelfUpdate<'a> {
 		// OS later. However, this can fail if the tempdir is on a different drive
 		// than the installation dir. In this case just rename it to ".old".
 		if fs::rename(&target_path, tempdir.path().join("old-code-cli")).is_err() {
-			fs::rename(&target_path, target_path.with_extension(".old"))
-				.map_err(|e| wrap(e, "failed to rename old CLI"))?;
+			fs::rename(
+				&target_path,
+				target_path.with_extension(OLD_UPDATE_EXTENSION),
+			)
+			.map_err(|e| wrap(e, "failed to rename old CLI"))?;
 		}
 
 		fs::rename(&staging_path, &target_path)

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { assertIsDefined, withNullAsUndefined } from 'vs/base/common/types';
+import { assertIsDefined } from 'vs/base/common/types';
 import { ICodeEditor, IPasteEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorOpenContext, isTextEditorViewState } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -92,7 +92,7 @@ export abstract class AbstractTextResourceEditor extends AbstractTextCodeEditor<
 		// was already asked for being readonly or not. The rationale is that
 		// a resolved model might have more specific information about being
 		// readonly or not that the input did not have.
-		control.updateOptions({ readOnly: resolvedModel.isReadonly() });
+		control.updateOptions(this.getReadonlyConfiguration(resolvedModel.isReadonly()));
 	}
 
 	/**
@@ -195,7 +195,7 @@ export class TextResourceEditor extends AbstractTextResourceEditor {
 		// We can still try to guess a good languageId from the first line if
 		// the paste changed the first line
 		else {
-			const guess = withNullAsUndefined(this.languageService.guessLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)));
+			const guess = this.languageService.guessLanguageIdByFilepathOrFirstLine(textModel.uri, textModel.getLineContent(1).substr(0, ModelConstants.FIRST_LINE_DETECTION_LENGTH_LIMIT)) ?? undefined;
 			if (guess) {
 				candidateLanguage = { id: guess, source: 'guess' };
 			}

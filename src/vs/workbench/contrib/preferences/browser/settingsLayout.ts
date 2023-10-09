@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -232,8 +231,8 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/chat',
-					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['chat.*', 'interactiveEditor.*']
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
 				}
 			]
 		},
@@ -281,7 +280,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
-			settings: isWindows ? ['security.*'] : undefined,
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

@@ -13,8 +13,10 @@ import { raceTimeout } from 'vs/base/common/async';
 import { unthemedCountStyles } from 'vs/base/browser/ui/countBadge/countBadge';
 import { unthemedKeybindingLabelOptions } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { unthemedProgressBarOptions } from 'vs/base/browser/ui/progressbar/progressbar';
-import { QuickInputController } from 'vs/platform/quickinput/browser/quickInput';
-import { IQuickPick, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
+import { QuickInputController } from 'vs/platform/quickinput/browser/quickInputController';
+import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { toDisposable } from 'vs/base/common/lifecycle';
 
 // Sets up an `onShow` listener to allow us to wait until the quick pick is shown (useful when triggering an `accept()` right after launching a quick pick)
 // kick this off before you launch the picker and then await the promise returned after you launch the picker.
@@ -32,17 +34,15 @@ async function setupWaitTilShownListener(controller: QuickInputController): Prom
 }
 
 suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
-	let fixture: HTMLElement, controller: QuickInputController, quickpick: IQuickPick<IQuickPickItem>;
-
-	function getScrollTop(): number {
-		return quickpick.scrollTop;
-	}
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+	let controller: QuickInputController;
 
 	setup(() => {
-		fixture = document.createElement('div');
+		const fixture = document.createElement('div');
 		document.body.appendChild(fixture);
+		store.add(toDisposable(() => document.body.removeChild(fixture)));
 
-		controller = new QuickInputController({
+		controller = store.add(new QuickInputController({
 			container: fixture,
 			idPrefix: 'testQuickInput',
 			ignoreFocusOut() { return true; },
@@ -81,18 +81,13 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				pickerGroup: {
 					pickerGroupBorder: undefined,
 					pickerGroupForeground: undefined,
-				},
+				}
 			}
-		});
+		},
+			new TestThemeService()));
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);
-	});
-
-	teardown(() => {
-		quickpick?.dispose();
-		controller.dispose();
-		document.body.removeChild(fixture);
 	});
 
 	test('pick - basecase', async () => {
@@ -133,10 +128,10 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('onDidChangeValue - gets triggered when .value is set', async () => {
-		quickpick = controller.createQuickPick();
+		const quickpick = store.add(controller.createQuickPick());
 
 		let value: string | undefined = undefined;
-		quickpick.onDidChangeValue((e) => value = e);
+		store.add(quickpick.onDidChangeValue((e) => value = e));
 
 		// Trigger a change
 		quickpick.value = 'changed';
@@ -149,7 +144,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 	});
 
 	test('keepScrollPosition - works with activeItems', async () => {
-		quickpick = controller.createQuickPick();
+		const quickpick = store.add(controller.createQuickPick());
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -160,21 +155,21 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		const cursorTop = getScrollTop();
+		const cursorTop = quickpick.scrollTop;
 
 		assert.notStrictEqual(cursorTop, 0);
 
 		quickpick.keepScrollPosition = true;
 		quickpick.activeItems = [items[0]];
-		assert.strictEqual(cursorTop, getScrollTop());
+		assert.strictEqual(cursorTop, quickpick.scrollTop);
 
 		quickpick.keepScrollPosition = false;
 		quickpick.activeItems = [items[0]];
-		assert.strictEqual(getScrollTop(), 0);
+		assert.strictEqual(quickpick.scrollTop, 0);
 	});
 
 	test('keepScrollPosition - works with items', async () => {
-		quickpick = controller.createQuickPick();
+		const quickpick = store.add(controller.createQuickPick());
 
 		const items = [];
 		for (let i = 0; i < 1000; i++) {
@@ -185,29 +180,29 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		quickpick.activeItems = [items[items.length - 1]];
 		quickpick.show();
 
-		const cursorTop = getScrollTop();
+		const cursorTop = quickpick.scrollTop;
 		assert.notStrictEqual(cursorTop, 0);
 
 		quickpick.keepScrollPosition = true;
 		quickpick.items = items;
-		assert.strictEqual(cursorTop, getScrollTop());
+		assert.strictEqual(cursorTop, quickpick.scrollTop);
 
 		quickpick.keepScrollPosition = false;
 		quickpick.items = items;
-		assert.strictEqual(getScrollTop(), 0);
+		assert.strictEqual(quickpick.scrollTop, 0);
 	});
 
 	test('selectedItems - verify previous selectedItems does not hang over to next set of items', async () => {
-		quickpick = controller.createQuickPick();
+		const quickpick = store.add(controller.createQuickPick());
 		quickpick.items = [{ label: 'step 1' }];
 		quickpick.show();
 
 		void (await new Promise<void>(resolve => {
-			quickpick.onDidAccept(() => {
+			store.add(quickpick.onDidAccept(() => {
 				quickpick.canSelectMany = true;
 				quickpick.items = [{ label: 'a' }, { label: 'b' }, { label: 'c' }];
 				resolve();
-			});
+			}));
 
 			// accept 'step 1'
 			controller.accept();
