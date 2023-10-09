@@ -53,8 +53,10 @@ declare module 'vscode' {
 		icon?: Uri;
 	}
 
+	export type SlashRequest = Omit<InteractiveRequest, 'session'>;
+
 	// Could include "slashCommand: SlashCommand | undefined" here instead of the invoke method.
-	export type ChatAgentHandler = (request: InteractiveRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<SlashResult>;
+	export type ChatAgentHandler = (request: SlashRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<SlashResult>;
 
 	export namespace chat {
 		// Invoking slash commands vs the agent with no slash command?

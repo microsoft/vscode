@@ -63,7 +63,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 		}
 
 		const task = slashCommand.invoke(
-			null!,
+			{ id: String(requestId), message: prompt, variables: {} },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.InteractiveProgress>(p => {
 				throwIfDone();
