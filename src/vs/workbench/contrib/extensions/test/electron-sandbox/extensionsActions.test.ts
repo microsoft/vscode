@@ -173,7 +173,7 @@ suite('ExtensionsActions', () => {
 
 	test('Test InstallingLabelAction when state is installing', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallingLabelAction));
+		const testObject: ExtensionsActions.InstallingLabelAction = disposables.add(instantiationService.createInstance(ExtensionsActions.InstallingLabelAction));
 		disposables.add(instantiationService.createInstance(ExtensionContainers, [testObject]));
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
