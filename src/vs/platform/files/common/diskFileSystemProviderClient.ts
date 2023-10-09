@@ -13,7 +13,7 @@ import { newWriteableStream, ReadableStreamEventPayload, ReadableStreamEvents } 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { createFileSystemProviderError, IFileAtomicReadOptions, FileChangeType, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions, IFileSystemProviderError } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileChange, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IStat, IWatchOptions, IFileSystemProviderError } from 'vs/platform/files/common/files';
 
 export const LOCAL_FILE_SYSTEM_CHANNEL_NAME = 'localFilesystem';
 
@@ -229,7 +229,7 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		// for both events and errors from the watcher. So we need to
 		// unwrap the event from the remote and emit through the proper
 		// emitter.
-		this._register(this.channel.listen<{ resource: UriComponents; type: FileChangeType; cId?: number }[] | string>('fileChange', [this.sessionId])(eventsOrError => {
+		this._register(this.channel.listen<Array<IFileChange & { resource: UriComponents }> | string>('fileChange', [this.sessionId])(eventsOrError => {
 			if (Array.isArray(eventsOrError)) {
 				const events = eventsOrError;
 				this._onDidChange.fire(events.map(event => ({ resource: URI.revive(event.resource), type: event.type, cId: event.cId })));
