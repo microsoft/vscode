@@ -5,12 +5,13 @@
 
 import * as assert from 'assert';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import * as languages from 'vs/editor/common/languages';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 // --------- utils
@@ -55,6 +56,8 @@ suite('Editor Model - Model Modes 1', () => {
 		languageRegistration.dispose();
 		calledFor = [];
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('model calls syntax highlighter 1', () => {
 		thisModel.tokenization.forceTokenization(1);
@@ -208,6 +211,8 @@ suite('Editor Model - Model Modes 2', () => {
 		thisModel.dispose();
 		languageRegistration.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('getTokensForInvalidLines one text insert', () => {
 		thisModel.tokenization.forceTokenization(5);

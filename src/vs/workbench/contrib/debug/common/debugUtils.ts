@@ -373,3 +373,6 @@ export async function saveAllBeforeDebugStart(configurationService: IConfigurati
 	}
 	await configurationService.reloadConfiguration();
 }
+
+export const sourcesEqual = (a: DebugProtocol.Source | undefined, b: DebugProtocol.Source | undefined): boolean =>
+	!a || !b ? a === b : a.name === b.name && a.path === b.path && a.sourceReference === b.sourceReference;

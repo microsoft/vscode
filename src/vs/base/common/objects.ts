@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isTypedArray, isObject, isUndefinedOrNull } from 'vs/base/common/types';
+import { isTypedArray, isObject, isUndefinedOrNull, OptionalBooleanKey, OptionalNumberKey, OptionalStringKey } from 'vs/base/common/types';
 
 export function deepClone<T>(obj: T): T {
 	if (!obj || typeof obj !== 'object') {
@@ -230,10 +230,9 @@ export function filter(obj: obj, predicate: (key: string, value: any) => boolean
 
 export function getAllPropertyNames(obj: object): string[] {
 	let res: string[] = [];
-	let proto = Object.getPrototypeOf(obj);
-	while (Object.prototype !== proto) {
-		res = res.concat(Object.getOwnPropertyNames(proto));
-		proto = Object.getPrototypeOf(proto);
+	while (Object.prototype !== obj) {
+		res = res.concat(Object.getOwnPropertyNames(obj));
+		obj = Object.getPrototypeOf(obj);
 	}
 	return res;
 }
@@ -261,4 +260,35 @@ export function createProxyObject<T extends object>(methodNames: string[], invok
 		(<any>result)[methodName] = createProxyMethod(methodName);
 	}
 	return result;
+}
+
+export function ensureOptionalBooleanValue<T extends object>(obj: T, key: OptionalBooleanKey<T>, defaultValue: boolean | undefined): void {
+	if (typeof key !== 'string') {
+		return;
+	}
+
+	if (obj[key] !== undefined && typeof obj[key] !== 'boolean') {
+		obj[key] = defaultValue as any;
+	}
+}
+
+export function ensureOptionalNumberValue<T extends object>(obj: T, key: OptionalNumberKey<T>, defaultValue: number | undefined): void {
+	if (typeof key !== 'string') {
+		return;
+	}
+
+	if (obj[key] !== undefined && typeof obj[key] !== 'number') {
+		obj[key] = defaultValue as any;
+	}
+}
+
+export function ensureOptionalStringValue<T extends object>(obj: T, key: OptionalStringKey<T>, allowed: string[], defaultValue: string | undefined): void {
+	if (typeof key !== 'string') {
+		return;
+	}
+
+	const value = obj[key];
+	if (value !== undefined && (typeof value !== 'string' || !allowed.includes(value))) {
+		obj[key] = defaultValue as any;
+	}
 }

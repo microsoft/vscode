@@ -14,10 +14,9 @@ import { ITextModel } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';
-import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
+import { DiffAlgorithmName, IDiffComputationResult, IEditorWorkerService, ILineChange, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
-import { regExpFlags } from 'vs/base/common/strings';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -25,9 +24,10 @@ import { canceled, onUnexpectedError } from 'vs/base/common/errors';
 import { UnicodeHighlighterOptions } from 'vs/editor/common/services/unicodeTextModelHighlighter';
 import { IEditorWorkerHost } from 'vs/editor/common/services/editorWorkerHost';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { IChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/diff/documentDiffProvider';
-import { ILinesDiffComputerOptions, LineRangeMapping, RangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputerOptions, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
+import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 
 /**
@@ -106,22 +106,28 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 		const diff: IDocumentDiff = {
 			identical: result.identical,
 			quitEarly: result.quitEarly,
-			changes: result.changes.map(
-				(c) =>
-					new LineRangeMapping(
-						new LineRange(c[0], c[1]),
-						new LineRange(c[2], c[3]),
-						c[4]?.map(
-							(c) =>
-								new RangeMapping(
-									new Range(c[0], c[1], c[2], c[3]),
-									new Range(c[4], c[5], c[6], c[7])
-								)
-						)
-					)
-			),
+			changes: toLineRangeMappings(result.changes),
+			moves: result.moves.map(m => new MovedText(
+				new LineRangeMapping(new LineRange(m[0], m[1]), new LineRange(m[2], m[3])),
+				toLineRangeMappings(m[4])
+			))
 		};
 		return diff;
+
+		function toLineRangeMappings(changes: readonly ILineChange[]): readonly DetailedLineRangeMapping[] {
+			return changes.map(
+				(c) => new DetailedLineRangeMapping(
+					new LineRange(c[0], c[1]),
+					new LineRange(c[2], c[3]),
+					c[4]?.map(
+						(c) => new RangeMapping(
+							new Range(c[0], c[1], c[2], c[3]),
+							new Range(c[4], c[5], c[6], c[7])
+						)
+					)
+				)
+			);
+		}
 	}
 
 	public canComputeDirtyDiff(original: URI, modified: URI): boolean {
@@ -137,7 +143,7 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
+			const sw = StopWatch.create();
 			const result = this._workerManager.withWorker().then(client => client.computeMoreMinimalEdits(resource, edits, pretty));
 			result.finally(() => this._logService.trace('FORMAT#computeMoreMinimalEdits', resource.toString(true), sw.elapsed()));
 			return Promise.race([result, timeout(1000).then(() => edits)]);
@@ -152,12 +158,13 @@ export class EditorWorkerService extends Disposable implements IEditorWorkerServ
 			if (!canSyncModel(this._modelService, resource)) {
 				return Promise.resolve(edits); // File too large
 			}
-			const sw = StopWatch.create(true);
-			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits, { ignoreTrimWhitespace: false, maxComputationTimeMs: 1000 })).catch((err) => {
-				onUnexpectedError(err);
-				// In case of an exception, fall back to computeMoreMinimalEdits
-				return this.computeMoreMinimalEdits(resource, edits, true);
-			});
+			const sw = StopWatch.create();
+			const result = this._workerManager.withWorker().then(client => client.computeHumanReadableDiff(resource, edits,
+				{ ignoreTrimWhitespace: false, maxComputationTimeMs: 1000, computeMoves: false, })).catch((err) => {
+					onUnexpectedError(err);
+					// In case of an exception, fall back to computeMoreMinimalEdits
+					return this.computeMoreMinimalEdits(resource, edits, true);
+				});
 			result.finally(() => this._logService.trace('FORMAT#computeHumanReadableDiff', resource.toString(true), sw.elapsed()));
 			return result;
 
@@ -575,7 +582,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 	public async textualSuggest(resources: URI[], leadingWord: string | undefined, wordDefRegExp: RegExp): Promise<{ words: string[]; duration: number } | null> {
 		const proxy = await this._withSyncedResources(resources);
 		const wordDef = wordDefRegExp.source;
-		const wordDefFlags = regExpFlags(wordDefRegExp);
+		const wordDefFlags = wordDefRegExp.flags;
 		return proxy.textualSuggest(resources.map(r => r.toString()), leadingWord, wordDef, wordDefFlags);
 	}
 
@@ -587,7 +594,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
-			const wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDefFlags = wordDefRegExp.flags;
 			return proxy.computeWordRanges(resource.toString(), range, wordDef, wordDefFlags);
 		});
 	}
@@ -600,7 +607,7 @@ export class EditorWorkerClient extends Disposable implements IEditorWorkerClien
 			}
 			const wordDefRegExp = this.languageConfigurationService.getLanguageConfiguration(model.getLanguageId()).getWordDefinition();
 			const wordDef = wordDefRegExp.source;
-			const wordDefFlags = regExpFlags(wordDefRegExp);
+			const wordDefFlags = wordDefRegExp.flags;
 			return proxy.navigateValueSet(resource.toString(), range, up, wordDef, wordDefFlags);
 		});
 	}

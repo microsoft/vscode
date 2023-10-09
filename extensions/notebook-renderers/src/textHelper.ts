@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { handleANSIOutput } from './ansi';
-
+import { OutputElementOptions, OutputWithAppend } from './rendererTypes';
 export const scrollableClass = 'scrollable';
+
+const softScrollableLineLimit = 5000;
+const hardScrollableLineLimit = 8000;
 
 /**
  * Output is Truncated. View as a [scrollable element] or open in a [text editor]. Adjust cell output [settings...]
@@ -91,22 +94,70 @@ function truncatedArrayOfString(id: string, buffer: string[], linesLimit: number
 
 function scrollableArrayOfString(id: string, buffer: string[], trustHtml: boolean) {
 	const element = document.createElement('div');
-	if (buffer.length > 5000) {
+	if (buffer.length > softScrollableLineLimit) {
 		element.appendChild(generateNestedViewAllElement(id));
 	}
 
-	element.appendChild(handleANSIOutput(buffer.slice(-5000).join('\n'), trustHtml));
+	element.appendChild(handleANSIOutput(buffer.slice(-1 * softScrollableLineLimit).join('\n'), trustHtml));
 
 	return element;
 }
 
-export function createOutputContent(id: string, outputs: string[], linesLimit: number, scrollable: boolean, trustHtml: boolean): HTMLElement {
+const outputLengths: Record<string, number> = {};
 
-	const buffer = outputs.join('\n').split(/\r\n|\r|\n/g);
-
-	if (scrollable) {
-		return scrollableArrayOfString(id, buffer, trustHtml);
-	} else {
-		return truncatedArrayOfString(id, buffer, linesLimit, trustHtml);
+function appendScrollableOutput(element: HTMLElement, id: string, appended: string, trustHtml: boolean) {
+	if (!outputLengths[id]) {
+		outputLengths[id] = 0;
 	}
+
+	const buffer = appended.split(/\r\n|\r|\n/g);
+	const appendedLength = buffer.length + outputLengths[id];
+	// Only append outputs up to the hard limit of lines, then replace it with the last softLimit number of lines
+	if (appendedLength > hardScrollableLineLimit) {
+		return false;
+	}
+	else {
+		element.appendChild(handleANSIOutput(buffer.join('\n'), trustHtml));
+		outputLengths[id] = appendedLength;
+	}
+	return true;
 }
+
+export function createOutputContent(id: string, outputText: string, options: OutputElementOptions): HTMLElement {
+	const { linesLimit, error, scrollable, trustHtml } = options;
+	const buffer = outputText.split(/\r\n|\r|\n/g);
+	outputLengths[id] = outputLengths[id] = Math.min(buffer.length, softScrollableLineLimit);
+
+	let outputElement: HTMLElement;
+	if (scrollable) {
+		outputElement = scrollableArrayOfString(id, buffer, !!trustHtml);
+	} else {
+		outputElement = truncatedArrayOfString(id, buffer, linesLimit, !!trustHtml);
+	}
+
+	outputElement.setAttribute('output-item-id', id);
+	if (error) {
+		outputElement.classList.add('error');
+	}
+
+	return outputElement;
+}
+
+export function appendOutput(outputInfo: OutputWithAppend, existingContent: HTMLElement, options: OutputElementOptions) {
+	const appendedText = outputInfo.appendedText?.();
+	// appending output only supported for scrollable ouputs currently
+	if (appendedText && options.scrollable) {
+		if (appendScrollableOutput(existingContent, outputInfo.id, appendedText, false)) {
+			return;
+		}
+	}
+
+	const newContent = createOutputContent(outputInfo.id, outputInfo.text(), options);
+	existingContent.replaceWith(newContent);
+	while (newContent.nextSibling) {
+		// clear out any stale content if we had previously combined streaming outputs into this one
+		newContent.nextSibling.remove();
+	}
+
+}
+

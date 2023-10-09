@@ -11,8 +11,12 @@ import { append, $, hide } from 'vs/base/browser/dom';
 import { TestLayoutService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench parts', () => {
+
+	const disposables = new DisposableStore();
 
 	class SimplePart extends Part {
 
@@ -33,7 +37,7 @@ suite('Workbench parts', () => {
 	class MyPart extends SimplePart {
 
 		constructor(private expectedParent: HTMLElement) {
-			super('myPart', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+			super('myPart', { hasTitle: true }, new TestThemeService(), disposables.add(new TestStorageService()), new TestLayoutService());
 		}
 
 		protected override createTitleArea(parent: HTMLElement): HTMLElement {
@@ -58,7 +62,7 @@ suite('Workbench parts', () => {
 	class MyPart2 extends SimplePart {
 
 		constructor() {
-			super('myPart2', { hasTitle: true }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+			super('myPart2', { hasTitle: true }, new TestThemeService(), disposables.add(new TestStorageService()), new TestLayoutService());
 		}
 
 		protected override createTitleArea(parent: HTMLElement): HTMLElement {
@@ -83,7 +87,7 @@ suite('Workbench parts', () => {
 	class MyPart3 extends SimplePart {
 
 		constructor() {
-			super('myPart2', { hasTitle: false }, new TestThemeService(), new TestStorageService(), new TestLayoutService());
+			super('myPart2', { hasTitle: false }, new TestThemeService(), disposables.add(new TestStorageService()), new TestLayoutService());
 		}
 
 		protected override createTitleArea(parent: HTMLElement): HTMLElement {
@@ -111,6 +115,7 @@ suite('Workbench parts', () => {
 
 	teardown(() => {
 		document.body.removeChild(fixture);
+		disposables.clear();
 	});
 
 	test('Creation', () => {
@@ -118,7 +123,7 @@ suite('Workbench parts', () => {
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		let part = new MyPart(b);
+		let part = disposables.add(new MyPart(b));
 		part.create(b);
 
 		assert.strictEqual(part.getId(), 'myPart');
@@ -132,7 +137,7 @@ suite('Workbench parts', () => {
 		part.testSaveState();
 
 		// Re-Create to assert memento contents
-		part = new MyPart(b);
+		part = disposables.add(new MyPart(b));
 
 		memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert(memento);
@@ -144,7 +149,7 @@ suite('Workbench parts', () => {
 		delete memento.bar;
 
 		part.testSaveState();
-		part = new MyPart(b);
+		part = disposables.add(new MyPart(b));
 		memento = part.testGetMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
 		assert(memento);
 		assert.strictEqual(isEmptyObject(memento), true);
@@ -155,7 +160,7 @@ suite('Workbench parts', () => {
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		const part = new MyPart2();
+		const part = disposables.add(new MyPart2());
 		part.create(b);
 
 		assert(document.getElementById('myPart.title'));
@@ -167,10 +172,12 @@ suite('Workbench parts', () => {
 		document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
-		const part = new MyPart3();
+		const part = disposables.add(new MyPart3());
 		part.create(b);
 
 		assert(!document.getElementById('myPart.title'));
 		assert(document.getElementById('myPart.content'));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -275,8 +275,24 @@ export class ExtHostTelemetryLogger {
 		if (typeof eventNameOrException === 'string') {
 			this.logEvent(eventNameOrException, data);
 		} else {
-			// TODO @lramos15, implement cleaning for and logging for this case
-			this._sender.sendErrorData(eventNameOrException, data);
+			const errorData = {
+				name: eventNameOrException.name,
+				message: eventNameOrException.message,
+				stack: eventNameOrException.stack,
+				cause: eventNameOrException.cause
+			};
+			const cleanedErrorData = cleanData(errorData, []);
+			// Reconstruct the error object with the cleaned data
+			const cleanedError = new Error(cleanedErrorData.message, {
+				cause: cleanedErrorData.cause
+			});
+			cleanedError.stack = cleanedErrorData.stack;
+			cleanedError.name = cleanedErrorData.name;
+			data = this.mixInCommonPropsAndCleanData(data || {});
+			if (!this._inLoggingOnlyMode) {
+				this._sender.sendErrorData(cleanedError, data);
+			}
+			this._logger.trace('exception', data);
 		}
 	}
 

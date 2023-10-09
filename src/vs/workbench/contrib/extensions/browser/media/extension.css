@@ -260,7 +260,7 @@
 	margin-left: 6px;
 }
 
-.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item > .extension-action.label {
+.extension-list-item .monaco-action-bar > .actions-container > .action-item.action-dropdown-item:not(.empty) > .extension-action.label {
 	border-right-width: 0;
 }
 

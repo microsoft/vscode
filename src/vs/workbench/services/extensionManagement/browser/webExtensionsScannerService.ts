@@ -385,9 +385,10 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			if (webExtension) {
 				result.set(galleryExtension.identifier.id.toLowerCase(), {
 					...webExtension,
+					identifier: { id: webExtension.identifier.id, uuid: galleryExtension.identifier.uuid },
 					readmeUri: galleryExtension.assets.readme ? URI.parse(galleryExtension.assets.readme.uri) : undefined,
 					changelogUri: galleryExtension.assets.changelog ? URI.parse(galleryExtension.assets.changelog.uri) : undefined,
-					metadata: { isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion, isBuiltin: true }
+					metadata: { isPreReleaseVersion: galleryExtension.properties.isPreReleaseVersion, preRelease: galleryExtension.properties.isPreReleaseVersion, isBuiltin: true, pinned: true }
 				});
 			}
 		}
@@ -800,7 +801,7 @@ export class WebExtensionsScannerService extends Disposable implements IWebExten
 			const translations = URI.isUri(nlsURL) ? await this.getTranslations(nlsURL) : nlsURL;
 			const fallbackTranslations = URI.isUri(fallbackNLS) ? await this.getTranslations(fallbackNLS) : fallbackNLS;
 			if (translations) {
-				manifest = localizeManifest(manifest, translations, fallbackTranslations);
+				manifest = localizeManifest(this.logService, manifest, translations, fallbackTranslations);
 			}
 		} catch (error) { /* ignore */ }
 		return manifest;

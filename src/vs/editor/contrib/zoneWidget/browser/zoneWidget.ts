@@ -307,6 +307,10 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		return range.getStartPosition();
 	}
 
+	hasFocus() {
+		return this.domNode.contains(dom.getActiveElement());
+	}
+
 	protected _isShowing: boolean = false;
 
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
@@ -315,6 +319,19 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._showImpl(range, heightInLines);
 		this._isShowing = false;
 		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
+	}
+
+	updatePositionAndHeight(rangeOrPos: IRange | IPosition, heightInLines?: number): void {
+		if (this._viewZone) {
+			rangeOrPos = Range.isIRange(rangeOrPos) ? Range.getStartPosition(rangeOrPos) : rangeOrPos;
+			this._viewZone.afterLineNumber = rangeOrPos.lineNumber;
+			this._viewZone.afterColumn = rangeOrPos.column;
+			this._viewZone.heightInLines = heightInLines ?? this._viewZone.heightInLines;
+
+			this.editor.changeViewZones(accessor => {
+				accessor.layoutZone(this._viewZone!.id);
+			});
+		}
 	}
 
 	hide(): void {

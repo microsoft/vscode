@@ -5,7 +5,7 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions, CommitMessageProvider } from './git';
 import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
@@ -177,6 +177,10 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranches(query, cancellationToken);
 	}
 
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
+	}
+
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
 	}
@@ -337,6 +341,10 @@ export class ApiImpl implements API {
 		return this._model.registerBranchProtectionProvider(root, provider);
 	}
 
+	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable {
+		return this._model.registerCommitMessageProvider(provider);
+	}
+
 	constructor(private _model: Model) { }
 }
 
@@ -363,6 +371,7 @@ function getStatus(status: Status): string {
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
 		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';

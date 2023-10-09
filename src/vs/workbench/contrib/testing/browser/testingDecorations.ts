@@ -44,7 +44,7 @@ import { DefaultGutterClickAction, TestingConfigKeys, getTestingConfiguration } 
 import { Testing, labelForTestInState } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
-import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
+import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { ITestResultService } from 'vs/workbench/contrib/testing/common/testResultService';
 import { ITestService, getContextForTestItem, testsInFile } from 'vs/workbench/contrib/testing/common/testService';
 import { IRichLocation, ITestMessage, ITestRunProfile, IncrementalTestCollectionItem, InternalTestItem, TestDiffOpType, TestMessageType, TestResultItem, TestResultState, TestRunProfileBitset } from 'vs/workbench/contrib/testing/common/testTypes';
@@ -318,47 +318,11 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 				}
 			}
 
-			const lastResult = this.results.results[0];
-			if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
-				for (const task of lastResult.tasks) {
-					for (const m of task.otherMessages) {
-						if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
-							const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
-							newDecorations.addMessage(decoration);
-						}
-					}
-				}
-
-				const messageLines = new Map</* line number */ number, /* last test message */ ITestMessage>();
-				for (const test of lastResult.tests) {
-					for (let taskId = 0; taskId < test.tasks.length; taskId++) {
-						const state = test.tasks[taskId];
-						for (let i = 0; i < state.messages.length; i++) {
-							const m = state.messages[i];
-							if (this.invalidatedMessages.has(m) || m.location?.uri.toString() !== uriStr) {
-								continue;
-							}
-
-							// Only add one message per line number. Overlapping messages
-							// don't appear well, and the peek will show all of them (#134129)
-							const line = m.location.range.startLineNumber;
-							if (messageLines.has(line)) {
-								newDecorations.removeMessage(messageLines.get(line)!);
-							}
-
-							const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
-								type: TestUriType.ResultActualOutput,
-								messageIndex: i,
-								taskIndex: taskId,
-								resultId: lastResult.id,
-								testExtId: test.item.extId,
-							}), model);
-
-							newDecorations.addMessage(decoration);
-							messageLines.set(line, decoration.testMessage);
-						}
-					}
-				}
+			const messageLines = new Set<number>();
+			if (getTestingConfiguration(this.configurationService, TestingConfigKeys.ShowAllMessages)) {
+				this.results.results.forEach(lastResult => this.applyDecorationsFromResult(lastResult, messageLines, uriStr, lastDecorations, model, newDecorations));
+			} else {
+				this.applyDecorationsFromResult(this.results.results[0], messageLines, uriStr, lastDecorations, model, newDecorations);
 			}
 
 			const saveFromRemoval = new Set<string>();
@@ -386,6 +350,47 @@ export class TestingDecorationService extends Disposable implements ITestingDeco
 		});
 
 		return newDecorations || lastDecorations;
+	}
+
+	private applyDecorationsFromResult(lastResult: ITestResult, messageLines: Set<Number>, uriStr: string, lastDecorations: CachedDecorations, model: ITextModel, newDecorations: CachedDecorations) {
+		if (this.testService.showInlineOutput.value && lastResult instanceof LiveTestResult) {
+			for (const task of lastResult.tasks) {
+				for (const m of task.otherMessages) {
+					if (!this.invalidatedMessages.has(m) && m.location?.uri.toString() === uriStr) {
+						const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, undefined, model);
+						newDecorations.addMessage(decoration);
+					}
+				}
+			}
+
+			for (const test of lastResult.tests) {
+				for (let taskId = 0; taskId < test.tasks.length; taskId++) {
+					const state = test.tasks[taskId];
+					for (let i = 0; i < state.messages.length; i++) {
+						const m = state.messages[i];
+						if (this.invalidatedMessages.has(m) || m.location?.uri.toString() !== uriStr) {
+							continue;
+						}
+
+						// Only add one message per line number. Overlapping messages
+						// don't appear well, and the peek will show all of them (#134129)
+						const line = m.location.range.startLineNumber;
+						if (!messageLines.has(line)) {
+							const decoration = lastDecorations.getMessage(m) || this.instantiationService.createInstance(TestMessageDecoration, m, buildTestUri({
+								type: TestUriType.ResultActualOutput,
+								messageIndex: i,
+								taskIndex: taskId,
+								resultId: lastResult.id,
+								testExtId: test.item.extId,
+							}), model);
+
+							newDecorations.addMessage(decoration);
+							messageLines.add(line);
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

@@ -20,6 +20,7 @@ import { HoverAnchor, HoverAnchorType, IEditorHoverParticipant, IEditorHoverRend
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { Dimension } from 'vs/base/browser/dom';
 
 export class ColorHover implements IHoverPart {
 
@@ -181,6 +182,10 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	if (hoverParts.length === 0 || !editor.hasModel()) {
 		return Disposable.None;
 	}
+	if (context.setMinimumDimensions) {
+		const minimumHeight = editor.getOption(EditorOption.lineHeight) + 8;
+		context.setMinimumDimensions(new Dimension(302, minimumHeight));
+	}
 
 	const disposables = new DisposableStore();
 	const colorHover = hoverParts[0];
@@ -189,6 +194,7 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	const widget = disposables.add(new ColorPickerWidget(context.fragment, model, editor.getOption(EditorOption.pixelRatio), themeService, participant instanceof StandaloneColorPickerParticipant));
 	context.setColorPicker(widget);
 
+	let editorUpdatedByColorPicker = false;
 	let range = new Range(colorHover.range.startLineNumber, colorHover.range.startColumn, colorHover.range.endLineNumber, colorHover.range.endColumn);
 	if (participant instanceof StandaloneColorPickerParticipant) {
 		const color = hoverParts[0].model.color;
@@ -200,10 +206,21 @@ function renderHoverParts(participant: ColorHoverParticipant | StandaloneColorPi
 	} else {
 		disposables.add(model.onColorFlushed(async (color: Color) => {
 			await _updateColorPresentations(editorModel, model, color, range, colorHover);
+			editorUpdatedByColorPicker = true;
 			range = _updateEditorModel(editor, range, model, context);
 		}));
 	}
-	disposables.add(model.onDidChangeColor((color: Color) => { _updateColorPresentations(editorModel, model, color, range, colorHover); }));
+	disposables.add(model.onDidChangeColor((color: Color) => {
+		_updateColorPresentations(editorModel, model, color, range, colorHover);
+	}));
+	disposables.add(editor.onDidChangeModelContent((e) => {
+		if (editorUpdatedByColorPicker) {
+			editorUpdatedByColorPicker = false;
+		} else {
+			context.hide();
+			editor.focus();
+		}
+	}));
 	return disposables;
 }
 

@@ -7,8 +7,8 @@ import * as assert from 'assert';
 import { isEqual, isEqualOrParent } from 'vs/base/common/extpath';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
-import { toResource } from 'vs/base/test/common/utils';
-import { FileChangesEvent, FileChangeType, isParent } from 'vs/platform/files/common/files';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
+import { FileChangesEvent, FileChangeType, IFileChange, isParent } from 'vs/platform/files/common/files';
 
 suite('Files', () => {
 
@@ -107,6 +107,51 @@ suite('Files', () => {
 				}
 			}
 		}
+	});
+
+	test('FileChangesEvent - correlation', function () {
+		let changes: IFileChange[] = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED },
+		];
+
+		let event: FileChangesEvent = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), true);
+		assert.strictEqual(event.correlates(100), true);
+		assert.strictEqual(event.correlates(120), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+		assert.strictEqual(event.correlates(120), false);
+
+		changes = [
+			{ resource: toResource.call(this, '/foo/updated.txt'), type: FileChangeType.UPDATED, cId: 100 },
+			{ resource: toResource.call(this, '/foo/otherupdated.txt'), type: FileChangeType.UPDATED, cId: 120 },
+			{ resource: toResource.call(this, '/added.txt'), type: FileChangeType.ADDED, cId: 100 },
+		];
+
+		event = new FileChangesEvent(changes, true);
+		assert.strictEqual(event.hasCorrelation(), false);
+		assert.strictEqual(event.correlates(100), false);
+		assert.strictEqual(event.correlates(120), false);
 	});
 
 	function testIsEqual(testMethod: (pA: string, pB: string, ignoreCase: boolean) => boolean): void {
@@ -249,4 +294,6 @@ suite('Files', () => {
 			assert(!isEqualOrParent('foo/bar/test.ts', 'foo/BAR/test.', true));
 		}
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

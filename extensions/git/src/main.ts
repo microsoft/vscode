@@ -58,7 +58,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 			logger.info(l10n.t('Skipped found git in: "{0}"', gitPath));
 		}
 		return !skip;
-	});
+	}, logger);
 
 	let ipcServer: IPCServer | undefined = undefined;
 
@@ -86,7 +86,7 @@ async function createModel(context: ExtensionContext, logger: LogOutputChannel, 
 		version: info.version,
 		env: environment,
 	});
-	const model = new Model(git, askpass, context.globalState, logger, telemetryReporter);
+	const model = new Model(git, askpass, context.globalState, context.workspaceState, logger, telemetryReporter);
 	disposables.push(model);
 
 	const onRepository = () => commands.executeCommand('setContext', 'gitOpenRepositoryCount', `${model.repositories.length}`);

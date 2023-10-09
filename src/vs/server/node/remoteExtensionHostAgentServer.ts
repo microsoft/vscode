@@ -22,6 +22,7 @@ import * as platform from 'vs/base/common/platform';
 import { createRegExp, escapeRegExpCharacters } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
+import { getOSReleaseInfo } from 'vs/base/node/osReleaseInfo';
 import { findFreePort } from 'vs/base/node/ports';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
@@ -550,7 +551,8 @@ class RemoteExtensionHostAgentServer extends Disposable implements IServerAPI {
 			const socket = net.createConnection(
 				{
 					host: host,
-					port: port
+					port: port,
+					autoSelectFamily: true
 				}, () => {
 					socket.removeListener('error', e);
 					socket.pause();
@@ -788,7 +790,7 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 	const vscodeServerListenTime: number = (<any>global).vscodeServerListenTime;
 	const vscodeServerCodeLoadedTime: number = (<any>global).vscodeServerCodeLoadedTime;
 
-	instantiationService.invokeFunction((accessor) => {
+	instantiationService.invokeFunction(async (accessor) => {
 		const telemetryService = accessor.get(ITelemetryService);
 
 		type ServerStartClassification = {
@@ -811,6 +813,30 @@ export async function createServer(address: string | net.AddressInfo | null, arg
 			codeLoadedTime: vscodeServerCodeLoadedTime,
 			readyTime: currentTime
 		});
+
+		if (platform.isLinux) {
+			const logService = accessor.get(ILogService);
+			const releaseInfo = await getOSReleaseInfo(logService.error.bind(logService));
+			if (releaseInfo) {
+				type ServerPlatformInfoClassification = {
+					platformId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system without any version information.' };
+					platformVersionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system version excluding any name information or release code.' };
+					platformIdLike: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A string identifying the operating system the current OS derivate is closely related to.' };
+					owner: 'deepak1556';
+					comment: 'Provides insight into the distro information on Linux.';
+				};
+				type ServerPlatformInfoEvent = {
+					platformId: string;
+					platformVersionId: string | undefined;
+					platformIdLike: string | undefined;
+				};
+				telemetryService.publicLog2<ServerPlatformInfoEvent, ServerPlatformInfoClassification>('serverPlatformInfo', {
+					platformId: releaseInfo.id,
+					platformVersionId: releaseInfo.version_id,
+					platformIdLike: releaseInfo.id_like
+				});
+			}
+		}
 	});
 
 	if (args['print-startup-performance']) {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, autorun, derived, observableFromEvent, observableSignalFromEvent, observableValue } from 'vs/base/common/observable';
@@ -24,6 +25,7 @@ import { InlineDecorationType } from 'vs/editor/common/viewModel';
 import { GhostText, GhostTextReplacement } from 'vs/editor/contrib/inlineCompletions/browser/ghostText';
 import { ColumnRange, applyObservableDecorations } from 'vs/editor/contrib/inlineCompletions/browser/utils';
 
+export const GHOST_TEXT_DESCRIPTION = 'ghost-text';
 export interface IGhostTextWidgetModel {
 	readonly targetTextModel: IObservable<ITextModel | undefined>;
 	readonly ghostText: IObservable<GhostText | GhostTextReplacement | undefined>;
@@ -31,7 +33,7 @@ export interface IGhostTextWidgetModel {
 }
 
 export class GhostTextWidget extends Disposable {
-	private readonly isDisposed = observableValue('isDisposed', false);
+	private readonly isDisposed = observableValue(this, false);
 	private readonly currentTextModel = observableFromEvent(this.editor.onDidChangeModel, () => this.editor.getModel());
 
 	constructor(
@@ -45,7 +47,7 @@ export class GhostTextWidget extends Disposable {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly uiState = derived('uiState', reader => {
+	private readonly uiState = derived(this, reader => {
 		if (this.isDisposed.read(reader)) {
 			return undefined;
 		}
@@ -99,7 +101,7 @@ export class GhostTextWidget extends Disposable {
 			}
 
 			if (lines.length > 0) {
-				addToAdditionalLines(lines, 'ghost-text');
+				addToAdditionalLines(lines, GHOST_TEXT_DESCRIPTION);
 				if (hiddenTextStartColumn === undefined && part.column <= textBufferLine.length) {
 					hiddenTextStartColumn = part.column;
 				}
@@ -124,7 +126,7 @@ export class GhostTextWidget extends Disposable {
 		};
 	});
 
-	private readonly decorations = derived('decorations', reader => {
+	private readonly decorations = derived(this, reader => {
 		const uiState = this.uiState.read(reader);
 		if (!uiState) {
 			return [];
@@ -150,7 +152,7 @@ export class GhostTextWidget extends Disposable {
 			decorations.push({
 				range: Range.fromPositions(new Position(uiState.lineNumber, p.column)),
 				options: {
-					description: 'ghost-text',
+					description: GHOST_TEXT_DESCRIPTION,
 					after: { content: p.text, inlineClassName: p.preview ? 'ghost-text-decoration-preview' : 'ghost-text-decoration', cursorStops: InjectedTextCursorStops.Left },
 					showIfCollapsed: true,
 				}
@@ -164,7 +166,8 @@ export class GhostTextWidget extends Disposable {
 		new AdditionalLinesWidget(
 			this.editor,
 			this.languageService.languageIdCodec,
-			derived('lines', (reader) => {
+			derived(reader => {
+				/** @description lines */
 				const uiState = this.uiState.read(reader);
 				return uiState ? {
 					lineNumber: uiState.lineNumber,
@@ -203,7 +206,8 @@ class AdditionalLinesWidget extends Disposable {
 	) {
 		super();
 
-		this._register(autorun('update view zone', reader => {
+		this._register(autorun(reader => {
+			/** @description update view zone */
 			const lines = this.lines.read(reader);
 			this.editorOptionsChanged.read(reader);
 
@@ -321,4 +325,4 @@ function renderLines(domNode: HTMLElement, tabSize: number, lines: LineData[], o
 	domNode.innerHTML = trustedhtml as string;
 }
 
-const ttPolicy = window.trustedTypes?.createPolicy('editorGhostText', { createHTML: value => value });
+const ttPolicy = createTrustedTypesPolicy('editorGhostText', { createHTML: value => value });

@@ -4,6 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { registerMainProcessRemoteService } from 'vs/platform/ipc/electron-sandbox/services';
-import { IEncryptionService } from 'vs/workbench/services/encryption/common/encryptionService';
+import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 
 registerMainProcessRemoteService(IEncryptionService, 'encryption');
