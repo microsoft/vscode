@@ -187,6 +187,17 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
 	}
 
+	focusActivityBar(): void {
+		if (this.shouldShowCompositeBar()) {
+			this.focusComositeBar();
+		} else {
+			if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
+				this.layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
+			}
+			this.acitivityBarPart.focus();
+		}
+	}
+
 	private registerGlobalActions() {
 		this._register(registerAction2(
 			class extends Action2 {

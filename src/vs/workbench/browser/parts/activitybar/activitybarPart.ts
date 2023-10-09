@@ -520,7 +520,6 @@ registerAction2(
 
 		async run(accessor: ServicesAccessor): Promise<void> {
 			const layoutService = accessor.get(IWorkbenchLayoutService);
-			layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
 			layoutService.focusPart(Parts.ACTIVITYBAR_PART);
 		}
 	});

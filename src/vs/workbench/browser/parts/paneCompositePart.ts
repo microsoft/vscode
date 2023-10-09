@@ -413,6 +413,10 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		this.hideActiveComposite();
 	}
 
+	protected focusComositeBar(): void {
+		this.paneCompositeBar.value?.focus();
+	}
+
 	override layout(width: number, height: number, top: number, left: number): void {
 		if (!this.layoutService.isVisible(this.partId)) {
 			return;
