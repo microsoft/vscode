@@ -370,7 +370,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 
-		function cursorOnNextLine(terminal: Terminal, lastCommand?: ITerminalCommand): boolean {
+		function cursorOnCorrectLine(lastCommand?: ITerminalCommand): boolean {
 			if (!lastCommand) {
 				return false;
 			}
@@ -389,13 +389,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// Conpty could have the wrong cursor position at this point.
-		const isWrongCursorPosition = !cursorOnNextLine(this._terminal, this.commands.at(-1)) || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
-		if (isWrongCursorPosition) {
+		if (!cursorOnCorrectLine(this.commands.at(-1)) || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute))) {
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
 
-				const correctCursorPosition = cursorOnNextLine(this._terminal, this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
+				const correctCursorPosition = cursorOnCorrectLine(this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
 				if (correctCursorPosition) {
 					break;
 				}
