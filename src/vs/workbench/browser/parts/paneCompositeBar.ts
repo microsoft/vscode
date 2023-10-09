@@ -38,13 +38,14 @@ interface IPlaceholderViewContainer {
 	readonly themeIcon?: ThemeIcon;
 	readonly isBuiltin?: boolean;
 	readonly views?: { when?: string }[];
+	readonly visible?: boolean;
 }
 
 interface IPinnedViewContainer {
 	readonly id: string;
 	readonly pinned: boolean;
 	readonly order?: number;
-	// TODO @sandy081: Remove this after a while. This is not used and is only here to be compatible with old cached state.
+	// TODO @sandy081: Remove this after a while. Migrated to visible in IPlaceholderViewContainer
 	readonly visible: boolean;
 }
 
@@ -54,7 +55,6 @@ interface ICachedViewContainer {
 	icon?: URI | ThemeIcon;
 	readonly pinned: boolean;
 	readonly order?: number;
-	// TODO @sandy081: Remove this after a while. This is not used and is only here to be compatible with old cached state.
 	visible: boolean;
 	isBuiltin?: boolean;
 	views?: { when?: string }[];
@@ -394,7 +394,7 @@ export class PaneCompositeBar extends Disposable {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet
-			if (!viewContainer && cachedViewContainer?.isBuiltin) {
+			if (!viewContainer && cachedViewContainer?.isBuiltin && cachedViewContainer?.visible) {
 				return false;
 			}
 
@@ -507,7 +507,6 @@ export class PaneCompositeBar extends Disposable {
 
 		const compositeItems = this.compositeBar.getCompositeBarItems();
 		for (const compositeItem of compositeItems) {
-			const cachedViewContainer = this.cachedViewContainers.find(({ id }) => id === compositeItem.id);
 			const viewContainer = this.getViewContainer(compositeItem.id);
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
@@ -522,11 +521,11 @@ export class PaneCompositeBar extends Disposable {
 					views,
 					pinned: compositeItem.pinned,
 					order: compositeItem.order,
-					visible: cachedViewContainer?.visible ?? compositeItem.visible,
+					visible: compositeItem.visible,
 					isBuiltin: !viewContainer.extensionId
 				});
 			} else {
-				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: !!cachedViewContainer?.visible, isBuiltin: false });
+				state.push({ id: compositeItem.id, name: compositeItem.name, pinned: compositeItem.pinned, order: compositeItem.order, visible: false, isBuiltin: false });
 			}
 		}
 
@@ -538,8 +537,9 @@ export class PaneCompositeBar extends Disposable {
 		if (this._cachedViewContainers === undefined) {
 			this._cachedViewContainers = this.getPinnedViewContainers();
 			for (const placeholderViewContainer of this.getPlaceholderViewContainers()) {
-				const cachedViewContainer = this._cachedViewContainers.filter(cached => cached.id === placeholderViewContainer.id)[0];
+				const cachedViewContainer = this._cachedViewContainers.find(cached => cached.id === placeholderViewContainer.id);
 				if (cachedViewContainer) {
+					cachedViewContainer.visible = placeholderViewContainer.visible ?? cachedViewContainer.visible;
 					cachedViewContainer.name = placeholderViewContainer.name;
 					cachedViewContainer.icon = placeholderViewContainer.themeIcon ? placeholderViewContainer.themeIcon :
 						placeholderViewContainer.iconUrl ? URI.revive(placeholderViewContainer.iconUrl) : undefined;
@@ -556,19 +556,21 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private storeCachedViewContainersState(cachedViewContainers: ICachedViewContainer[]): void {
-		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, visible, order }) => (<IPinnedViewContainer>{
+		const pinnedViewContainers = this.getPinnedViewContainers();
+		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, order }) => (<IPinnedViewContainer>{
 			id,
 			pinned,
-			visible,
+			visible: pinnedViewContainers.find(({ id: pinnedId }) => pinnedId === id)?.visible,
 			order
 		})));
 
-		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => (<IPlaceholderViewContainer>{
+		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, visible, isBuiltin }) => (<IPlaceholderViewContainer>{
 			id,
 			iconUrl: URI.isUri(icon) ? icon : undefined,
 			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
 			isBuiltin,
+			visible,
 			views
 		})));
 	}
