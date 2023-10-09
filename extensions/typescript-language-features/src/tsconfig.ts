@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as vscode from 'vscode';
+import { TypeScriptServiceConfiguration } from './configuration/configuration';
+import { API } from './tsServer/api';
 import type * as Proto from './tsServer/protocol/protocol';
 import { ITypeScriptServiceClient, ServerResponse } from './typescriptService';
 import { nulToken } from './utils/cancellation';
-import { TypeScriptServiceConfiguration } from './configuration/configuration';
 
 
 export const enum ProjectType {
@@ -20,18 +20,21 @@ export function isImplicitProjectConfigFile(configFileName: string) {
 	return configFileName.startsWith('/dev/null/');
 }
 
-const defaultProjectConfig = Object.freeze<Proto.ExternalProjectCompilerOptions>({
-	module: 'ESNext' as Proto.ModuleKind,
-	moduleResolution: 'Node' as Proto.ModuleResolutionKind,
-	target: 'ES2020' as Proto.ScriptTarget,
-	jsx: 'react' as Proto.JsxEmit,
-});
-
 export function inferredProjectCompilerOptions(
+	version: API,
 	projectType: ProjectType,
 	serviceConfig: TypeScriptServiceConfiguration,
 ): Proto.ExternalProjectCompilerOptions {
-	const projectConfig = { ...defaultProjectConfig };
+	const projectConfig: Proto.ExternalProjectCompilerOptions = {
+		module: 'ESNext' as Proto.ModuleKind,
+		moduleResolution: (version.gte(API.v500) ? 'Bundler' : 'Node') as Proto.ModuleResolutionKind,
+		target: 'ES2022' as Proto.ScriptTarget,
+		jsx: 'react' as Proto.JsxEmit,
+	};
+
+	if (version.gte(API.v500)) {
+		projectConfig.allowImportingTsExtensions = true;
+	}
 
 	if (serviceConfig.implicitProjectConfiguration.checkJs) {
 		projectConfig.checkJs = true;
@@ -52,7 +55,6 @@ export function inferredProjectCompilerOptions(
 		projectConfig.strictFunctionTypes = true;
 	}
 
-
 	if (serviceConfig.implicitProjectConfiguration.module) {
 		projectConfig.module = serviceConfig.implicitProjectConfiguration.module as Proto.ModuleKind;
 	}
@@ -69,10 +71,11 @@ export function inferredProjectCompilerOptions(
 }
 
 function inferredProjectConfigSnippet(
+	version: API,
 	projectType: ProjectType,
 	config: TypeScriptServiceConfiguration
 ) {
-	const baseConfig = inferredProjectCompilerOptions(projectType, config);
+	const baseConfig = inferredProjectCompilerOptions(version, projectType, config);
 	const compilerOptions = Object.keys(baseConfig).map(key => `"${key}": ${JSON.stringify(baseConfig[key])}`);
 	return new vscode.SnippetString(`{
 	"compilerOptions": {
@@ -86,11 +89,12 @@ function inferredProjectConfigSnippet(
 }
 
 export async function openOrCreateConfig(
+	version: API,
 	projectType: ProjectType,
-	rootPath: string,
+	rootPath: vscode.Uri,
 	configuration: TypeScriptServiceConfiguration,
 ): Promise<vscode.TextEditor | null> {
-	const configFile = vscode.Uri.file(path.join(rootPath, projectType === ProjectType.TypeScript ? 'tsconfig.json' : 'jsconfig.json'));
+	const configFile = vscode.Uri.joinPath(rootPath, projectType === ProjectType.TypeScript ? 'tsconfig.json' : 'jsconfig.json');
 	const col = vscode.window.activeTextEditor?.viewColumn;
 	try {
 		const doc = await vscode.workspace.openTextDocument(configFile);
@@ -99,7 +103,7 @@ export async function openOrCreateConfig(
 		const doc = await vscode.workspace.openTextDocument(configFile.with({ scheme: 'untitled' }));
 		const editor = await vscode.window.showTextDocument(doc, col);
 		if (editor.document.getText().length === 0) {
-			await editor.insertSnippet(inferredProjectConfigSnippet(projectType, configuration));
+			await editor.insertSnippet(inferredProjectConfigSnippet(version, projectType, configuration));
 		}
 		return editor;
 	}
@@ -108,11 +112,11 @@ export async function openOrCreateConfig(
 export async function openProjectConfigOrPromptToCreate(
 	projectType: ProjectType,
 	client: ITypeScriptServiceClient,
-	rootPath: string,
-	configFileName: string,
+	rootPath: vscode.Uri,
+	configFilePath: string,
 ): Promise<void> {
-	if (!isImplicitProjectConfigFile(configFileName)) {
-		const doc = await vscode.workspace.openTextDocument(configFileName);
+	if (!isImplicitProjectConfigFile(configFilePath)) {
+		const doc = await vscode.workspace.openTextDocument(client.toResource(configFilePath));
 		vscode.window.showTextDocument(doc, vscode.window.activeTextEditor?.viewColumn);
 		return;
 	}
@@ -132,7 +136,7 @@ export async function openProjectConfigOrPromptToCreate(
 
 	switch (selected) {
 		case CreateConfigItem:
-			openOrCreateConfig(projectType, rootPath, client.configuration);
+			openOrCreateConfig(client.apiVersion, projectType, rootPath, client.configuration);
 			return;
 	}
 }

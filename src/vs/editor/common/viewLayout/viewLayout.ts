@@ -156,6 +156,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 
 	private readonly _configuration: IEditorConfiguration;
 	private readonly _linesLayout: LinesLayout;
+	private _maxLineWidth: number;
+	private _overlayWidgetsMinWidth: number;
 
 	private readonly _scrollable: EditorScrollable;
 	public readonly onDidScroll: Event<ScrollEvent>;
@@ -170,6 +172,8 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		const padding = options.get(EditorOption.padding);
 
 		this._linesLayout = new LinesLayout(lineCount, options.get(EditorOption.lineHeight), padding.top, padding.bottom);
+		this._maxLineWidth = 0;
+		this._overlayWidgetsMinWidth = 0;
 
 		this._scrollable = this._register(new EditorScrollable(0, scheduleAtNextAnimationFrame));
 		this._configureSmoothScrollDuration();
@@ -308,8 +312,9 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		);
 	}
 
-	private _computeContentWidth(maxLineWidth: number): number {
+	private _computeContentWidth(): number {
 		const options = this._configuration.options;
+		const maxLineWidth = this._maxLineWidth;
 		const wrappingInfo = options.get(EditorOption.wrappingInfo);
 		const fontInfo = options.get(EditorOption.fontInfo);
 		const layoutInfo = options.get(EditorOption.layoutInfo);
@@ -326,16 +331,25 @@ export class ViewLayout extends Disposable implements IViewLayout {
 		} else {
 			const extraHorizontalSpace = options.get(EditorOption.scrollBeyondLastColumn) * fontInfo.typicalHalfwidthCharacterWidth;
 			const whitespaceMinWidth = this._linesLayout.getWhitespaceMinWidth();
-			return Math.max(maxLineWidth + extraHorizontalSpace + layoutInfo.verticalScrollbarWidth, whitespaceMinWidth);
+			return Math.max(maxLineWidth + extraHorizontalSpace + layoutInfo.verticalScrollbarWidth, whitespaceMinWidth, this._overlayWidgetsMinWidth);
 		}
 	}
 
 	public setMaxLineWidth(maxLineWidth: number): void {
+		this._maxLineWidth = maxLineWidth;
+		this._updateContentWidth();
+	}
+
+	public setOverlayWidgetsMinWidth(maxMinWidth: number): void {
+		this._overlayWidgetsMinWidth = maxMinWidth;
+		this._updateContentWidth();
+	}
+
+	private _updateContentWidth(): void {
 		const scrollDimensions = this._scrollable.getScrollDimensions();
-		// const newScrollWidth = ;
 		this._scrollable.setScrollDimensions(new EditorScrollDimensions(
 			scrollDimensions.width,
-			this._computeContentWidth(maxLineWidth),
+			this._computeContentWidth(),
 			scrollDimensions.height,
 			scrollDimensions.contentHeight
 		));

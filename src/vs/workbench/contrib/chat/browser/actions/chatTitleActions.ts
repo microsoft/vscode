@@ -4,15 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from 'vs/base/common/codicons';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { marked } from 'vs/base/common/marked/marked';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -21,13 +24,13 @@ import { NOTEBOOK_IS_ACTIVE_EDITOR } from 'vs/workbench/contrib/notebook/common/
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export function registerChatTitleActions() {
-	registerAction2(class VoteUpAction extends Action2 {
+	registerAction2(class MarkHelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteUp',
+				id: 'workbench.action.chat.markHelpful',
 				title: {
-					value: localize('interactive.voteUp.label', "Vote Up"),
-					original: 'Vote Up'
+					value: localize('interactive.helpful.label', "Helpful"),
+					original: 'Helpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -61,13 +64,13 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class VoteDownAction extends Action2 {
+	registerAction2(class MarkUnhelpfulAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.voteDown',
+				id: 'workbench.action.chat.markUnhelpful',
 				title: {
-					value: localize('interactive.voteDown.label', "Vote Down"),
-					original: 'Vote Down'
+					value: localize('interactive.unhelpful.label', "Unhelpful"),
+					original: 'Unhelpful'
 				},
 				f1: false,
 				category: CHAT_CATEGORY,
@@ -116,7 +119,7 @@ export function registerChatTitleActions() {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					isHiddenByDefault: true,
-					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE)
+					when: ContextKeyExpr.and(NOTEBOOK_IS_ACTIVE_EDITOR, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED.negate())
 				}
 			});
 		}
@@ -140,7 +143,7 @@ export function registerChatTitleActions() {
 					return;
 				}
 
-				const value = item.response.value;
+				const value = item.response.asString();
 				const splitContents = splitMarkdownAndCodeBlocks(value);
 
 				const focusRange = notebookEditor.getFocus();
@@ -188,6 +191,14 @@ export function registerChatTitleActions() {
 				f1: false,
 				category: CHAT_CATEGORY,
 				icon: Codicon.x,
+				keybinding: {
+					primary: KeyCode.Delete,
+					mac: {
+						primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+					},
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_IN_CHAT_INPUT.negate()),
+					weight: KeybindingWeight.WorkbenchContrib,
+				},
 				menu: {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
@@ -198,14 +209,19 @@ export function registerChatTitleActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
-			const item = args[0];
+			let item = args[0];
 			if (!isRequestVM(item)) {
-				return;
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const widget = chatWidgetService.lastFocusedWidget;
+				item = widget?.getFocus();
 			}
 
-			const chatService = accessor.get(IChatService);
-			if (item.providerRequestId) {
-				chatService.removeRequest(item.sessionId, item.providerRequestId);
+			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
+				isResponseVM(item) ? item.providerResponseId : undefined;
+
+			if (providerRequestId) {
+				const chatService = accessor.get(IChatService);
+				chatService.removeRequest(item.sessionId, providerRequestId);
 			}
 		}
 	});

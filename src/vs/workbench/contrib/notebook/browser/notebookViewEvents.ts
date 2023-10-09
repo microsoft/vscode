@@ -12,6 +12,7 @@ export interface NotebookLayoutInfo {
 	height: number;
 	scrollHeight: number;
 	fontInfo: FontInfo;
+	stickyHeight: number;
 }
 
 export interface CellViewModelStateChangeEvent {

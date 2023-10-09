@@ -20,6 +20,6 @@ import './toggleMultiCursorModifier';
 import './toggleRenderControlCharacter';
 import './toggleRenderWhitespace';
 import './toggleWordWrap';
-import './untitledTextEditorHint/untitledTextEditorHint';
+import './emptyTextEditorHint/emptyTextEditorHint';
 import './workbenchReferenceSearch';
 import './editorLineNumberMenu';

@@ -30,13 +30,19 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
+	showHover(options: Readonly<IHoverOptions>, focus?: boolean): IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
 	 * "locked" via the alt/option key.
 	 */
 	hideHover(): void;
+
+	/**
+	 * This should only be used until we have the ability to show multiple context views
+	 * simultaneously. #188822
+	 */
+	showAndFocusLastHover(): void;
 }
 
 export interface IHoverWidget extends IDisposable {
@@ -139,6 +145,7 @@ export interface IHoverOptions {
 	 * Whether to trap focus in the following ways:
 	 * - When the hover closes, focus goes to the element that had focus before the hover opened
 	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
+	 * Note that this is overridden to true when in screen reader optimized mode.
 	 */
 	trapFocus?: boolean;
 

@@ -114,6 +114,7 @@ export class MarkdownItEngine implements IMdParser {
 		_contributionProvider.onContributionsChanged(() => {
 			// Markdown plugin contributions may have changed
 			this._md = undefined;
+			this._tokenCache.clean();
 		});
 	}
 

@@ -29,6 +29,10 @@ export function isSupportedClient(uri: Uri): boolean {
 export function isSupportedTarget(type: AuthProviderType, gheUri?: Uri): boolean {
 	return (
 		type === AuthProviderType.github ||
-		/\.ghe\.com$/.test(gheUri!.authority)
+		isHostedGitHubEnterprise(gheUri!)
 	);
+}
+
+export function isHostedGitHubEnterprise(uri: Uri): boolean {
+	return /\.ghe\.com$/.test(uri.authority);
 }

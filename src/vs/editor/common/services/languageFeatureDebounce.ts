@@ -8,6 +8,7 @@ import { LRUCache } from 'vs/base/common/map';
 import { clamp, MovingAverage, SlidingWindowAverage } from 'vs/base/common/numbers';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ITextModel } from 'vs/editor/common/model';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -39,6 +40,21 @@ namespace IdentityHash {
 			_hashes.set(obj, value);
 		}
 		return value;
+	}
+}
+
+class NullDebounceInformation implements IFeatureDebounceInformation {
+
+	constructor(private readonly _default: number) { }
+
+	get(_model: ITextModel): number {
+		return this._default;
+	}
+	update(_model: ITextModel, _value: number): number {
+		return this._default;
+	}
+	default(): number {
+		return this._default;
 	}
 }
 
@@ -100,10 +116,15 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 
 	declare _serviceBrand: undefined;
 
-	private readonly _data = new Map<string, FeatureDebounceInformation>();
+	private readonly _data = new Map<string, IFeatureDebounceInformation>();
+	private readonly _isDev: boolean;
 
-	constructor(@ILogService private readonly _logService: ILogService) {
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+		@IEnvironmentService envService: IEnvironmentService,
+	) {
 
+		this._isDev = envService.isExtensionDevelopment || !envService.isBuilt;
 	}
 
 	for(feature: LanguageFeatureRegistry<object>, name: string, config?: { min?: number; max?: number; key?: string }): IFeatureDebounceInformation {
@@ -113,14 +134,19 @@ export class LanguageFeatureDebounceService implements ILanguageFeatureDebounceS
 		const key = `${IdentityHash.of(feature)},${min}${extra ? ',' + extra : ''}`;
 		let info = this._data.get(key);
 		if (!info) {
-			info = new FeatureDebounceInformation(
-				this._logService,
-				name,
-				feature,
-				(this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
-				min,
-				max
-			);
+			if (!this._isDev) {
+				this._logService.debug(`[DEBOUNCE: ${name}] is disabled in developed mode`);
+				info = new NullDebounceInformation(min * 1.5);
+			} else {
+				info = new FeatureDebounceInformation(
+					this._logService,
+					name,
+					feature,
+					(this._overallAverage() | 0) || (min * 1.5), // default is overall default or derived from min-value
+					min,
+					max
+				);
+			}
 			this._data.set(key, info);
 		}
 		return info;

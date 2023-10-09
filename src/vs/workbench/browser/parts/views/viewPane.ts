@@ -9,7 +9,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { asCssVariable, foreground } from 'vs/platform/theme/common/colorRegistry';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { after, append, $, trackFocus, EventType, addDisposableListener, createCSSRule, asCSSUrl, Dimension, reset, asCssValueWithDefault } from 'vs/base/browser/dom';
-import { IDisposable, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -47,11 +47,22 @@ import { BaseActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { defaultButtonStyles, defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyles';
 
+export enum ViewPaneShowActions {
+	/** Show the actions when the view is hovered. This is the default behavior. */
+	Default,
+
+	/** Always shows the actions when the view is expanded */
+	WhenExpanded,
+
+	/** Always shows the actions */
+	Always,
+}
+
 export interface IViewPaneOptions extends IPaneOptions {
-	id: string;
-	showActionsAlways?: boolean;
-	titleMenuId?: MenuId;
-	donotForwardArgs?: boolean;
+	readonly id: string;
+	readonly showActions?: ViewPaneShowActions;
+	readonly titleMenuId?: MenuId;
+	readonly donotForwardArgs?: boolean;
 }
 
 export interface IFilterViewPaneOptions extends IViewPaneOptions {
@@ -77,36 +88,93 @@ interface IItem {
 	visible: boolean;
 }
 
-class ViewWelcomeController {
+interface IViewWelcomeDelegate {
+	readonly id: string;
+	readonly onDidChangeViewWelcomeState: Event<void>;
+	shouldShowWelcome(): boolean;
+}
 
-	private _onDidChange = new Emitter<void>();
-	readonly onDidChange = this._onDidChange.event;
+class ViewWelcomeController {
 
 	private defaultItem: IItem | undefined;
 	private items: IItem[] = [];
-	get contents(): IViewContentDescriptor[] {
-		const visibleItems = this.items.filter(v => v.visible);
 
-		if (visibleItems.length === 0 && this.defaultItem) {
-			return [this.defaultItem.descriptor];
-		}
+	get enabled(): boolean { return this._enabled; }
+	private _enabled: boolean = false;
+	private element: HTMLElement | undefined;
+	private scrollableElement: DomScrollableElement | undefined;
 
-		return visibleItems.map(v => v.descriptor);
-	}
-
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
+	private readonly enabledDisposables = this.disposables.add(new DisposableStore());
+	private readonly renderDisposables = this.disposables.add(new DisposableStore());
 
 	constructor(
-		private id: string,
+		private readonly container: HTMLElement,
+		private readonly delegate: IViewWelcomeDelegate,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IOpenerService protected openerService: IOpenerService,
+		@ITelemetryService protected telemetryService: ITelemetryService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
-		contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.disposables);
-		Event.filter(viewsRegistry.onDidChangeViewWelcomeContent, id => id === this.id)(this.onDidChangeViewWelcomeContent, this, this.disposables);
+		this.delegate.onDidChangeViewWelcomeState(this.onDidChangeViewWelcomeState, this, this.disposables);
+		this.onDidChangeViewWelcomeState();
+	}
+
+	layout(height: number, width: number) {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.style.height = `${height}px`;
+		this.element!.style.width = `${width}px`;
+		this.element!.classList.toggle('wide', width > 640);
+		this.scrollableElement!.scanDomNode();
+	}
+
+	focus() {
+		if (!this._enabled) {
+			return;
+		}
+
+		this.element!.focus();
+	}
+
+	private onDidChangeViewWelcomeState(): void {
+		const enabled = this.delegate.shouldShowWelcome();
+
+		if (this._enabled === enabled) {
+			return;
+		}
+
+		this._enabled = enabled;
+
+		if (!enabled) {
+			this.enabledDisposables.clear();
+			return;
+		}
+
+		this.container.classList.add('welcome');
+		const viewWelcomeContainer = append(this.container, $('.welcome-view'));
+		this.element = $('.welcome-view-content', { tabIndex: 0 });
+		this.scrollableElement = new DomScrollableElement(this.element, { alwaysConsumeMouseWheel: true, horizontal: ScrollbarVisibility.Hidden, vertical: ScrollbarVisibility.Visible, });
+		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
+
+		this.enabledDisposables.add(toDisposable(() => {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.dispose();
+			viewWelcomeContainer.remove();
+			this.scrollableElement = undefined;
+			this.element = undefined;
+		}));
+
+		this.contextKeyService.onDidChangeContext(this.onDidChangeContext, this, this.enabledDisposables);
+		Event.chain(viewsRegistry.onDidChangeViewWelcomeContent, $ => $.filter(id => id === this.delegate.id))
+			(this.onDidChangeViewWelcomeContent, this, this.enabledDisposables);
 		this.onDidChangeViewWelcomeContent();
 	}
 
 	private onDidChangeViewWelcomeContent(): void {
-		const descriptors = viewsRegistry.getViewWelcomeContent(this.id);
+		const descriptors = viewsRegistry.getViewWelcomeContent(this.delegate.id);
 
 		this.items = [];
 
@@ -119,7 +187,7 @@ class ViewWelcomeController {
 			}
 		}
 
-		this._onDidChange.fire();
+		this.render();
 	}
 
 	private onDidChangeContext(): void {
@@ -141,8 +209,88 @@ class ViewWelcomeController {
 		}
 
 		if (didChange) {
-			this._onDidChange.fire();
+			this.render();
 		}
+	}
+
+	private render(): void {
+		this.renderDisposables.clear();
+		this.element!.innerText = '';
+
+		const contents = this.getContentDescriptors();
+
+		if (contents.length === 0) {
+			this.container.classList.remove('welcome');
+			this.scrollableElement!.scanDomNode();
+			return;
+		}
+
+		for (const { content, precondition } of contents) {
+			const lines = content.split('\n');
+
+			for (let line of lines) {
+				line = line.trim();
+
+				if (!line) {
+					continue;
+				}
+
+				const linkedText = parseLinkedText(line);
+
+				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
+					const node = linkedText.nodes[0];
+					const buttonContainer = append(this.element!, $('.button-container'));
+					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
+					button.label = node.label;
+					button.onDidClick(_ => {
+						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.delegate.id, uri: node.href });
+						this.openerService.open(node.href, { allowCommands: true });
+					}, null, this.renderDisposables);
+					this.renderDisposables.add(button);
+
+					if (precondition) {
+						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
+						updateEnablement();
+
+						const keys = new Set(precondition.keys());
+						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+						onDidChangeContext(updateEnablement, null, this.renderDisposables);
+					}
+				} else {
+					const p = append(this.element!, $('p'));
+
+					for (const node of linkedText.nodes) {
+						if (typeof node === 'string') {
+							append(p, document.createTextNode(node));
+						} else {
+							const link = this.renderDisposables.add(this.instantiationService.createInstance(Link, p, node, {}));
+
+							if (precondition && node.href.startsWith('command:')) {
+								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
+								updateEnablement();
+
+								const keys = new Set(precondition.keys());
+								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
+								onDidChangeContext(updateEnablement, null, this.renderDisposables);
+							}
+						}
+					}
+				}
+			}
+		}
+
+		this.container.classList.add('welcome');
+		this.scrollableElement!.scanDomNode();
+	}
+
+	private getContentDescriptors(): IViewContentDescriptor[] {
+		const visibleItems = this.items.filter(v => v.visible);
+
+		if (visibleItems.length === 0 && this.defaultItem) {
+			return [this.defaultItem.descriptor];
+		}
+
+		return visibleItems.map(v => v.descriptor);
 	}
 
 	dispose(): void {
@@ -188,17 +336,13 @@ export abstract class ViewPane extends Pane implements IView {
 	private progressIndicator!: IProgressIndicator;
 
 	private toolbar?: WorkbenchToolBar;
-	private readonly showActionsAlways: boolean = false;
+	private readonly showActions: ViewPaneShowActions;
 	private headerContainer?: HTMLElement;
 	private titleContainer?: HTMLElement;
 	private titleDescriptionContainer?: HTMLElement;
 	private iconContainer?: HTMLElement;
 	protected twistiesContainer?: HTMLElement;
-
-	private bodyContainer!: HTMLElement;
-	private viewWelcomeContainer!: HTMLElement;
-	private viewWelcomeDisposable: IDisposable = Disposable.None;
-	private viewWelcomeController: ViewWelcomeController;
+	private viewWelcomeController!: ViewWelcomeController;
 
 	protected readonly scopedContextKeyService: IContextKeyService;
 
@@ -219,17 +363,15 @@ export abstract class ViewPane extends Pane implements IView {
 		this.id = options.id;
 		this._title = options.title;
 		this._titleDescription = options.titleDescription;
-		this.showActionsAlways = !!options.showActionsAlways;
+		this.showActions = options.showActions ?? ViewPaneShowActions.Default;
 
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this.element));
 		this.scopedContextKeyService.createKey('view', this.id);
 		const viewLocationKey = this.scopedContextKeyService.createKey('viewLocation', ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!));
 		this._register(Event.filter(viewDescriptorService.onDidChangeLocation, e => e.views.some(view => view.id === this.id))(() => viewLocationKey.set(ViewContainerLocationToString(viewDescriptorService.getViewLocationById(this.id)!))));
 
-		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs }));
+		this.menuActions = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])).createInstance(CompositeMenuActions, options.titleMenuId ?? MenuId.ViewTitle, MenuId.ViewTitleContext, { shouldForwardArgs: !options.donotForwardArgs, renderShortTitle: true }));
 		this._register(this.menuActions.onDidChange(() => this.updateActions()));
-
-		this.viewWelcomeController = new ViewWelcomeController(this.id, contextKeyService);
 	}
 
 	override get headerVisible(): boolean {
@@ -288,7 +430,8 @@ export abstract class ViewPane extends Pane implements IView {
 		this.renderHeaderTitle(container, this.title);
 
 		const actions = append(container, $('.actions'));
-		actions.classList.toggle('show', this.showActionsAlways);
+		actions.classList.toggle('show-always', this.showActions === ViewPaneShowActions.Always);
+		actions.classList.toggle('show-expanded', this.showActions === ViewPaneShowActions.WhenExpanded);
 		this.toolbar = this.instantiationService.createInstance(WorkbenchToolBar, actions, {
 			orientation: ActionsOrientation.HORIZONTAL,
 			actionViewItemProvider: action => this.getActionViewItem(action),
@@ -422,31 +565,12 @@ export abstract class ViewPane extends Pane implements IView {
 		return title;
 	}
 
-	private scrollableElement!: DomScrollableElement;
-
 	protected renderBody(container: HTMLElement): void {
-		this.bodyContainer = container;
-
-		const viewWelcomeContainer = append(container, $('.welcome-view'));
-		this.viewWelcomeContainer = $('.welcome-view-content', { tabIndex: 0 });
-		this.scrollableElement = this._register(new DomScrollableElement(this.viewWelcomeContainer, {
-			alwaysConsumeMouseWheel: true,
-			horizontal: ScrollbarVisibility.Hidden,
-			vertical: ScrollbarVisibility.Visible,
-		}));
-
-		append(viewWelcomeContainer, this.scrollableElement.getDomNode());
-
-		const onViewWelcomeChange = Event.any(this.viewWelcomeController.onDidChange, this.onDidChangeViewWelcomeState);
-		this._register(onViewWelcomeChange(this.updateViewWelcome, this));
-		this.updateViewWelcome();
+		this.viewWelcomeController = this._register(new ViewWelcomeController(container, this, this.instantiationService, this.openerService, this.telemetryService, this.contextKeyService));
 	}
 
 	protected layoutBody(height: number, width: number): void {
-		this.viewWelcomeContainer.style.height = `${height}px`;
-		this.viewWelcomeContainer.style.width = `${width}px`;
-		this.viewWelcomeContainer.classList.toggle('wide', width > 640);
-		this.scrollableElement.scanDomNode();
+		this.viewWelcomeController.layout(height, width);
 	}
 
 	onDidScrollRoot() {
@@ -489,8 +613,8 @@ export abstract class ViewPane extends Pane implements IView {
 	}
 
 	focus(): void {
-		if (this.shouldShowWelcome()) {
-			this.viewWelcomeContainer.focus();
+		if (this.viewWelcomeController.enabled) {
+			this.viewWelcomeController.focus();
 		} else if (this.element) {
 			this.element.focus();
 			this._onDidFocus.fire();
@@ -551,89 +675,6 @@ export abstract class ViewPane extends Pane implements IView {
 
 	saveState(): void {
 		// Subclasses to implement for saving state
-	}
-
-	private updateViewWelcome(): void {
-		this.viewWelcomeDisposable.dispose();
-
-		if (!this.shouldShowWelcome()) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const contents = this.viewWelcomeController.contents;
-
-		if (contents.length === 0) {
-			this.bodyContainer.classList.remove('welcome');
-			this.viewWelcomeContainer.innerText = '';
-			this.scrollableElement.scanDomNode();
-			return;
-		}
-
-		const disposables = new DisposableStore();
-		this.bodyContainer.classList.add('welcome');
-		this.viewWelcomeContainer.innerText = '';
-
-		for (const { content, precondition } of contents) {
-			const lines = content.split('\n');
-
-			for (let line of lines) {
-				line = line.trim();
-
-				if (!line) {
-					continue;
-				}
-
-				const linkedText = parseLinkedText(line);
-
-				if (linkedText.nodes.length === 1 && typeof linkedText.nodes[0] !== 'string') {
-					const node = linkedText.nodes[0];
-					const buttonContainer = append(this.viewWelcomeContainer, $('.button-container'));
-					const button = new Button(buttonContainer, { title: node.title, supportIcons: true, ...defaultButtonStyles });
-					button.label = node.label;
-					button.onDidClick(_ => {
-						this.telemetryService.publicLog2<{ viewId: string; uri: string }, WelcomeActionClassification>('views.welcomeAction', { viewId: this.id, uri: node.href });
-						this.openerService.open(node.href, { allowCommands: true });
-					}, null, disposables);
-					disposables.add(button);
-
-					if (precondition) {
-						const updateEnablement = () => button.enabled = this.contextKeyService.contextMatchesRules(precondition);
-						updateEnablement();
-
-						const keys = new Set();
-						precondition.keys().forEach(key => keys.add(key));
-						const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-						onDidChangeContext(updateEnablement, null, disposables);
-					}
-				} else {
-					const p = append(this.viewWelcomeContainer, $('p'));
-
-					for (const node of linkedText.nodes) {
-						if (typeof node === 'string') {
-							append(p, document.createTextNode(node));
-						} else {
-							const link = disposables.add(this.instantiationService.createInstance(Link, p, node, {}));
-
-							if (precondition && node.href.startsWith('command:')) {
-								const updateEnablement = () => link.enabled = this.contextKeyService.contextMatchesRules(precondition);
-								updateEnablement();
-
-								const keys = new Set();
-								precondition.keys().forEach(key => keys.add(key));
-								const onDidChangeContext = Event.filter(this.contextKeyService.onDidChangeContext, e => e.affectsSome(keys));
-								onDidChangeContext(updateEnablement, null, disposables);
-							}
-						}
-					}
-				}
-			}
-		}
-
-		this.scrollableElement.scanDomNode();
-		this.viewWelcomeDisposable = disposables;
 	}
 
 	shouldShowWelcome(): boolean {

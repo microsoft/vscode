@@ -55,7 +55,8 @@ import { SuggestEnabledInput } from 'vs/workbench/contrib/codeEditor/browser/sug
 import { CompletionItemKind } from 'vs/editor/common/languages';
 import { settingsTextInputBorder } from 'vs/workbench/contrib/preferences/common/settingsEditorColorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityContribution';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 
 const $ = DOM.$;
 
@@ -134,6 +135,23 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		this.overflowWidgetsDomNode = $('.keybindings-overflow-widgets-container.monaco-editor');
 	}
 
+	override create(parent: HTMLElement): void {
+		super.create(parent);
+		this._register(registerNavigableContainer({
+			focusNotifiers: [this],
+			focusNextWidget: () => {
+				if (this.searchWidget.hasFocus()) {
+					this.focusKeybindings();
+				}
+			},
+			focusPreviousWidget: () => {
+				if (!this.searchWidget.hasFocus()) {
+					this.focusSearch();
+				}
+			}
+		}));
+	}
+
 	protected createEditor(parent: HTMLElement): void {
 		const keybindingsEditorElement = DOM.append(parent, $('div', { class: 'keybindings-editor' }));
 
@@ -174,6 +192,8 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 		} else if (!isIOS) {
 			this.searchWidget.focus();
 		}
+
+		super.focus();
 	}
 
 	get activeKeybindingEntry(): IKeybindingItemEntry | null {
@@ -1187,13 +1207,18 @@ class AccessibilityProvider implements IListAccessibilityProvider<IKeybindingIte
 		return localize('keybindingsLabel', "Keybindings");
 	}
 
-	getAriaLabel(keybindingItemEntry: IKeybindingItemEntry): string {
-		let ariaLabel = keybindingItemEntry.keybindingItem.commandLabel ? keybindingItemEntry.keybindingItem.commandLabel : keybindingItemEntry.keybindingItem.command;
-		ariaLabel += ', ' + (keybindingItemEntry.keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No Keybinding assigned."));
-		ariaLabel += ', ' + keybindingItemEntry.keybindingItem.when ? keybindingItemEntry.keybindingItem.when : localize('noWhen', "No when context.");
-		ariaLabel += ', ' + (isString(keybindingItemEntry.keybindingItem.source) ? keybindingItemEntry.keybindingItem.source : keybindingItemEntry.keybindingItem.source.description ?? keybindingItemEntry.keybindingItem.source.identifier.value);
-		ariaLabel += this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor) ? localize('keyboard shortcuts aria label', ", use space or enter to change the keybinding.") : '';
-		return ariaLabel;
+	getAriaLabel({ keybindingItem }: IKeybindingItemEntry): string {
+		const ariaLabel = [
+			keybindingItem.commandLabel ? keybindingItem.commandLabel : keybindingItem.command,
+			keybindingItem.keybinding?.getAriaLabel() || localize('noKeybinding', "No keybinding assigned"),
+			keybindingItem.when ? keybindingItem.when : localize('noWhen', "No when context"),
+			isString(keybindingItem.source) ? keybindingItem.source : keybindingItem.source.description ?? keybindingItem.source.identifier.value,
+		];
+		if (this.configurationService.getValue(AccessibilityVerbositySettingId.KeybindingsEditor)) {
+			const kbEditorAriaLabel = localize('keyboard shortcuts aria label', "use space or enter to change the keybinding.");
+			ariaLabel.push(kbEditorAriaLabel);
+		}
+		return ariaLabel.join(', ');
 	}
 }
 

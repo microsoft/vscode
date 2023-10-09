@@ -5,6 +5,8 @@
 
 import * as assert from 'assert';
 import { range } from 'vs/base/common/arrays';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITestResult, LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
 import { InMemoryResultStorage, RETAIN_MAX_RESULTS } from 'vs/workbench/contrib/testing/common/testResultStorage';
@@ -13,16 +15,17 @@ import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServic
 
 suite('Workbench - Test Result Storage', () => {
 	let storage: InMemoryResultStorage;
+	let ds: DisposableStore;
 
 	const makeResult = (taskName = 't') => {
-		const t = new LiveTestResult(
+		const t = ds.add(new LiveTestResult(
 			'',
 			true,
 			{ targets: [] }
-		);
+		));
 
 		t.addTask({ id: taskName, name: undefined, running: true });
-		const tests = testStubs.nested();
+		const tests = ds.add(testStubs.nested());
 		tests.expand(tests.root.id, Infinity);
 		t.addTestChainToRun('ctrlId', [
 			tests.root.toTestItem(),
@@ -38,8 +41,13 @@ suite('Workbench - Test Result Storage', () => {
 		assert.deepStrictEqual((await storage.read()).map(r => r.id), stored.map(s => s.id));
 
 	setup(async () => {
-		storage = new InMemoryResultStorage(new TestStorageService(), new NullLogService());
+		ds = new DisposableStore();
+		storage = ds.add(new InMemoryResultStorage(ds.add(new TestStorageService()), new NullLogService()));
 	});
+
+	teardown(() => ds.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('stores a single result', async () => {
 		const r = range(5).map(() => makeResult());
