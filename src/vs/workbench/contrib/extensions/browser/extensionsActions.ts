@@ -525,12 +525,17 @@ export class InstallingLabelAction extends ExtensionAction {
 	private static readonly LABEL = localize('installing', "Installing");
 	private static readonly CLASS = `${ExtensionAction.LABEL_ACTION_CLASS} install installing`;
 
-	constructor() {
+	constructor(
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
 		super('extension.installing', InstallingLabelAction.LABEL, InstallingLabelAction.CLASS, false);
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
+		this.update();
 	}
 
 	update(): void {
-		this.class = `${InstallingLabelAction.CLASS}${this.extension && this.extension.state === ExtensionState.Installing ? '' : ' hide'}`;
+		this.class = `${InstallingLabelAction.CLASS}${this.extensionsWorkbenchService.isInstalling || (this.extension && this.extension.state === ExtensionState.Installing) ? '' : ' hide'}`;
 	}
 }
 
@@ -1057,12 +1062,14 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 
 		super(ManageExtensionAction.ID, '', '', true, instantiationService);
 
 		this.tooltip = localize('manage', "Manage");
 
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
 
@@ -1119,7 +1126,7 @@ export class ManageExtensionAction extends ExtensionDropDownAction {
 		this.enabled = false;
 		if (this.extension) {
 			const state = this.extension.state;
-			this.enabled = state === ExtensionState.Installed;
+			this.enabled = state === ExtensionState.Installed && !this.extensionsWorkbenchService.isInstalling;
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 		}
 	}
@@ -1187,14 +1194,17 @@ export class SwitchToPreReleaseVersionAction extends ExtensionAction {
 	constructor(
 		icon: boolean,
 		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(SwitchToPreReleaseVersionAction.ID, icon ? '' : SwitchToPreReleaseVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-prerelease`, true);
 		this.tooltip = localize('switch to pre-release version tooltip', "Switch to Pre-Release version of this extension");
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && !this.extension.local?.isPreReleaseVersion && !this.extension.local?.preRelease && this.extension.hasPreReleaseVersion && this.extension.state === ExtensionState.Installed;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && !this.extension.local?.isPreReleaseVersion && !this.extension.local?.preRelease && this.extension.hasPreReleaseVersion && this.extension.state === ExtensionState.Installed && !this.extensionsWorkbenchService.isInstalling;
 	}
 
 	override async run(): Promise<any> {
@@ -1213,14 +1223,17 @@ export class SwitchToReleasedVersionAction extends ExtensionAction {
 	constructor(
 		icon: boolean,
 		@ICommandService private readonly commandService: ICommandService,
+		@IExtensionService private readonly extensionService: IExtensionService,
+		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(SwitchToReleasedVersionAction.ID, icon ? '' : SwitchToReleasedVersionAction.TITLE.value, `${icon ? ExtensionAction.ICON_ACTION_CLASS + ' ' + ThemeIcon.asClassName(preReleaseIcon) : ExtensionAction.LABEL_ACTION_CLASS} hide-when-disabled switch-to-released`);
 		this.tooltip = localize('switch to release version tooltip', "Switch to Release version of this extension");
+		this._register(this.extensionService.onDidChangeExtensions(() => this.update()));
 		this.update();
 	}
 
 	update(): void {
-		this.enabled = !!this.extension && !this.extension.isBuiltin && this.extension.state === ExtensionState.Installed && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
+		this.enabled = !!this.extension && !this.extension.isBuiltin && this.extension.state === ExtensionState.Installed && !this.extensionsWorkbenchService.isInstalling && !!this.extension.local?.isPreReleaseVersion && !!this.extension.hasReleaseVersion;
 	}
 
 	override async run(): Promise<any> {
