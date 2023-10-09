@@ -32,6 +32,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -239,7 +240,9 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getFocusedViewName(): string {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
+		const context = this.contextKeyService.getContext(document.activeElement as HTMLElement);
+		const textEditorFocused: string | undefined = context.getValue(EditorContextKeys.editorTextFocus.key) ? localize('editor', "Editor") : undefined;
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {

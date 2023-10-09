@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -55,7 +56,8 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IViewsService private readonly viewsService: IViewsService
+		@IViewsService private readonly viewsService: IViewsService,
+		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
 	) {
 		super();
 		this.registerListeners();
@@ -99,6 +101,11 @@ export class WindowTitle extends Disposable {
 		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+		}
+		const editor = this.codeEditorService.getActiveCodeEditor() || this.codeEditorService.getFocusedCodeEditor();
+		if (editor) {
+			this.activeEditorListeners.add(editor.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(editor.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 		}
 	}
 
@@ -189,7 +196,7 @@ export class WindowTitle extends Disposable {
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
-	 * {focusedView}L e.g. Terminal
+	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
 	 */
 	getWindowTitle(): string {
