@@ -38,6 +38,10 @@ export class OffsetRange {
 		return new OffsetRange(0, length);
 	}
 
+	public static ofStartAndLength(start: number, length: number): OffsetRange {
+		return new OffsetRange(start, start + length);
+	}
+
 	constructor(public readonly start: number, public readonly endExclusive: number) {
 		if (start > endExclusive) {
 			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);

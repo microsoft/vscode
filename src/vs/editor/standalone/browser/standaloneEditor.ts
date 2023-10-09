@@ -38,6 +38,7 @@ import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/index';
 
 /**
  * Create a new editor under `domElement`.
@@ -566,6 +567,8 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
 		EditorZoom: <any>EditorZoom,
+
+		MultiDiffEditorWidget: MultiDiffEditorWidget,
 
 		// vars
 		EditorType: EditorType,
