@@ -569,7 +569,7 @@ export class PaneCompositeBar extends Disposable {
 		this.setPinnedViewContainers(cachedViewContainers.map(({ id, pinned, order }) => (<IPinnedViewContainer>{
 			id,
 			pinned,
-			visible: pinnedViewContainers.find(({ id }) => id === id)?.visible,
+			visible: pinnedViewContainers.find(({ id: pinnedId }) => pinnedId === id)?.visible,
 			order
 		})));
 
