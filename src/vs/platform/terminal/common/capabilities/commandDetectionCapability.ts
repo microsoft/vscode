@@ -69,6 +69,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
+	private _commandStartWindowsPromise?: Promise<void>;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -342,7 +343,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		if (this._isWindowsPty) {
-			this._handleCommandStartWindows();
+			this._commandStartWindowsPromise = this._handleCommandStartWindows();
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -447,7 +448,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
-			this._handleCommandExecutedWindows();
+			this._commandStartWindowsPromise?.then(() => this._handleCommandExecutedWindows());
 			return;
 		}
 
@@ -496,7 +497,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
-			this._preHandleCommandFinishedWindows();
+			this._commandStartWindowsPromise?.then(() => this._preHandleCommandFinishedWindows());
 		}
 
 		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
