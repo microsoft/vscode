@@ -766,3 +766,14 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return result;
 		}
 	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [['workbench.editor.showTabs', { value: value }]];
+			if (value === false) {
+				result.push(['workbench.editor.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);

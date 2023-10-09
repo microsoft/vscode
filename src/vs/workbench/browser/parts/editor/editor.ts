@@ -80,6 +80,14 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		}
 	}
 
+	// showTabs ensure correct enum value
+	if (typeof options.showTabs === 'boolean') {
+		// Migration service kicks in very late and can cause a flicker otherwise
+		options.showTabs = options.showTabs ? 'multiple' : 'single';
+	} else if (options.showTabs !== 'multiple' && options.showTabs !== 'single' && options.showTabs !== 'none') {
+		options.showTabs = 'multiple';
+	}
+
 	const windowConfig = configurationService.getValue<IWindowsConfiguration>();
 	if (windowConfig?.window?.density?.editorTabHeight) {
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
