@@ -40,13 +40,24 @@ export interface ILayoutService {
 	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.
 	 * Therefore, in the standalone editor case, there are multiple containers, not just
 	 * a single one. If you ship code that needs a "container" for the standalone editor,
-	 * please use `ICodeEditorService` to get the current focused code editor and use its
+	 * please use `activeContainer` to get the current focused code editor and use its
 	 * container if necessary. You can also instantiate `EditorScopedLayoutService`
 	 * which implements `ILayoutService` but is not a part of the service collection because
 	 * it is code editor instance specific.
 	 *
 	 */
 	readonly container: HTMLElement;
+
+	/**
+	 * Active container of the application. When multiple windows are opened, will return
+	 * the container of the active, focused window.
+	 */
+	readonly activeContainer: HTMLElement;
+
+	/**
+	 * All the containers of the application. There can be one container per window.
+	 */
+	readonly containers: Iterable<HTMLElement>;
 
 	/**
 	 * An offset to use for positioning elements inside the container.

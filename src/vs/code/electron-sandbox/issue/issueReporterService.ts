@@ -672,7 +672,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (issueType !== IssueType.FeatureRequest) {
-			sourceSelect.append(this.makeOption('', localize('unknown', "Don't know"), false));
+			sourceSelect.append(this.makeOption('unknown', localize('unknown', "Don't know"), false));
 		}
 
 		if (selected !== -1 && selected < sourceSelect.options.length) {
@@ -1052,10 +1052,14 @@ export class IssueReporter extends Disposable {
 			}, extension.name);
 		};
 
-		const extensionsSelector = this.getElementById('extension-selector');
+		const extensionsSelector = this.getElementById<HTMLSelectElement>('extension-selector');
 		if (extensionsSelector) {
 			const { selectedExtension } = this.issueReporterModel.getData();
-			reset(extensionsSelector, $<HTMLOptionElement>('option'), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
+			reset(extensionsSelector, this.makeOption('', localize('selectExtension', "Select extension"), true), ...extensionOptions.map(extension => makeOption(extension, selectedExtension)));
+
+			if (!selectedExtension) {
+				extensionsSelector.selectedIndex = 0;
+			}
 
 			this.addEventListener('extension-selector', 'change', (e: Event) => {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;

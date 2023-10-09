@@ -13,9 +13,11 @@ import { TestContextService } from 'vs/workbench/test/common/workbenchTestServic
 import { Workspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { mock } from 'vs/base/test/common/mock';
 import { IOutlineService } from 'vs/workbench/services/outline/browser/outline';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Breadcrumb Model', function () {
 
+	let model: BreadcrumbsModel;
 	const workspaceService = new TestContextService(new Workspace('ffff', [new WorkspaceFolder({ uri: URI.parse('foo:/bar/baz/ws'), name: 'ws', index: 0 })]));
 	const configService = new class extends TestConfigurationService {
 		override getValue(...args: any[]) {
@@ -32,9 +34,15 @@ suite('Breadcrumb Model', function () {
 		}
 	};
 
+	teardown(function () {
+		model.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('only uri, inside workspace', function () {
 
-		const model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/path/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -49,7 +57,7 @@ suite('Breadcrumb Model', function () {
 
 	test('display uri matters for FileElement', function () {
 
-		const model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/bar/baz/ws/some/PATH/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 3);
@@ -64,7 +72,7 @@ suite('Breadcrumb Model', function () {
 
 	test('only uri, outside workspace', function () {
 
-		const model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
+		model = new BreadcrumbsModel(URI.parse('foo:/outside/file.ts'), undefined, configService, workspaceService, new class extends mock<IOutlineService>() { });
 		const elements = model.getElements();
 
 		assert.strictEqual(elements.length, 2);

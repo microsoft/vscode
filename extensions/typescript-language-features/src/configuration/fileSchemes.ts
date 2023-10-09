@@ -10,6 +10,7 @@ export const file = 'file';
 export const untitled = 'untitled';
 export const git = 'git';
 export const github = 'github';
+export const azurerepos = 'azurerepos';
 
 /** Live share scheme */
 export const vsls = 'vsls';
@@ -39,4 +40,5 @@ export const disabledSchemes = new Set([
 	git,
 	vsls,
 	github,
+	azurerepos,
 ]);

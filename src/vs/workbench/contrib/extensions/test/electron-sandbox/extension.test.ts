@@ -23,6 +23,10 @@ suite('Extension Test', () => {
 		instantiationService.stub(IProductService, <Partial<IProductService>>{ quality: 'insiders' });
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	test('extension is not outdated when there is no local and gallery', () => {
 		const extension = instantiationService.createInstance(Extension, () => ExtensionState.Installed, () => undefined, undefined, undefined, undefined);
 		assert.strictEqual(extension.outdated, false);

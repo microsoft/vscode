@@ -34,8 +34,6 @@ import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, Workbenc
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { CONTEXT_SETTINGS_EDITOR_IN_USER_TAB } from 'vs/workbench/contrib/preferences/common/preferences';
-
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
@@ -217,7 +215,6 @@ export class SettingsTargetsWidget extends Widget {
 	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
-	private inUserTab: IContextKey<boolean>;
 
 	private _settingsTarget: SettingsTarget | null = null;
 
@@ -231,15 +228,13 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@ILanguageService private readonly languageService: ILanguageService,
-		@IContextKeyService contextKeyService: IContextKeyService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
 		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
-		this.inUserTab = CONTEXT_SETTINGS_EDITOR_IN_USER_TAB.bindTo(contextKeyService);
 	}
 
 	private resetLabels() {
@@ -297,7 +292,6 @@ export class SettingsTargetsWidget extends Widget {
 		} else {
 			this.folderSettings.action.checked = false;
 		}
-		this.inUserTab.set(this.userLocalSettings.checked);
 	}
 
 	setResultCount(settingsTarget: SettingsTarget, count: number): void {

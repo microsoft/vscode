@@ -173,7 +173,7 @@ interface IPointerEventFactory {
 
 class MouseEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {
@@ -192,7 +192,7 @@ class MouseEventFactory implements IPointerEventFactory {
 
 class GestureEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {
@@ -328,6 +328,10 @@ export class Sash extends Disposable {
 	 * The start of a vertical sash is its top-most position.
 	 */
 	set orthogonalStartSash(sash: Sash | undefined) {
+		if (this._orthogonalStartSash === sash) {
+			return;
+		}
+
 		this.orthogonalStartDragHandleDisposables.clear();
 		this.orthogonalStartSashDisposables.clear();
 
@@ -362,6 +366,10 @@ export class Sash extends Disposable {
 	 */
 
 	set orthogonalEndSash(sash: Sash | undefined) {
+		if (this._orthogonalEndSash === sash) {
+			return;
+		}
+
 		this.orthogonalEndDragHandleDisposables.clear();
 		this.orthogonalEndSashDisposables.clear();
 

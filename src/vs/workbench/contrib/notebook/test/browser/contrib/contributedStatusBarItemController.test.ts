@@ -26,7 +26,7 @@ suite('Notebook Statusbar', () => {
 				['var b = 1;', 'javascript', CellKind.Code, [], {}],
 				['# header a', 'markdown', CellKind.Markup, [], {}],
 			],
-			async (editor, viewModel, accessor) => {
+			async (editor, viewModel, _ds, accessor) => {
 				const cellStatusbarSvc = accessor.get(INotebookCellStatusBarService);
 				testDisposables.add(accessor.createInstance(ContributedStatusBarItemController, editor));
 

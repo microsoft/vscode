@@ -77,7 +77,7 @@ export function incremental(streamProvider: IStreamProvider, initial: NodeJS.Rea
 	return es.duplex(input, output);
 }
 
-export function debounce(task: () => NodeJS.ReadWriteStream): NodeJS.ReadWriteStream {
+export function debounce(task: () => NodeJS.ReadWriteStream, duration = 500): NodeJS.ReadWriteStream {
 	const input = es.through();
 	const output = es.through();
 	let state = 'idle';
@@ -99,7 +99,7 @@ export function debounce(task: () => NodeJS.ReadWriteStream): NodeJS.ReadWriteSt
 
 	run();
 
-	const eventuallyRun = _debounce(() => run(), 500);
+	const eventuallyRun = _debounce(() => run(), duration);
 
 	input.on('data', () => {
 		if (state === 'idle') {

@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as vfs from 'vinyl-fs';
 import * as filter from 'gulp-filter';
-import * as _ from 'underscore';
 import * as util from './util';
 import { getVersion } from './getVersion';
 
@@ -29,7 +28,15 @@ const root = path.dirname(path.dirname(__dirname));
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
 const commit = getVersion(root);
 
-const darwinCreditsTemplate = product.darwinCredits && _.template(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
+function createTemplate(input: string): (params: Record<string, string>) => string {
+	return (params: Record<string, string>) => {
+		return input.replace(/<%=\s*([^\s]+)\s*%>/g, (match, key) => {
+			return params[key] || match;
+		});
+	};
+}
+
+const darwinCreditsTemplate = product.darwinCredits && createTemplate(fs.readFileSync(path.join(root, product.darwinCredits), 'utf8'));
 
 /**
  * Generate a `DarwinDocumentType` given a list of file extensions, an icon name, and an optional suffix or file type name.
@@ -191,7 +198,9 @@ export const config = {
 	linuxExecutableName: product.applicationName,
 	winIcon: 'resources/win32/code.ico',
 	token: process.env['GITHUB_TOKEN'],
-	repo: product.electronRepository || undefined
+	repo: product.electronRepository || undefined,
+	validateChecksum: true,
+	checksumFile: path.join(root, 'build', 'checksums', 'electron.txt'),
 };
 
 function getElectron(arch: string): () => NodeJS.ReadWriteStream {
@@ -199,12 +208,13 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 		const electron = require('@vscode/gulp-electron');
 		const json = require('gulp-json-editor') as typeof import('gulp-json-editor');
 
-		const electronOpts = _.extend({}, config, {
+		const electronOpts = {
+			...config,
 			platform: process.platform,
 			arch: arch === 'armhf' ? 'arm' : arch,
 			ffmpegChromium: false,
 			keepDefaultApp: true
-		});
+		};
 
 		return vfs.src('package.json')
 			.pipe(json({ name: product.nameShort }))
@@ -214,7 +224,7 @@ function getElectron(arch: string): () => NodeJS.ReadWriteStream {
 	};
 }
 
-async function main(arch = process.arch): Promise<void> {
+async function main(arch: string = process.arch): Promise<void> {
 	const version = electronVersion;
 	const electronPath = path.join(root, '.build', 'electron');
 	const versionFile = path.join(electronPath, 'version');

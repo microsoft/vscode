@@ -85,7 +85,7 @@ export function isSuccess(context: IRequestContext): boolean {
 	return (context.res.statusCode && context.res.statusCode >= 200 && context.res.statusCode < 300) || context.res.statusCode === 1223;
 }
 
-function hasNoContent(context: IRequestContext): boolean {
+export function hasNoContent(context: IRequestContext): boolean {
 	return context.res.statusCode === 204;
 }
 
@@ -138,7 +138,7 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 		properties: {
 			'http.proxy': {
 				type: 'string',
-				pattern: '^(https?|socks5?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
+				pattern: '^(https?|socks|socks4a?|socks5h?)://([^:]*(:[^@]*)?@)?([^:]+|\\[[:0-9a-fA-F]+\\])(:\\d+)?/?$|^$',
 				markdownDescription: localize('proxy', "The proxy setting to use. If not set, will be inherited from the `http_proxy` and `https_proxy` environment variables."),
 				restricted: true
 			},
@@ -146,6 +146,11 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				default: true,
 				description: localize('strictSSL', "Controls whether the proxy server certificate should be verified against the list of supplied CAs."),
+				restricted: true
+			},
+			'http.proxyKerberosServicePrincipal': {
+				type: 'string',
+				markdownDescription: localize('proxyKerberosServicePrincipal', "Overrides the principal service name for Kerberos authentication with the HTTP proxy. A default based on the proxy hostname is used when this is not set."),
 				restricted: true
 			},
 			'http.proxyAuthorization': {
@@ -171,6 +176,13 @@ function registerProxyConfigurations(scope: ConfigurationScope): void {
 				type: 'boolean',
 				default: true,
 				description: localize('systemCertificates', "Controls whether CA certificates should be loaded from the OS. (On Windows and macOS, a reload of the window is required after turning this off.)"),
+				restricted: true
+			},
+			'http.experimental.systemCertificatesV2': {
+				type: 'boolean',
+				tags: ['experimental'],
+				default: false,
+				description: localize('systemCertificatesV2', "Controls whether experimental loading of CA certificates from the OS should be enabled. This uses a more general approach than the default implemenation."),
 				restricted: true
 			}
 		}

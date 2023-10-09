@@ -5,9 +5,11 @@
 
 import { deepStrictEqual } from 'assert';
 import { PartialCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/partialCommandDetectionCapability';
-import { IMarker, Terminal } from 'xterm';
+import type { IMarker, Terminal } from 'xterm';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
+import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface TestTerminal extends Terminal {
 	_core: IXtermCore;
@@ -23,12 +25,16 @@ suite('PartialCommandDetectionCapability', () => {
 		deepStrictEqual(addEvents.map(e => e.line), expectedLines);
 	}
 
-	setup(() => {
-		xterm = new Terminal({ allowProposedApi: true, cols: 80 }) as TestTerminal;
+	setup(async () => {
+		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+
+		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 }) as TestTerminal;
 		capability = new PartialCommandDetectionCapability(xterm);
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when the cursor position is too close to the left side', async () => {
 		assertCommands([]);
