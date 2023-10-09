@@ -251,7 +251,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		// Automatically add `files.watcherExclude` patterns when watching
 		// recursively to give users a chance to configure exclude rules
 		// for reducing the overhead of watching recursively
-		if (opts.recursive) {
+		if (opts.recursive && opts.excludes.length === 0) {
 			const config = this._configurationService.getValue<IFilesConfiguration>();
 			if (config.files?.watcherExclude) {
 				for (const key in config.files.watcherExclude) {
