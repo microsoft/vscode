@@ -375,17 +375,16 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				return false;
 			}
 			// If the cursor position is within the last command, we should poll.
-			const lastCommandEndAbsoluteY = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
-			return cursorYAbsolute > lastCommandEndAbsoluteY;
+			const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
+			return cursorYAbsolute > lastCommandYAbsolute;
 		}
 
 		function lineIsPrompt(line?: IBufferLine): boolean {
 			if (!line) {
 				return false;
 			}
-			const promptRegex = /^(PS.+>)|([A-Z]:\\.*>)/;
 			// TODO: fine tune prompt regex to accomodate for unique configurtions.
-			return line.translateToString(true)?.match(promptRegex) !== null;
+			return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
 		}
 
 		// Conpty could have the wrong cursor position at this point.
@@ -393,13 +392,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
-
 				const correctCursorPosition = cursorOnCorrectLine(this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
 				if (correctCursorPosition) {
+					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling attempts required: ', i + 1);
 					break;
 				}
 			}
-
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
 			// position to update as conpty often prints the sequence on a different line to the
