@@ -368,42 +368,40 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
-		let shouldAdjustPosition = false;
+		// Conpty could have the wrong cursor position at this point.
+		let isWrongCursorPosition = false;
 
-		// If the cursor position is not within a previous command
+		// If the cursor position is within the last command, we should poll.
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		const lastCommand = this.commands.at(-1);
 		let lastCommandEndAbsoluteY: number = -1;
 		if (lastCommand) {
 			lastCommandEndAbsoluteY = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
-			shouldAdjustPosition ||= cursorYAbsolute <= lastCommandEndAbsoluteY;
+			isWrongCursorPosition ||= cursorYAbsolute <= lastCommandEndAbsoluteY;
 		}
 
-		// TODO: Clean up variables
-		// If it does not look like a prompt
-		const line = this._terminal.buffer.active.getLine(cursorYAbsolute);
-		const lineString = line!.translateToString(true);
-		shouldAdjustPosition ||= lineString.match(/^(PS.+>)|([A-Z]:\\.*>)/) === null;
+		// If it does not look like a prompt, we should poll.
+		const line = this._terminal.buffer.active.getLine(cursorYAbsolute)?.translateToString(true);
+		// TODO: fine tune prompt regex to accomodate for unique configurtions.
+		isWrongCursorPosition ||= line?.match(/^(PS.+>)|([A-Z]:\\.*>)/) === null;
 
-		if (shouldAdjustPosition) {
-
-			// Poll for 200ms waiting until the prompt looks correct
-			// TODO: Better comment explaining case, conpty, etc.
+		if (isWrongCursorPosition) {
+			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
 
-				let looksCorrect = true;
-				const cursorYAbsolute2 = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
+				// Check if cursor Y is greater than the last command's end line.
+				let correctCursorPosition = true;
+				const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 				if (lastCommandEndAbsoluteY >= 0) {
-					looksCorrect &&= cursorYAbsolute2 > lastCommandEndAbsoluteY;
+					correctCursorPosition &&= cursorYAbsolute > lastCommandEndAbsoluteY;
 				}
 
-				// If it does not look like a prompt
-				const line2 = this._terminal.buffer.active.getLine(cursorYAbsolute2);
-				const lineString2 = line2!.translateToString(true);
-				looksCorrect &&= lineString2.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
+				// Check if it looks like a prompt.
+				const line = this._terminal.buffer.active.getLine(cursorYAbsolute)?.translateToString(true);
+				correctCursorPosition &&= line?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
 
-				if (looksCorrect) {
+				if (correctCursorPosition) {
 					break;
 				}
 			}
@@ -483,8 +481,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _handleCommandExecutedWindows(): void {
-		// TODO: Flush the command started sequence if it's currently polling
-
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
