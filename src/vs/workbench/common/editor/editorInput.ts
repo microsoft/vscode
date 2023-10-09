@@ -10,6 +10,7 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export interface IEditorCloseHandler {
 
@@ -68,8 +69,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed: boolean = false;
-
 	/**
 	 * Optional: subclasses can override to implement
 	 * custom confirmation on close behavior.
@@ -122,6 +121,10 @@ export abstract class EditorInput extends AbstractEditorInput {
 		}
 
 		return (this.capabilities & capability) !== 0;
+	}
+
+	isReadonly(): boolean | IMarkdownString {
+		return this.hasCapability(EditorInputCapabilities.Readonly);
 	}
 
 	/**
@@ -178,6 +181,13 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	isDirty(): boolean {
 		return false;
+	}
+
+	/**
+	 * Returns if the input has unsaved changes.
+	 */
+	isModified(): boolean {
+		return this.isDirty();
 	}
 
 	/**
@@ -304,12 +314,11 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
-		if (!this.disposed) {
-			this.disposed = true;
+		if (!this.isDisposed()) {
 			this._onWillDispose.fire();
 		}
 

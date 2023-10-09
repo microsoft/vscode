@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Dimension } from 'vs/base/browser/dom';
 import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -110,6 +111,10 @@ export interface IEditorHoverRenderContext {
 	 * The contents rendered inside the fragment have been changed, which means that the hover should relayout.
 	 */
 	onContentsChanged(): void;
+	/**
+	 * Set the minimum dimensions of the resizable hover
+	 */
+	setMinimumDimensions?(dimensions: Dimension): void;
 	/**
 	 * Hide the hover.
 	 */

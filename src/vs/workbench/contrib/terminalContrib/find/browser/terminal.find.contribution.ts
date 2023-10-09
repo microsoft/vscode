@@ -19,7 +19,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { TerminalFindWidget } from 'vs/workbench/contrib/terminalContrib/find/browser/terminalFindWidget';
-import { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from 'xterm';
 
 class TerminalFindContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.find';
@@ -121,7 +121,7 @@ registerActiveInstanceAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
 		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
-		state?.change({ matchCase: !state.isRegex }, false);
+		state?.change({ isRegex: !state.isRegex }, false);
 	}
 });
 
@@ -137,7 +137,7 @@ registerActiveInstanceAction({
 	precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 	run: (activeInstance) => {
 		const state = TerminalFindContribution.get(activeInstance)?.findWidget.state;
-		state?.change({ matchCase: !state.wholeWord }, false);
+		state?.change({ wholeWord: !state.wholeWord }, false);
 	}
 });
 

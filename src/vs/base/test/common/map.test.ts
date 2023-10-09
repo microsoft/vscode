@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LinkedMap, LRUCache, ResourceMap, Touch } from 'vs/base/common/map';
+import { BidirectionalMap, LinkedMap, LRUCache, ResourceMap, SetMap, Touch } from 'vs/base/common/map';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 
@@ -485,3 +485,128 @@ suite('Map', () => {
 	});
 });
 
+suite('BidirectionalMap', () => {
+	test('should set and get values correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		assert.strictEqual(map.get('one'), 1);
+		assert.strictEqual(map.get('two'), 2);
+		assert.strictEqual(map.get('three'), 3);
+	});
+
+	test('should get keys by value correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		assert.strictEqual(map.getKey(1), 'one');
+		assert.strictEqual(map.getKey(2), 'two');
+		assert.strictEqual(map.getKey(3), 'three');
+	});
+
+	test('should delete values correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		assert.strictEqual(map.delete('one'), true);
+		assert.strictEqual(map.get('one'), undefined);
+		assert.strictEqual(map.getKey(1), undefined);
+
+		assert.strictEqual(map.delete('two'), true);
+		assert.strictEqual(map.get('two'), undefined);
+		assert.strictEqual(map.getKey(2), undefined);
+
+		assert.strictEqual(map.delete('three'), true);
+		assert.strictEqual(map.get('three'), undefined);
+		assert.strictEqual(map.getKey(3), undefined);
+	});
+
+	test('should handle non-existent keys correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		assert.strictEqual(map.get('four'), undefined);
+		assert.strictEqual(map.getKey(4), undefined);
+		assert.strictEqual(map.delete('four'), false);
+	});
+
+	test('should handle forEach correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		const keys: string[] = [];
+		const values: number[] = [];
+		map.forEach((value, key) => {
+			keys.push(key);
+			values.push(value);
+		});
+
+		assert.deepStrictEqual(keys, ['one', 'two', 'three']);
+		assert.deepStrictEqual(values, [1, 2, 3]);
+	});
+
+	test('should handle clear correctly', () => {
+		const map = new BidirectionalMap<string, number>();
+		map.set('one', 1);
+		map.set('two', 2);
+		map.set('three', 3);
+
+		map.clear();
+
+		assert.strictEqual(map.get('one'), undefined);
+		assert.strictEqual(map.get('two'), undefined);
+		assert.strictEqual(map.get('three'), undefined);
+		assert.strictEqual(map.getKey(1), undefined);
+		assert.strictEqual(map.getKey(2), undefined);
+		assert.strictEqual(map.getKey(3), undefined);
+	});
+});
+
+suite('SetMap', () => {
+
+	test('add and get', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		assert.deepStrictEqual([...setMap.get('a')], [1, 2]);
+		assert.deepStrictEqual([...setMap.get('b')], [3]);
+	});
+
+	test('delete', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		setMap.delete('a', 1);
+		assert.deepStrictEqual([...setMap.get('a')], [2]);
+		setMap.delete('a', 2);
+		assert.deepStrictEqual([...setMap.get('a')], []);
+	});
+
+	test('forEach', () => {
+		const setMap = new SetMap<string, number>();
+		setMap.add('a', 1);
+		setMap.add('a', 2);
+		setMap.add('b', 3);
+		let sum = 0;
+		setMap.forEach('a', value => sum += value);
+		assert.strictEqual(sum, 3);
+	});
+
+	test('get empty set', () => {
+		const setMap = new SetMap<string, number>();
+		assert.deepStrictEqual([...setMap.get('a')], []);
+	});
+
+});

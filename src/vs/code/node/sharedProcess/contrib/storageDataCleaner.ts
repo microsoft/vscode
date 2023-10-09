@@ -15,6 +15,7 @@ import { EXTENSION_DEVELOPMENT_EMPTY_WINDOW_WORKSPACE } from 'vs/platform/worksp
 import { NON_EMPTY_WORKSPACE_ID_LENGTH } from 'vs/platform/workspaces/node/workspaces';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { Schemas } from 'vs/base/common/network';
 
 export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 
@@ -36,11 +37,12 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 		this.logService.trace('[storage cleanup]: Starting to clean up workspace storage folders for unused empty workspaces.');
 
 		try {
-			const workspaceStorageFolders = await Promises.readdir(this.environmentService.workspaceStorageHome.fsPath);
+			const workspaceStorageHome = this.environmentService.workspaceStorageHome.with({ scheme: Schemas.file }).fsPath;
+			const workspaceStorageFolders = await Promises.readdir(workspaceStorageHome);
 			const storageClient = new StorageClient(this.mainProcessService.getChannel('storage'));
 
 			await Promise.all(workspaceStorageFolders.map(async workspaceStorageFolder => {
-				const workspaceStoragePath = join(this.environmentService.workspaceStorageHome.fsPath, workspaceStorageFolder);
+				const workspaceStoragePath = join(workspaceStorageHome, workspaceStorageFolder);
 
 				if (workspaceStorageFolder.length === NON_EMPTY_WORKSPACE_ID_LENGTH) {
 					return; // keep workspace storage for folders/workspaces that can be accessed still

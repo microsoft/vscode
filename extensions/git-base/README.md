@@ -14,7 +14,8 @@ The Git extension exposes an API, reachable by any other extension.
 2. Include `git-base.d.ts` in your extension's compilation.
 3. Get a hold of the API with the following snippet:
 
-	```ts
-	const gitBaseExtension = vscode.extensions.getExtension<GitBaseExtension>('vscode.git-base').exports;
-	const git = gitBaseExtension.getAPI(1);
-	```
+ ```ts
+ const gitBaseExtension = vscode.extensions.getExtension<GitBaseExtension>('vscode.git-base').exports;
+ const git = gitBaseExtension.getAPI(1);
+
+ ```

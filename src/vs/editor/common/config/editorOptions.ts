@@ -3,19 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
+import * as arrays from 'vs/base/common/arrays';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IJSONSchema } from 'vs/base/common/jsonSchema';
+import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/base/common/uint';
+import { FontInfo } from 'vs/editor/common/config/fontInfo';
+import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
+import * as nls from 'vs/nls';
 import { AccessibilitySupport } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
-import { IJSONSchema } from 'vs/base/common/jsonSchema';
-import * as arrays from 'vs/base/common/arrays';
-import * as objects from 'vs/base/common/objects';
-import { EDITOR_MODEL_DEFAULTS } from 'vs/editor/common/core/textModelDefaults';
-import { IDocumentDiffProvider } from 'vs/editor/common/diff/documentDiffProvider';
 
 //#region typed options
 
@@ -57,6 +57,11 @@ export interface IEditorOptions {
 	 * The aria label for the editor's textarea (when it is focused).
 	 */
 	ariaLabel?: string;
+
+	/**
+	 * Whether the aria-required attribute should be set on the editors textarea.
+	 */
+	ariaRequired?: boolean;
 	/**
 	 * Control whether a screen reader announces inline suggestion content immediately.
 	 */
@@ -151,6 +156,10 @@ export interface IEditorOptions {
 	 * Defaults to false.
 	 */
 	readOnly?: boolean;
+	/**
+	 * The message to display when the editor is readonly.
+	 */
+	readOnlyMessage?: IMarkdownString;
 	/**
 	 * Should the textarea used for input use the DOM `readonly` attribute.
 	 * Defaults to false.
@@ -350,6 +359,10 @@ export interface IEditorOptions {
 	 */
 	colorDecorators?: boolean;
 	/**
+	 * Controls what is the condition to spawn a color picker from a color dectorator
+	 */
+	colorDecoratorsActivatedOn?: 'clickAndHover' | 'click' | 'hover';
+	/**
 	 * Controls the max number of color decorators that can be rendered in an editor at once.
 	 */
 	colorDecoratorsLimit?: number;
@@ -446,6 +459,11 @@ export interface IEditorOptions {
 	 * Defaults to language defined behavior.
 	 */
 	autoClosingBrackets?: EditorAutoClosingStrategy;
+	/**
+	 * Options for auto closing comments.
+	 * Defaults to language defined behavior.
+	 */
+	autoClosingComments?: EditorAutoClosingStrategy;
 	/**
 	 * Options for auto closing quotes.
 	 * Defaults to language defined behavior.
@@ -713,9 +731,14 @@ export interface IEditorOptions {
 	pasteAs?: IPasteAsOptions;
 
 	/**
-	 * Controls whether the editor receives tabs or defers them to the workbench for navigation.
+	 * Controls whether the editor / terminal receives tabs or defers them to the workbench for navigation.
 	 */
 	tabFocusMode?: boolean;
+
+	/**
+	 * Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.
+	 */
+	inlineCompletionsAccessibilityVerbose?: boolean;
 }
 
 /**
@@ -741,6 +764,16 @@ export interface IDiffEditorBaseOptions {
 	 * Defaults to true.
 	 */
 	renderSideBySide?: boolean;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	renderSideBySideInlineBreakpoint?: number | undefined;
+	/**
+	 * When `renderSideBySide` is enabled, `useInlineViewWhenSpaceIsLimited` is set,
+	 * and the diff editor has a width less than `renderSideBySideInlineBreakpoint`, the inline view is used.
+	 */
+	useInlineViewWhenSpaceIsLimited?: boolean;
 	/**
 	 * Timeout in milliseconds after which diff computation is cancelled.
 	 * Defaults to 5000.
@@ -788,7 +821,7 @@ export interface IDiffEditorBaseOptions {
 	/**
 	 * Diff Algorithm
 	*/
-	diffAlgorithm?: 'legacy' | 'advanced' | IDocumentDiffProvider;
+	diffAlgorithm?: 'legacy' | 'advanced';
 
 	/**
 	 * Whether the diff editor aria label should be verbose.
@@ -799,7 +832,27 @@ export interface IDiffEditorBaseOptions {
 		/**
 		 * Defaults to false.
 		 */
-		collapseUnchangedRegions?: boolean;
+		showMoves?: boolean;
+
+		showEmptyDecorations?: boolean;
+	};
+
+	/**
+	 * Is the diff editor inside another editor
+	 * Defaults to false
+	 */
+	isInEmbeddedEditor?: boolean;
+
+	/**
+	 * If the diff editor should only show the difference review mode.
+	 */
+	onlyShowAccessibleDiffViewer?: boolean;
+
+	hideUnchangedRegions?: {
+		enabled?: boolean;
+		revealLineCount?: number;
+		minimumLineCount?: number;
+		contextLineCount?: number;
 	};
 }
 
@@ -807,11 +860,6 @@ export interface IDiffEditorBaseOptions {
  * Configuration options for the diff editor.
  */
 export interface IDiffEditorOptions extends IEditorOptions, IDiffEditorBaseOptions {
-	/**
-	 * Is the diff editor inside another editor
-	 * Defaults to false
-	 */
-	isInEmbeddedEditor?: boolean;
 }
 
 /**
@@ -1257,9 +1305,9 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				type: 'string',
 				enum: ['auto', 'on', 'off'],
 				enumDescriptions: [
-					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached"),
-					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader"),
-					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached"),
+					nls.localize('accessibilitySupport.auto', "Use platform APIs to detect when a Screen Reader is attached."),
+					nls.localize('accessibilitySupport.on', "Optimize for usage with a Screen Reader."),
+					nls.localize('accessibilitySupport.off', "Assume a screen reader is not attached."),
 				],
 				default: 'auto',
 				tags: ['accessibility'],
@@ -1991,6 +2039,11 @@ export interface IEditorHoverOptions {
 	 */
 	sticky?: boolean;
 	/**
+	 * Controls how long the hover is visible after you hovered out of it.
+	 * Require sticky setting to be true.
+	 */
+	hidingDelay?: number;
+	/**
 	 * Should the hover be shown above the line if possible?
 	 * Defaults to false.
 	 */
@@ -2008,6 +2061,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 		const defaults: EditorHoverOptions = {
 			enabled: true,
 			delay: 300,
+			hidingDelay: 300,
 			sticky: true,
 			above: true,
 		};
@@ -2031,6 +2085,12 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 					default: defaults.sticky,
 					description: nls.localize('hover.sticky', "Controls whether the hover should remain visible when mouse is moved over it.")
 				},
+				'editor.hover.hidingDelay': {
+					type: 'integer',
+					minimum: 0,
+					default: defaults.hidingDelay,
+					description: nls.localize('hover.hidingDelay', "Controls the delay in milliseconds after which the hover is hidden. Requires `editor.hover.sticky` to be enabled.")
+				},
 				'editor.hover.above': {
 					type: 'boolean',
 					default: defaults.above,
@@ -2049,6 +2109,7 @@ class EditorHover extends BaseEditorOption<EditorOption.hover, IEditorHoverOptio
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			delay: EditorIntOption.clampedInt(input.delay, this.defaultValue.delay, 0, 10000),
 			sticky: boolean(input.sticky, this.defaultValue.sticky),
+			hidingDelay: EditorIntOption.clampedInt(input.hidingDelay, this.defaultValue.hidingDelay, 0, 600000),
 			above: boolean(input.above, this.defaultValue.above),
 		};
 	}
@@ -2716,6 +2777,10 @@ export interface IEditorStickyScrollOptions {
 	 * Model to choose for sticky scroll by default
 	 */
 	defaultModel?: 'outlineModel' | 'foldingProviderModel' | 'indentationModel';
+	/**
+	 * Define whether to scroll sticky scroll with editor horizontal scrollbae
+	 */
+	scrollWithEditor?: boolean;
 }
 
 /**
@@ -2726,7 +2791,7 @@ export type EditorStickyScrollOptions = Readonly<Required<IEditorStickyScrollOpt
 class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEditorStickyScrollOptions, EditorStickyScrollOptions> {
 
 	constructor() {
-		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel' };
+		const defaults: EditorStickyScrollOptions = { enabled: false, maxLineCount: 5, defaultModel: 'outlineModel', scrollWithEditor: true };
 		super(
 			EditorOption.stickyScroll, 'stickyScroll', defaults,
 			{
@@ -2748,6 +2813,11 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 					default: defaults.defaultModel,
 					description: nls.localize('editor.stickyScroll.defaultModel', "Defines the model to use for determining which lines to stick. If the outline model does not exist, it will fall back on the folding provider model which falls back on the indentation model. This order is respected in all three cases.")
 				},
+				'editor.stickyScroll.scrollWithEditor': {
+					type: 'boolean',
+					default: defaults.scrollWithEditor,
+					description: nls.localize('editor.stickyScroll.scrollWithEditor', "Enable scrolling of Sticky Scroll with the editor's horizontal scrollbar.")
+				},
 			}
 		);
 	}
@@ -2761,6 +2831,7 @@ class EditorStickyScroll extends BaseEditorOption<EditorOption.stickyScroll, IEd
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			maxLineCount: EditorIntOption.clampedInt(input.maxLineCount, this.defaultValue.maxLineCount, 1, 10),
 			defaultModel: stringSet<'outlineModel' | 'foldingProviderModel' | 'indentationModel'>(input.defaultModel, this.defaultValue.defaultModel, ['outlineModel', 'foldingProviderModel', 'indentationModel']),
+			scrollWithEditor: boolean(input.scrollWithEditor, this.defaultValue.scrollWithEditor)
 		};
 	}
 }
@@ -3451,6 +3522,30 @@ class EditorRulers extends BaseEditorOption<EditorOption.rulers, (number | IRule
 
 //#endregion
 
+//#region readonly
+
+/**
+ * Configuration options for readonly message
+ */
+class ReadonlyMessage extends BaseEditorOption<EditorOption.readOnlyMessage, IMarkdownString | undefined, IMarkdownString | undefined> {
+	constructor() {
+		const defaults = undefined;
+
+		super(
+			EditorOption.readOnlyMessage, 'readOnlyMessage', defaults
+		);
+	}
+
+	public validate(_input: any): IMarkdownString | undefined {
+		if (!_input || typeof _input !== 'object') {
+			return this.defaultValue;
+		}
+		return _input as IMarkdownString;
+	}
+}
+
+//#endregion
+
 //#region scrollbar
 
 /**
@@ -4135,6 +4230,10 @@ export interface ISuggestOptions {
 	 */
 	filterGraceful?: boolean;
 	/**
+	 * Prevent quick suggestions when a snippet is active. Defaults to true.
+	 */
+	snippetsPreventQuickSuggestions?: boolean;
+	/**
 	 * Favors words that appear close to the cursor.
 	 */
 	localityBonus?: boolean;
@@ -4295,6 +4394,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 		const defaults: InternalSuggestOptions = {
 			insertMode: 'insert',
 			filterGraceful: true,
+			snippetsPreventQuickSuggestions: false,
 			localityBonus: false,
 			shareSuggestSelections: false,
 			selectionMode: 'always',
@@ -4372,6 +4472,11 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 					],
 					default: defaults.selectionMode,
 					markdownDescription: nls.localize('suggest.selectionMode', "Controls whether a suggestion is selected when the widget shows. Note that this only applies to automatically triggered suggestions (`#editor.quickSuggestions#` and `#editor.suggestOnTriggerCharacters#`) and that a suggestion is always selected when explicitly invoked, e.g via `Ctrl+Space`.")
+				},
+				'editor.suggest.snippetsPreventQuickSuggestions': {
+					type: 'boolean',
+					default: defaults.snippetsPreventQuickSuggestions,
+					description: nls.localize('suggest.snippetsPreventQuickSuggestions', "Controls whether an active snippet prevents quick suggestions.")
 				},
 				'editor.suggest.showIcons': {
 					type: 'boolean',
@@ -4563,6 +4668,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 		return {
 			insertMode: stringSet(input.insertMode, this.defaultValue.insertMode, ['insert', 'replace']),
 			filterGraceful: boolean(input.filterGraceful, this.defaultValue.filterGraceful),
+			snippetsPreventQuickSuggestions: boolean(input.snippetsPreventQuickSuggestions, this.defaultValue.filterGraceful),
 			localityBonus: boolean(input.localityBonus, this.defaultValue.localityBonus),
 			shareSuggestSelections: boolean(input.shareSuggestSelections, this.defaultValue.shareSuggestSelections),
 			selectionMode: stringSet(input.selectionMode, this.defaultValue.selectionMode, ['always', 'never', 'whenQuickSuggestion', 'whenTriggerCharacter']),
@@ -4610,6 +4716,7 @@ class EditorSuggest extends BaseEditorOption<EditorOption.suggest, ISuggestOptio
 
 export interface ISmartSelectOptions {
 	selectLeadingAndTrailingWhitespace?: boolean;
+	selectSubwords?: boolean;
 }
 
 /**
@@ -4623,11 +4730,17 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 		super(
 			EditorOption.smartSelect, 'smartSelect',
 			{
-				selectLeadingAndTrailingWhitespace: true
+				selectLeadingAndTrailingWhitespace: true,
+				selectSubwords: true,
 			},
 			{
 				'editor.smartSelect.selectLeadingAndTrailingWhitespace': {
 					description: nls.localize('selectLeadingAndTrailingWhitespace', "Whether leading and trailing whitespace should always be selected."),
+					default: true,
+					type: 'boolean'
+				},
+				'editor.smartSelect.selectSubwords': {
+					description: nls.localize('selectSubwords', "Whether subwords (like 'foo' in 'fooBar' or 'foo_bar') should be selected."),
 					default: true,
 					type: 'boolean'
 				}
@@ -4640,7 +4753,8 @@ class SmartSelect extends BaseEditorOption<EditorOption.smartSelect, ISmartSelec
 			return this.defaultValue;
 		}
 		return {
-			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace)
+			selectLeadingAndTrailingWhitespace: boolean((input as ISmartSelectOptions).selectLeadingAndTrailingWhitespace, this.defaultValue.selectLeadingAndTrailingWhitespace),
+			selectSubwords: boolean((input as ISmartSelectOptions).selectSubwords, this.defaultValue.selectSubwords),
 		};
 	}
 }
@@ -4913,7 +5027,9 @@ export const enum EditorOption {
 	accessibilitySupport,
 	accessibilityPageSize,
 	ariaLabel,
+	ariaRequired,
 	autoClosingBrackets,
+	autoClosingComments,
 	screenReaderAnnounceInlineSuggestion,
 	autoClosingDelete,
 	autoClosingOvertype,
@@ -4997,6 +5113,7 @@ export const enum EditorOption {
 	quickSuggestions,
 	quickSuggestionsDelay,
 	readOnly,
+	readOnlyMessage,
 	renameOnType,
 	renderControlCharacters,
 	renderFinalNewline,
@@ -5051,7 +5168,9 @@ export const enum EditorOption {
 	tabFocusMode,
 	layoutInfo,
 	wrappingInfo,
-	defaultColorDecorators
+	defaultColorDecorators,
+	colorDecoratorsActivatedOn,
+	inlineCompletionsAccessibilityVerbose
 }
 
 export const EditorOptions = {
@@ -5081,8 +5200,11 @@ export const EditorOptions = {
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),
+	ariaRequired: register(new EditorBooleanOption(
+		EditorOption.ariaRequired, 'ariaRequired', false, undefined
+	)),
 	screenReaderAnnounceInlineSuggestion: register(new EditorBooleanOption(
-		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', false,
+		EditorOption.screenReaderAnnounceInlineSuggestion, 'screenReaderAnnounceInlineSuggestion', true,
 		{
 			description: nls.localize('screenReaderAnnounceInlineSuggestion', "Control whether inline suggestions are announced by a screen reader."),
 			tags: ['accessibility']
@@ -5100,6 +5222,20 @@ export const EditorOptions = {
 				'',
 			],
 			description: nls.localize('autoClosingBrackets', "Controls whether the editor should automatically close brackets after the user adds an opening bracket.")
+		}
+	)),
+	autoClosingComments: register(new EditorStringEnumOption(
+		EditorOption.autoClosingComments, 'autoClosingComments',
+		'languageDefined' as 'always' | 'languageDefined' | 'beforeWhitespace' | 'never',
+		['always', 'languageDefined', 'beforeWhitespace', 'never'] as const,
+		{
+			enumDescriptions: [
+				'',
+				nls.localize('editor.autoClosingComments.languageDefined', "Use language configurations to determine when to autoclose comments."),
+				nls.localize('editor.autoClosingComments.beforeWhitespace', "Autoclose comments only when the cursor is to the left of whitespace."),
+				'',
+			],
+			description: nls.localize('autoClosingComments', "Controls whether the editor should automatically close comments after the user adds an opening comment.")
 		}
 	)),
 	autoClosingDelete: register(new EditorStringEnumOption(
@@ -5200,6 +5336,14 @@ export const EditorOptions = {
 		EditorOption.colorDecorators, 'colorDecorators', true,
 		{ description: nls.localize('colorDecorators', "Controls whether the editor should render the inline color decorators and color picker.") }
 	)),
+	colorDecoratorActivatedOn: register(new EditorStringEnumOption(EditorOption.colorDecoratorsActivatedOn, 'colorDecoratorsActivatedOn', 'clickAndHover' as 'clickAndHover' | 'hover' | 'click', ['clickAndHover', 'hover', 'click'] as const, {
+		enumDescriptions: [
+			nls.localize('editor.colorDecoratorActivatedOn.clickAndHover', "Make the color picker appear both on click and hover of the color decorator"),
+			nls.localize('editor.colorDecoratorActivatedOn.hover', "Make the color picker appear on hover of the color decorator"),
+			nls.localize('editor.colorDecoratorActivatedOn.click', "Make the color picker appear on click of the color decorator")
+		],
+		description: nls.localize('colorDecoratorActivatedOn', "Controls the condition to make a color picker appear from a color decorator")
+	})),
 	colorDecoratorsLimit: register(new EditorIntOption(
 		EditorOption.colorDecoratorsLimit, 'colorDecoratorsLimit', 500, 1, 1000000,
 		{
@@ -5259,7 +5403,7 @@ export const EditorOptions = {
 				nls.localize('cursorSurroundingLinesStyle.default', "`cursorSurroundingLines` is enforced only when triggered via the keyboard or API."),
 				nls.localize('cursorSurroundingLinesStyle.all', "`cursorSurroundingLines` is enforced always.")
 			],
-			description: nls.localize('cursorSurroundingLinesStyle', "Controls when `cursorSurroundingLines` should be enforced.")
+			markdownDescription: nls.localize('cursorSurroundingLinesStyle', "Controls when `#cursorSurroundingLines#` should be enforced.")
 		}
 	)),
 	cursorWidth: register(new EditorIntOption(
@@ -5494,6 +5638,7 @@ export const EditorOptions = {
 	readOnly: register(new EditorBooleanOption(
 		EditorOption.readOnly, 'readOnly', false,
 	)),
+	readOnlyMessage: register(new ReadonlyMessage()),
 	renameOnType: register(new EditorBooleanOption(
 		EditorOption.renameOnType, 'renameOnType', false,
 		{ description: nls.localize('renameOnType', "Controls whether the editor auto renames on type."), markdownDeprecationMessage: nls.localize('renameOnTypeDeprecate', "Deprecated, use `editor.linkedEditing` instead.") }
@@ -5630,6 +5775,8 @@ export const EditorOptions = {
 	)),
 	suggest: register(new EditorSuggest()),
 	inlineSuggest: register(new InlineEditorSuggest()),
+	inlineCompletionsAccessibilityVerbose: register(new EditorBooleanOption(EditorOption.inlineCompletionsAccessibilityVerbose, 'inlineCompletionsAccessibilityVerbose', false,
+		{ description: nls.localize('inlineCompletionsAccessibilityVerbose', "Controls whether the accessibility hint should be provided to screen reader users when an inline completion is shown.") })),
 	suggestFontSize: register(new EditorIntOption(
 		EditorOption.suggestFontSize, 'suggestFontSize',
 		0, 0, 1000,

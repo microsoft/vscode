@@ -10,6 +10,8 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { URI } from 'vs/base/common/uri';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -22,13 +24,16 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
+	const configurationService = new TestConfigurationService();
 
-	suiteSetup(() => {
+	teardown(() => disposables.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
 		disposables = new DisposableStore();
 		instantiationService = setupInstantiationService(disposables);
 	});
-
-	suiteTeardown(() => disposables.dispose());
 
 	test('no transient output is send to serializer', async function () {
 
@@ -42,7 +47,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // transient output
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -54,8 +59,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -63,7 +69,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // NOT transient output
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -75,8 +81,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
@@ -92,9 +99,11 @@ suite('NotebookFileWorkingCopyModel', function () {
 			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false }
 		);
 
+		disposables.add(notebook);
+
 		{ // transient
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -106,8 +115,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -115,7 +125,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // NOT transient
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -127,8 +137,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}
@@ -143,10 +154,11 @@ suite('NotebookFileWorkingCopyModel', function () {
 			{},
 			{ transientCellMetadata: {}, transientDocumentMetadata: {}, cellContentMetadata: {}, transientOutputs: false, }
 		);
+		disposables.add(notebook);
 
 		{ // transient
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -158,8 +170,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
@@ -167,7 +180,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 		{ // NOT transient
 			let callCount = 0;
-			const model = new NotebookFileWorkingCopyModel(
+			const model = disposables.add(new NotebookFileWorkingCopyModel(
 				notebook,
 				mockNotebookService(notebook,
 					new class extends mock<INotebookSerializer>() {
@@ -179,8 +192,9 @@ suite('NotebookFileWorkingCopyModel', function () {
 							return VSBuffer.fromString('');
 						}
 					}
-				)
-			);
+				),
+				configurationService
+			));
 			await model.snapshot(CancellationToken.None);
 			assert.strictEqual(callCount, 1);
 		}

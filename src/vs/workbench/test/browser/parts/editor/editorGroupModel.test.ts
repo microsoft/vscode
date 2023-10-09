@@ -20,18 +20,29 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { isEqual } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('EditorGroupModel', () => {
 
+	let testInstService: TestInstantiationService | undefined;
+
+	suiteTeardown(() => {
+		testInstService?.dispose();
+		testInstService = undefined;
+	});
+
 	function inst(): IInstantiationService {
-		const inst = new TestInstantiationService();
-		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(ILifecycleService, new TestLifecycleService());
+		if (!testInstService) {
+			testInstService = new TestInstantiationService();
+		}
+		const inst = testInstService;
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
+		inst.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -43,7 +54,15 @@ suite('EditorGroupModel', () => {
 	}
 
 	function createEditorGroupModel(serialized?: ISerializedEditorGroupModel): EditorGroupModel {
-		return inst().createInstance(EditorGroupModel, serialized);
+		const group = disposables.add(inst().createInstance(EditorGroupModel, serialized));
+
+		disposables.add(toDisposable(() => {
+			for (const editor of group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)) {
+				group.closeEditor(editor);
+			}
+		}));
+
+		return group;
 	}
 
 	function closeAllEditors(group: EditorGroupModel): void {
@@ -109,7 +128,7 @@ suite('EditorGroupModel', () => {
 			disposed: []
 		};
 
-		group.onDidModelChange(e => {
+		disposables.add(group.onDidModelChange(e => {
 			if (e.kind === GroupModelChangeKind.GROUP_LOCKED) {
 				groupEvents.locked.push(group.id);
 				return;
@@ -160,7 +179,7 @@ suite('EditorGroupModel', () => {
 					}
 					break;
 			}
-		});
+		}));
 
 		return groupEvents;
 	}
@@ -241,10 +260,10 @@ suite('EditorGroupModel', () => {
 
 	function input(id = String(index++), nonSerializable?: boolean, resource?: URI): EditorInput {
 		if (resource) {
-			return new TestFileEditorInput(id, resource);
+			return disposables.add(new TestFileEditorInput(id, resource));
 		}
 
-		return nonSerializable ? new NonSerializableTestEditorInput(id) : new TestEditorInput(id);
+		return nonSerializable ? disposables.add(new NonSerializableTestEditorInput(id)) : disposables.add(new TestEditorInput(id));
 	}
 
 	interface ISerializedTestInput {
@@ -280,7 +299,7 @@ suite('EditorGroupModel', () => {
 
 			const testInput: ISerializedTestInput = JSON.parse(serializedEditorInput);
 
-			return new TestEditorInput(testInput.id);
+			return disposables.add(new TestEditorInput(testInput.id));
 		}
 	}
 
@@ -320,7 +339,7 @@ suite('EditorGroupModel', () => {
 		group.lock(true);
 		assert.strictEqual(group.isLocked, true);
 
-		const clone = group.clone();
+		const clone = disposables.add(group.clone());
 		assert.notStrictEqual(group.id, clone.id);
 		assert.strictEqual(clone.count, 3);
 		assert.strictEqual(clone.isLocked, false); // locking does not clone over
@@ -351,8 +370,8 @@ suite('EditorGroupModel', () => {
 
 	test('isActive - untyped', () => {
 		const group = createEditorGroupModel();
-		const input = new TestFileEditorInput('testInput', URI.file('fake'));
-		const input2 = new TestFileEditorInput('testInput2', URI.file('fake2'));
+		const input = disposables.add(new TestFileEditorInput('testInput', URI.file('fake')));
+		const input2 = disposables.add(new TestFileEditorInput('testInput2', URI.file('fake2')));
 		const untypedInput = { resource: URI.file('/fake'), options: { override: 'testInput' } };
 		const untypedNonActiveInput = { resource: URI.file('/fake2'), options: { override: 'testInput2' } };
 
@@ -368,8 +387,8 @@ suite('EditorGroupModel', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const group = createEditorGroupModel();
-		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
-		const input2 = new TestFileEditorInput('testInput', URI.file('fake2'));
+		const input1 = disposables.add(new TestFileEditorInput('testInput', URI.file('fake1')));
+		const input2 = disposables.add(new TestFileEditorInput('testInput', URI.file('fake2')));
 
 		const sideBySideInputSame = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input1);
 		const sideBySideInputDifferent = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input2);
@@ -396,7 +415,7 @@ suite('EditorGroupModel', () => {
 		const instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		const group = createEditorGroupModel();
-		const input1 = new TestFileEditorInput('testInput', URI.file('fake1'));
+		const input1 = disposables.add(new TestFileEditorInput('testInput', URI.file('fake1')));
 
 		const sideBySideInput = instantiationService.createInstance(SideBySideEditorInput, undefined, undefined, input1, input1);
 
@@ -814,6 +833,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).length, 1);
+		assert.strictEqual(group.findEditor(input1)![0], input1);
 		assert.strictEqual(group.activeEditor, input1);
 		assert.strictEqual(group.isActive(input1), true);
 		assert.strictEqual(group.isPinned(input1), true);
@@ -827,6 +847,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(events.activated[0].editorIndex, 0);
 
 		const index = group.indexOf(input1);
+		assert.strictEqual(group.findEditor(input1)![1], index);
 		let event = group.closeEditor(input1, EditorCloseContext.UNPIN);
 		assert.strictEqual(event?.editor, input1);
 		assert.strictEqual(event?.editorIndex, index);
@@ -1032,8 +1053,8 @@ suite('EditorGroupModel', () => {
 
 	test('Multiple Editors - Pinned and Active (DEFAULT_OPEN_EDITOR_DIRECTION = Direction.LEFT)', function () {
 		const inst = new TestInstantiationService();
-		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
+		inst.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1041,7 +1062,7 @@ suite('EditorGroupModel', () => {
 		inst.stub(IConfigurationService, config);
 		config.setUserConfiguration('workbench', { editor: { openPositioning: 'left' } });
 
-		const group: EditorGroupModel = inst.createInstance(EditorGroupModel, undefined);
+		const group: EditorGroupModel = disposables.add(inst.createInstance(EditorGroupModel, undefined));
 
 		const events = groupListener(group);
 
@@ -1062,6 +1083,7 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(events.closed.length, 3);
 		assert.strictEqual(group.count, 0);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - Pinned and Not Active', function () {
@@ -1264,8 +1286,8 @@ suite('EditorGroupModel', () => {
 
 	test('Multiple Editors - closing picks next to the right', function () {
 		const inst = new TestInstantiationService();
-		inst.stub(IStorageService, new TestStorageService());
-		inst.stub(ILifecycleService, new TestLifecycleService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
+		inst.stub(ILifecycleService, disposables.add(new TestLifecycleService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1273,7 +1295,7 @@ suite('EditorGroupModel', () => {
 		config.setUserConfiguration('workbench', { editor: { focusRecentEditorAfterClose: false } });
 		inst.stub(IConfigurationService, config);
 
-		const group = inst.createInstance(EditorGroupModel, undefined);
+		const group = disposables.add(inst.createInstance(EditorGroupModel, undefined));
 		const events = groupListener(group);
 
 		const input1 = input();
@@ -1318,6 +1340,7 @@ suite('EditorGroupModel', () => {
 
 		assert.ok(!group.activeEditor);
 		assert.strictEqual(group.count, 0);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - move editor', function () {
@@ -1642,9 +1665,9 @@ suite('EditorGroupModel', () => {
 	test('Single Group, Single Editor - persist', function () {
 		const inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
+		const lifecycle = disposables.add(new TestLifecycleService());
 		inst.stub(ILifecycleService, lifecycle);
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1665,20 +1688,21 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.isActive(input1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = disposables.add(inst.createInstance(EditorGroupModel, group.serialize()));
 
 		assert.strictEqual(group.count, 1);
 		assert.strictEqual(group.activeEditor!.matches(input1), true);
 		assert.strictEqual(group.previewEditor!.matches(input1), true);
 		assert.strictEqual(group.isActive(input1), true);
+		inst.dispose();
 	});
 
 	test('Multiple Groups, Multiple editors - persist', function () {
 		const inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
+		const lifecycle = disposables.add(new TestLifecycleService());
 		inst.stub(ILifecycleService, lifecycle);
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1724,8 +1748,8 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(g2_input2), true);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
-		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
+		group1 = disposables.add(inst.createInstance(EditorGroupModel, group1.serialize()));
+		group2 = disposables.add(inst.createInstance(EditorGroupModel, group2.serialize()));
 
 		assert.strictEqual(group1.count, 3);
 		assert.strictEqual(group2.count, 3);
@@ -1741,14 +1765,15 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].matches(g2_input1), true);
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].matches(g2_input3), true);
 		assert.strictEqual(group2.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(g2_input2), true);
+		inst.dispose();
 	});
 
 	test('Single group, multiple editors - persist (some not persistable)', function () {
 		const inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
+		const lifecycle = disposables.add(new TestLifecycleService());
 		inst.stub(ILifecycleService, lifecycle);
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1777,7 +1802,7 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[2].matches(serializableInput1), true);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = disposables.add(inst.createInstance(EditorGroupModel, group.serialize()));
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.activeEditor!.matches(serializableInput2), true);
@@ -1785,14 +1810,15 @@ suite('EditorGroupModel', () => {
 
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[0].matches(serializableInput2), true);
 		assert.strictEqual(group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE)[1].matches(serializableInput1), true);
+		inst.dispose();
 	});
 
 	test('Single group, multiple editors - persist (some not persistable, sticky editors)', function () {
 		const inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
+		const lifecycle = disposables.add(new TestLifecycleService());
 		inst.stub(ILifecycleService, lifecycle);
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1816,18 +1842,19 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group.stickyCount, 1);
 
 		// Create model again - should load from storage
-		group = inst.createInstance(EditorGroupModel, group.serialize());
+		group = disposables.add(inst.createInstance(EditorGroupModel, group.serialize()));
 
 		assert.strictEqual(group.count, 2);
 		assert.strictEqual(group.stickyCount, 0);
+		inst.dispose();
 	});
 
 	test('Multiple groups, multiple editors - persist (some not persistable, causes empty group)', function () {
 		const inst = new TestInstantiationService();
 
-		inst.stub(IStorageService, new TestStorageService());
+		inst.stub(IStorageService, disposables.add(new TestStorageService()));
 		inst.stub(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
+		const lifecycle = disposables.add(new TestLifecycleService());
 		inst.stub(ILifecycleService, lifecycle);
 		inst.stub(ITelemetryService, NullTelemetryService);
 
@@ -1850,12 +1877,13 @@ suite('EditorGroupModel', () => {
 		group2.openEditor(nonSerializableInput);
 
 		// Create model again - should load from storage
-		group1 = inst.createInstance(EditorGroupModel, group1.serialize());
-		group2 = inst.createInstance(EditorGroupModel, group2.serialize());
+		group1 = disposables.add(inst.createInstance(EditorGroupModel, group1.serialize()));
+		group2 = disposables.add(inst.createInstance(EditorGroupModel, group2.serialize()));
 
 		assert.strictEqual(group1.count, 2);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[0].matches(serializableInput1), true);
 		assert.strictEqual(group1.getEditors(EditorsOrder.SEQUENTIAL)[1].matches(serializableInput2), true);
+		inst.dispose();
 	});
 
 	test('Multiple Editors - Editor Dispose', function () {
@@ -1918,32 +1946,32 @@ suite('EditorGroupModel', () => {
 		group2.openEditor(input2, { pinned: true, active: true });
 
 		let dirty1Counter = 0;
-		group1.onDidModelChange((e) => {
+		disposables.add(group1.onDidModelChange((e) => {
 			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
 				dirty1Counter++;
 			}
-		});
+		}));
 
 		let dirty2Counter = 0;
-		group2.onDidModelChange((e) => {
+		disposables.add(group2.onDidModelChange((e) => {
 			if (e.kind === GroupModelChangeKind.EDITOR_DIRTY) {
 				dirty2Counter++;
 			}
-		});
+		}));
 
 		let label1ChangeCounter = 0;
-		group1.onDidModelChange((e) => {
+		disposables.add(group1.onDidModelChange((e) => {
 			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
 				label1ChangeCounter++;
 			}
-		});
+		}));
 
 		let label2ChangeCounter = 0;
-		group2.onDidModelChange((e) => {
+		disposables.add(group2.onDidModelChange((e) => {
 			if (e.kind === GroupModelChangeKind.EDITOR_LABEL) {
 				label2ChangeCounter++;
 			}
-		});
+		}));
 
 		(<TestEditorInput>input1).setDirty();
 		(<TestEditorInput>input1).setLabel();
@@ -2361,4 +2389,6 @@ suite('EditorGroupModel', () => {
 		assert.strictEqual(group2Events.unsticky[0].editor, input1group2);
 		assert.strictEqual(group2Events.unsticky[0].editorIndex, 1);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

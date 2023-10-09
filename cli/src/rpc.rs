@@ -117,7 +117,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 					Ok(p) => p,
 					Err(err) => {
 						return id.map(|id| {
-							serial.serialize(&ErrorResponse {
+							serial.serialize(ErrorResponse {
 								id,
 								error: ResponseError {
 									code: 0,
@@ -131,7 +131,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 				match callback(param.params, &context) {
 					Ok(result) => id.map(|id| serial.serialize(&SuccessResponse { id, result })),
 					Err(err) => id.map(|id| {
-						serial.serialize(&ErrorResponse {
+						serial.serialize(ErrorResponse {
 							id,
 							error: ResponseError {
 								code: -1,
@@ -161,7 +161,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 					Ok(p) => p,
 					Err(err) => {
 						return future::ready(id.map(|id| {
-							serial.serialize(&ErrorResponse {
+							serial.serialize(ErrorResponse {
 								id,
 								error: ResponseError {
 									code: 0,
@@ -182,7 +182,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 							id.map(|id| serial.serialize(&SuccessResponse { id, result }))
 						}
 						Err(err) => id.map(|id| {
-							serial.serialize(&ErrorResponse {
+							serial.serialize(ErrorResponse {
 								id,
 								error: ResponseError {
 									code: -1,
@@ -222,7 +222,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 						return (
 							None,
 							future::ready(id.map(|id| {
-								serial.serialize(&ErrorResponse {
+								serial.serialize(ErrorResponse {
 									id,
 									error: ResponseError {
 										code: 0,
@@ -255,7 +255,7 @@ impl<S: Serialization, C: Send + Sync + 'static> RpcMethodBuilder<S, C> {
 					match callback(servers, param.params, context).await {
 						Ok(r) => id.map(|id| serial.serialize(&SuccessResponse { id, result: r })),
 						Err(err) => id.map(|id| {
-							serial.serialize(&ErrorResponse {
+							serial.serialize(ErrorResponse {
 								id,
 								error: ResponseError {
 									code: -1,
@@ -427,7 +427,7 @@ impl<S: Serialization, C: Send + Sync> RpcDispatcher<S, C> {
 				Some(Method::Async(callback)) => MaybeSync::Future(callback(id, body)),
 				Some(Method::Duplex(callback)) => MaybeSync::Stream(callback(id, body)),
 				None => MaybeSync::Sync(id.map(|id| {
-					self.serializer.serialize(&ErrorResponse {
+					self.serializer.serialize(ErrorResponse {
 						id,
 						error: ResponseError {
 							code: -1,

@@ -46,6 +46,8 @@ export function merge(localExtensions: ILocalSyncExtension[], remoteExtensions: 
 	localExtensions.forEach(({ identifier }) => addUUID(identifier));
 	remoteExtensions.forEach(({ identifier }) => addUUID(identifier));
 	lastSyncExtensions?.forEach(({ identifier }) => addUUID(identifier));
+	skippedExtensions?.forEach(({ identifier }) => addUUID(identifier));
+	lastSyncBuiltinExtensions?.forEach(identifier => addUUID(identifier));
 
 	const getKey = (extension: ISyncExtension): string => {
 		const uuid = extension.identifier.uuid || uuids.get(extension.identifier.id.toLowerCase());
@@ -278,6 +280,11 @@ function areSame(fromExtension: ISyncExtension, toExtension: ISyncExtension, che
 		return false;
 	}
 
+	if (!!fromExtension.isApplicationScoped !== !!toExtension.isApplicationScoped) {
+		/* extension application scope has changed */
+		return false;
+	}
+
 	if (checkInstalledProperty && fromExtension.installed !== toExtension.installed) {
 		/* extension installed property changed */
 		return false;
@@ -396,23 +403,26 @@ function massageIncomingExtension(extension: ISyncExtension): ISyncExtension {
 // massage outgoing extension - remove optional properties
 function massageOutgoingExtension(extension: ISyncExtension, key: string): ISyncExtension {
 	const massagedExtension: ISyncExtension = {
+		...extension,
 		identifier: {
 			id: extension.identifier.id,
 			uuid: key.startsWith('uuid:') ? key.substring('uuid:'.length) : undefined
 		},
-		version: extension.version,
 		/* set following always so that to differentiate with older clients */
 		preRelease: !!extension.preRelease,
-		pinned: !!extension.pinned
+		pinned: !!extension.pinned,
 	};
-	if (extension.disabled) {
-		massagedExtension.disabled = true;
+	if (!extension.disabled) {
+		delete massagedExtension.disabled;
 	}
-	if (extension.installed) {
-		massagedExtension.installed = true;
+	if (!extension.installed) {
+		delete massagedExtension.installed;
 	}
-	if (extension.state) {
-		massagedExtension.state = extension.state;
+	if (!extension.state) {
+		delete massagedExtension.state;
+	}
+	if (!extension.isApplicationScoped) {
+		delete massagedExtension.isApplicationScoped;
 	}
 	return massagedExtension;
 }

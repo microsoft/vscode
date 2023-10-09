@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -45,7 +45,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.getPromptButtons(prompt);

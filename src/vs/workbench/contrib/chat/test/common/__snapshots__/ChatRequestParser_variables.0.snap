@@ -1,0 +1,48 @@
+{
+  parts: [
+    {
+      range: {
+        start: 0,
+        endExclusive: 10
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 11
+      },
+      text: "What does ",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 10,
+        endExclusive: 20
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 11,
+        endLineNumber: 1,
+        endColumn: 21
+      },
+      variableName: "selection",
+      variableArg: "",
+      kind: "var"
+    },
+    {
+      range: {
+        start: 20,
+        endExclusive: 26
+      },
+      editorRange: {
+        startLineNumber: 1,
+        startColumn: 21,
+        endLineNumber: 1,
+        endColumn: 27
+      },
+      text: " mean?",
+      kind: "text"
+    }
+  ],
+  text: "What does #selection mean?"
+}

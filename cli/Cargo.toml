@@ -12,70 +12,67 @@ path = "src/lib.rs"
 name = "code"
 
 [dependencies]
-futures = "0.3"
-clap = { version = "3.0", features = ["derive", "env"] }
-open = { version = "2.1.0" }
-reqwest = { version = "0.11.9", default-features = false, features = ["json", "stream", "native-tls"] }
-tokio = { version = "1.24.2", features = ["full"] }
-tokio-util = { version = "0.7", features = ["compat", "codec"] }
-flate2 = { version = "1.0.22" }
-zip = { version = "0.5.13", default-features = false, features = ["time", "deflate"] }
-regex = { version = "1.5.5" }
-lazy_static = { version = "1.4.0" }
-sysinfo = { version = "0.27.7", default-features = false }
-serde = { version = "1.0", features = ["derive"] }
-serde_json = { version = "1.0" }
-rmp-serde = "1.0"
-uuid = { version = "0.8.2", features = ["serde", "v4"] }
-dirs = "4.0.0"
+futures = "0.3.28"
+clap = { version = "4.3.0", features = ["derive", "env"] }
+open = "4.1.0"
+reqwest = { version = "0.11.18", default-features = false, features = ["json", "stream", "native-tls"] }
+tokio = { version = "1.28.2", features = ["full"] }
+tokio-util = { version = "0.7.8", features = ["compat", "codec"] }
+flate2 = { version = "1.0.26", default-features = false, features = ["zlib"] }
+zip = { version = "0.6.6", default-features = false, features = ["time", "deflate-zlib"] }
+regex = "1.8.3"
+lazy_static = "1.4.0"
+sysinfo = { version = "0.29.0", default-features = false }
+serde = { version = "1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
+rmp-serde = "1.1.1"
+uuid = { version = "1.3.3", features = ["serde", "v4"] }
+dirs = "5.0.1"
 rand = "0.8.5"
-atty = "0.2.14"
-opentelemetry = { version = "0.18.0", features = ["rt-tokio"] }
-opentelemetry-application-insights = { version = "0.22.0", features = ["reqwest-client"] }
-serde_bytes = "0.11.5"
-chrono = { version = "0.4", features = ["serde"] }
-gethostname = "0.2.3"
-libc = "0.2"
-tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "730aa86f8ccd9e2dd4541693fbce763357da93f4", default-features = false, features = ["connections"] }
-keyring = "1.1"
-dialoguer = "0.10"
-hyper = "0.14"
-indicatif = "0.16"
-tempfile = "3.4"
-clap_lex = "0.2"
-url = "2.3"
-async-trait = "0.1"
-log = "0.4"
-const_format = "0.2"
-sha2 = "0.10"
-base64 = "0.13"
+opentelemetry = { version = "0.19.0", features = ["rt-tokio"] }
+serde_bytes = "0.11.9"
+chrono = { version = "0.4.26", features = ["serde", "std", "clock"], default-features = false }
+gethostname = "0.4.3"
+libc = "0.2.144"
+tunnels = { git = "https://github.com/microsoft/dev-tunnels", rev = "3141ad7be00e18c4231f7c4fb6c11f9219ac49af", default-features = false, features = ["connections"] }
+keyring = { version = "2.0.3", default-features = false, features = ["linux-secret-service-rt-tokio-crypto-openssl"] }
+dialoguer = "0.10.4"
+hyper = { version = "0.14.26", features = ["server", "http1", "runtime"] }
+indicatif = "0.17.4"
+tempfile = "3.5.0"
+clap_lex = "0.5.0"
+url = "2.3.1"
+async-trait = "0.1.68"
+log = "0.4.18"
+const_format = "0.2.31"
+sha2 = "0.10.6"
+base64 = "0.21.2"
 shell-escape = "0.1.5"
-thiserror = "1.0"
+thiserror = "1.0.40"
 cfg-if = "1.0.0"
-pin-project = "1.0"
-console = "0.15"
-bytes = "1.4"
-tar = { version = "0.4" }
+pin-project = "1.1.0"
+console = "0.15.7"
+bytes = "1.4.0"
+tar = "0.4.38"
 
 [build-dependencies]
-serde = { version = "1.0" }
-serde_json = { version = "1.0" }
+serde = { version="1.0.163", features = ["derive"] }
+serde_json = "1.0.96"
 
 [target.'cfg(windows)'.dependencies]
-winreg = "0.10"
+winreg = "0.50.0"
 winapi = "0.3.9"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 core-foundation = "0.9.3"
 
 [target.'cfg(target_os = "linux")'.dependencies]
-zbus = { version = "3.4", default-features = false, features = ["tokio"] }
+zbus = { version = "3.13.1", default-features = false, features = ["tokio"] }
 
 [patch.crates-io]
 russh = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-cryptovec = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
 russh-keys = { git = "https://github.com/microsoft/vscode-russh", branch = "main" }
-secret-service = { git = "https://github.com/microsoft/vscode-secret-service-rs", rev = "fbbaf222de10546609be26bb043e64356e855edb" }
 
 [profile.release]
 strip = true

@@ -9,20 +9,46 @@
 process.env.MOCHA_COLORS = '1'; // Force colors (note that this must come before any mocha imports)
 
 const assert = require('assert');
-const mocha = require('mocha');
+const Mocha = require('mocha');
 const path = require('path');
 const fs = require('fs');
 const glob = require('glob');
 const minimatch = require('minimatch');
 const coverage = require('../coverage');
-const optimist = require('optimist')
-	.usage('Run the Code tests. All mocha options apply.')
-	.describe('build', 'Run from out-build').boolean('build')
-	.describe('run', 'Run a single file').string('run')
-	.describe('coverage', 'Generate a coverage report').boolean('coverage')
-	.alias('h', 'help').boolean('h')
-	.describe('h', 'Show help');
+const minimist = require('minimist');
 
+/**
+ * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
+ */
+const args = minimist(process.argv.slice(2), {
+	boolean: ['build', 'coverage', 'help'],
+	string: ['run'],
+	alias: {
+		h: 'help'
+	},
+	default: {
+		build: false,
+		coverage: false,
+		help: false
+	},
+	description: {
+		build: 'Run from out-build',
+		run: 'Run a single file',
+		coverage: 'Generate a coverage report',
+		help: 'Show help'
+	}
+});
+
+if (args.help) {
+	console.log(`Usage: node test/unit/node/index [options]
+
+Options:
+--build          Run from out-build
+--run <file>     Run a single file
+--coverage       Generate a coverage report
+--help           Show help`);
+	process.exit(0);
+}
 
 const TEST_GLOB = '**/test/**/*.test.js';
 
@@ -33,21 +59,12 @@ const excludeGlobs = [
 	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
 ];
 
-/**
- * @type {{ build: boolean; run: string; runGlob: string; coverage: boolean; help: boolean; }}
- */
-const argv = optimist.argv;
-
-if (argv.help) {
-	optimist.showHelp();
-	process.exit(1);
-}
-
 const REPO_ROOT = path.join(__dirname, '../../../');
-const out = argv.build ? 'out-build' : 'out';
+const out = args.build ? 'out-build' : 'out';
 const loader = require(`../../../${out}/vs/loader`);
 const src = path.join(REPO_ROOT, out);
 
+//@ts-ignore
 const majorRequiredNodeVersion = `v${/^target\s+"([^"]+)"$/m.exec(fs.readFileSync(path.join(REPO_ROOT, 'remote', '.yarnrc'), 'utf8'))[1]}`.substring(0, 3);
 const currentMajorNodeVersion = process.version.substring(0, 3);
 if (majorRequiredNodeVersion !== currentMajorNodeVersion) {
@@ -64,6 +81,14 @@ function main() {
 	globalThis._VSCODE_PRODUCT_JSON = require(`${REPO_ROOT}/product.json`);
 	globalThis._VSCODE_PACKAGE_JSON = require(`${REPO_ROOT}/package.json`);
 
+	// Test file operations that are common across platforms. Used for test infra, namely snapshot tests
+	Object.assign(globalThis, {
+		__readFileInTests: (/** @type {string} */ path) => fs.promises.readFile(path, 'utf-8'),
+		__writeFileInTests: (/** @type {string} */ path, /** @type {BufferEncoding} */ contents) => fs.promises.writeFile(path, contents),
+		__readDirInTests: (/** @type {string} */ path) => fs.promises.readdir(path),
+		__unlinkInTests: (/** @type {string} */ path) => fs.promises.unlink(path),
+		__mkdirPInTests: (/** @type {string} */ path) => fs.promises.mkdir(path, { recursive: true }),
+	});
 
 	process.on('uncaughtException', function (e) {
 		console.error(e.stack || e);
@@ -107,14 +132,14 @@ function main() {
 		catchError: true
 	};
 
-	if (argv.coverage) {
+	if (args.coverage) {
 		coverage.initialize(loaderConfig);
 
 		process.on('exit', function (code) {
 			if (code !== 0) {
 				return;
 			}
-			coverage.createReport(argv.run || argv.runGlob);
+			coverage.createReport(args.run || args.runGlob);
 		});
 	}
 
@@ -127,10 +152,27 @@ function main() {
 		return write.apply(process.stderr, args);
 	};
 
-	/** @type { (callback:(err:any)=>void)=>void } */
+
+	const runner = new Mocha({
+		ui: 'tdd'
+	});
+
+	/**
+	 * @param {string[]} modules
+	 */
+	async function loadModules(modules) {
+		for (const file of modules) {
+			runner.suite.emit(Mocha.Suite.constants.EVENT_FILE_PRE_REQUIRE, globalThis, file, runner);
+			const m = await new Promise((resolve, reject) => loader([file], resolve, reject));
+			runner.suite.emit(Mocha.Suite.constants.EVENT_FILE_REQUIRE, m, file, runner);
+			runner.suite.emit(Mocha.Suite.constants.EVENT_FILE_POST_REQUIRE, globalThis, file, runner);
+		}
+	}
+
+	/** @type { null|((callback:(err:any)=>void)=>void) } */
 	let loadFunc = null;
 
-	if (argv.runGlob) {
+	if (args.runGlob) {
 		loadFunc = (cb) => {
 			const doRun = /** @param {string[]} tests */(tests) => {
 				const modulesToLoad = tests.map(test => {
@@ -140,20 +182,20 @@ function main() {
 
 					return test.replace(/(\.js)|(\.d\.ts)|(\.js\.map)$/, '');
 				});
-				loader(modulesToLoad, () => cb(null), cb);
+				loadModules(modulesToLoad).then(() => cb(null), cb);
 			};
 
-			glob(argv.runGlob, { cwd: src }, function (err, files) { doRun(files); });
+			glob(args.runGlob, { cwd: src }, function (err, files) { doRun(files); });
 		};
-	} else if (argv.run) {
-		const tests = (typeof argv.run === 'string') ? [argv.run] : argv.run;
+	} else if (args.run) {
+		const tests = (typeof args.run === 'string') ? [args.run] : args.run;
 		const modulesToLoad = tests.map(function (test) {
 			test = test.replace(/^src/, 'out');
 			test = test.replace(/\.ts$/, '.js');
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
 		});
 		loadFunc = (cb) => {
-			loader(modulesToLoad, () => cb(null), cb);
+			loadModules(modulesToLoad).then(() => cb(null), cb);
 		};
 	} else {
 		loadFunc = (cb) => {
@@ -165,7 +207,7 @@ function main() {
 						modules.push(file.replace(/\.js$/, ''));
 					}
 				}
-				loader(modules, function () { cb(null); }, cb);
+				loadModules(modules).then(() => cb(null), cb);
 			});
 		};
 	}
@@ -178,9 +220,9 @@ function main() {
 
 		process.stderr.write = write;
 
-		if (!argv.run && !argv.runGlob) {
+		if (!args.run && !args.runGlob) {
 			// set up last test
-			mocha.suite('Loader', function () {
+			Mocha.suite('Loader', function () {
 				test('should not explode while loading', function () {
 					assert.ok(!didErr, 'should not explode while loading');
 				});
@@ -189,7 +231,7 @@ function main() {
 
 		// report failing test for every unexpected error during any of the tests
 		const unexpectedErrors = [];
-		mocha.suite('Errors', function () {
+		Mocha.suite('Errors', function () {
 			test('should not have unexpected errors in tests', function () {
 				if (unexpectedErrors.length) {
 					unexpectedErrors.forEach(function (stack) {
@@ -210,7 +252,7 @@ function main() {
 			});
 
 			// fire up mocha
-			mocha.run();
+			runner.run(failures => process.exit(failures ? 1 : 0));
 		});
 	});
 }

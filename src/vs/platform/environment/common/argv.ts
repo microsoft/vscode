@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+export interface INativeCliOptions {
+	'cli-data-dir'?: string;
+	'disable-telemetry'?: boolean;
+	'telemetry-level'?: string;
+}
+
 /**
  * A list of command line arguments we support natively.
  */
 export interface NativeParsedArgs {
 	// subcommands
-	tunnel?: {
-		'cli-data-dir'?: string;
-		'disable-telemetry'?: boolean;
-		'telemetry-level'?: string;
+	tunnel?: INativeCliOptions & {
 		user: {
 			login: {
 				'access-token'?: string;
@@ -19,6 +22,7 @@ export interface NativeParsedArgs {
 			};
 		};
 	};
+	'serve-web'?: INativeCliOptions;
 	_: string[];
 	'folder-uri'?: string[]; // undefined or array of 1 or more
 	'file-uri'?: string[]; // undefined or array of 1 or more
@@ -87,7 +91,8 @@ export interface NativeParsedArgs {
 	'export-default-configuration'?: string;
 	'install-source'?: string;
 	'disable-updates'?: boolean;
-	'disable-keytar'?: boolean;
+	'use-inmemory-secretstorage'?: boolean;
+	'password-store'?: string;
 	'disable-workspace-trust'?: boolean;
 	'disable-crash-reporter'?: boolean;
 	'crash-reporter-directory'?: string;
@@ -109,6 +114,7 @@ export interface NativeParsedArgs {
 	'locate-shell-integration-path'?: string;
 	'profile'?: string;
 	'profile-temp'?: boolean;
+	'disable-chromium-sandbox'?: boolean;
 
 	'enable-coi'?: boolean;
 

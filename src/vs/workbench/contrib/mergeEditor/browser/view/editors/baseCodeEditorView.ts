@@ -36,17 +36,19 @@ export class BaseCodeEditorView extends CodeEditorView {
 
 		this._register(
 			autorunWithStore((reader, store) => {
+				/** @description update checkboxes */
 				if (this.checkboxesVisible.read(reader)) {
 					store.add(new EditorGutter(this.editor, this.htmlElements.gutterDiv, {
 						getIntersectingGutterItems: (range, reader) => [],
 						createView: (item, target) => { throw new BugIndicatingError(); },
 					}));
 				}
-			}, 'update checkboxes')
+			})
 		);
 
 		this._register(
-			autorun('update labels & text model', (reader) => {
+			autorun(reader => {
+				/** @description update labels & text model */
 				const vm = this.viewModel.read(reader);
 				if (!vm) {
 					return;
@@ -69,7 +71,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly decorations = derived(`base.decorations`, reader => {
+	private readonly decorations = derived(this, reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];
@@ -95,11 +97,13 @@ export class BaseCodeEditorView extends CodeEditorView {
 			}
 
 			const blockClassNames = ['merge-editor-block'];
+			let blockPadding: [top: number, right: number, bottom: number, left: number] = [0, 0, 0, 0];
 			if (isHandled) {
 				blockClassNames.push('handled');
 			}
 			if (modifiedBaseRange === activeModifiedBaseRange) {
 				blockClassNames.push('focused');
+				blockPadding = [0, 2, 0, 2];
 			}
 			blockClassNames.push('base');
 
@@ -139,6 +143,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 				options: {
 					showIfCollapsed: true,
 					blockClassName: blockClassNames.join(' '),
+					blockPadding,
 					blockIsAfterEnd: range.startLineNumber > textModel.getLineCount(),
 					description: 'Merge Editor',
 					minimap: {

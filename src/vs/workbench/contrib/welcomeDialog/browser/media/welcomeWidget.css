@@ -6,14 +6,15 @@
 	border-radius: 6px;
 }
 
-.welcome-widget {
-	height: min-content;
-	border-radius: 6px;
+.dialog-message-detail-title > div > p > .codicon[class*='codicon-']::before{
+	position: relative;
+	color: var(--vscode-textLink-foreground);
+	padding-right: 10px;
+	font-size: larger;
 }
 
 .dialog-message-detail-title {
 	height: 22px;
-	padding-bottom: 4px;
 	font-size: large;
 }
 
