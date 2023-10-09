@@ -25,7 +25,7 @@ export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
+	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',

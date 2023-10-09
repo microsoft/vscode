@@ -408,9 +408,9 @@ suite('EditorGroupsService', () => {
 		const currentOptions = part.partOptions;
 		assert.ok(currentOptions);
 
-		disposables.add(part.enforcePartOptions({ showTabs: false }));
-		assert.strictEqual(part.partOptions.showTabs, false);
-		assert.strictEqual(newOptions.showTabs, false);
+		disposables.add(part.enforcePartOptions({ showTabs: 'single' }));
+		assert.strictEqual(part.partOptions.showTabs, 'single');
+		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
 	});
 

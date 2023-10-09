@@ -1227,8 +1227,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.runtime.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
-			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+			if (config.hideTabs && this.editorGroupService.partOptions.showTabs === 'multiple') {
+				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: 'single' }));
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {

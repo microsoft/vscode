@@ -17,6 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { NoEditorTabsControl } from 'vs/workbench/browser/parts/editor/noEditorTabsControl';
 
 export interface IEditorTitleControlDimensions {
 
@@ -57,22 +58,26 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createEditorTabsControl(): IEditorTabsControl {
-		let control: IEditorTabsControl;
-		if (this.groupsView.partOptions.showTabs) {
-			if (this.groupsView.partOptions.pinnedTabsOnSeparateRow) {
-				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
-			} else {
-				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
-			}
-		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
+		let tabsControlType;
+		switch (this.groupsView.partOptions.showTabs) {
+			case 'none':
+				tabsControlType = NoEditorTabsControl;
+				break;
+			case 'single':
+				tabsControlType = SingleEditorTabsControl;
+				break;
+			case 'multiple':
+			default:
+				tabsControlType = this.groupsView.partOptions.pinnedTabsOnSeparateRow ? MultiRowEditorControl : MultiEditorTabsControl;
+				break;
 		}
 
+		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
 		return this.editorTabsControlDisposable.add(control);
 	}
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
-		if (!this.groupsView.partOptions.showTabs) {
+		if (this.groupsView.partOptions.showTabs !== 'multiple') {
 			return undefined; // single tabs have breadcrumbs inlined
 		}
 
@@ -170,7 +175,7 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+			(newOptions.showTabs === 'multiple' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
 		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();
