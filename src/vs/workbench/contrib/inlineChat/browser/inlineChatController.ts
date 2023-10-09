@@ -551,7 +551,6 @@ export class InlineChatController implements IEditorContribution {
 				const valueNow = this._zone.value.widget.value;
 				if (!valueNow.startsWith('/')) {
 					const valueNew = `/${data.slashCommand} ${valueNow}`;
-					this._zone.value.widget.updateStatus(localize('slash', "Detected {0}...", data.slashCommand), { resetAfter: 1500, classes: ['warn'] });
 					ignoreInputChange = true;
 					this._zone.value.widget.value = valueNew;
 					ignoreInputChange = false;
