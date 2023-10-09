@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
@@ -76,7 +76,7 @@ viewsRegistry.registerViewWelcomeContent(VIEW_PANE_ID, {
 
 viewsRegistry.registerViews([{
 	id: VIEW_PANE_ID,
-	name: { value: localize('source control', "Source Control"), original: 'Source Control' },
+	name: localize2('source control', "Source Control"),
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
@@ -98,7 +98,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: REPOSITORIES_VIEW_PANE_ID,
-	name: { value: localize('source control repositories', "Source Control Repositories"), original: 'Source Control Repositories' },
+	name: localize2('source control repositories', "Source Control Repositories"),
 	ctorDescriptor: new SyncDescriptor(SCMRepositoriesViewPane),
 	canToggleVisibility: true,
 	hideByDefault: true,
@@ -112,7 +112,7 @@ viewsRegistry.registerViews([{
 
 viewsRegistry.registerViews([{
 	id: SYNC_VIEW_PANE_ID,
-	name: { value: localize('source control sync', "Source Control Sync"), original: 'Source Control Sync' },
+	name: localize2('source control sync', "Source Control Sync"),
 	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,

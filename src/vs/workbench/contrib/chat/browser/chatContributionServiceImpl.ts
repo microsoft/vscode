@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import * as resources from 'vs/base/common/resources';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -106,12 +106,12 @@ export class ChatExtensionPointHandler implements IWorkbenchContribution {
 
 	private registerViewContainer(): ViewContainer {
 		// Register View Container
-		const title = localize('chat.viewContainer.label', "Chat");
+		const title = localize2('chat.viewContainer.label', "Chat");
 		const icon = Codicon.commentDiscussion;
 		const viewContainerId = CHAT_SIDEBAR_PANEL_ID;
 		const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 			id: viewContainerId,
-			title: { value: title, original: 'Chat' },
+			title,
 			icon,
 			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [viewContainerId, { mergeViewWithContainerWhenSingleView: true }]),
 			storageId: viewContainerId,

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
@@ -105,7 +106,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -291,7 +292,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -321,7 +322,7 @@ suite('ViewContainerModel', () => {
 		const view1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview', true)
 		};
 		const view2: IViewDescriptor = {
@@ -362,7 +363,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -392,7 +393,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -419,7 +420,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -446,7 +447,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -508,7 +509,7 @@ suite('ViewContainerModel', () => {
 		}, {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true,
 			order: 1
 		}], container);
@@ -528,7 +529,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -559,7 +560,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -587,7 +588,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 
@@ -611,7 +612,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
@@ -669,7 +670,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
@@ -737,7 +738,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
@@ -812,7 +813,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{

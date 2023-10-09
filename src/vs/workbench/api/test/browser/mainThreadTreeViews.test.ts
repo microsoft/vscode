@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as assert from 'assert';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
@@ -60,7 +61,7 @@ suite('MainThreadHostTreeView', function () {
 		const viewDescriptor: ITreeViewDescriptor = {
 			id: testTreeViewId,
 			ctorDescriptor: null!,
-			name: { value: 'Test View 1', original: 'Test View 1' },
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			treeView: disposables.add(instantiationService.createInstance(CustomTreeView, 'testTree', 'Test Title', 'extension.id')),
 		};
 		ViewsRegistry.registerViews([viewDescriptor], container);

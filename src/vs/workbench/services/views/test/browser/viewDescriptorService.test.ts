@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as assert from 'assert';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, ViewContainer, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -60,7 +61,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -102,7 +103,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -142,7 +143,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -202,7 +203,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -283,7 +284,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			},
@@ -346,7 +347,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -395,7 +396,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -457,7 +458,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			},
@@ -503,7 +504,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			}
@@ -540,7 +541,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -602,7 +603,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			}
 		];
@@ -640,7 +641,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
@@ -672,7 +673,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: { value: 'Test View 1', original: 'Test View 1' },
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				canToggleVisibility: true
 			},
