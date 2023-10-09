@@ -3,25 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
-import { OverviewRulerPosition, ConfigurationChangedEvent, EditorLayoutInfo, IComputedEditorOptions, EditorOption, FindComputedEditorOptionValueById, IEditorOptions, IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { Event } from 'vs/base/common/event';
+import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
+import { ConfigurationChangedEvent, EditorLayoutInfo, EditorOption, FindComputedEditorOptionValueById, IComputedEditorOptions, IDiffEditorOptions, IEditorOptions, OverviewRulerPosition } from 'vs/editor/common/config/editorOptions';
+import { IDimension } from 'vs/editor/common/core/dimension';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, ICursorStateComputer, PositionAffinity, GlyphMarginLane } from 'vs/editor/common/model';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
-import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
+import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
+import * as editorCommon from 'vs/editor/common/editorCommon';
+import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { ILineChange, IDiffComputationResult } from 'vs/editor/common/diff/smartLinesDiffComputer';
-import { IDimension } from 'vs/editor/common/core/dimension';
-import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
+import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
+import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -249,6 +251,10 @@ export interface IOverlayWidget {
 	 * If null is returned, the overlay widget is responsible to place itself.
 	 */
 	getPosition(): IOverlayWidgetPosition | null;
+	/**
+	 * The editor will ensure that the scroll width is >= than this value.
+	 */
+	getMinContentWidthInPx?(): number;
 }
 
 /**
@@ -353,7 +359,7 @@ export interface IBaseMouseTarget {
 	/**
 	 * The target element
 	 */
-	readonly element: Element | null;
+	readonly element: HTMLElement | null;
 	/**
 	 * The 'approximate' editor position
 	 */
@@ -505,12 +511,7 @@ export interface IEditorAriaOptions {
 	role?: string;
 }
 
-export interface IDiffEditorConstructionOptions extends IDiffEditorOptions {
-	/**
-	 * The initial editor dimension (to avoid measuring the container).
-	 */
-	dimension?: IDimension;
-
+export interface IDiffEditorConstructionOptions extends IDiffEditorOptions, IEditorConstructionOptions {
 	/**
 	 * Place overflow widgets inside an external DOM node.
 	 * Defaults to an internal DOM node.
@@ -537,6 +538,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly isSimpleWidget: boolean;
+	/**
+	 * The editor's scoped context key service.
+	 * @internal
+	 */
+	readonly contextKeyService: IContextKeyService;
 	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
@@ -957,7 +963,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
-	getTopForLineNumber(lineNumber: number): number;
+	getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 
 	/**
 	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
@@ -1090,6 +1096,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	hasModel(): this is IActiveCodeEditor;
 
 	setBanner(bannerDomNode: HTMLElement | null, height: number): void;
+
+	/**
+	 * Is called when the model has been set, view state was restored and options are updated.
+	 * This is the best place to compute data for the viewport (such as tokens).
+	 */
+	handleInitialized?(): void;
 }
 
 /**
@@ -1260,6 +1272,12 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	revealFirstDiff(): unknown;
+
+	accessibleDiffViewerNext(): void;
+
+	accessibleDiffViewerPrev(): void;
+
+	handleInitialized(): void;
 }
 
 /**

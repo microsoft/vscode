@@ -9,14 +9,16 @@ import { Color } from 'vs/base/common/color';
 import { BugIndicatingError, illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
-import { combinedDisposable, Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { listenStream } from 'vs/base/common/stream';
 import * as strings from 'vs/base/common/strings';
+import { ThemeColor } from 'vs/base/common/themables';
 import { Constants } from 'vs/base/common/uint';
 import { URI } from 'vs/base/common/uri';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
 import { normalizeIndentation } from 'vs/editor/common/core/indentation';
+import { LineRange } from 'vs/editor/common/core/lineRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -42,9 +44,7 @@ import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelOptions
 import { IGuidesTextModelPart } from 'vs/editor/common/textModelGuides';
 import { ITokenizationTextModelPart } from 'vs/editor/common/tokenizationTextModelPart';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
-import { ThemeColor } from 'vs/base/common/themables';
 import { IUndoRedoService, ResourceEditStackSnapshot, UndoRedoGroup } from 'vs/platform/undoRedo/common/undoRedo';
-import { LineRange } from 'vs/editor/common/core/lineRange';
 
 export function createTextBufferFactory(text: string): model.ITextBufferFactory {
 	const builder = new PieceTreeTextBufferBuilder();
@@ -177,6 +177,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	static _MODEL_SYNC_LIMIT = 50 * 1024 * 1024; // 50 MB,  // used in tests
 	private static readonly LARGE_FILE_SIZE_THRESHOLD = 20 * 1024 * 1024; // 20 MB;
 	private static readonly LARGE_FILE_LINE_COUNT_THRESHOLD = 300 * 1000; // 300K lines
+	private static readonly LARGE_FILE_HEAP_OPERATION_THRESHOLD = 256 * 1024 * 1024; // 256M characters, usually ~> 512MB memory usage
 
 	public static DEFAULT_CREATION_OPTIONS: model.ITextModelCreationOptions = {
 		isForSimpleWidget: false,
@@ -257,6 +258,7 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 	private _initialUndoRedoSnapshot: ResourceEditStackSnapshot | null;
 	private readonly _isTooLargeForSyncing: boolean;
 	private readonly _isTooLargeForTokenization: boolean;
+	private readonly _isTooLargeForHeapOperation: boolean;
 
 	//#region Editing
 	private readonly _commandManager: EditStack;
@@ -345,8 +347,11 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 				(bufferTextLength > TextModel.LARGE_FILE_SIZE_THRESHOLD)
 				|| (bufferLineCount > TextModel.LARGE_FILE_LINE_COUNT_THRESHOLD)
 			);
+
+			this._isTooLargeForHeapOperation = bufferTextLength > TextModel.LARGE_FILE_HEAP_OPERATION_THRESHOLD;
 		} else {
 			this._isTooLargeForTokenization = false;
+			this._isTooLargeForHeapOperation = false;
 		}
 
 		this._isTooLargeForSyncing = (bufferTextLength > TextModel._MODEL_SYNC_LIMIT);
@@ -587,6 +592,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 		return this._isTooLargeForTokenization;
 	}
 
+	public isTooLargeForHeapOperation(): boolean {
+		return this._isTooLargeForHeapOperation;
+	}
+
 	public isDisposed(): boolean {
 		return this._isDisposed;
 	}
@@ -743,6 +752,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getValue(eol?: model.EndOfLinePreference, preserveBOM: boolean = false): string {
 		this._assertNotDisposed();
+		if (this.isTooLargeForHeapOperation()) {
+			throw new BugIndicatingError('Operation would exceed heap memory limits');
+		}
+
 		const fullModelRange = this.getFullModelRange();
 		const fullModelValue = this.getValueInRange(fullModelRange, eol);
 
@@ -809,6 +822,10 @@ export class TextModel extends Disposable implements model.ITextModel, IDecorati
 
 	public getLinesContent(): string[] {
 		this._assertNotDisposed();
+		if (this.isTooLargeForHeapOperation()) {
+			throw new BugIndicatingError('Operation would exceed heap memory limits');
+		}
+
 		return this._buffer.getLinesContent();
 	}
 
@@ -2269,6 +2286,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 	readonly stickiness: model.TrackedRangeStickiness;
 	readonly zIndex: number;
 	readonly className: string | null;
+	readonly shouldFillLineOnLineBreak: boolean | null;
 	readonly hoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly glyphMarginHoverMessage: IMarkdownString | IMarkdownString[] | null;
 	readonly isWholeLine: boolean;
@@ -2299,6 +2317,7 @@ export class ModelDecorationOptions implements model.IModelDecorationOptions {
 		this.stickiness = options.stickiness || model.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges;
 		this.zIndex = options.zIndex || 0;
 		this.className = options.className ? cleanClassName(options.className) : null;
+		this.shouldFillLineOnLineBreak = options.shouldFillLineOnLineBreak ?? null;
 		this.hoverMessage = options.hoverMessage || null;
 		this.glyphMarginHoverMessage = options.glyphMarginHoverMessage || null;
 		this.isWholeLine = options.isWholeLine || false;

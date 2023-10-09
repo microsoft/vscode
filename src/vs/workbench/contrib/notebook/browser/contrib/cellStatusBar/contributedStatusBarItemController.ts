@@ -47,7 +47,7 @@ export class ContributedStatusBarItemController extends Disposable implements IN
 		added: ICellViewModel[];
 		removed: { handle: number }[];
 	}): void {
-		const vm = this._notebookEditor._getViewModel();
+		const vm = this._notebookEditor.getViewModel();
 		if (!vm) {
 			return;
 		}
@@ -77,7 +77,7 @@ class CellStatusBarHelper extends Disposable {
 
 	private _activeToken: CancellationTokenSource | undefined;
 
-	private readonly _updateThrottler = new Throttler();
+	private readonly _updateThrottler = this._register(new Throttler());
 
 	constructor(
 		private readonly _notebookViewModel: INotebookViewModel,

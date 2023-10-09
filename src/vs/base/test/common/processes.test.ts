@@ -5,8 +5,11 @@
 
 import * as assert from 'assert';
 import * as processes from 'vs/base/common/processes';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Processes', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('sanitizeProcessEnvironment', () => {
 		const env = {
 			FOO: 'bar',

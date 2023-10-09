@@ -5,11 +5,12 @@
 
 import * as assert from 'assert';
 import { URI } from 'vs/base/common/uri';
-import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel } from 'vs/editor/common/model';
+import { CodeEditorStateFlag, EditorState } from 'vs/editor/contrib/editorState/browser/editorState';
 
 interface IStubEditorState {
 	model?: { uri?: URI; version?: number };
@@ -19,6 +20,8 @@ interface IStubEditorState {
 }
 
 suite('Editor Core - Editor State', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const allFlags = (
 		CodeEditorStateFlag.Value

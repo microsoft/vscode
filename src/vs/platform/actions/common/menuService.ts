@@ -58,10 +58,7 @@ class PersistedMenuHideState {
 			this._data = Object.create(null);
 		}
 
-		this._disposables.add(_storageService.onDidChangeValue(e => {
-			if (e.key !== PersistedMenuHideState._key) {
-				return;
-			}
+		this._disposables.add(_storageService.onDidChangeValue(StorageScope.PROFILE, PersistedMenuHideState._key, this._disposables)(() => {
 			if (!this._ignoreChangeEvent) {
 				try {
 					const raw = _storageService.get(PersistedMenuHideState._key, StorageScope.PROFILE, '{}');

@@ -9,8 +9,11 @@ import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { MergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableCollection';
 import { deserializeEnvironmentDescriptionMap, deserializeEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariableShared';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('EnvironmentVariable - MergedEnvironmentVariableCollection', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('ctor', () => {
 		test('Should keep entries that come after a Prepend or Append type mutators', () => {
 			const merged = new MergedEnvironmentVariableCollection(new Map([

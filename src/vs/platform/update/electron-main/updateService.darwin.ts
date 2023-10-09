@@ -9,7 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
+import { ILifecycleMainService, IRelaunchHandler, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IRequestService } from 'vs/platform/request/common/request';
@@ -17,7 +17,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUpdate, State, StateType, UpdateType } from 'vs/platform/update/common/update';
 import { AbstractUpdateService, createUpdateURL, UpdateNotAvailableClassification } from 'vs/platform/update/electron-main/abstractUpdateService';
 
-export class DarwinUpdateService extends AbstractUpdateService {
+export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
 	private readonly disposables = new DisposableStore();
 
@@ -36,6 +36,23 @@ export class DarwinUpdateService extends AbstractUpdateService {
 		@IProductService productService: IProductService
 	) {
 		super(lifecycleMainService, configurationService, environmentMainService, requestService, logService, productService);
+
+		lifecycleMainService.setRelaunchHandler(this);
+	}
+
+	handleRelaunch(options?: IRelaunchOptions): boolean {
+		if (options?.addArgs || options?.removeArgs) {
+			return false; // we cannot apply an update and restart with different args
+		}
+
+		if (this.state.type !== StateType.Ready) {
+			return false; // we only handle the relaunch when we have a pending update
+		}
+
+		this.logService.trace('update#handleRelaunch(): running raw#quitAndInstall()');
+		this.doQuitAndInstall();
+
+		return true;
 	}
 
 	protected override async initialize(): Promise<void> {

@@ -3,44 +3,41 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./standalone-tokens';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
+import 'vs/css!./standalone-tokens';
 import { FontMeasurements } from 'vs/editor/browser/config/fontMeasurements';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { DiffNavigator, IDiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
+import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/browser/services/webWorker';
 import { ApplyUpdateResult, ConfigurationChangedEvent, EditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorZoom } from 'vs/editor/common/config/editorZoom';
 import { BareFontInfo, FontInfo } from 'vs/editor/common/config/fontInfo';
+import { IPosition } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import { EditorType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import * as languages from 'vs/editor/common/languages';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
+import { NullState, nullTokenize } from 'vs/editor/common/languages/nullTokenize';
+import { FindMatch, ITextModel, TextModelResolvedOptions } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
-import { createWebWorker as actualCreateWebWorker, IWebWorkerOptions, MonacoWebWorker } from 'vs/editor/browser/services/webWorker';
 import * as standaloneEnums from 'vs/editor/common/standalone/standaloneEnums';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { createTextModel, IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor, StandaloneDiffEditor2, StandaloneEditor } from 'vs/editor/standalone/browser/standaloneCodeEditor';
+import { IActionDescriptor, IStandaloneCodeEditor, IStandaloneDiffEditor, IStandaloneDiffEditorConstructionOptions, IStandaloneEditorConstructionOptions, StandaloneDiffEditor2, StandaloneEditor, createTextModel } from 'vs/editor/standalone/browser/standaloneCodeEditor';
 import { IEditorOverrideServices, StandaloneKeybindingService, StandaloneServices } from 'vs/editor/standalone/browser/standaloneServices';
 import { StandaloneThemeService } from 'vs/editor/standalone/browser/standaloneThemeService';
 import { IStandaloneThemeData, IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
+import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
-import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { EditorCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IMenuItem, MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
-import { LineRangeMapping, MovedText, RangeMapping, SimpleLineRangeMapping } from 'vs/editor/common/diff/linesDiffComputer';
-import { LineRange } from 'vs/editor/common/core/lineRange';
-import { EditorZoom } from 'vs/editor/common/config/editorZoom';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IRange } from 'vs/editor/common/core/range';
-import { IPosition } from 'vs/editor/common/core/position';
 import { ITextResourceEditorInput } from 'vs/platform/editor/common/editor';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IMarker, IMarkerData, IMarkerService } from 'vs/platform/markers/common/markers';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
 
 /**
  * Create a new editor under `domElement`.
@@ -98,21 +95,7 @@ export function getDiffEditors(): readonly IDiffEditor[] {
  */
 export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneDiffEditorConstructionOptions, override?: IEditorOverrideServices): IStandaloneDiffEditor {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	if ((options?.experimental as any)?.useVersion2) {
-		return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
-	}
-	return instantiationService.createInstance(StandaloneDiffEditor, domElement, options);
-}
-
-export interface IDiffNavigatorOptions {
-	readonly followsCaret?: boolean;
-	readonly ignoreCharChanges?: boolean;
-	readonly alwaysRevealFirst?: boolean;
-}
-
-export function createDiffNavigator(diffEditor: IStandaloneDiffEditor, opts?: IDiffNavigatorOptions): IDiffNavigator {
-	const instantiationService = StandaloneServices.initialize({});
-	return instantiationService.createInstance(DiffNavigator, diffEditor, opts);
+	return instantiationService.createInstance(StandaloneDiffEditor2, domElement, options);
 }
 
 /**
@@ -352,8 +335,9 @@ export function createWebWorker<T extends object>(opts: IWebWorkerOptions): Mona
 export function colorizeElement(domNode: HTMLElement, options: IColorizerElementOptions): Promise<void> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(domNode);
-	return Colorizer.colorizeElement(themeService, languageService, domNode, options);
+	return Colorizer.colorizeElement(themeService, languageService, domNode, options).then(() => {
+		themeService.registerEditorContainer(domNode);
+	});
 }
 
 /**
@@ -517,7 +501,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		onDidCreateEditor: <any>onDidCreateEditor,
 		onDidCreateDiffEditor: <any>onDidCreateDiffEditor,
 		createDiffEditor: <any>createDiffEditor,
-		createDiffNavigator: <any>createDiffNavigator,
 
 		addCommand: <any>addCommand,
 		addEditorAction: <any>addEditorAction,
@@ -582,12 +565,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		TextModelResolvedOptions: <any>TextModelResolvedOptions,
 		FindMatch: <any>FindMatch,
 		ApplyUpdateResult: <any>ApplyUpdateResult,
-		LineRange: <any>LineRange,
-		LineRangeMapping: <any>LineRangeMapping,
-		RangeMapping: <any>RangeMapping,
 		EditorZoom: <any>EditorZoom,
-		MovedText: <any>MovedText,
-		SimpleLineRangeMapping: <any>SimpleLineRangeMapping,
 
 		// vars
 		EditorType: EditorType,

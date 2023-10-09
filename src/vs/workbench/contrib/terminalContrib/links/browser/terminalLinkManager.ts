@@ -11,7 +11,6 @@ import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ITunnelService } from 'vs/platform/tunnel/common/tunnel';
 import { ITerminalLinkDetector, ITerminalLinkOpener, ITerminalLinkResolver, ITerminalSimpleLink, OmitFirstArg, TerminalBuiltinLinkType, TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { TerminalExternalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalExternalLinkDetector';
@@ -26,11 +25,13 @@ import { ILinkHoverTargetOptions, TerminalHover } from 'vs/workbench/contrib/ter
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ITerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalConfiguration, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProcessInfo, TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
 import type { ILink, ILinkProvider, IViewportRange, Terminal } from 'xterm';
 import { convertBufferRangeToViewport } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
+import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
 
 export type XtermLinkMatcherHandler = (event: MouseEvent | undefined, link: string) => Promise<void>;
 
@@ -44,16 +45,14 @@ export class TerminalLinkManager extends DisposableStore {
 	private readonly _externalLinkProviders: IDisposable[] = [];
 	private readonly _openers: Map<TerminalLinkType, ITerminalLinkOpener> = new Map();
 
-	private _lastTopLine: number | undefined;
-
 	constructor(
 		private readonly _xterm: Terminal,
-		private readonly _processManager: ITerminalProcessManager,
+		private readonly _processInfo: ITerminalProcessInfo,
 		capabilities: ITerminalCapabilityStore,
 		private readonly _linkResolver: ITerminalLinkResolver,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILogService private readonly _logService: ILogService,
+		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITunnelService private readonly _tunnelService: ITunnelService
 	) {
 		super();
@@ -66,16 +65,17 @@ export class TerminalLinkManager extends DisposableStore {
 				enableFileLinks = false;
 				break;
 			case 'notRemote':
-				enableFileLinks = !this._processManager.remoteAuthority;
+				enableFileLinks = !this._processInfo.remoteAuthority;
 				break;
 		}
 
 		// Setup link detectors in their order of priority
-		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processManager, this._linkResolver));
+		this._setupLinkDetector(TerminalUriLinkDetector.id, this._instantiationService.createInstance(TerminalUriLinkDetector, this._xterm, this._processInfo, this._linkResolver));
 		if (enableFileLinks) {
-			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processManager, this._linkResolver));
+			this._setupLinkDetector(TerminalMultiLineLinkDetector.id, this._instantiationService.createInstance(TerminalMultiLineLinkDetector, this._xterm, this._processInfo, this._linkResolver));
+			this._setupLinkDetector(TerminalLocalLinkDetector.id, this._instantiationService.createInstance(TerminalLocalLinkDetector, this._xterm, capabilities, this._processInfo, this._linkResolver));
 		}
-		this._setupLinkDetector(TerminalWordLinkDetector.id, this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm));
+		this._setupLinkDetector(TerminalWordLinkDetector.id, this.add(this._instantiationService.createInstance(TerminalWordLinkDetector, this._xterm)));
 
 		// Setup link openers
 		const localFileOpener = this._instantiationService.createInstance(TerminalLocalFileLinkOpener);
@@ -83,8 +83,8 @@ export class TerminalLinkManager extends DisposableStore {
 		this._openers.set(TerminalBuiltinLinkType.LocalFile, localFileOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderInWorkspace, localFolderInWorkspaceOpener);
 		this._openers.set(TerminalBuiltinLinkType.LocalFolderOutsideWorkspace, this._instantiationService.createInstance(TerminalLocalFolderOutsideWorkspaceLinkOpener));
-		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processManager.initialCwd, localFileOpener, localFolderInWorkspaceOpener, () => this._processManager.os || OS));
-		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processManager.remoteAuthority));
+		this._openers.set(TerminalBuiltinLinkType.Search, this._instantiationService.createInstance(TerminalSearchLinkOpener, capabilities, this._processInfo.initialCwd, localFileOpener, localFolderInWorkspaceOpener, () => this._processInfo.os || OS));
+		this._openers.set(TerminalBuiltinLinkType.Url, this._instantiationService.createInstance(TerminalUrlLinkOpener, !!this._processInfo.remoteAuthority));
 
 		this._registerStandardLinkProviders();
 
@@ -132,8 +132,8 @@ export class TerminalLinkManager extends DisposableStore {
 	}
 
 	private _setupLinkDetector(id: string, detector: ITerminalLinkDetector, isExternal: boolean = false): ILinkProvider {
-		const detectorAdapter = this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector);
-		detectorAdapter.onDidActivateLink(e => {
+		const detectorAdapter = this.add(this._instantiationService.createInstance(TerminalLinkDetectorAdapter, detector));
+		this.add(detectorAdapter.onDidActivateLink(e => {
 			// Prevent default electron link handling so Alt+Click mode works normally
 			e.event?.preventDefault();
 			// Require correct modifier on click unless event is coming from linkQuickPick selection
@@ -147,8 +147,8 @@ export class TerminalLinkManager extends DisposableStore {
 			} else {
 				this._openLink(e.link);
 			}
-		});
-		detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback));
+		}));
+		this.add(detectorAdapter.onDidShowHover(e => this._tooltipCallback(e.link, e.viewportRange, e.modifierDownCallback, e.modifierUpCallback)));
 		if (!isExternal) {
 			this._standardLinkProviders.set(id, detectorAdapter);
 		}
@@ -180,41 +180,89 @@ export class TerminalLinkManager extends DisposableStore {
 		return links[0];
 	}
 
-	async getLinks(extended?: boolean): Promise<IDetectedLinks> {
-		const wordResults: ILink[] = [];
-		const webResults: ILink[] = [];
-		const fileResults: ILink[] = [];
-		let noMoreResults: boolean = false;
-		let topLine = !extended ? this._xterm.buffer.active.viewportY - Math.min(this._xterm.rows, 50) : this._lastTopLine! - 1000;
-		if (topLine < 0 || topLine - Math.min(this._xterm.rows, 50) < 0) {
-			noMoreResults = true;
+	async getLinks(): Promise<{ viewport: IDetectedLinks; all: Promise<IDetectedLinks> }> {
+		// Fetch and await the viewport results
+		const viewportLinksByLinePromises: Promise<IDetectedLinks | undefined>[] = [];
+		for (let i = this._xterm.buffer.active.viewportY + this._xterm.rows - 1; i >= this._xterm.buffer.active.viewportY; i--) {
+			viewportLinksByLinePromises.push(this._getLinksForLine(i));
 		}
-		if (topLine < 0) {
-			topLine = 0;
-		}
-		this._lastTopLine = topLine;
-		for (let i = this._xterm.buffer.active.length - 1; i >= topLine; i--) {
-			const links = await this._getLinksForLine(i);
+		const viewportLinksByLine = await Promise.all(viewportLinksByLinePromises);
+
+		// Assemble viewport links
+		const viewportLinks: Required<Pick<IDetectedLinks, 'wordLinks' | 'webLinks' | 'fileLinks' | 'folderLinks'>> = {
+			wordLinks: [],
+			webLinks: [],
+			fileLinks: [],
+			folderLinks: [],
+		};
+		for (const links of viewportLinksByLine) {
 			if (links) {
-				const { wordLinks, webLinks, fileLinks } = links;
-				if (wordLinks && wordLinks.length) {
-					wordResults.push(...wordLinks.reverse());
+				const { wordLinks, webLinks, fileLinks, folderLinks } = links;
+				if (wordLinks?.length) {
+					viewportLinks.wordLinks.push(...wordLinks.reverse());
 				}
-				if (webLinks && webLinks.length) {
-					webResults.push(...webLinks.reverse());
+				if (webLinks?.length) {
+					viewportLinks.webLinks.push(...webLinks.reverse());
 				}
-				if (fileLinks && fileLinks.length) {
-					fileResults.push(...fileLinks.reverse());
+				if (fileLinks?.length) {
+					viewportLinks.fileLinks.push(...fileLinks.reverse());
+				}
+				if (folderLinks?.length) {
+					viewportLinks.folderLinks.push(...folderLinks.reverse());
 				}
 			}
 		}
-		return { webLinks: webResults, fileLinks: fileResults, wordLinks: wordResults, noMoreResults };
+
+		// Fetch the remaining results async
+		const aboveViewportLinksPromises: Promise<IDetectedLinks | undefined>[] = [];
+		for (let i = this._xterm.buffer.active.viewportY - 1; i >= 0; i--) {
+			aboveViewportLinksPromises.push(this._getLinksForLine(i));
+		}
+		const belowViewportLinksPromises: Promise<IDetectedLinks | undefined>[] = [];
+		for (let i = this._xterm.buffer.active.length - 1; i >= this._xterm.buffer.active.viewportY + this._xterm.rows; i--) {
+			belowViewportLinksPromises.push(this._getLinksForLine(i));
+		}
+
+		// Assemble all links in results
+		const allLinks: Promise<Required<Pick<IDetectedLinks, 'wordLinks' | 'webLinks' | 'fileLinks' | 'folderLinks'>>> = Promise.all(aboveViewportLinksPromises).then(async aboveViewportLinks => {
+			const belowViewportLinks = await Promise.all(belowViewportLinksPromises);
+			const allResults: Required<Pick<IDetectedLinks, 'wordLinks' | 'webLinks' | 'fileLinks' | 'folderLinks'>> = {
+				wordLinks: [...viewportLinks.wordLinks],
+				webLinks: [...viewportLinks.webLinks],
+				fileLinks: [...viewportLinks.fileLinks],
+				folderLinks: [...viewportLinks.folderLinks]
+			};
+			for (const links of [...belowViewportLinks, ...aboveViewportLinks]) {
+				if (links) {
+					const { wordLinks, webLinks, fileLinks, folderLinks } = links;
+					if (wordLinks?.length) {
+						allResults.wordLinks.push(...wordLinks.reverse());
+					}
+					if (webLinks?.length) {
+						allResults.webLinks.push(...webLinks.reverse());
+					}
+					if (fileLinks?.length) {
+						allResults.fileLinks.push(...fileLinks.reverse());
+					}
+					if (folderLinks?.length) {
+						allResults.folderLinks.push(...folderLinks.reverse());
+					}
+				}
+			}
+			return allResults;
+		});
+
+		return {
+			viewport: viewportLinks,
+			all: allLinks
+		};
 	}
 
 	private async _getLinksForLine(y: number): Promise<IDetectedLinks | undefined> {
 		const unfilteredWordLinks = await this._getLinksForType(y, 'word');
 		const webLinks = await this._getLinksForType(y, 'url');
 		const fileLinks = await this._getLinksForType(y, 'localFile');
+		const folderLinks = await this._getLinksForType(y, 'localFolder');
 		const words = new Set();
 		let wordLinks;
 		if (unfilteredWordLinks) {
@@ -226,10 +274,10 @@ export class TerminalLinkManager extends DisposableStore {
 				}
 			}
 		}
-		return { wordLinks, webLinks, fileLinks };
+		return { wordLinks, webLinks, fileLinks, folderLinks };
 	}
 
-	protected async _getLinksForType(y: number, type: 'word' | 'url' | 'localFile'): Promise<ILink[] | undefined> {
+	protected async _getLinksForType(y: number, type: 'word' | 'url' | 'localFile' | 'localFolder'): Promise<ILink[] | undefined> {
 		switch (type) {
 			case 'word':
 				return (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalWordLinkDetector.id)?.provideLinks(y, r)));
@@ -238,6 +286,10 @@ export class TerminalLinkManager extends DisposableStore {
 			case 'localFile': {
 				const links = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
 				return links?.filter(link => (link as TerminalLink).type === TerminalBuiltinLinkType.LocalFile);
+			}
+			case 'localFolder': {
+				const links = (await new Promise<ILink[] | undefined>(r => this._standardLinkProviders.get(TerminalLocalLinkDetector.id)?.provideLinks(y, r)));
+				return links?.filter(link => (link as TerminalLink).type === TerminalBuiltinLinkType.LocalFolderInWorkspace);
 			}
 		}
 	}
@@ -378,5 +430,5 @@ export interface IDetectedLinks {
 	wordLinks?: ILink[];
 	webLinks?: ILink[];
 	fileLinks?: ILink[];
-	noMoreResults?: boolean;
+	folderLinks?: ILink[];
 }

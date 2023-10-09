@@ -19,7 +19,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ISuggestController } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
-import { ITerminalAddon, Terminal } from 'xterm';
+import type { ITerminalAddon, Terminal } from 'xterm';
 import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
 
 const enum ShellIntegrationOscPs {
@@ -83,9 +83,9 @@ export class SuggestAddon extends Disposable implements ITerminalAddon, ISuggest
 	private _cursorIndexDelta: number = 0;
 	private _inputQueue?: string[];
 
-	private readonly _onBell = new Emitter<void>();
+	private readonly _onBell = this._register(new Emitter<void>());
 	readonly onBell = this._onBell.event;
-	private readonly _onAcceptedCompletion = new Emitter<string>();
+	private readonly _onAcceptedCompletion = this._register(new Emitter<string>());
 	readonly onAcceptedCompletion = this._onAcceptedCompletion.event;
 
 	constructor(

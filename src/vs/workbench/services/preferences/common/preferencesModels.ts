@@ -21,7 +21,6 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
 import { IFilterMetadata, IFilterResult, IGroupFilter, IKeybindingsEditorModel, ISearchResultGroup, ISetting, ISettingMatch, ISettingMatcher, ISettingsEditorModel, ISettingsGroup, SettingMatchType } from 'vs/workbench/services/preferences/common/preferences';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
 import { createValidator } from 'vs/workbench/services/preferences/common/preferencesValidation';
 
@@ -57,18 +56,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 			});
 	}
 
-	private compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
-		const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
-		const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
-		if (aOrMax < bOrMax) {
-			return -1;
-		} else if (aOrMax > bOrMax) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		const allGroups = this.filterGroups;
 
@@ -91,32 +78,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		filterMatches.sort((a, b) => {
-			if (a.matchType !== b.matchType) {
-				// Sort by match type if the match types are not the same.
-				// The priority of the match type is given by the SettingMatchType enum.
-				return b.matchType - a.matchType;
-			} else {
-				// The match types are the same.
-				if (a.setting.extensionInfo && b.setting.extensionInfo
-					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id) {
-					// These settings belong to the same extension.
-					if (a.setting.categoryLabel !== b.setting.categoryLabel
-						&& (a.setting.categoryOrder !== undefined || b.setting.categoryOrder !== undefined)
-						&& a.setting.categoryOrder !== b.setting.categoryOrder) {
-						// These two settings don't belong to the same category and have different category orders.
-						return this.compareTwoNullableNumbers(a.setting.categoryOrder, b.setting.categoryOrder);
-					} else if (a.setting.categoryLabel === b.setting.categoryLabel
-						&& (a.setting.order !== undefined || b.setting.order !== undefined)
-						&& a.setting.order !== b.setting.order) {
-						// These two settings belong to the same category, but have different orders.
-						return this.compareTwoNullableNumbers(a.setting.order, b.setting.order);
-					}
-				}
-				// In the worst case, go back to lexicographical order.
-				return b.score - a.score;
-			}
-		});
 		return filterMatches;
 	}
 
@@ -387,7 +348,7 @@ function parse(model: ITextModel, isSettingsProperty: (currentProperty: string, 
 					valueRange: nullRange,
 					descriptionRanges: [],
 					overrides: [],
-					overrideOf: withNullAsUndefined(overrideSetting)
+					overrideOf: overrideSetting ?? undefined,
 				};
 				if (previousParents.length === settingsPropertyIndex + 1) {
 					settings.push(setting);
@@ -673,7 +634,6 @@ export class DefaultSettings extends Disposable {
 		// Try using the title if the category id wasn't given
 		// (in which case the category id is the same as the extension id)
 		const categoryLabel = config.extensionInfo?.id === config.id ? config.title : config.id;
-		const categoryOrder = config.order;
 
 		for (const key in settingsObject) {
 			const prop: IConfigurationPropertySchema = settingsObject[key];
@@ -727,6 +687,10 @@ export class DefaultSettings extends Disposable {
 					}
 				}
 
+				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
+					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
+				}
+
 				result.push({
 					key,
 					value,
@@ -746,6 +710,7 @@ export class DefaultSettings extends Disposable {
 					enum: enumToUse,
 					enumDescriptions: enumDescriptions,
 					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+					enumItemLabels: prop.enumItemLabels,
 					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
@@ -754,14 +719,12 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
 					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
-					categoryLabel,
-					categoryOrder
+					categoryLabel
 				});
 			}
 		}
@@ -1099,7 +1062,7 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+		if (setting.enum && setting.enumDescriptions?.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?

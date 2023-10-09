@@ -209,9 +209,8 @@ export class SuggestEnabledInput extends Widget {
 			this.stylingContainer.classList.remove('synthetic-focus');
 		})));
 
-		const onKeyDownMonaco = Event.chain(this.inputWidget.onKeyDown);
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.Enter).on(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
-		this._register(onKeyDownMonaco.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)).on(() => this._onShouldFocusResults.fire(), this));
+		this._register(Event.chain(this.inputWidget.onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Enter))(e => { e.preventDefault(); /** Do nothing. Enter causes new line which is not expected. */ }, this));
+		this._register(Event.chain(this.inputWidget.onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.DownArrow && (isMacintosh ? e.metaKey : e.ctrlKey)))(() => this._onShouldFocusResults.fire(), this));
 
 		let preexistingContent = this.getValue();
 		const inputWidgetModel = this.inputWidget.getModel();
@@ -236,6 +235,7 @@ export class SuggestEnabledInput extends Widget {
 		this.setValue(options.value || '');
 
 		this._register(languageFeaturesService.completionProvider.register({ scheme: scopeHandle.scheme, pattern: '**/' + scopeHandle.path, hasAccessToAllModels: true }, {
+			_debugDisplayName: `suggestEnabledInput/${id}`,
 			triggerCharacters: validatedSuggestProvider.triggerCharacters,
 			provideCompletionItems: (model: ITextModel, position: Position, _context: languages.CompletionContext) => {
 				const query = model.getValue();
@@ -444,7 +444,7 @@ export class ContextScopedSuggestEnabledInputWithHistory extends SuggestEnabledI
 		this._register(this.inputWidget.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this.inputWidget._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const lastLineCol = viewModel.getLineLength(lastLineNumber) + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			historyNavigationBackwardsEnablement.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			historyNavigationForwardsEnablement.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);

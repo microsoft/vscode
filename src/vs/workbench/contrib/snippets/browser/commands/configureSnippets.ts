@@ -221,8 +221,7 @@ async function createLanguageSnippetFile(pick: ISnippetPick, fileService: IFileS
 	await textFileService.write(pick.filepath, contents);
 }
 
-export class ConfigureSnippets extends SnippetsAction {
-
+export class ConfigureSnippetsAction extends SnippetsAction {
 	constructor() {
 		super({
 			id: 'workbench.action.openSnippets',
@@ -237,8 +236,8 @@ export class ConfigureSnippets extends SnippetsAction {
 			},
 			f1: true,
 			menu: [
-				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 4 },
-				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 4 },
+				{ id: MenuId.MenubarPreferencesMenu, group: '2_configuration', order: 5 },
+				{ id: MenuId.GlobalActivity, group: '2_configuration', order: 5 },
 			]
 		});
 	}

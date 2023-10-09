@@ -17,6 +17,10 @@ import { Command } from 'vs/editor/common/languages';
 import { reset } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
+export function isSCMRepositoryArray(element: any): element is ISCMRepository[] {
+	return Array.isArray(element) && element.every(r => isSCMRepository(r));
+}
+
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }

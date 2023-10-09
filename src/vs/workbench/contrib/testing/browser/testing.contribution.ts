@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -24,7 +24,7 @@ import { testingResultsIcon, testingViewIcon } from 'vs/workbench/contrib/testin
 import { TestingDecorationService, TestingDecorations } from 'vs/workbench/contrib/testing/browser/testingDecorations';
 import { TestingExplorerView } from 'vs/workbench/contrib/testing/browser/testingExplorerView';
 import { CloseTestPeek, GoToNextMessageAction, GoToPreviousMessageAction, OpenMessageInEditorAction, TestResultsView, TestingOutputPeekController, TestingPeekOpener, ToggleTestingPeekHistory } from 'vs/workbench/contrib/testing/browser/testingOutputPeek';
-import { ITestingProgressUiService, TestingProgressTrigger, TestingProgressUiService } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
+import { TestingProgressTrigger } from 'vs/workbench/contrib/testing/browser/testingProgressUiService';
 import { TestingViewPaneContainer } from 'vs/workbench/contrib/testing/browser/testingViewPaneContainer';
 import { testingConfiguration } from 'vs/workbench/contrib/testing/common/configuration';
 import { TestCommandId, Testing } from 'vs/workbench/contrib/testing/common/constants';
@@ -52,12 +52,11 @@ registerSingleton(ITestingContinuousRunService, TestingContinuousRunService, Ins
 registerSingleton(ITestResultService, TestResultService, InstantiationType.Delayed);
 registerSingleton(ITestExplorerFilterState, TestExplorerFilterState, InstantiationType.Delayed);
 registerSingleton(ITestingPeekOpener, TestingPeekOpener, InstantiationType.Delayed);
-registerSingleton(ITestingProgressUiService, TestingProgressUiService, InstantiationType.Delayed);
 registerSingleton(ITestingDecorationsService, TestingDecorationService, InstantiationType.Delayed);
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ViewletId,
-	title: localize('test', "Testing"),
+	title: { value: localize('test', "Testing"), original: 'Testing' },
 	ctorDescriptor: new SyncDescriptor(TestingViewPaneContainer),
 	icon: testingViewIcon,
 	alwaysUseContainerInfo: true,
@@ -75,7 +74,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 
 const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ResultsPanelId,
-	title: localize('testResultsPanelName', "Test Results"),
+	title: localize2('testResultsPanelName', "Test Results"),
 	icon: testingResultsIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
@@ -87,7 +86,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: Testing.ResultsViewId,
-	name: localize('testResultsPanelName', "Test Results"),
+	name: localize2('testResultsPanelName', "Test Results"),
 	containerIcon: testingResultsIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -106,7 +105,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 
 viewsRegistry.registerViews([{
 	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
+	name: localize2('testExplorer', "Test Explorer"),
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
 	canMoveView: true,

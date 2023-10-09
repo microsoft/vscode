@@ -152,7 +152,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
 	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
 
-	private _selectionCollection = new NotebookCellSelectionCollection();
+	private _selectionCollection = this._register(new NotebookCellSelectionCollection());
 
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();
@@ -742,6 +742,8 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const cell = this.getCellByHandle(itemDelta.handle);
 			const deleted = deletesByHandle[itemDelta.handle] ?? [];
 			delete deletesByHandle[itemDelta.handle];
+			deleted.forEach(id => this._statusBarItemIdToCellMap.delete(id));
+
 			const ret = cell?.deltaCellStatusBarItems(deleted, itemDelta.items) || [];
 			ret.forEach(id => {
 				this._statusBarItemIdToCellMap.set(id, itemDelta.handle);
@@ -755,6 +757,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 			const ids = deletesByHandle[handle];
 			const cell = this.getCellByHandle(handle);
 			cell?.deltaCellStatusBarItems(ids, []);
+			ids.forEach(id => this._statusBarItemIdToCellMap.delete(id));
 		}
 
 		return result;

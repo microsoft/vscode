@@ -7,7 +7,6 @@ import { LogOutputChannel } from 'vscode';
 
 export const enum OperationKind {
 	Add = 'Add',
-	AddNoProgress = 'AddNoProgress',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Branch = 'Branch',
@@ -16,7 +15,6 @@ export const enum OperationKind {
 	CheckoutTracking = 'CheckoutTracking',
 	CherryPick = 'CherryPick',
 	Clean = 'Clean',
-	CleanNoProgress = 'CleanNoProgress',
 	Commit = 'Commit',
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
@@ -25,7 +23,6 @@ export const enum OperationKind {
 	DeleteTag = 'DeleteTag',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
-	FetchNoProgress = 'FetchNoProgress',
 	FindTrackingBranches = 'GetTracking',
 	GetBranch = 'GetBranch',
 	GetBranches = 'GetBranches',
@@ -52,7 +49,8 @@ export const enum OperationKind {
 	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
 	RevertFiles = 'RevertFiles',
-	RevertFilesNoProgress = 'RevertFilesNoProgress',
+	RevList = 'RevList',
+	RevParse = 'RevParse',
 	SetBranchUpstream = 'SetBranchUpstream',
 	Show = 'Show',
 	Stage = 'Stage',
@@ -69,8 +67,9 @@ export type Operation = AddOperation | ApplyOperation | BlameOperation | BranchO
 	GetBranchOperation | GetBranchesOperation | GetCommitTemplateOperation | GetObjectDetailsOperation | GetRefsOperation | GetRemoteRefsOperation |
 	HashObjectOperation | IgnoreOperation | LogOperation | LogFileOperation | MergeOperation | MergeAbortOperation | MergeBaseOperation |
 	MoveOperation | PostCommitCommandOperation | PullOperation | PushOperation | RemoteOperation | RenameBranchOperation | RemoveOperation |
-	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | SetBranchUpstreamOperation |
-	ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation | TagOperation;
+	ResetOperation | RebaseOperation | RebaseAbortOperation | RebaseContinueOperation | RevertFilesOperation | RevListOperation | RevParseOperation |
+	SetBranchUpstreamOperation | ShowOperation | StageOperation | StatusOperation | StashOperation | SubmoduleUpdateOperation | SyncOperation |
+	TagOperation;
 
 type BaseOperation = { kind: OperationKind; blocking: boolean; readOnly: boolean; remote: boolean; retry: boolean; showProgress: boolean };
 export type AddOperation = BaseOperation & { kind: OperationKind.Add };
@@ -116,6 +115,8 @@ export type RebaseOperation = BaseOperation & { kind: OperationKind.Rebase };
 export type RebaseAbortOperation = BaseOperation & { kind: OperationKind.RebaseAbort };
 export type RebaseContinueOperation = BaseOperation & { kind: OperationKind.RebaseContinue };
 export type RevertFilesOperation = BaseOperation & { kind: OperationKind.RevertFiles };
+export type RevListOperation = BaseOperation & { kind: OperationKind.RevList };
+export type RevParseOperation = BaseOperation & { kind: OperationKind.RevParse };
 export type SetBranchUpstreamOperation = BaseOperation & { kind: OperationKind.SetBranchUpstream };
 export type ShowOperation = BaseOperation & { kind: OperationKind.Show };
 export type StageOperation = BaseOperation & { kind: OperationKind.Stage };
@@ -169,6 +170,8 @@ export const Operation = {
 	RebaseAbort: { kind: OperationKind.RebaseAbort, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseAbortOperation,
 	RebaseContinue: { kind: OperationKind.RebaseContinue, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as RebaseContinueOperation,
 	RevertFiles: (showProgress: boolean) => ({ kind: OperationKind.RevertFiles, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as RevertFilesOperation),
+	RevList: { kind: OperationKind.RevList, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevListOperation,
+	RevParse: { kind: OperationKind.RevParse, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as RevParseOperation,
 	SetBranchUpstream: { kind: OperationKind.SetBranchUpstream, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as SetBranchUpstreamOperation,
 	Show: { kind: OperationKind.Show, blocking: false, readOnly: true, remote: false, retry: false, showProgress: false } as ShowOperation,
 	Stage: { kind: OperationKind.Stage, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as StageOperation,

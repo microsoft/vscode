@@ -3,37 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from 'vs/base/common/async';
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ISecretStorageProvider, ISecretStorageService, SecretStorageService } from 'vs/platform/secrets/common/secrets';
+import { ISecretStorageProvider, ISecretStorageService, BaseSecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 
-export class BrowserSecretStorageService extends SecretStorageService {
+export class BrowserSecretStorageService extends BaseSecretStorageService {
 
 	private readonly _secretStorageProvider: ISecretStorageProvider | undefined;
+	private readonly _embedderSequencer: SequencerByKey<string> | undefined;
 
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IEncryptionService encryptionService: IEncryptionService,
 		@IBrowserWorkbenchEnvironmentService environmentService: IBrowserWorkbenchEnvironmentService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService notificationService: INotificationService,
 		@ILogService logService: ILogService
 	) {
-		super(storageService, encryptionService, instantiationService, notificationService, logService);
+		// We don't have encryption in the browser so instead we use the
+		// in-memory base class implementation instead.
+		super(true, storageService, encryptionService, logService);
 
 		if (environmentService.options?.secretStorageProvider) {
 			this._secretStorageProvider = environmentService.options.secretStorageProvider;
+			this._embedderSequencer = new SequencerByKey<string>();
 		}
 	}
 
 	override get(key: string): Promise<string | undefined> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.get(key);
+			return this._embedderSequencer!.queue(key, () => this._secretStorageProvider!.get(key));
 		}
 
 		return super.get(key);
@@ -41,7 +42,10 @@ export class BrowserSecretStorageService extends SecretStorageService {
 
 	override set(key: string, value: string): Promise<void> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.set(key, value);
+			return this._embedderSequencer!.queue(key, async () => {
+				await this._secretStorageProvider!.set(key, value);
+				this.onDidChangeSecretEmitter.fire(key);
+			});
 		}
 
 		return super.set(key, value);
@@ -49,7 +53,10 @@ export class BrowserSecretStorageService extends SecretStorageService {
 
 	override delete(key: string): Promise<void> {
 		if (this._secretStorageProvider) {
-			return this._secretStorageProvider.delete(key);
+			return this._embedderSequencer!.queue(key, async () => {
+				await this._secretStorageProvider!.delete(key);
+				this.onDidChangeSecretEmitter.fire(key);
+			});
 		}
 
 		return super.delete(key);

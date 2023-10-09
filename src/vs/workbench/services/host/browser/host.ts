@@ -46,7 +46,7 @@ export interface IHostService {
 	 * focused application which may not be VSCode. It may not be supported
 	 * in all environments.
 	 */
-	focus(options?: { force: boolean }): Promise<void>;
+	focus(window: Window, options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 
@@ -69,6 +69,11 @@ export interface IHostService {
 	 */
 	toggleFullScreen(): Promise<void>;
 
+	/**
+	 * Bring a window to the front and restore it if needed.
+	 */
+	moveTop(window: Window): Promise<void>;
+
 	//#endregion
 
 	//#region Lifecycle
@@ -87,6 +92,12 @@ export interface IHostService {
 	 * Attempt to close the active window.
 	 */
 	close(): Promise<void>;
+
+	/**
+	 * Execute an asynchronous `expectedShutdownTask`. While this task is
+	 * in progress, attempts to quit the application will not be vetoed with a dialog.
+	 */
+	withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T>;
 
 	//#endregion
 }

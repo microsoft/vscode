@@ -156,6 +156,7 @@ export interface ITestErrorMessage {
 	type: TestMessageType.Error;
 	expected: string | undefined;
 	actual: string | undefined;
+	contextValue: string | undefined;
 	location: IRichLocation | undefined;
 }
 
@@ -165,6 +166,7 @@ export namespace ITestErrorMessage {
 		type: TestMessageType.Error;
 		expected: string | undefined;
 		actual: string | undefined;
+		contextValue: string | undefined;
 		location: IRichLocation.Serialize | undefined;
 	}
 
@@ -173,6 +175,7 @@ export namespace ITestErrorMessage {
 		type: TestMessageType.Error,
 		expected: message.expected,
 		actual: message.actual,
+		contextValue: message.contextValue,
 		location: message.location && IRichLocation.serialize(message.location),
 	});
 
@@ -181,6 +184,7 @@ export namespace ITestErrorMessage {
 		type: TestMessageType.Error,
 		expected: message.expected,
 		actual: message.actual,
+		contextValue: message.contextValue,
 		location: message.location && IRichLocation.deserialize(message.location),
 	});
 }
@@ -630,6 +634,18 @@ export interface ITestItemContext {
 	$mid: MarshalledId.TestItemContext;
 	/** Tests and parents from the root to the current items */
 	tests: InternalTestItem.Serialized[];
+}
+
+/**
+ * Context for actions taken in the test explorer view.
+ */
+export interface ITestMessageMenuArgs {
+	/** Marshalling marker */
+	$mid: MarshalledId.TestMessageMenuArgs;
+	/** Tests ext ID */
+	extId: string;
+	/** Serialized test message */
+	message: ITestMessage.Serialized;
 }
 
 /**

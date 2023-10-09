@@ -187,6 +187,14 @@ impl LauncherPaths {
 		))
 	}
 
+	/// Lockfile for port forwarding
+	pub fn forwarding_lockfile(&self) -> PathBuf {
+		self.root.join(format!(
+			"forwarding-{}.lock",
+			VSCODE_CLI_QUALITY.unwrap_or("oss")
+		))
+	}
+
 	/// Suggested path for tunnel service logs, when using file logs
 	pub fn service_log_file(&self) -> PathBuf {
 		self.root.join("tunnel-service.log")
@@ -204,4 +212,10 @@ impl LauncherPaths {
 			)
 		})
 	}
+
+	/// Suggested path for web server storage
+	pub fn web_server_storage(&self) -> PathBuf {
+		self.root.join("serve-web")
+	}
+
 }

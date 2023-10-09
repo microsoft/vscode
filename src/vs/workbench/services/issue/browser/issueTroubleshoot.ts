@@ -8,7 +8,7 @@ import { IExtensionManagementService } from 'vs/platform/extensionManagement/com
 import { ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IUserDataProfileImportExportService, IUserDataProfileManagementService, IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -20,13 +20,15 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { URI } from 'vs/base/common/uri';
+import { RemoteNameContext } from 'vs/workbench/common/contextkeys';
+import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
 
 const ITroubleshootIssueService = createDecorator<ITroubleshootIssueService>('ITroubleshootIssueService');
 
@@ -108,7 +110,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 
 		const res = await this.dialogService.confirm({
 			message: localize('troubleshoot issue', "Troubleshoot Issue"),
-			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify if the issue is with {0} or caused by an extension.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing problems.", this.productService.nameLong),
+			detail: localize('detail.start', "Issue troubleshooting is a process to help you identify the cause for an issue. The cause for an issue can be a misconfiguration, due to an extension, or be {0} itself.\n\nDuring the process the window reloads repeatedly. Each time you must confirm if you are still seeing the issue.", this.productService.nameLong),
 			primaryButton: localize({ key: 'msg', comment: ['&& denotes a mnemonic'] }, "&&Troubleshoot Issue"),
 			custom: true
 		});
@@ -118,7 +120,7 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 		}
 
 		const originalProfile = this.userDataProfileService.currentProfile;
-		await this.userDataProfileImportExportService.createTemporaryProfile(this.userDataProfileService.currentProfile, localize('troubleshoot issue', "Troubleshoot Issue"), true);
+		await this.userDataProfileImportExportService.createTroubleshootProfile();
 		this.state = new TroubleShootState(TroubleshootStage.EXTENSIONS, originalProfile.id);
 		await this.resume();
 	}
@@ -159,7 +161,12 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	}
 
 	private async reproduceIssueWithExtensionsDisabled(): Promise<void> {
-		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temprarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		if (!(await this.extensionManagementService.getInstalled(ExtensionType.User)).length) {
+			this.state = new TroubleShootState(TroubleshootStage.WORKBENCH, this.state!.profile);
+			return;
+		}
+
+		const result = await this.askToReproduceIssue(localize('profile.extensions.disabled', "Issue troubleshooting is active and has temporarily disabled all installed extensions. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'good') {
 			const profile = this.userDataProfilesService.profiles.find(p => p.id === this.state!.profile) ?? this.userDataProfilesService.defaultProfile;
 			await this.reproduceIssueWithExtensionsBisect(profile);
@@ -175,12 +182,12 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private async reproduceIssueWithEmptyProfile(): Promise<void> {
 		await this.userDataProfileManagementService.createAndEnterTransientProfile();
 		this.updateState(this.state);
-		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your settings to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
+		const result = await this.askToReproduceIssue(localize('empty.profile', "Issue troubleshooting is active and has temporarily reset your configurations to defaults. Check if you can still reproduce the problem and proceed by selecting from these options."));
 		if (result === 'stop') {
 			await this.stop();
 		}
 		if (result === 'good') {
-			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your settings. Please report the issue by sharing your settings."));
+			await this.askToReportIssue(localize('issue is with configuration', "Issue troubleshooting has identified that the issue is caused by your configurations. Please report the issue by exporting your configurations using \"Export Profile\" command and share the file in the issue report."));
 		}
 		if (result === 'bad') {
 			await this.askToReportIssue(localize('issue is in core', "Issue troubleshooting has identified that the issue is with {0}.", this.productService.nameLong));
@@ -197,11 +204,11 @@ class TroubleshootIssueService extends Disposable implements ITroubleshootIssueS
 	private askToReproduceIssue(message: string): Promise<TroubleShootResult> {
 		return new Promise((c, e) => {
 			const goodPrompt: IPromptChoice = {
-				label: localize('I cannot reproduce', "I can't reproduce"),
+				label: localize('I cannot reproduce', "I Can't Reproduce"),
 				run: () => c('good')
 			};
 			const badPrompt: IPromptChoice = {
-				label: localize('This is Bad', "I can reproduce"),
+				label: localize('This is Bad', "I Can Reproduce"),
 				run: () => c('bad')
 			};
 			const stop: IPromptChoice = {
@@ -325,10 +332,8 @@ class IssueTroubleshootUi extends Disposable {
 		if (troubleshootIssueService.isActive()) {
 			troubleshootIssueService.resume();
 		}
-		this._register(storageService.onDidChangeValue(e => {
-			if (e.key === TroubleshootIssueService.storageKey) {
-				this.updateContext();
-			}
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, TroubleshootIssueService.storageKey, this._register(new DisposableStore()))(() => {
+			this.updateContext();
 		}));
 	}
 
@@ -347,7 +352,7 @@ registerAction2(class TroubleshootIssueAction extends Action2 {
 			title: { value: localize('troubleshootIssue', "Troubleshoot Issue..."), original: 'Troubleshoot Issue...' },
 			category: Categories.Help,
 			f1: true,
-			precondition: IssueTroubleshootUi.ctxIsTroubleshootActive.negate(),
+			precondition: ContextKeyExpr.and(IssueTroubleshootUi.ctxIsTroubleshootActive.negate(), RemoteNameContext.isEqualTo(''), IsWebContext.negate()),
 		});
 	}
 	run(accessor: ServicesAccessor): Promise<void> {

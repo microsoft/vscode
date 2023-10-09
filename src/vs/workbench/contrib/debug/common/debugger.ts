@@ -29,6 +29,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 	private mainExtensionDescription: IExtensionDescription | undefined;
 
 	private debuggerWhen: ContextKeyExpression | undefined;
+	private debuggerHiddenWhen: ContextKeyExpression | undefined;
 
 	constructor(
 		private adapterManager: IAdapterManager,
@@ -45,6 +46,7 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		this.merge(dbgContribution, extensionDescription);
 
 		this.debuggerWhen = typeof this.debuggerContribution.when === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.when) : undefined;
+		this.debuggerHiddenWhen = typeof this.debuggerContribution.hiddenWhen === 'string' ? ContextKeyExpr.deserialize(this.debuggerContribution.hiddenWhen) : undefined;
 	}
 
 	merge(otherDebuggerContribution: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
@@ -147,8 +149,19 @@ export class Debugger implements IDebugger, IDebuggerMetadata {
 		return this.debuggerWhen;
 	}
 
+	get hiddenWhen(): ContextKeyExpression | undefined {
+		return this.debuggerHiddenWhen;
+	}
+
 	get enabled() {
 		return !this.debuggerWhen || this.contextKeyService.contextMatchesRules(this.debuggerWhen);
+	}
+
+	get isHiddenFromDropdown() {
+		if (!this.debuggerHiddenWhen) {
+			return false;
+		}
+		return this.contextKeyService.contextMatchesRules(this.debuggerHiddenWhen);
 	}
 
 	get strings() {

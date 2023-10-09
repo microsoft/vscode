@@ -25,6 +25,7 @@ import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
 import { isConfigured } from 'vs/platform/configuration/common/configuration';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 const enum ForceOpenAs {
 	None,
@@ -190,6 +191,10 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 
 	getPreferredName(): string | undefined {
 		return this.preferredName;
+	}
+
+	override isReadonly(): boolean | IMarkdownString {
+		return this.model ? this.model.isReadonly() : this.filesConfigurationService.isReadonly(this.resource);
 	}
 
 	override getDescription(verbosity?: Verbosity): string | undefined {
@@ -428,8 +433,8 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 			untypedInput.languageId = this.getLanguageId();
 			untypedInput.contents = (() => {
 				const model = this.textFileService.files.get(this.resource);
-				if (model?.isDirty()) {
-					return model.textEditorModel.getValue(); // only if dirty
+				if (model?.isDirty() && !model.textEditorModel.isTooLargeForHeapOperation()) {
+					return model.textEditorModel.getValue(); // only if dirty and not too large
 				}
 
 				return undefined;

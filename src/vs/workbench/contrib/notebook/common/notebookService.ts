@@ -14,6 +14,7 @@ import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/mode
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
@@ -29,6 +30,7 @@ export interface INotebookSerializer {
 	options: TransientOptions;
 	dataToNotebook(data: VSBuffer): Promise<NotebookData>;
 	notebookToData(data: NotebookData): Promise<VSBuffer>;
+	save(uri: URI, versionId: number, options: IWriteFileOptions, token: CancellationToken): Promise<IFileStatWithMetadata>;
 }
 
 export interface INotebookRawData {
@@ -77,6 +79,7 @@ export interface INotebookService {
 	getNotebookTextModels(): Iterable<NotebookTextModel>;
 	listNotebookDocuments(): readonly NotebookTextModel[];
 
+	/**	Register a notebook type that we will handle. The notebook editor will be registered for notebook types contributed by extensions */
 	registerContributedNotebookType(viewType: string, data: INotebookContributionData): IDisposable;
 	getContributedNotebookType(viewType: string): NotebookProviderInfo | undefined;
 	getContributedNotebookTypes(resource?: URI): readonly NotebookProviderInfo[];

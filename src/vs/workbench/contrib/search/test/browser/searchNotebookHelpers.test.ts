@@ -17,6 +17,7 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 import { IModelService } from 'vs/editor/common/services/model';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('searchNotebookHelpers', () => {
 	let instantiationService: TestInstantiationService;
@@ -28,12 +29,16 @@ suite('searchNotebookHelpers', () => {
 	let markdownContentResults: ITextSearchMatch[];
 	let codeContentResults: ITextSearchMatch[];
 	let codeWebviewResults: ITextSearchMatch[];
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 	let counter: number = 0;
 	setup(() => {
 
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IModelService, stubModelService(instantiationService));
-		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
+		store.add(instantiationService);
+		const modelService = stubModelService(instantiationService, (e) => store.add(e));
+		const notebookEditorService = stubNotebookEditorService(instantiationService, (e) => store.add(e));
+		instantiationService.stub(IModelService, modelService);
+		instantiationService.stub(INotebookEditorService, notebookEditorService);
 		mdInputCell = {
 			cellKind: CellKind.Markup, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
@@ -115,6 +120,11 @@ suite('searchNotebookHelpers', () => {
 		);
 
 	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
 	suite('notebookEditorMatchesToTextSearchResults', () => {
 
 		function assertRangesEqual(actual: ISearchRange | ISearchRange[], expected: ISearchRange[]) {
@@ -196,14 +206,19 @@ suite('searchNotebookHelpers', () => {
 			};
 
 			const searchModel = instantiationService.createInstance(SearchModel);
+			store.add(searchModel);
 			const folderMatch = instantiationService.createInstance(FolderMatch, URI.file('somepath'), '', 0, {
 				type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 					pattern: ''
 				}
-			}, searchModel.searchResult, searchModel, null);
-			return instantiationService.createInstance(FileMatch, {
+			}, searchModel.searchResult, searchModel.searchResult, null);
+			const fileMatch = instantiationService.createInstance(FileMatch, {
 				pattern: ''
-			}, undefined, undefined, folderMatch, rawMatch, null);
+			}, undefined, undefined, folderMatch, rawMatch, null, '');
+			store.add(folderMatch);
+			store.add(fileMatch);
+
+			return fileMatch;
 		}
 	});
 });

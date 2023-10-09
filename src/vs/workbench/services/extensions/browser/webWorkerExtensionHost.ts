@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { parentOriginHash } from 'vs/base/browser/iframe';
 import { Barrier } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { canceled, onUnexpectedError } from 'vs/base/common/errors';
@@ -15,7 +16,6 @@ import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
@@ -25,15 +25,13 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isLoggingOnly } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { parentOriginHash } from 'vs/workbench/browser/iframe';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { ExtensionHostExitCode, IExtensionHostInitData, MessageType, UIKind, createMessageOfType, isMessageOfType } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { LocalWebWorkerRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
 import { ExtensionHostExtensions, ExtensionHostStartup, IExtensionHost } from 'vs/workbench/services/extensions/common/extensions';
 
 export interface IWebWorkerExtensionHostInitData {
-	readonly allExtensions: IExtensionDescription[];
-	readonly myExtensions: ExtensionIdentifier[];
+	readonly extensions: ExtensionHostExtensions;
 }
 
 export interface IWebWorkerExtensionHostDataProvider {
@@ -43,7 +41,7 @@ export interface IWebWorkerExtensionHostDataProvider {
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly remoteAuthority = null;
-	public readonly extensions = new ExtensionHostExtensions();
+	public extensions: ExtensionHostExtensions | null = null;
 
 	private readonly _onDidExit = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onDidExit.event;
@@ -267,8 +265,8 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 
 	private async _createExtHostInitData(): Promise<IExtensionHostInitData> {
 		const initData = await this._initDataProvider.getInitData();
+		this.extensions = initData.extensions;
 		const workspace = this._contextService.getWorkspace();
-		const deltaExtensions = this.extensions.set(initData.allExtensions, initData.myExtensions);
 		const nlsBaseUrl = this._productService.extensionsGallery?.nlsBaseUrl;
 		let nlsUrlWithDetails: URI | undefined = undefined;
 		// Only use the nlsBaseUrl if we are using a language other than the default, English.
@@ -304,9 +302,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 				includeStack: false,
 				logNative: this._environmentService.debugRenderer
 			},
-			allExtensions: deltaExtensions.toAdd,
-			activationEvents: deltaExtensions.addActivationEvents,
-			myExtensions: deltaExtensions.myToAdd,
+			extensions: this.extensions.toSnapshot(),
 			nlsBaseUrl: nlsUrlWithDetails,
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,

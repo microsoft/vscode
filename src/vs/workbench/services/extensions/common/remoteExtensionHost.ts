@@ -12,7 +12,6 @@ import { URI } from 'vs/base/common/uri';
 import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { PersistentProtocol } from 'vs/base/parts/ipc/common/ipc.net';
 import { IExtensionHostDebugService } from 'vs/platform/debug/common/extensionHostDebug';
-import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { ILogService, ILoggerService } from 'vs/platform/log/common/log';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -36,8 +35,7 @@ export interface IRemoteExtensionHostInitData {
 	readonly extensionHostLogsPath: URI;
 	readonly globalStorageHome: URI;
 	readonly workspaceStorageHome: URI;
-	readonly allExtensions: IExtensionDescription[];
-	readonly myExtensions: ExtensionIdentifier[];
+	readonly extensions: ExtensionHostExtensions;
 }
 
 export interface IRemoteExtensionHostDataProvider {
@@ -49,7 +47,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	public readonly remoteAuthority: string;
 	public readonly startup = ExtensionHostStartup.EagerAutoStart;
-	public readonly extensions = new ExtensionHostExtensions();
+	public extensions: ExtensionHostExtensions | null = null;
 
 	private _onExit: Emitter<[number, string | null]> = this._register(new Emitter<[number, string | null]>());
 	public readonly onExit: Event<[number, string | null]> = this._onExit.event;
@@ -203,8 +201,8 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 
 	private async _createExtHostInitData(isExtensionDevelopmentDebug: boolean): Promise<IExtensionHostInitData> {
 		const remoteInitData = await this._initDataProvider.getInitData();
+		this.extensions = remoteInitData.extensions;
 		const workspace = this._contextService.getWorkspace();
-		const deltaExtensions = this.extensions.set(remoteInitData.allExtensions, remoteInitData.myExtensions);
 		return {
 			commit: this._productService.commit,
 			version: this._productService.version,
@@ -240,9 +238,7 @@ export class RemoteExtensionHost extends Disposable implements IExtensionHost {
 				includeStack: false,
 				logNative: Boolean(this._environmentService.debugExtensionHost.debugId)
 			},
-			allExtensions: deltaExtensions.toAdd,
-			activationEvents: deltaExtensions.addActivationEvents,
-			myExtensions: deltaExtensions.myToAdd,
+			extensions: this.extensions.toSnapshot(),
 			telemetryInfo: {
 				sessionId: this._telemetryService.sessionId,
 				machineId: this._telemetryService.machineId,

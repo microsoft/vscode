@@ -28,30 +28,37 @@ if status --is-login; and set -q VSCODE_PATH_PREFIX
 end
 set -e VSCODE_PATH_PREFIX
 
-# Apply EnvironmentVariableCollections if needed
-if test -n "$VSCODE_ENV_REPLACE"
-	set ITEMS (string split : $VSCODE_ENV_REPLACE)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" (echo -e "$split[2]")
+set -g __vsc_applied_env_vars 0
+function __vsc_apply_env_vars
+	if test $__vsc_applied_env_vars -eq 1;
+		return
 	end
-	set -e VSCODE_ENV_REPLACE
-end
-if test -n "$VSCODE_ENV_PREPEND"
-	set ITEMS (string split : $VSCODE_ENV_PREPEND)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" (echo -e "$split[2]")"$$split[1]" # avoid -p as it adds a space
+	set -l __vsc_applied_env_vars 1
+	# Apply EnvironmentVariableCollections if needed
+	if test -n "$VSCODE_ENV_REPLACE"
+		set ITEMS (string split : $VSCODE_ENV_REPLACE)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" (echo -e "$split[2]")
+		end
+		set -e VSCODE_ENV_REPLACE
 	end
-	set -e VSCODE_ENV_PREPEND
-end
-if test -n "$VSCODE_ENV_APPEND"
-	set ITEMS (string split : $VSCODE_ENV_APPEND)
-	for B in $ITEMS
-		set split (string split = $B)
-		set -gx "$split[1]" "$$split[1]"(echo -e "$split[2]") # avoid -a as it adds a space
+	if test -n "$VSCODE_ENV_PREPEND"
+		set ITEMS (string split : $VSCODE_ENV_PREPEND)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" (echo -e "$split[2]")"$$split[1]" # avoid -p as it adds a space
+		end
+		set -e VSCODE_ENV_PREPEND
 	end
-	set -e VSCODE_ENV_APPEND
+	if test -n "$VSCODE_ENV_APPEND"
+		set ITEMS (string split : $VSCODE_ENV_APPEND)
+		for B in $ITEMS
+			set split (string split = $B)
+			set -gx "$split[1]" "$$split[1]"(echo -e "$split[2]") # avoid -a as it adds a space
+		end
+		set -e VSCODE_ENV_APPEND
+	end
 end
 
 # Handle the shell integration nonce
@@ -62,7 +69,7 @@ end
 
 # Helper function
 function __vsc_esc -d "Emit escape sequences for VS Code shell integration"
-	builtin printf "\e]633;%s\a" (string join ";" $argv)
+	builtin printf "\e]633;%s\a" (string join ";" -- $argv)
 end
 
 # Sent right before executing an interactive command.
@@ -98,6 +105,31 @@ function __vsc_cmd_clear --on-event fish_cancel
 	__vsc_esc D
 end
 
+# Preserve the user's existing prompt, to wrap in our escape sequences.
+function __preserve_fish_prompt --on-event fish_prompt
+	if functions --query fish_prompt
+		if functions --query __vsc_fish_prompt
+			# Erase the fallback so it can be set to the user's prompt
+			functions --erase __vsc_fish_prompt
+		end
+		functions --copy fish_prompt __vsc_fish_prompt
+		functions --erase __preserve_fish_prompt
+		# Now __vsc_fish_prompt is guaranteed to be defined
+		__init_vscode_shell_integration
+	else
+		if functions --query __vsc_fish_prompt
+			functions --erase __preserve_fish_prompt
+			__init_vscode_shell_integration
+		else
+			# There is no fish_prompt set, so stick with the default
+			# Now __vsc_fish_prompt is guaranteed to be defined
+			function __vsc_fish_prompt
+				echo -n (whoami)@(prompt_hostname) (prompt_pwd) '~> '
+			end
+		end
+	end
+end
+
 # Sent whenever a new fish prompt is about to be displayed.
 # Updates the current working directory.
 function __vsc_update_cwd --on-event fish_prompt
@@ -115,6 +147,9 @@ end
 # Sent at the start of the prompt.
 # Marks the beginning of the prompt (and, implicitly, a new line).
 function __vsc_fish_prompt_start
+	# Applying environment variables is deferred to after config.fish has been
+	# evaluated
+	__vsc_apply_env_vars
 	__vsc_esc A
 end
 
@@ -128,29 +163,29 @@ function __vsc_fish_has_mode_prompt -d "Returns true if fish_mode_prompt is defi
 	functions fish_mode_prompt | string match -rvq '^ *(#|function |end$|$)'
 end
 
-# Preserve the user's existing prompt, to wrap in our escape sequences.
-functions --copy fish_prompt __vsc_fish_prompt
-
 # Preserve and wrap fish_mode_prompt (which appears to the left of the regular
 # prompt), but only if it's not defined as an empty function (which is the
 # officially documented way to disable that feature).
-if __vsc_fish_has_mode_prompt
-	functions --copy fish_mode_prompt __vsc_fish_mode_prompt
+function __init_vscode_shell_integration
+	if __vsc_fish_has_mode_prompt
+		functions --copy fish_mode_prompt __vsc_fish_mode_prompt
 
-	function fish_mode_prompt
-		__vsc_fish_prompt_start
-		__vsc_fish_mode_prompt
-	end
+		function fish_mode_prompt
+			__vsc_fish_prompt_start
+			__vsc_fish_mode_prompt
+			__vsc_fish_cmd_start
+		end
 
-	function fish_prompt
-		__vsc_fish_prompt
-		__vsc_fish_cmd_start
-	end
-else
-	# No fish_mode_prompt, so put everything in fish_prompt.
-	function fish_prompt
-		__vsc_fish_prompt_start
-		__vsc_fish_prompt
-		__vsc_fish_cmd_start
+		function fish_prompt
+			__vsc_fish_prompt
+		end
+	else
+		# No fish_mode_prompt, so put everything in fish_prompt.
+		function fish_prompt
+			__vsc_fish_prompt_start
+			__vsc_fish_prompt
+			__vsc_fish_cmd_start
+		end
 	end
 end
+__preserve_fish_prompt

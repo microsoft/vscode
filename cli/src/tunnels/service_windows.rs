@@ -6,13 +6,11 @@
 use async_trait::async_trait;
 use shell_escape::windows::escape as shell_escape;
 use std::os::windows::process::CommandExt;
-use std::{
-	path::PathBuf,
-	process::{Command, Stdio},
-};
+use std::{path::PathBuf, process::Stdio};
 use winapi::um::winbase::{CREATE_NEW_PROCESS_GROUP, DETACHED_PROCESS};
 use winreg::{enums::HKEY_CURRENT_USER, RegKey};
 
+use crate::util::command::new_std_command;
 use crate::{
 	constants::TUNNEL_ACTIVITY_NAME,
 	log,
@@ -54,7 +52,7 @@ impl CliServiceManager for WindowsService {
 		let key = WindowsService::open_key()?;
 
 		let mut reg_str = String::new();
-		let mut cmd = Command::new(&exe);
+		let mut cmd = new_std_command(&exe);
 		reg_str.push_str(shell_escape(exe.to_string_lossy()).as_ref());
 
 		let mut add_arg = |arg: &str| {
@@ -78,6 +76,7 @@ impl CliServiceManager for WindowsService {
 		cmd.stderr(Stdio::null());
 		cmd.stdout(Stdio::null());
 		cmd.stdin(Stdio::null());
+		cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | DETACHED_PROCESS);
 		cmd.spawn()
 			.map_err(|e| wrapdbg(e, "error starting service"))?;
 
@@ -101,7 +100,7 @@ impl CliServiceManager for WindowsService {
 		// Start as a hidden subprocess to avoid showing cmd.exe on startup.
 		// Fixes https://github.com/microsoft/vscode/issues/184058
 		// I also tried the winapi ShowWindow, but that didn't yield fruit.
-		Command::new(std::env::current_exe().unwrap())
+		new_std_command(std::env::current_exe().unwrap())
 			.args(std::env::args().skip(1))
 			.env(DID_LAUNCH_AS_HIDDEN_PROCESS, "1")
 			.stderr(Stdio::null())
@@ -121,8 +120,12 @@ impl CliServiceManager for WindowsService {
 
 	async fn unregister(&self) -> Result<(), AnyError> {
 		let key = WindowsService::open_key()?;
-		key.delete_value(TUNNEL_ACTIVITY_NAME)
-			.map_err(|e| AnyError::from(wrap(e, "error deleting registry key")))?;
+		match key.delete_value(TUNNEL_ACTIVITY_NAME) {
+			Ok(_) => {}
+			Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+			Err(e) => return Err(wrap(e, "error deleting registry key").into()),
+		}
+
 		info!(self.log, "Tunnel service uninstalled");
 
 		let r = do_single_rpc_call::<_, ()>(

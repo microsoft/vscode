@@ -60,11 +60,12 @@
   },
   "dependencies": {
     "node-fetch": "2.6.7",
-    "@vscode/extension-telemetry": "0.7.5",
+    "@vscode/extension-telemetry": "^0.8.5",
     "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {
-    "@types/node": "16.x",
+    "@types/mocha": "^9.1.1",
+    "@types/node": "18.x",
     "@types/node-fetch": "^2.5.7"
   },
   "repository": {
