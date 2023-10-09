@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/sidebarpart';
 import 'vs/workbench/browser/parts/sidebar/sidebarActions';
-import { IWorkbenchLayoutService, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/contextkeys';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -15,21 +15,21 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_TITLE_FOREGROUND, SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND, SIDE_BAR_BORDER, SIDE_BAR_DRAG_AND_DROP_BACKGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER } from 'vs/workbench/common/theme';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { LayoutPriority } from 'vs/base/browser/ui/grid/grid';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
+import { ActivityBarCompositeBar, ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ToggleSidebarPositionAction } from 'vs/workbench/browser/actions/layoutActions';
-import { Separator, toAction } from 'vs/base/common/actions';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { localize } from 'vs/nls';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -74,6 +74,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -97,6 +98,17 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		);
 
 		this.acitivityBarPart = this._register(instantiationService.createInstance(ActivitybarPart, this));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.activityBar.location')) {
+				this.updateTitleArea();
+				const id = this.getActiveComposite()?.getId();
+				if (id) {
+					this.onTitleAreaUpdate(id!);
+				}
+			}
+		}));
+
+		this.registerGlobalActions();
 	}
 
 	override updateStyles(): void {
@@ -131,6 +143,10 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.layoutService.getSideBarPosition() === SideBarPosition.LEFT ? AnchorAlignment.LEFT : AnchorAlignment.RIGHT;
 	}
 
+	protected override createCompisteBar(): ActivityBarCompositeBar {
+		return this.instantiationService.createInstance(ActivityBarCompositeBar, this.getCompoisteBarOptions(), this.partId, this, false);
+	}
+
 	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
 		return {
 			partContainerClass: 'activitybar',
@@ -142,12 +158,9 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => HoverPosition.BELOW,
 			},
-			fillExtraContextMenuActions: actions => {
-				// Toggle Sidebar
-				actions.push(new Separator());
-				actions.push(toAction({ id: ToggleSidebarPositionAction.ID, label: ToggleSidebarPositionAction.getLabel(this.layoutService), run: () => this.instantiationService.invokeFunction(accessor => new ToggleSidebarPositionAction().run(accessor)) }));
-			},
+			fillExtraContextMenuActions: actions => { },
 			compositeSize: 0,
+			iconSize: 16,
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),
@@ -163,7 +176,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	}
 
 	protected shouldShowCompositeBar(): boolean {
-		return false;
+		return this.layoutService.isVisible(Parts.TITLEBAR_PART) && this.configurationService.getValue('workbench.activityBar.location') === ActivityBarPosition.TOP;
 	}
 
 	override getPinnedPaneCompositeIds(): string[] {
@@ -174,12 +187,41 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
 	}
 
-	override showActivity(id: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (this.shouldShowCompositeBar()) {
-			return super.showActivity(id, badge, clazz, priority);
-		} else {
-			return this.acitivityBarPart.showActivity(id, badge, clazz, priority);
-		}
+	private registerGlobalActions() {
+		this._register(registerAction2(
+			class extends Action2 {
+				constructor() {
+					super({
+						id: GLOBAL_ACTIVITY_ID,
+						title: { value: localize('manage', "Manage"), original: 'Manage' },
+						menu: [{
+							id: MenuId.TitleBarGlobalControlMenu,
+							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+							order: 2
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+				}
+			}));
+		this._register(registerAction2(
+			class extends Action2 {
+				constructor() {
+					super({
+						id: ACCOUNTS_ACTIVITY_ID,
+						title: { value: localize('accounts', "Accounts"), original: 'Accounts' },
+						menu: [{
+							id: MenuId.TitleBarGlobalControlMenu,
+							when: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
+							order: 2
+						}]
+					});
+				}
+
+				async run(): Promise<void> {
+				}
+			}));
 	}
 
 	toJSON(): object {

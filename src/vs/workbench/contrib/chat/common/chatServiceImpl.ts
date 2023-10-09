@@ -23,7 +23,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { ChatModel, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
@@ -324,60 +324,53 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	private _startSession(providerId: string, someSessionHistory: ISerializableChatData | undefined, token: CancellationToken): ChatModel {
+		this.trace('_startSession', `providerId=${providerId}`);
 		const model = this.instantiationService.createInstance(ChatModel, providerId, someSessionHistory);
 		this._sessionModels.set(model.sessionId, model);
-		const modelInitPromise = this.initializeSession(model, token);
-		modelInitPromise.catch(err => {
-			this.trace('startSession', `initializeSession failed: ${err}`);
-			model.setInitializationError(err);
-			model.dispose();
-			this._sessionModels.delete(model.sessionId);
-		});
-
+		this.initializeSession(model, token);
 		return model;
 	}
 
 	private reinitializeModel(model: ChatModel): void {
-		model.startReinitialize();
-		this.startSessionInit(model, CancellationToken.None);
+		this.trace('reinitializeModel', `Start reinit`);
+		this.initializeSession(model, CancellationToken.None);
 	}
 
-	private startSessionInit(model: ChatModel, token: CancellationToken): void {
-		const modelInitPromise = this.initializeSession(model, token);
-		modelInitPromise.catch(err => {
+	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
+		try {
+			this.trace('initializeSession', `Initialize session ${model.sessionId}`);
+			model.startInitialize();
+			await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
+
+			const provider = this._providers.get(model.providerId);
+			if (!provider) {
+				throw new Error(`Unknown provider: ${model.providerId}`);
+			}
+
+			let session: IChat | undefined;
+			try {
+				session = await provider.prepareSession(model.providerState, token) ?? undefined;
+			} catch (err) {
+				this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
+			}
+
+			if (!session) {
+				throw new Error('Provider returned no session');
+			}
+
+			this.trace('startSession', `Provider returned session`);
+
+			const welcomeMessage = model.welcomeMessage ? undefined : await provider.provideWelcomeMessage?.(token) ?? undefined;
+			const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
+				model, welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]));
+
+			model.initialize(session, welcomeModel);
+		} catch (err) {
 			this.trace('startSession', `initializeSession failed: ${err}`);
 			model.setInitializationError(err);
 			model.dispose();
 			this._sessionModels.delete(model.sessionId);
-		});
-	}
-
-	private async initializeSession(model: ChatModel, token: CancellationToken): Promise<void> {
-		await this.extensionService.activateByEvent(`onInteractiveSession:${model.providerId}`);
-
-		const provider = this._providers.get(model.providerId);
-		if (!provider) {
-			throw new Error(`Unknown provider: ${model.providerId}`);
 		}
-
-		let session: IChat | undefined;
-		try {
-			session = await provider.prepareSession(model.providerState, token) ?? undefined;
-		} catch (err) {
-			this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
-		}
-
-		if (!session) {
-			throw new Error('Provider returned no session');
-		}
-
-		this.trace('startSession', `Provider returned session`);
-
-		const welcomeMessage = model.welcomeMessage ? undefined : await provider.provideWelcomeMessage?.(token) ?? undefined;
-		const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
-			model, welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]));
-
-		model.initialize(session, welcomeModel);
 	}
 
 	getSession(sessionId: string): IChatModel | undefined {
@@ -389,6 +382,7 @@ export class ChatService extends Disposable implements IChatService {
 	}
 
 	getOrRestoreSession(sessionId: string): ChatModel | undefined {
+		this.trace('getOrRestoreSession', `sessionId: ${sessionId}`);
 		const model = this._sessionModels.get(sessionId);
 		if (model) {
 			return model;
@@ -469,6 +463,8 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned tree data for session ${model.sessionId}, ${progress.treeData.label}`);
 				} else if ('documents' in progress) {
 					this.trace('sendRequest', `Provider returned documents for session ${model.sessionId}:\n ${JSON.stringify(progress.documents, null, '\t')}`);
+				} else if ('reference' in progress) {
+					this.trace('sendRequest', `Provider returned a reference for session ${model.sessionId}:\n ${JSON.stringify(progress.reference, null, '\t')}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
@@ -657,35 +653,6 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	async addRequest(context: any): Promise<void> {
-		// This and resolveRequest are not currently used by any scenario, but leave for future use
-
-		// TODO How to decide which session this goes to?
-		const model = Iterable.first(this._sessionModels.values());
-		if (!model) {
-			// If no session, create one- how and is the service the right place to decide this?
-			this.trace('addRequest', 'No session available');
-			return;
-		}
-
-		const provider = this._providers.get(model.providerId);
-		if (!provider || !provider.resolveRequest) {
-			this.trace('addRequest', 'No provider available');
-			return undefined;
-		}
-
-		this.trace('addRequest', `Calling resolveRequest for session ${model.sessionId}`);
-		const request = await provider.resolveRequest(model.session!, context, CancellationToken.None);
-		if (!request) {
-			this.trace('addRequest', `Provider returned no request for session ${model.sessionId}`);
-			return;
-		}
-
-		// Maybe this API should queue a request after the current one?
-		this.trace('addRequest', `Sending resolved request for session ${model.sessionId}`);
-		this.sendRequest(model.sessionId, request.message);
-	}
-
 	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
 		this.trace('sendRequestToProvider', `sessionId: ${sessionId}`);
 		await this.sendRequest(sessionId, message.message);
@@ -755,12 +722,17 @@ export class ChatService extends Disposable implements IChatService {
 
 		Array.from(this._sessionModels.values())
 			.filter(model => model.providerId === provider.id)
+			// The provider may have been registered in the process of initializing this model. Only grab models that were deinitialized when the provider was unregistered
+			.filter(model => model.initState === ChatModelInitState.Created)
 			.forEach(model => this.reinitializeModel(model));
 
 		return toDisposable(() => {
 			this.trace('registerProvider', `Disposing chat provider`);
 			this._providers.delete(provider.id);
 			this._hasProvider.set(this._providers.size > 0);
+			Array.from(this._sessionModels.values())
+				.filter(model => model.providerId === provider.id)
+				.forEach(model => model.deinitialize());
 		});
 	}
 

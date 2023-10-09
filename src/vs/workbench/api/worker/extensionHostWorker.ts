@@ -15,7 +15,7 @@ import * as performance from 'vs/base/common/performance';
 
 import 'vs/workbench/api/common/extHost.common.services';
 import 'vs/workbench/api/worker/extHost.worker.services';
-import { FileAccess, Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
+import { FileAccess } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 
 //#region --- Define, capture, and override some globals
@@ -109,7 +109,7 @@ if ((<any>self).Worker) {
 		const bootstrapFnSource = (function bootstrapFn(workerUrl: string) {
 			function asWorkerBrowserUrl(url: string | URL | TrustedScriptURL): any {
 				if (typeof url === 'string' || url instanceof URL) {
-					return String(url).replace(/^file:\/\//i, `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}`);
+					return String(url).replace(/^file:\/\//i, 'vscode-file://vscode-app');
 				}
 				return url;
 			}

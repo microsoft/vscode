@@ -213,6 +213,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async moveWindowTop(windowId: number | undefined): Promise<void> {
+		const window = this.windowById(windowId);
+		if (window?.win) {
+			window.win.moveTop();
+		}
+	}
+
 	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.windowById(windowId);
 		if (window) {

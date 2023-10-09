@@ -40,7 +40,7 @@ export class SwitchRemoteViewItem extends Disposable {
 		super();
 		this.selectedRemoteContext = SELECTED_REMOTE_IN_EXPLORER.bindTo(contextKeyService);
 
-		this.switchRemoteMenu = new MenuId('workbench.remote.menu.switchRemoteMenu');
+		this.switchRemoteMenu = MenuId.for('workbench.remote.menu.switchRemoteMenu');
 		this._register(MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 			submenu: this.switchRemoteMenu,
 			title: nls.localize('switchRemote.label', "Switch Remote"),

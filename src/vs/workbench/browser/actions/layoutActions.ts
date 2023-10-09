@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
@@ -73,35 +73,20 @@ export class ToggleActivityBarVisibilityAction extends Action2 {
 
 	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
 
-	private static readonly activityBarVisibleKey = 'workbench.activityBar.visible';
-
 	constructor() {
 		super({
 			id: ToggleActivityBarVisibilityAction.ID,
 			title: {
 				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				mnemonicTitle: localize({ key: 'miActivityBar', comment: ['&& denotes a mnemonic'] }, "&&Activity Bar"),
 				original: 'Toggle Activity Bar Visibility'
 			},
-			category: Categories.View,
-			f1: true,
-			toggled: ContextKeyExpr.equals('config.workbench.activityBar.visible', true),
-			menu: [{
-				id: MenuId.MenubarAppearanceMenu,
-				group: '2_workbench_layout',
-				order: 4
-			}]
 		});
 	}
 
 	run(accessor: ServicesAccessor): void {
-		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
-
-		const visibility = layoutService.isVisible(Parts.ACTIVITYBAR_PART);
-		const newVisibilityValue = !visibility;
-
-		configurationService.updateValue(ToggleActivityBarVisibilityAction.activityBarVisibleKey, newVisibilityValue);
+		const value = configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value === ActivityBarPosition.HIDDEN ? undefined : ActivityBarPosition.HIDDEN);
 	}
 }
 

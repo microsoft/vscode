@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow, getActiveWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -27,6 +27,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export interface IOpenEditorResult {
 
@@ -99,7 +100,8 @@ export class EditorPanes extends Disposable {
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 		@IWorkspaceTrustManagementService private readonly workspaceTrustService: IWorkspaceTrustManagementService,
 		@ILogService private readonly logService: ILogService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -251,10 +253,18 @@ export class EditorPanes extends Disposable {
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
-		// Focus only if not cancelled and not prevented
-		const focus = !options || !options.preserveFocus;
-		if (!cancelled && focus && this.shouldRestoreFocus(activeElement)) {
-			pane.focus();
+		// Make sure to pass focus to the pane or otherwise
+		// make sure that the pane window is visible.
+		if (!cancelled) {
+			const focus = !options || !options.preserveFocus;
+			if (focus && this.shouldRestoreFocus(activeElement)) {
+				pane.focus();
+			} else {
+				const paneWindow = getWindow(pane.getContainer());
+				if (paneWindow !== getActiveWindow()) {
+					this.hostService.moveTop(paneWindow);
+				}
+			}
 		}
 
 		return { pane, changed, cancelled };
