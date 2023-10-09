@@ -368,39 +368,34 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
-		// Conpty could have the wrong cursor position at this point.
-		let isWrongCursorPosition = false;
-
-		// If the cursor position is within the last command, we should poll.
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
-		const lastCommand = this.commands.at(-1);
-		let lastCommandEndAbsoluteY: number = -1;
-		if (lastCommand) {
-			lastCommandEndAbsoluteY = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
-			isWrongCursorPosition ||= cursorYAbsolute <= lastCommandEndAbsoluteY;
+
+		function cursorOnNextLine(terminal: Terminal, lastCommand?: ITerminalCommand): boolean {
+			if (!lastCommand) {
+				return false;
+			}
+			// If the cursor position is within the last command, we should poll.
+			const lastCommandEndAbsoluteY = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
+			return cursorYAbsolute > lastCommandEndAbsoluteY;
 		}
 
-		// If it does not look like a prompt, we should poll.
-		const line = this._terminal.buffer.active.getLine(cursorYAbsolute)?.translateToString(true);
-		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		isWrongCursorPosition ||= line?.match(/^(PS.+>)|([A-Z]:\\.*>)/) === null;
+		function lineIsPrompt(line?: IBufferLine): boolean {
+			if (!line) {
+				return false;
+			}
+			const promptRegex = /^(PS.+>)|([A-Z]:\\.*>)/;
+			// TODO: fine tune prompt regex to accomodate for unique configurtions.
+			return line.translateToString(true)?.match(promptRegex) !== null;
+		}
 
+		// Conpty could have the wrong cursor position at this point.
+		const isWrongCursorPosition = !cursorOnNextLine(this._terminal, this.commands.at(-1)) || !lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
 		if (isWrongCursorPosition) {
 			// Poll for 200ms until the cursor position is correct.
 			for (let i = 0; i < 20; i++) {
 				await timeout(10);
 
-				// Check if cursor Y is greater than the last command's end line.
-				let correctCursorPosition = true;
-				const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
-				if (lastCommandEndAbsoluteY >= 0) {
-					correctCursorPosition &&= cursorYAbsolute > lastCommandEndAbsoluteY;
-				}
-
-				// Check if it looks like a prompt.
-				const line = this._terminal.buffer.active.getLine(cursorYAbsolute)?.translateToString(true);
-				correctCursorPosition &&= line?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
-
+				const correctCursorPosition = cursorOnNextLine(this._terminal, this.commands.at(-1)) && lineIsPrompt(this._terminal.buffer.active.getLine(cursorYAbsolute));
 				if (correctCursorPosition) {
 					break;
 				}
