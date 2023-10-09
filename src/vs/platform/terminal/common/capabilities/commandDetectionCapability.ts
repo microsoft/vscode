@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -55,6 +56,7 @@ interface ITerminalDimensions {
 	rows: number;
 }
 
+const WINDOWS_PROMPT_REGEX = /.*PS.*>|[A-Z]:\\*>/;
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
@@ -368,26 +370,35 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// HACK: Fire command started on the following frame on Windows to allow the cursor
 		// position to update as conpty often prints the sequence on a different line to the
 		// actual line the command started on.
-		queueMicrotask(() => {
-			if (!this._currentCommand.commandExecutedMarker) {
-				this._onCursorMoveListener = this._terminal.onCursorMove(() => {
-					if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
-						const marker = this._terminal.registerMarker(0);
-						if (marker) {
-							this._commandMarkers.push(marker);
+		timeout(0).then(() => {
+			queueMicrotask(() => {
+				if (!this._currentCommand.commandExecutedMarker) {
+					this._onCursorMoveListener = this._terminal.onCursorMove(() => {
+						if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+							const marker = this._terminal.registerMarker(0);
+							if (marker) {
+								this._commandMarkers.push(marker);
+							}
 						}
-					}
-				});
-			}
-			this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-			if (this._currentCommand.commandStartMarker) {
-				const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
-				if (line) {
-					this._currentCommand.commandStartLineContent = line.translateToString(true);
+					});
 				}
-			}
-			this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
-			this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+				if (this._currentCommand.commandStartMarker) {
+					const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+					if (line) {
+						this._currentCommand.commandStartLineContent = line.translateToString(true);
+					}
+				}
+				this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
+				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line, this._currentCommand.commandStartLineContent || '');
+			});
+			queueMicrotask(() => {
+				this._currentCommand.isInvalid = !this._currentCommand.commandStartLineContent?.match(WINDOWS_PROMPT_REGEX);
+				if (this._currentCommand.isInvalid) {
+					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
+					this._logService.debug('CommandDetectionCapability#_commandInvalidatedNotPrompt', this._currentCommand.commandStartLineContent);
+				}
+			});
 		});
 	}
 

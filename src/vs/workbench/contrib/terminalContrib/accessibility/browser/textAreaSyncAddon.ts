@@ -95,8 +95,8 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		const currentCommand = commandCapability?.currentCommand;
-		if (!currentCommand) {
-			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command`);
+		if (!currentCommand || currentCommand.isInvalid) {
+			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no current command, invalid `, currentCommand?.isInvalid);
 			return;
 		}
 		const buffer = this._terminal.buffer.active;
@@ -104,9 +104,7 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		if (!lineNumber) {
 			return;
 		}
-		if (this.isInputting()) {
-			this._cursorX = buffer.cursorX;
-		}
+
 		const commandLine = buffer.getLine(lineNumber)?.translateToString(true);
 		if (!commandLine) {
 			this._logService.debug(`TextAreaSyncAddon#updateCommandAndCursor: no line`);
