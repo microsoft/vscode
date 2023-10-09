@@ -85,7 +85,9 @@ export class TerminalEditor extends EditorPane {
 
 	override clearInput(): void {
 		super.clearInput();
-		this._editorInput?.terminalInstance?.detachFromElement();
+		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement === this._overflowGuardElement) {
+			this._editorInput?.detachInstance();
+		}
 		this._editorInput = undefined;
 	}
 
@@ -188,7 +190,11 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		this._editorInput?.terminalInstance?.layout(dimension);
+		const instance = this._editorInput?.terminalInstance;
+		if (instance) {
+			instance.attachToElement(this._overflowGuardElement!);
+			instance.layout(dimension);
+		}
 		this._lastDimension = dimension;
 	}
 
