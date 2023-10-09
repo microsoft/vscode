@@ -161,7 +161,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 
 	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
 		return {
-			partContainerClass: 'activitybar',
+			partContainerClass: 'sidebar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
 			icon: true,
