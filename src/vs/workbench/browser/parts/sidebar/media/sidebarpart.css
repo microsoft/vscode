@@ -63,3 +63,21 @@
 .monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container {
 	flex: 1;
 }
+
+.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	padding: 0 5px;
+}
+
+.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
+	font-size: 18px;
+}
+
+.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
+	font-size: 9px;
+	min-width: 11px;
+	height: 16px;
+}
+
+.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content {
+	top: 9px;
+}
