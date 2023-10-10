@@ -489,7 +489,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
-			this._commandStartWindowsPromise?.then(() => this._preHandleCommandFinishedWindows());
+			this._preHandleCommandFinishedWindows();
 		}
 
 		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
@@ -551,7 +551,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
-	private _preHandleCommandFinishedWindows(): void {
+	private async _preHandleCommandFinishedWindows(): Promise<void> {
+		await this._commandStartWindowsPromise;
 		if (this._currentCommand.commandExecutedMarker) {
 			return;
 		}
