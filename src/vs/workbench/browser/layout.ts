@@ -284,6 +284,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
 			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
 		});
