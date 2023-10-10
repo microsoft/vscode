@@ -5,10 +5,8 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { FileAccess } from 'vs/base/common/network';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowSettings, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { defaultBrowserWindowOptions } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindow {
@@ -23,7 +21,6 @@ export class AuxiliaryWindow {
 
 	constructor(
 		private readonly contents: WebContents,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 
@@ -32,14 +29,6 @@ export class AuxiliaryWindow {
 	}
 
 	private create(): void {
-
-		// Apply zoom level when DOM is ready
-		this.contents.on('dom-ready', () => {
-			const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
-
-			this.contents.setZoomLevel(windowZoomLevel);
-			this.contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
-		});
 
 		// Handle devtools argument
 		if (this.environmentMainService.args['open-devtools'] === true) {

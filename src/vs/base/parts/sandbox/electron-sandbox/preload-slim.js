@@ -7,7 +7,7 @@
 (function () {
 	'use strict';
 
-	const { ipcRenderer, contextBridge } = require('electron');
+	const { ipcRenderer, webFrame, contextBridge } = require('electron');
 
 	/**
 	 * @param {string} channel
@@ -31,7 +31,6 @@
 		 *
 		 * @type {IpcRenderer}
 		 */
-
 		ipcRenderer: {
 
 			/**
@@ -41,6 +40,23 @@
 			send(channel, ...args) {
 				if (validateIPC(channel)) {
 					ipcRenderer.send(channel, ...args);
+				}
+			}
+		},
+
+		/**
+		 * Support for subset of methods of Electron's `webFrame` type.
+		 *
+		 * @type {import('./electronTypes').WebFrame}
+		 */
+		webFrame: {
+
+			/**
+			 * @param {number} level
+			 */
+			setZoomLevel(level) {
+				if (typeof level === 'number') {
+					webFrame.setZoomLevel(level);
 				}
 			}
 		}

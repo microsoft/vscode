@@ -33,7 +33,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 }
 
-type AuxiliaryWindow = Window & typeof globalThis;
+export type AuxiliaryWindow = Window & typeof globalThis;
 
 export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
@@ -85,7 +85,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		}
 	}
 
-	private applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
 
 		// Clone all style elements and stylesheet links from the window to the child window
 		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
