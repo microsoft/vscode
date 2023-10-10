@@ -500,13 +500,12 @@ export class ChatService extends Disposable implements IChatService {
 					request = model.addRequest(parsedRequest);
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
-						if (typeof request.message !== 'string' || !request.response) {
+						if (!request.response) {
 							continue;
 						}
-						if (isMarkdownString(request.response.response.value)) {
-							history.push({ role: ChatMessageRole.User, content: request.message });
-							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
-						}
+
+						history.push({ role: ChatMessageRole.User, content: 'text' in request.message ? request.message.text : request.message.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, message.substring(agentPart.agent.id.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
 						const { content } = p;
@@ -521,13 +520,11 @@ export class ChatService extends Disposable implements IChatService {
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
-						if (typeof request.message !== 'string' || !request.response) {
+						if (!request.response) {
 							continue;
 						}
-						if (isMarkdownString(request.response.response.value)) {
-							history.push({ role: ChatMessageRole.User, content: request.message });
-							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
-						}
+						history.push({ role: ChatMessageRole.User, content: 'text' in request.message ? request.message.text : request.message.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
 						const { content } = p;
