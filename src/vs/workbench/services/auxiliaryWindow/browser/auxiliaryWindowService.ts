@@ -25,10 +25,12 @@ export interface IAuxiliaryWindowService {
 
 export interface IAuxiliaryWindow extends IDisposable {
 
-	readonly onDidResize: Event<Dimension>;
+	readonly onWillLayout: Event<Dimension>;
 	readonly onDidClose: Event<void>;
 
 	readonly container: HTMLElement;
+
+	layout(): void;
 }
 
 type AuxiliaryWindow = Window & typeof globalThis;
@@ -56,12 +58,13 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 		const container = this.applyHTML(auxiliaryWindow, disposables);
 
-		const { onDidResize, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
+		const { onWillLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
 
 		return {
 			container,
-			onDidResize: onDidResize.event,
+			onWillLayout: onWillLayout.event,
 			onDidClose: onDidClose.event,
+			layout: () => onWillLayout.fire(getClientArea(container)),
 			dispose: () => disposables.dispose()
 		};
 	}
@@ -123,7 +126,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore) {
+	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore): { onWillLayout: Emitter<Dimension>; onDidClose: Emitter<void> } {
 		const onDidClose = disposables.add(new Emitter<void>());
 		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
 			onDidClose.fire();
@@ -134,13 +137,13 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 			e.preventDefault();
 		}));
 
-		const onDidResize = disposables.add(new Emitter<Dimension>());
+		const onWillLayout = disposables.add(new Emitter<Dimension>());
 		disposables.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, () => {
 			const dimension = getClientArea(auxiliaryWindow.document.body);
 			position(container, 0, 0, 0, 0, 'relative');
 			size(container, dimension.width, dimension.height);
 
-			onDidResize.fire(dimension);
+			onWillLayout.fire(dimension);
 		}));
 
 		if (isWeb) {
@@ -152,7 +155,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 			disposables.add(addDisposableListener(auxiliaryWindow.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
 		}
 
-		return { onDidResize, onDidClose };
+		return { onWillLayout, onDidClose };
 	}
 
 	protected patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
