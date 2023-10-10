@@ -51,6 +51,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const $ = dom.$;
 
@@ -59,7 +60,7 @@ export class OpenEditorsView extends ViewPane {
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_MIN_VISIBLE_OPEN_EDITORS = 0;
 	static readonly ID = 'workbench.explorer.openEditorsView';
-	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
+	static readonly NAME: ILocalizedString = nls.localize2({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;

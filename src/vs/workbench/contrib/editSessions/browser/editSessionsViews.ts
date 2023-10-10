@@ -38,8 +38,7 @@ export class EditSessionsDataViews extends Disposable {
 
 	private registerViews(container: ViewContainer): void {
 		const viewId = EDIT_SESSIONS_DATA_VIEW_ID;
-		const name = EDIT_SESSIONS_TITLE;
-		const treeView = this.instantiationService.createInstance(TreeView, viewId, name);
+		const treeView = this.instantiationService.createInstance(TreeView, viewId, EDIT_SESSIONS_TITLE.value);
 		treeView.showCollapseAllAction = true;
 		treeView.showRefreshAction = true;
 		treeView.dataProvider = this.instantiationService.createInstance(EditSessionDataViewDataProvider);
@@ -47,7 +46,7 @@ export class EditSessionsDataViews extends Disposable {
 		const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 		viewsRegistry.registerViews([<ITreeViewDescriptor>{
 			id: viewId,
-			name,
+			name: EDIT_SESSIONS_TITLE,
 			ctorDescriptor: new SyncDescriptor(TreeViewPane),
 			canToggleVisibility: true,
 			canMoveView: false,
@@ -128,7 +127,7 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete.v2', 'Are you sure you want to permanently delete your working changes with ref {0}?', editSessionId),
 					detail: localize('confirm delete detail.v2', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', editSessionId);
@@ -157,7 +156,7 @@ export class EditSessionsDataViews extends Disposable {
 					message: localize('confirm delete all', 'Are you sure you want to permanently delete all stored changes from the cloud?'),
 					detail: localize('confirm delete all detail', ' You cannot undo this action.'),
 					type: 'warning',
-					title: EDIT_SESSIONS_TITLE
+					title: EDIT_SESSIONS_TITLE.value
 				});
 				if (result.confirmed) {
 					await editSessionStorageService.delete('editSessions', null);
