@@ -97,8 +97,10 @@ export class IconSelectBox extends Disposable {
 					matches.push(match);
 				}
 			}
-			iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
-			this.scrollableElement?.scanDomNode();
+			if (icons.length) {
+				iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
+				this.scrollableElement?.scanDomNode();
+			}
 		}));
 
 		this.inputBox.inputElement.role = 'combobox';
