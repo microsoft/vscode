@@ -483,7 +483,8 @@ export class CommentController implements IEditorContribution {
 								owner: zone.owner,
 								uri: zone.editor.getModel()!.uri,
 								range: zone.commentThread.range,
-								body: pendingNewComment
+								body: pendingNewComment,
+								isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
 							});
 						}
 					}
@@ -866,11 +867,15 @@ export class CommentController implements IEditorContribution {
 
 	private async resumePendingComment(editorURI: URI, thread: languages.PendingCommentThread) {
 		const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === thread.owner && Range.lift(zoneWidget.commentThread.range)?.equalsRange(thread.range));
-		if (matchedZones.length) {
+		if (thread.isReply && matchedZones.length) {
+			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: true });
 			const matchedZone = matchedZones[0];
 			matchedZone.setPendingComment(thread.body);
-		} else {
-			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range });
+		} else if (!thread.isReply) {
+			const threadStillAvailable = this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
+			if (!threadStillAvailable) {
+				return;
+			}
 			if (!this._inProcessContinueOnComments.has(thread.owner)) {
 				this._inProcessContinueOnComments.set(thread.owner, []);
 			}
@@ -916,13 +921,19 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | undefined, pendingEdits: { [key: number]: string } | undefined): void {
-		if (!this.editor?.getModel()) {
+		const editor = this.editor?.getModel();
+		if (!editor) {
 			return;
 		}
-		if (this.isEditorInlineOriginal(this.editor)) {
+		if (!this.editor || this.isEditorInlineOriginal(this.editor)) {
 			return;
 		}
-		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment, pendingEdits);
+
+		let continueOnCommentReply: languages.PendingCommentThread | undefined;
+		if (thread.range && !pendingComment) {
+			continueOnCommentReply = this.commentService.removeContinueOnComment({ owner, uri: editor.uri, range: thread.range, isReply: true });
+		}
+		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment ?? continueOnCommentReply?.body, pendingEdits);
 		zoneWidget.display(thread.range);
 		this._commentWidgets.push(zoneWidget);
 		this.openCommentsView(thread);

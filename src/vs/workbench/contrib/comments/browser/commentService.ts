@@ -105,7 +105,7 @@ export interface ICommentService {
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
-	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined;
+	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -426,10 +426,10 @@ export class CommentService extends Disposable implements ICommentService {
 		this.storageService.store(CONTINUE_ON_COMMENTS, commentsToSave, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined {
+	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined {
 		const pendingComments = this._continueOnComments.get(pendingComment.owner);
 		if (pendingComments) {
-			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range));
+			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range) && (pendingComment.isReply === undefined || comment.isReply === pendingComment.isReply));
 			if (commentIndex > -1) {
 				return pendingComments.splice(commentIndex, 1)[0];
 			}
