@@ -70,7 +70,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _commandStartedWindowsBarrier?: Barrier;
-	private _pollingInProcess: any;
+	private _windowsPromptPollingInProcess: boolean = false;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -364,8 +364,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandStartWindows(): Promise<void> {
-		if (this._pollingInProcess) {
-			this._pollingInProcess = false;
+		if (this._windowsPromptPollingInProcess) {
+			this._windowsPromptPollingInProcess = false;
 		}
 		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -375,19 +375,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
-			this._pollingInProcess = true;
+			this._windowsPromptPollingInProcess = true;
 			// Poll for 200ms until the cursor position is correct.
 			let i = 0;
 			for (; i < 20; i++) {
 				await timeout(10);
-				if (!this._pollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
-					if (!this._pollingInProcess) {
+				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
 					break;
 				}
 			}
-			this._pollingInProcess = false;
+			this._windowsPromptPollingInProcess = false;
 			if (i === 20) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
 			}
