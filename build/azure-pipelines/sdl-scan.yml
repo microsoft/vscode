@@ -144,6 +144,12 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: required
+              Recurse: true
+
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
