@@ -101,10 +101,12 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(activeTextEditorControl)) {
-			this.activeEditorListeners.add(activeTextEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
-			this.activeEditorListeners.add(activeTextEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+		if (this.titleIncludesFocusedView()) {
+			const activeTextEditorControl = this.editorService.activeTextEditorControl;
+			if (isCodeEditor(activeTextEditorControl)) {
+				this.activeEditorListeners.add(activeTextEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+				this.activeEditorListeners.add(activeTextEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+			}
 		}
 	}
 
@@ -177,6 +179,10 @@ export class WindowTitle extends Disposable {
 
 			this.titleUpdater.schedule();
 		}
+	}
+
+	private titleIncludesFocusedView(): boolean {
+		return this.configurationService.getValue<string>(WindowSettingNames.title)?.match(/\${focusedView}/) !== null;
 	}
 
 	/**
