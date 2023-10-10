@@ -15,7 +15,7 @@ declare module 'vscode' {
 	export interface SlashCommand {
 		readonly name: string;
 		readonly description: string;
-		invoke: ChatAgentHandler;
+		// invoke: ChatAgentHandler;
 	}
 
 	// TODO@API will this be called slash commands or is the prefix configurable
@@ -32,6 +32,9 @@ declare module 'vscode' {
 	// All agent and slashCommand details must be fully dynamic because they can be loaded from a remote server (github copilot extensibility).
 	// But could be declared in package.json a well.
 	export interface ChatAgent {
+
+		// TODO@API naming: name, shortName, alias,
+		readonly id: string;
 
 		description: string;
 
