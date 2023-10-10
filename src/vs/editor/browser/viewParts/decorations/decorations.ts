@@ -116,7 +116,6 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 	}
 
 	private _renderWholeLineDecorations(ctx: RenderingContext, decorations: ViewModelDecoration[], output: string[]): void {
-		const lineHeight = String(this._lineHeight);
 		const visibleStartLineNumber = ctx.visibleRange.startLineNumber;
 		const visibleEndLineNumber = ctx.visibleRange.endLineNumber;
 
@@ -130,9 +129,7 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 			const decorationOutput = (
 				'<div class="cdr '
 				+ d.options.className
-				+ '" style="left:0;width:100%;height:'
-				+ lineHeight
-				+ 'px;"></div>'
+				+ '" style="left:0;width:100%;"></div>'
 			);
 
 			const startLineNumber = Math.max(d.range.startLineNumber, visibleStartLineNumber);
@@ -222,12 +219,12 @@ export class DecorationsOverlay extends DynamicViewOverlay {
 					+ className
 					+ '" style="left:'
 					+ String(visibleRange.left)
+					+ 'px;width:'
 					+ (expandToLeft ?
-						'px;width:100%;height:' :
-						('px;width:' + String(visibleRange.width) + 'px;height:')
+						'100%;' :
+						(String(visibleRange.width) + 'px;')
 					)
-					+ lineHeight
-					+ 'px;"></div>'
+					+ '"></div>'
 				);
 				output[lineIndex] += decorationOutput;
 			}

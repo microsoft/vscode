@@ -68,7 +68,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 	private static readonly ROUNDED_PIECE_WIDTH = 10;
 
 	private readonly _context: ViewContext;
-	private _lineHeight: number;
 	private _roundedSelection: boolean;
 	private _typicalHalfwidthCharacterWidth: number;
 	private _selections: Range[];
@@ -78,7 +77,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		super();
 		this._context = context;
 		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._roundedSelection = options.get(EditorOption.roundedSelection);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		this._selections = [];
@@ -96,7 +94,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 
 	public override onConfigurationChanged(e: viewEvents.ViewConfigurationChangedEvent): boolean {
 		const options = this._context.configuration.options;
-		this._lineHeight = options.get(EditorOption.lineHeight);
 		this._roundedSelection = options.get(EditorOption.roundedSelection);
 		this._typicalHalfwidthCharacterWidth = options.get(EditorOption.fontInfo).typicalHalfwidthCharacterWidth;
 		return true;
@@ -255,7 +252,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		return linesVisibleRanges;
 	}
 
-	private _createSelectionPiece(bottom: number, height: string, className: string, left: number, width: number): string {
+	private _createSelectionPiece(bottom: number, className: string, left: number, width: number): string {
 		return (
 			'<div class="cslr '
 			+ className
@@ -265,8 +262,6 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 			+ left.toString()
 			+ 'px;width:'
 			+ width.toString()
-			+ 'px;height:'
-			+ height
 			+ 'px;"></div>'
 		);
 	}
@@ -277,18 +272,14 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 		}
 
 		const visibleRangesHaveStyle = !!visibleRanges[0].ranges[0].startStyle;
-		const fullLineHeight = (this._lineHeight).toString();
-		const reducedLineHeight = (this._lineHeight - 1).toString();
 
 		const firstLineNumber = visibleRanges[0].lineNumber;
-		const lastLineNumber = visibleRanges[visibleRanges.length - 1].lineNumber;
 
 		for (let i = 0, len = visibleRanges.length; i < len; i++) {
 			const lineVisibleRanges = visibleRanges[i];
 			const lineNumber = lineVisibleRanges.lineNumber;
 			const lineIndex = lineNumber - visibleStartLineNumber;
 
-			const lineHeight = hasMultipleSelections ? (lineNumber === lastLineNumber || lineNumber === firstLineNumber ? reducedLineHeight : fullLineHeight) : fullLineHeight;
 			const bottom = hasMultipleSelections ? (lineNumber === firstLineNumber ? -1 : 0) : 0;
 
 			let innerCornerOutput = '';
@@ -304,7 +295,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						// Reverse rounded corner to the left
 
 						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
 						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
@@ -314,13 +305,13 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						if (startStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 						}
-						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, className, visibleRange.left - SelectionsOverlay.ROUNDED_PIECE_WIDTH, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 					if (endStyle.top === CornerStyle.INTERN || endStyle.bottom === CornerStyle.INTERN) {
 						// Reverse rounded corner to the right
 
 						// First comes the selection (blue layer)
-						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, SelectionsOverlay.SELECTION_CLASS_NAME, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 
 						// Second comes the background (white layer) with inverse border radius
 						let className = SelectionsOverlay.EDITOR_BACKGROUND_CLASS_NAME;
@@ -330,7 +321,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						if (endStyle.bottom === CornerStyle.INTERN) {
 							className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_LEFT;
 						}
-						innerCornerOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
+						innerCornerOutput += this._createSelectionPiece(bottom, className, visibleRange.left + visibleRange.width, SelectionsOverlay.ROUNDED_PIECE_WIDTH);
 					}
 				}
 
@@ -351,7 +342,7 @@ export class SelectionsOverlay extends DynamicViewOverlay {
 						className += ' ' + SelectionsOverlay.SELECTION_BOTTOM_RIGHT;
 					}
 				}
-				restOfSelectionOutput += this._createSelectionPiece(bottom, lineHeight, className, visibleRange.left, visibleRange.width);
+				restOfSelectionOutput += this._createSelectionPiece(bottom, className, visibleRange.left, visibleRange.width);
 			}
 
 			output2[lineIndex][0] += innerCornerOutput;
