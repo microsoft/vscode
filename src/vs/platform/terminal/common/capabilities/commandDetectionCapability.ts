@@ -368,37 +368,18 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
-		const lastCommand = this.commands.at(-1);
-		const terminal = this._terminal;
-
-		function cursorOnCorrectLine(): boolean {
-			if (!lastCommand) {
-				return false;
-			}
-			const cursorYAbsolute = terminal.buffer.active.baseY + terminal.buffer.active.cursorY;
-			// If the cursor position is within the last command, we should poll.
-			const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
-			return cursorYAbsolute > lastCommandYAbsolute;
-		}
-
-		function lineIsPrompt(): boolean {
-			const line = terminal.buffer.active.getLine(terminal.buffer.active.baseY + terminal.buffer.active.cursorY);
-			if (!line) {
-				return false;
-			}
-			// TODO: fine tune prompt regex to accomodate for unique configurtions.
-			return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
-		}
-
 		// Conpty could have the wrong cursor position at this point.
-		if (!cursorOnCorrectLine() || !lineIsPrompt()) {
+		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
 			// Poll for 200ms until the cursor position is correct.
-			for (let i = 0; i < 20; i++) {
+			let i = 0;
+			for (; i < 20; i++) {
 				await timeout(10);
-				if (cursorOnCorrectLine() && lineIsPrompt()) {
-					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling attempts required: ', i + 1);
+				if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
 					break;
 				}
+			}
+			if (i === 20) {
+				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -426,6 +407,27 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+	}
+
+	private _cursorOnNextLine(): boolean {
+		const lastCommand = this.commands.at(-1);
+
+		if (!lastCommand) {
+			return false;
+		}
+		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
+		// If the cursor position is within the last command, we should poll.
+		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
+		return cursorYAbsolute > lastCommandYAbsolute;
+	}
+
+	private _cursorLineLooksLikeWindowsPrompt(): boolean {
+		const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY);
+		if (!line) {
+			return false;
+		}
+		// TODO: fine tune prompt regex to accomodate for unique configurtions.
+		return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
