@@ -32,6 +32,7 @@ import { localize } from 'vs/nls';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { Separator } from 'vs/base/common/actions';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -170,7 +171,13 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			activityHoverOptions: {
 				position: () => HoverPosition.BELOW,
 			},
-			fillExtraContextMenuActions: actions => { },
+			fillExtraContextMenuActions: actions => {
+				const viewsSubmenuAction = this.getViewsSubmenuAction();
+				if (viewsSubmenuAction) {
+					actions.push(new Separator());
+					actions.push(viewsSubmenuAction);
+				}
+			},
 			compositeSize: 0,
 			iconSize: 16,
 			overflowActionSize: 44,
