@@ -19,6 +19,7 @@ import { GitTimelineItem } from './timelineProvider';
 import { ApiRepository } from './api/api1';
 import { getRemoteSourceActions, pickRemoteSource } from './remoteSource';
 import { RemoteSourceAction } from './api/git-base';
+import { existsSync } from 'fs';
 
 class CheckoutItem implements QuickPickItem {
 
@@ -791,11 +792,17 @@ export class CommandCenter {
 	}
 
 	@command('git.init')
-	async init(skipFolderPrompt = false): Promise<void> {
+	async init(skipFolderPrompt = false, forcePath = ''): Promise<void> {
 		let repositoryPath: string | undefined = undefined;
 		let askToOpen = true;
 
-		if (workspace.workspaceFolders) {
+		if (forcePath) {
+			if (existsSync(forcePath)) {
+				repositoryPath = forcePath;
+			} else {
+				window.showErrorMessage('Path for git initialization not found. \n' + forcePath);
+			}
+		} else if (workspace.workspaceFolders) {
 			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
 				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
