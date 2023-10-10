@@ -3,19 +3,39 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { commands, Disposable, ExtensionContext, extensions } from 'vscode';
+import { commands, Disposable, ExtensionContext, extensions, l10n, LogLevel, LogOutputChannel, window } from 'vscode';
+import TelemetryReporter from '@vscode/extension-telemetry';
 import { GithubRemoteSourceProvider } from './remoteSourceProvider';
-import { GitExtension } from './typings/git';
+import { API, GitExtension } from './typings/git';
 import { registerCommands } from './commands';
 import { GithubCredentialProviderManager } from './credentialProvider';
-import { DisposableStore } from './util';
+import { DisposableStore, repositoryHasGitHubRemote } from './util';
 import { GithubPushErrorHandler } from './pushErrorHandler';
 import { GitBaseExtension } from './typings/git-base';
 import { GithubRemoteSourcePublisher } from './remoteSourcePublisher';
+import { GithubBranchProtectionProviderManager } from './branchProtection';
+import { GitHubCanonicalUriProvider } from './canonicalUriProvider';
+import { VscodeDevShareProvider } from './shareProviders';
 
 export function activate(context: ExtensionContext): void {
-	context.subscriptions.push(initializeGitBaseExtension());
-	context.subscriptions.push(initializeGitExtension());
+	const disposables: Disposable[] = [];
+	context.subscriptions.push(new Disposable(() => Disposable.from(...disposables).dispose()));
+
+	const logger = window.createOutputChannel('GitHub', { log: true });
+	disposables.push(logger);
+
+	const onDidChangeLogLevel = (logLevel: LogLevel) => {
+		logger.appendLine(l10n.t('Log level: {0}', LogLevel[logLevel]));
+	};
+	disposables.push(logger.onDidChangeLogLevel(onDidChangeLogLevel));
+	onDidChangeLogLevel(logger.logLevel);
+
+	const { aiKey } = require('../package.json') as { aiKey: string };
+	const telemetryReporter = new TelemetryReporter(aiKey);
+	disposables.push(telemetryReporter);
+
+	disposables.push(initializeGitBaseExtension());
+	disposables.push(initializeGitExtension(context, telemetryReporter, logger));
 }
 
 function initializeGitBaseExtension(): Disposable {
@@ -48,7 +68,22 @@ function initializeGitBaseExtension(): Disposable {
 	return disposables;
 }
 
-function initializeGitExtension(): Disposable {
+function setGitHubContext(gitAPI: API, disposables: DisposableStore) {
+	if (gitAPI.repositories.find(repo => repositoryHasGitHubRemote(repo))) {
+		commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
+	} else {
+		const openRepoDisposable = gitAPI.onDidOpenRepository(async e => {
+			await e.status();
+			if (repositoryHasGitHubRemote(e)) {
+				commands.executeCommand('setContext', 'github.hasGitHubRepo', true);
+				openRepoDisposable.dispose();
+			}
+		});
+		disposables.add(openRepoDisposable);
+	}
+}
+
+function initializeGitExtension(context: ExtensionContext, telemetryReporter: TelemetryReporter, logger: LogOutputChannel): Disposable {
 	const disposables = new DisposableStore();
 
 	let gitExtension = extensions.getExtension<GitExtension>('vscode.git');
@@ -62,8 +97,12 @@ function initializeGitExtension(): Disposable {
 
 						disposables.add(registerCommands(gitAPI));
 						disposables.add(new GithubCredentialProviderManager(gitAPI));
-						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler()));
+						disposables.add(new GithubBranchProtectionProviderManager(gitAPI, context.globalState, logger, telemetryReporter));
+						disposables.add(gitAPI.registerPushErrorHandler(new GithubPushErrorHandler(telemetryReporter)));
 						disposables.add(gitAPI.registerRemoteSourcePublisher(new GithubRemoteSourcePublisher(gitAPI)));
+						disposables.add(new GitHubCanonicalUriProvider(gitAPI));
+						disposables.add(new VscodeDevShareProvider(gitAPI));
+						setGitHubContext(gitAPI, disposables);
 
 						commands.executeCommand('setContext', 'git-base.gitEnabled', true);
 					} else {

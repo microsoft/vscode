@@ -306,6 +306,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -322,6 +323,7 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_TIMEZONE_OFFSET
 		`;
 
 		const clock = sinon.useFakeTimers();
@@ -351,7 +353,6 @@ suite('Snippet Variables Resolver', function () {
 	test('Add workspace name and folder variables for snippets #68261', function () {
 
 		let workspace: IWorkspace;
-		let resolver: VariableResolver;
 		const workspaceService = new class implements IWorkspaceContextService {
 			declare readonly _serviceBrand: undefined;
 			_throw = () => { throw new Error(); };
@@ -367,7 +368,7 @@ suite('Snippet Variables Resolver', function () {
 			isInsideWorkspace = this._throw;
 		};
 
-		resolver = new WorkspaceBasedVariableResolver(workspaceService);
+		const resolver = new WorkspaceBasedVariableResolver(workspaceService);
 
 		// empty workspace
 		workspace = new Workspace('');

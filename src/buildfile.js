@@ -5,7 +5,7 @@
 
 /**
  * @param {string} name
- * @param {string[]} exclude
+ * @param {string[]=} exclude
  */
 function createModuleDescription(name, exclude) {
 
@@ -32,27 +32,28 @@ exports.base = [
 	{
 		name: 'vs/editor/common/services/editorSimpleWorker',
 		include: ['vs/base/common/worker/simpleWorker'],
-		prepend: ['vs/loader.js', 'vs/nls.js'],
-		append: ['vs/base/worker/workerMain'],
+		exclude: ['vs/nls'],
+		prepend: [
+			{ path: 'vs/loader.js' },
+			{ path: 'vs/base/worker/workerMain.js' }
+		],
 		dest: 'vs/base/worker/workerMain.js'
 	},
 	{
 		name: 'vs/base/common/worker/simpleWorker',
-	},
-	{
-		name: 'vs/platform/extensions/node/extensionHostStarterWorker',
-		exclude: ['vs/base/common/worker/simpleWorker']
+		exclude: ['vs/nls'],
 	}
 ];
 
 exports.workerExtensionHost = [createEditorWorkerModuleDescription('vs/workbench/api/worker/extensionHostWorker')];
 exports.workerNotebook = [createEditorWorkerModuleDescription('vs/workbench/contrib/notebook/common/services/notebookSimpleWorker')];
-exports.workerSharedProcess = [createEditorWorkerModuleDescription('vs/platform/sharedProcess/electron-browser/sharedProcessWorkerMain')];
 exports.workerLanguageDetection = [createEditorWorkerModuleDescription('vs/workbench/services/languageDetection/browser/languageDetectionSimpleWorker')];
 exports.workerLocalFileSearch = [createEditorWorkerModuleDescription('vs/workbench/services/search/worker/localFileSearch')];
+exports.workerProfileAnalysis = [createEditorWorkerModuleDescription('vs/platform/profiling/electron-sandbox/profileAnalysisWorker')];
 
 exports.workbenchDesktop = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/workbench/contrib/debug/node/telemetryApp'),
 	createModuleDescription('vs/platform/files/node/watcher/watcherMain'),
 	createModuleDescription('vs/platform/terminal/node/ptyHostMain'),
@@ -61,6 +62,7 @@ exports.workbenchDesktop = [
 
 exports.workbenchWeb = [
 	createEditorWorkerModuleDescription('vs/workbench/contrib/output/common/outputLinkComputer'),
+	createEditorWorkerModuleDescription('vs/workbench/services/textMate/browser/backgroundTokenization/worker/textMateTokenizationWorker.worker'),
 	createModuleDescription('vs/code/browser/workbench/workbench', ['vs/workbench/workbench.web.main'])
 ];
 
@@ -75,8 +77,7 @@ exports.code = [
 	createModuleDescription('vs/code/node/cli'),
 	createModuleDescription('vs/code/node/cliProcessMain', ['vs/code/node/cli']),
 	createModuleDescription('vs/code/electron-sandbox/issue/issueReporterMain'),
-	createModuleDescription('vs/code/electron-browser/sharedProcess/sharedProcessMain'),
-	createModuleDescription('vs/platform/driver/node/driver'),
+	createModuleDescription('vs/code/node/sharedProcess/sharedProcessMain'),
 	createModuleDescription('vs/code/electron-sandbox/processExplorer/processExplorerMain')
 ];
 

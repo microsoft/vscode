@@ -4,20 +4,33 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { compare, compareSubstring } from 'vs/base/common/strings';
+import { compare, compareSubstring, firstNonWhitespaceIndex } from 'vs/base/common/strings';
 import { Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel } from 'vs/editor/common/languages';
+import { CompletionItem, CompletionItemKind, CompletionItemProvider, CompletionList, CompletionItemInsertTextRule, CompletionContext, CompletionTriggerKind, CompletionItemLabel, Command } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { localize } from 'vs/nls';
-import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets.contribution';
+import { ISnippetsService } from 'vs/workbench/contrib/snippets/browser/snippets';
 import { Snippet, SnippetSource } from 'vs/workbench/contrib/snippets/browser/snippetsFile';
 import { isPatternInWord } from 'vs/base/common/filters';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { getWordAtText } from 'vs/editor/common/core/wordHelper';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+
+
+const markSnippetAsUsed = '_snippet.markAsUsed';
+
+CommandsRegistry.registerCommand(markSnippetAsUsed, (accessor, ...args) => {
+	const snippetsService = accessor.get(ISnippetsService);
+	const [first] = args;
+	if (first instanceof Snippet) {
+		snippetsService.updateUsageTimestamp(first);
+	}
+});
 
 export class SnippetCompletion implements CompletionItem {
 
@@ -29,22 +42,26 @@ export class SnippetCompletion implements CompletionItem {
 	sortText: string;
 	kind: CompletionItemKind;
 	insertTextRules: CompletionItemInsertTextRule;
+	extensionId?: ExtensionIdentifier;
+	command?: Command;
 
 	constructor(
 		readonly snippet: Snippet,
-		range: IRange | { insert: IRange; replace: IRange }
+		range: IRange | { insert: IRange; replace: IRange },
 	) {
 		this.label = { label: snippet.prefix, description: snippet.name };
 		this.detail = localize('detail.snippet', "{0} ({1})", snippet.description || snippet.name, snippet.source);
 		this.insertText = snippet.codeSnippet;
+		this.extensionId = snippet.extensionId;
 		this.range = range;
 		this.sortText = `${snippet.snippetSource === SnippetSource.Extension ? 'z' : 'a'}-${snippet.prefix}`;
 		this.kind = CompletionItemKind.Snippet;
 		this.insertTextRules = CompletionItemInsertTextRule.InsertAsSnippet;
+		this.command = { id: markSnippetAsUsed, title: '', arguments: [snippet] };
 	}
 
 	resolve(): this {
-		this.documentation = new MarkdownString().appendCodeblock('', new SnippetParser().text(this.snippet.codeSnippet));
+		this.documentation = new MarkdownString().appendCodeblock('', SnippetParser.asInsertText(this.snippet.codeSnippet));
 		return this;
 	}
 
@@ -67,7 +84,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 
 	async provideCompletionItems(model: ITextModel, position: Position, context: CompletionContext): Promise<CompletionList> {
 
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		const languageConfig = this._languageConfigurationService.getLanguageConfiguration(languageId);
 		const snippets = new Set(await this._snippets.getSnippets(languageId));
@@ -95,8 +112,12 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 				continue snippet;
 			}
 
+			// don't eat into leading whitespace unless the snippet prefix starts with whitespace
+			const minPos = firstNonWhitespaceIndex(snippet.prefixLow) === 0
+				? Math.max(0, model.getLineFirstNonWhitespaceColumn(position.lineNumber) - 1)
+				: 0;
 
-			column: for (let pos = Math.max(0, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
+			column: for (let pos = Math.max(minPos, columnOffset - snippet.prefixLow.length); pos < lineContentLow.length; pos++) {
 
 				if (!isPatternInWord(lineContentLow, pos, columnOffset, snippet.prefixLow, 0, snippet.prefixLow.length)) {
 					continue column;
@@ -145,7 +166,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		if (!triggerCharacterLow) {
 			const endsInWhitespace = /\s/.test(lineContentLow[position.column - 2]);
 			if (endsInWhitespace || !lineContentLow /*empty line*/) {
-				for (let snippet of snippets) {
+				for (const snippet of snippets) {
 					const insert = Range.fromPositions(position);
 					const replace = lineContentLow.indexOf(snippet.prefixLow, columnOffset) === columnOffset ? insert.setEndPosition(position.lineNumber, position.column + snippet.prefixLow.length) : insert;
 					suggestions.push(new SnippetCompletion(snippet, { replace, insert }));
@@ -157,7 +178,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// dismbiguate suggestions with same labels
 		suggestions.sort(SnippetCompletion.compareByLabel);
 		for (let i = 0; i < suggestions.length; i++) {
-			let item = suggestions[i];
+			const item = suggestions[i];
 			let to = i + 1;
 			for (; to < suggestions.length && item.label === suggestions[to].label; to++) {
 				suggestions[to].label.label = localize('snippetSuggest.longLabel', "{0}, {1}", suggestions[to].label.label, suggestions[to].snippet.name);
@@ -182,7 +203,7 @@ export class SnippetCompletionProvider implements CompletionItemProvider {
 		// validate the `languageId` to ensure this is a user
 		// facing language with a name and the chance to have
 		// snippets, else fall back to the outer language
-		model.tokenizeIfCheap(position.lineNumber);
+		model.tokenization.tokenizeIfCheap(position.lineNumber);
 		let languageId = model.getLanguageIdAtPosition(position.lineNumber, position.column);
 		if (!this._languageService.getLanguageName(languageId)) {
 			languageId = model.getLanguageId();

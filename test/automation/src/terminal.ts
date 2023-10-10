@@ -6,9 +6,13 @@
 import { QuickInput } from './quickinput';
 import { Code } from './code';
 import { QuickAccess } from './quickaccess';
+import { IElement } from './driver';
 
 export enum Selector {
 	TerminalView = `#terminal`,
+	CommandDecorationPlaceholder = `.terminal-command-decoration.codicon-terminal-decoration-incomplete`,
+	CommandDecorationSuccess = `.terminal-command-decoration.codicon-terminal-decoration-success`,
+	CommandDecorationError = `.terminal-command-decoration.codicon-terminal-decoration-error`,
 	Xterm = `#terminal .terminal-wrapper`,
 	XtermEditor = `.editor-instance .terminal-wrapper`,
 	TabsEntry = '.terminal-tabs-entry',
@@ -21,7 +25,8 @@ export enum Selector {
 	Tabs = '.tabs-list .monaco-list-row',
 	SplitButton = '.editor .codicon-split-horizontal',
 	XtermSplitIndex0 = '#terminal .terminal-groups-container .split-view-view:nth-child(1) .terminal-wrapper',
-	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper'
+	XtermSplitIndex1 = '#terminal .terminal-groups-container .split-view-view:nth-child(2) .terminal-wrapper',
+	Hide = '.hide'
 }
 
 /**
@@ -33,7 +38,8 @@ export enum TerminalCommandIdWithValue {
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
 	NewWithProfile = 'workbench.action.terminal.newWithProfile',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
-	AttachToSession = 'workbench.action.terminal.attachToSession'
+	AttachToSession = 'workbench.action.terminal.attachToSession',
+	WriteDataToTerminal = 'workbench.action.terminal.writeDataToTerminal'
 }
 
 /**
@@ -62,25 +68,46 @@ interface TerminalLabel {
 }
 type TerminalGroup = TerminalLabel[];
 
+interface ICommandDecorationCounts {
+	placeholder: number;
+	success: number;
+	error: number;
+}
+
 export class Terminal {
 
 	constructor(private code: Code, private quickaccess: QuickAccess, private quickinput: QuickInput) { }
 
-	async runCommand(commandId: TerminalCommandId): Promise<void> {
+	async runCommand(commandId: TerminalCommandId, expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		const keepOpen = commandId === TerminalCommandId.Join;
-		await this.quickaccess.runCommand(commandId, keepOpen);
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
 		}
-		if (commandId === TerminalCommandId.Show) {
-			return await this._waitForTerminal(undefined);
+		switch (commandId) {
+			case TerminalCommandId.Show:
+			case TerminalCommandId.CreateNewEditor:
+			case TerminalCommandId.CreateNew:
+			case TerminalCommandId.NewWithProfile:
+				await this._waitForTerminal(expectedLocation === 'editor' || commandId === TerminalCommandId.CreateNewEditor ? 'editor' : 'panel');
+				break;
+			case TerminalCommandId.KillAll:
+				// HACK: Attempt to kill all terminals to clean things up, this is known to be flaky
+				// but the reason why isn't known. This is typically called in the after each hook,
+				// Since it's not actually required that all terminals are killed just continue on
+				// after 2 seconds.
+				await Promise.race([
+					this.code.waitForElements(Selector.Xterm, true, e => e.length === 0),
+					this.code.wait(2000)
+				]);
+				break;
 		}
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
-		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
+		const keepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		// Running the command should hide the quick input in the following frame, this next wait
 		// ensures that the quick input is opened again before proceeding to avoid a race condition
 		// where the enter keybinding below would close the quick input if it's triggered before the
@@ -94,6 +121,9 @@ export class Terminal {
 		}
 		await this.code.dispatchKeybinding(altKey ? 'Alt+Enter' : 'enter');
 		await this.quickinput.waitForQuickInputClosed();
+		if (commandId === TerminalCommandIdWithValue.NewWithProfile) {
+			await this._waitForTerminal();
+		}
 	}
 
 	async runCommandInTerminal(commandText: string, skipEnter?: boolean): Promise<void> {
@@ -105,11 +135,11 @@ export class Terminal {
 
 	/**
 	 * Creates a terminal using the new terminal command.
-	 * @param location The location to check the terminal for, defaults to panel.
+	 * @param expectedLocation The location to check the terminal for, defaults to panel.
 	 */
-	async createTerminal(location?: 'editor' | 'panel'): Promise<void> {
-		await this.runCommand(TerminalCommandId.CreateNew);
-		await this._waitForTerminal(location);
+	async createTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
+		await this.runCommand(TerminalCommandId.CreateNew, expectedLocation);
+		await this._waitForTerminal(expectedLocation);
 	}
 
 	async assertEditorGroupCount(count: number): Promise<void> {
@@ -132,11 +162,11 @@ export class Terminal {
 		let index = 0;
 		while (index < expectedCount) {
 			for (let groupIndex = 0; groupIndex < expectedGroups.length; groupIndex++) {
-				let terminalsInGroup = expectedGroups[groupIndex].length;
+				const terminalsInGroup = expectedGroups[groupIndex].length;
 				let indexInGroup = 0;
 				const isSplit = terminalsInGroup > 1;
 				while (indexInGroup < terminalsInGroup) {
-					let instance = expectedGroups[groupIndex][indexInGroup];
+					const instance = expectedGroups[groupIndex][indexInGroup];
 					const nameRegex = instance.name && isSplit ? new RegExp('\\s*[├┌└]\\s*' + instance.name) : instance.name ? new RegExp(/^\s*/ + instance.name) : undefined;
 					await this.assertTabExpected(undefined, index, nameRegex, instance.icon, instance.color, instance.description);
 					indexInGroup++;
@@ -151,11 +181,11 @@ export class Terminal {
 		const groups: TerminalGroup[] = [];
 		for (let i = 0; i < tabCount; i++) {
 			const title = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
-			const description = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, e => e?.textContent?.length ? e?.textContent?.length > 1 : false);
+			const description: IElement | undefined = await this.code.waitForElement(`${Selector.Tabs}[data-index="${i}"] ${Selector.TabsEntry} ${Selector.Description}`, () => true);
 
 			const label: TerminalLabel = {
 				name: title.textContent.replace(/^[├┌└]\s*/, ''),
-				description: description.textContent
+				description: description?.textContent
 			};
 			// It's a new group if the the tab does not start with ├ or └
 			if (title.textContent.match(/^[├└]/)) {
@@ -204,6 +234,21 @@ export class Terminal {
 		await this.code.waitForElement(Selector.TerminalView, result => result === undefined);
 	}
 
+	async assertCommandDecorations(expectedCounts?: ICommandDecorationCounts, customIcon?: { updatedIcon: string; count: number }, showDecorations?: 'both' | 'gutter' | 'overviewRuler' | 'never'): Promise<void> {
+		if (expectedCounts) {
+			const placeholderSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationPlaceholder}${Selector.Hide}` : Selector.CommandDecorationPlaceholder;
+			await this.code.waitForElements(placeholderSelector, true, decorations => decorations && decorations.length === expectedCounts.placeholder);
+			const successSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationSuccess}${Selector.Hide}` : Selector.CommandDecorationSuccess;
+			await this.code.waitForElements(successSelector, true, decorations => decorations && decorations.length === expectedCounts.success);
+			const errorSelector = showDecorations === 'overviewRuler' ? `${Selector.CommandDecorationError}${Selector.Hide}` : Selector.CommandDecorationError;
+			await this.code.waitForElements(errorSelector, true, decorations => decorations && decorations.length === expectedCounts.error);
+		}
+
+		if (customIcon) {
+			await this.code.waitForElements(`.terminal-command-decoration.codicon-${customIcon.updatedIcon}`, true, decorations => decorations && decorations.length === customIcon.count);
+		}
+	}
+
 	async clickPlusButton(): Promise<void> {
 		await this.code.waitAndClick(Selector.PlusButton);
 	}
@@ -237,10 +282,10 @@ export class Terminal {
 
 	/**
 	 * Waits for the terminal to be focused and to contain content.
-	 * @param location The location to check the terminal for, defaults to panel.
+	 * @param expectedLocation The location to check the terminal for, defaults to panel.
 	 */
-	private async _waitForTerminal(location?: 'editor' | 'panel'): Promise<void> {
+	private async _waitForTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.code.waitForElement(Selector.XtermFocused);
-		await this.code.waitForTerminalBuffer(location === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
+		await this.code.waitForTerminalBuffer(expectedLocation === 'editor' ? Selector.XtermEditor : Selector.Xterm, lines => lines.some(line => line.length > 0));
 	}
 }

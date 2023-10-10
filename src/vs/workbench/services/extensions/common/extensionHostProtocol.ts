@@ -4,27 +4,51 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from 'vs/base/common/buffer';
-import { URI, UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { LogLevel } from 'vs/platform/log/common/log';
+import { ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IRemoteConnectionData } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
+
+export interface IExtensionDescriptionSnapshot {
+	readonly versionId: number;
+	readonly allExtensions: IExtensionDescription[];
+	readonly activationEvents: { [extensionId: string]: string[] };
+	readonly myExtensions: ExtensionIdentifier[];
+}
+
+export interface IExtensionDescriptionDelta {
+	readonly versionId: number;
+	readonly toRemove: ExtensionIdentifier[];
+	readonly toAdd: IExtensionDescription[];
+	readonly addActivationEvents: { [extensionId: string]: string[] };
+	readonly myToRemove: ExtensionIdentifier[];
+	readonly myToAdd: ExtensionIdentifier[];
+}
 
 export interface IExtensionHostInitData {
 	version: string;
+	quality: string | undefined;
 	commit?: string;
-	parentPid: number;
+	/**
+	 * When set to `0`, no polling for the parent process still running will happen.
+	 */
+	parentPid: number | 0;
 	environment: IEnvironment;
 	workspace?: IStaticWorkspaceData | null;
-	resolvedExtensions: ExtensionIdentifier[];
-	hostExtensions: ExtensionIdentifier[];
-	extensions: IExtensionDescription[];
-	telemetryInfo: ITelemetryInfo;
+	extensions: IExtensionDescriptionSnapshot;
+	nlsBaseUrl?: URI;
+	telemetryInfo: {
+		readonly sessionId: string;
+		readonly machineId: string;
+		readonly firstSessionDate: string;
+		readonly msftInternal?: boolean;
+	};
 	logLevel: LogLevel;
+	loggers: UriDto<ILoggerResource>[];
 	logsLocation: URI;
-	logFile: URI;
 	autoStart: boolean;
 	remote: { isRemote: boolean; authority: string | undefined; connectionData: IRemoteConnectionData | null };
+	consoleForward: { includeStack: boolean; logNative: boolean };
 	uiKind: UIKind;
 	messagePorts?: ReadonlyMap<string, MessagePortLike>;
 }
@@ -35,6 +59,8 @@ export interface IEnvironment {
 	appHost: string;
 	appRoot?: URI;
 	appLanguage: string;
+	extensionTelemetryLogResource: URI;
+	isExtensionTelemetryLoggingOnly: boolean;
 	appUriScheme: string;
 	extensionDevelopmentLocationURI?: URI[];
 	extensionTestsLocationURI?: URI;
@@ -42,6 +68,7 @@ export interface IEnvironment {
 	workspaceStorageHome: URI;
 	useHostProxy?: boolean;
 	skipWorkspaceStorageLock?: boolean;
+	extensionLogLevel?: [string, string][];
 }
 
 export interface IStaticWorkspaceData {
@@ -115,4 +142,9 @@ export function isMessageOfType(message: VSBuffer, type: MessageType): boolean {
 		case 3: return type === MessageType.Terminate;
 		default: return false;
 	}
+}
+
+export const enum NativeLogMarkers {
+	Start = 'START_NATIVE_LOG',
+	End = 'END_NATIVE_LOG',
 }

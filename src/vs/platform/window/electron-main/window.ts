@@ -9,6 +9,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
+import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
@@ -16,6 +17,7 @@ export interface ICodeWindow extends IDisposable {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
+	readonly onDidTriggerSystemContextMenu: Event<{ x: number; y: number }>;
 	readonly onDidClose: Event<void>;
 	readonly onDidDestroy: Event<void>;
 
@@ -26,6 +28,8 @@ export interface ICodeWindow extends IDisposable {
 	readonly config: INativeWindowConfiguration | undefined;
 
 	readonly openedWorkspace?: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier;
+
+	readonly profile?: IUserDataProfile;
 
 	readonly backupPath?: string;
 
@@ -39,8 +43,6 @@ export interface ICodeWindow extends IDisposable {
 	readonly isReady: boolean;
 	ready(): Promise<ICodeWindow>;
 	setReady(): void;
-
-	readonly hasHiddenTitleBarStyle: boolean;
 
 	addTabbedWindow(window: ICodeWindow): void;
 
@@ -71,6 +73,8 @@ export interface ICodeWindow extends IDisposable {
 	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	serializeWindowState(): IWindowState;
+
+	updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): void;
 }
 
 export const enum LoadReason {
@@ -120,7 +124,7 @@ export interface IWindowState {
 	x?: number;
 	y?: number;
 	mode?: WindowMode;
-	display?: number;
+	readonly display?: number;
 }
 
 export const defaultWindowState = function (mode = WindowMode.Normal): IWindowState {
@@ -139,8 +143,8 @@ export const enum WindowMode {
 }
 
 export interface ILoadEvent {
-	workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
-	reason: LoadReason;
+	readonly workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | undefined;
+	readonly reason: LoadReason;
 }
 
 export const enum WindowError {
@@ -151,9 +155,9 @@ export const enum WindowError {
 	UNRESPONSIVE = 1,
 
 	/**
-	 * Maps to the `render-proces-gone` event on a `WebContents`.
+	 * Maps to the `render-process-gone` event on a `WebContents`.
 	 */
-	CRASHED = 2,
+	PROCESS_GONE = 2,
 
 	/**
 	 * Maps to the `did-fail-load` event on a `WebContents`.

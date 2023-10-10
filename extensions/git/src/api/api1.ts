@@ -5,8 +5,8 @@
 
 import { Model } from '../model';
 import { Repository as BaseRepository, Resource } from '../repository';
-import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher } from './git';
-import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands } from 'vscode';
+import { InputBox, Git, API, Repository, Remote, RepositoryState, Branch, ForcePushMode, Ref, Submodule, Commit, Change, RepositoryUIState, Status, LogOptions, APIState, CommitOptions, RefType, CredentialsProvider, BranchQuery, PushErrorHandler, PublishEvent, FetchOptions, RemoteSourceProvider, RemoteSourcePublisher, PostCommitCommandsProvider, RefQuery, BranchProtectionProvider, InitOptions } from './git';
+import { Event, SourceControlInputBox, Uri, SourceControl, Disposable, commands, CancellationToken } from 'vscode';
 import { combinedDisposable, mapEvent } from '../util';
 import { toGitUri } from '../uri';
 import { GitExtensionImpl } from './extension';
@@ -32,7 +32,10 @@ export class ApiChange implements Change {
 export class ApiRepositoryState implements RepositoryState {
 
 	get HEAD(): Branch | undefined { return this._repository.HEAD; }
-	get refs(): Ref[] { return [...this._repository.refs]; }
+	/**
+	 * @deprecated Use ApiRepository.getRefs() instead.
+	 */
+	get refs(): Ref[] { console.warn('Deprecated. Use ApiRepository.getRefs() instead.'); return []; }
 	get remotes(): Remote[] { return [...this._repository.remotes]; }
 	get submodules(): Submodule[] { return [...this._repository.submodules]; }
 	get rebaseCommit(): Commit | undefined { return this._repository.rebaseCommit; }
@@ -57,153 +60,165 @@ export class ApiRepositoryUIState implements RepositoryUIState {
 
 export class ApiRepository implements Repository {
 
-	readonly rootUri: Uri = Uri.file(this._repository.root);
-	readonly inputBox: InputBox = new ApiInputBox(this._repository.inputBox);
-	readonly state: RepositoryState = new ApiRepositoryState(this._repository);
-	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this._repository.sourceControl);
+	readonly rootUri: Uri = Uri.file(this.repository.root);
+	readonly inputBox: InputBox = new ApiInputBox(this.repository.inputBox);
+	readonly state: RepositoryState = new ApiRepositoryState(this.repository);
+	readonly ui: RepositoryUIState = new ApiRepositoryUIState(this.repository.sourceControl);
 
-	constructor(private _repository: BaseRepository) { }
+	constructor(readonly repository: BaseRepository) { }
 
 	apply(patch: string, reverse?: boolean): Promise<void> {
-		return this._repository.apply(patch, reverse);
+		return this.repository.apply(patch, reverse);
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
-		return this._repository.getConfigs();
+		return this.repository.getConfigs();
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this._repository.getConfig(key);
+		return this.repository.getConfig(key);
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this._repository.setConfig(key, value);
+		return this.repository.setConfig(key, value);
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this._repository.getGlobalConfig(key);
+		return this.repository.getGlobalConfig(key);
 	}
 
 	getObjectDetails(treeish: string, path: string): Promise<{ mode: string; object: string; size: number }> {
-		return this._repository.getObjectDetails(treeish, path);
+		return this.repository.getObjectDetails(treeish, path);
 	}
 
 	detectObjectType(object: string): Promise<{ mimetype: string; encoding?: string }> {
-		return this._repository.detectObjectType(object);
+		return this.repository.detectObjectType(object);
 	}
 
 	buffer(ref: string, filePath: string): Promise<Buffer> {
-		return this._repository.buffer(ref, filePath);
+		return this.repository.buffer(ref, filePath);
 	}
 
 	show(ref: string, path: string): Promise<string> {
-		return this._repository.show(ref, path);
+		return this.repository.show(ref, path);
 	}
 
 	getCommit(ref: string): Promise<Commit> {
-		return this._repository.getCommit(ref);
+		return this.repository.getCommit(ref);
 	}
 
 	add(paths: string[]) {
-		return this._repository.add(paths.map(p => Uri.file(p)));
+		return this.repository.add(paths.map(p => Uri.file(p)));
+	}
+
+	revert(paths: string[]) {
+		return this.repository.revert(paths.map(p => Uri.file(p)));
 	}
 
 	clean(paths: string[]) {
-		return this._repository.clean(paths.map(p => Uri.file(p)));
+		return this.repository.clean(paths.map(p => Uri.file(p)));
 	}
 
 	diff(cached?: boolean) {
-		return this._repository.diff(cached);
+		return this.repository.diff(cached);
 	}
 
 	diffWithHEAD(): Promise<Change[]>;
 	diffWithHEAD(path: string): Promise<string>;
 	diffWithHEAD(path?: string): Promise<string | Change[]> {
-		return this._repository.diffWithHEAD(path);
+		return this.repository.diffWithHEAD(path);
 	}
 
 	diffWith(ref: string): Promise<Change[]>;
 	diffWith(ref: string, path: string): Promise<string>;
 	diffWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffWith(ref, path);
+		return this.repository.diffWith(ref, path);
 	}
 
 	diffIndexWithHEAD(): Promise<Change[]>;
 	diffIndexWithHEAD(path: string): Promise<string>;
 	diffIndexWithHEAD(path?: string): Promise<string | Change[]> {
-		return this._repository.diffIndexWithHEAD(path);
+		return this.repository.diffIndexWithHEAD(path);
 	}
 
 	diffIndexWith(ref: string): Promise<Change[]>;
 	diffIndexWith(ref: string, path: string): Promise<string>;
 	diffIndexWith(ref: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffIndexWith(ref, path);
+		return this.repository.diffIndexWith(ref, path);
 	}
 
 	diffBlobs(object1: string, object2: string): Promise<string> {
-		return this._repository.diffBlobs(object1, object2);
+		return this.repository.diffBlobs(object1, object2);
 	}
 
 	diffBetween(ref1: string, ref2: string): Promise<Change[]>;
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetween(ref1: string, ref2: string, path?: string): Promise<string | Change[]> {
-		return this._repository.diffBetween(ref1, ref2, path);
+		return this.repository.diffBetween(ref1, ref2, path);
 	}
 
 	hashObject(data: string): Promise<string> {
-		return this._repository.hashObject(data);
+		return this.repository.hashObject(data);
 	}
 
 	createBranch(name: string, checkout: boolean, ref?: string | undefined): Promise<void> {
-		return this._repository.branch(name, checkout, ref);
+		return this.repository.branch(name, checkout, ref);
 	}
 
 	deleteBranch(name: string, force?: boolean): Promise<void> {
-		return this._repository.deleteBranch(name, force);
+		return this.repository.deleteBranch(name, force);
 	}
 
 	getBranch(name: string): Promise<Branch> {
-		return this._repository.getBranch(name);
+		return this.repository.getBranch(name);
 	}
 
-	getBranches(query: BranchQuery): Promise<Ref[]> {
-		return this._repository.getBranches(query);
+	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getBranches(query, cancellationToken);
+	}
+
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
 	}
 
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
-		return this._repository.setBranchUpstream(name, upstream);
+		return this.repository.setBranchUpstream(name, upstream);
+	}
+
+	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]> {
+		return this.repository.getRefs(query, cancellationToken);
 	}
 
 	getMergeBase(ref1: string, ref2: string): Promise<string> {
-		return this._repository.getMergeBase(ref1, ref2);
+		return this.repository.getMergeBase(ref1, ref2);
 	}
 
 	tag(name: string, upstream: string): Promise<void> {
-		return this._repository.tag(name, upstream);
+		return this.repository.tag(name, upstream);
 	}
 
 	deleteTag(name: string): Promise<void> {
-		return this._repository.deleteTag(name);
+		return this.repository.deleteTag(name);
 	}
 
 	status(): Promise<void> {
-		return this._repository.status();
+		return this.repository.status();
 	}
 
 	checkout(treeish: string): Promise<void> {
-		return this._repository.checkout(treeish);
+		return this.repository.checkout(treeish);
 	}
 
 	addRemote(name: string, url: string): Promise<void> {
-		return this._repository.addRemote(name, url);
+		return this.repository.addRemote(name, url);
 	}
 
 	removeRemote(name: string): Promise<void> {
-		return this._repository.removeRemote(name);
+		return this.repository.removeRemote(name);
 	}
 
 	renameRemote(name: string, newName: string): Promise<void> {
-		return this._repository.renameRemote(name, newName);
+		return this.repository.renameRemote(name, newName);
 	}
 
 	fetch(arg0?: FetchOptions | string | undefined,
@@ -212,30 +227,30 @@ export class ApiRepository implements Repository {
 		prune?: boolean | undefined
 	): Promise<void> {
 		if (arg0 !== undefined && typeof arg0 !== 'string') {
-			return this._repository.fetch(arg0);
+			return this.repository.fetch(arg0);
 		}
 
-		return this._repository.fetch({ remote: arg0, ref, depth, prune });
+		return this.repository.fetch({ remote: arg0, ref, depth, prune });
 	}
 
 	pull(unshallow?: boolean): Promise<void> {
-		return this._repository.pull(undefined, unshallow);
+		return this.repository.pull(undefined, unshallow);
 	}
 
 	push(remoteName?: string, branchName?: string, setUpstream: boolean = false, force?: ForcePushMode): Promise<void> {
-		return this._repository.pushTo(remoteName, branchName, setUpstream, force);
+		return this.repository.pushTo(remoteName, branchName, setUpstream, force);
 	}
 
 	blame(path: string): Promise<string> {
-		return this._repository.blame(path);
+		return this.repository.blame(path);
 	}
 
 	log(options?: LogOptions): Promise<Commit[]> {
-		return this._repository.log(options);
+		return this.repository.log(options);
 	}
 
 	commit(message: string, opts?: CommitOptions): Promise<void> {
-		return this._repository.commit(message, opts);
+		return this.repository.commit(message, opts);
 	}
 }
 
@@ -283,9 +298,9 @@ export class ApiImpl implements API {
 		return result ? new ApiRepository(result) : null;
 	}
 
-	async init(root: Uri): Promise<Repository | null> {
+	async init(root: Uri, options?: InitOptions): Promise<Repository | null> {
 		const path = root.fsPath;
-		await this._model.git.init(path);
+		await this._model.git.init(path, options);
 		await this._model.openRepository(path);
 		return this.getRepository(root) || null;
 	}
@@ -314,8 +329,16 @@ export class ApiImpl implements API {
 		return this._model.registerCredentialsProvider(provider);
 	}
 
+	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable {
+		return this._model.registerPostCommitCommandsProvider(provider);
+	}
+
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable {
 		return this._model.registerPushErrorHandler(handler);
+	}
+
+	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable {
+		return this._model.registerBranchProtectionProvider(root, provider);
 	}
 
 	constructor(private _model: Model) { }
@@ -343,6 +366,8 @@ function getStatus(status: Status): string {
 		case Status.UNTRACKED: return 'UNTRACKED';
 		case Status.IGNORED: return 'IGNORED';
 		case Status.INTENT_TO_ADD: return 'INTENT_TO_ADD';
+		case Status.INTENT_TO_RENAME: return 'INTENT_TO_RENAME';
+		case Status.TYPE_CHANGED: return 'TYPE_CHANGED';
 		case Status.ADDED_BY_US: return 'ADDED_BY_US';
 		case Status.ADDED_BY_THEM: return 'ADDED_BY_THEM';
 		case Status.DELETED_BY_US: return 'DELETED_BY_US';

@@ -5,7 +5,7 @@
 
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewDescriptorService, IAddedViewDescriptorRef, IView } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -19,7 +19,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
 export interface IViewletViewOptions extends IViewPaneOptions {
-	fromExtensionId?: ExtensionIdentifier;
+	readonly fromExtensionId?: ExtensionIdentifier;
 }
 
 export abstract class FilterViewPaneContainer extends ViewPaneContainer {
@@ -48,13 +48,6 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.onFilterChanged(newFilterValue);
 		}));
 
-		this._register(this.onDidChangeViewVisibility(view => {
-			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(view.id));
-			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
-				this.setFilter(descriptorMap[1].get(view.id)!);
-			}
-		}));
-
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}));
@@ -62,7 +55,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 
 	private updateAllViews(viewDescriptors: ReadonlyArray<IViewDescriptor>) {
 		viewDescriptors.forEach(descriptor => {
-			let filterOnValue = this.getFilterOn(descriptor);
+			const filterOnValue = this.getFilterOn(descriptor);
 			if (!filterOnValue) {
 				return;
 			}
@@ -123,7 +116,7 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 		return views;
 	}
 
-	override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
+	protected override onDidAddViewDescriptors(added: IAddedViewDescriptorRef[]): ViewPane[] {
 		const panes: ViewPane[] = super.onDidAddViewDescriptors(added);
 		for (let i = 0; i < added.length; i++) {
 			if (this.constantViewDescriptors.has(added[i].viewDescriptor.id)) {
@@ -135,6 +128,17 @@ export abstract class FilterViewPaneContainer extends ViewPaneContainer {
 			this.updateAllViews(this.viewContainerModel.activeViewDescriptors);
 		}
 		return panes;
+	}
+
+	override openView(id: string, focus?: boolean): IView | undefined {
+		const result = super.openView(id, focus);
+		if (result) {
+			const descriptorMap = Array.from(this.allViews.entries()).find(entry => entry[1].has(id));
+			if (descriptorMap && !this.filterValue?.includes(descriptorMap[0])) {
+				this.setFilter(descriptorMap[1].get(id)!);
+			}
+		}
+		return result;
 	}
 
 	abstract override getTitle(): string;

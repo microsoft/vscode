@@ -16,7 +16,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { EditorInputCapabilities, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-export class WalkThroughModel extends EditorModel {
+class WalkThroughModel extends EditorModel {
 
 	constructor(
 		private mainRef: string,

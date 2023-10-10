@@ -191,40 +191,36 @@ export class ThemeRegistry<T extends IThemeData> {
 				log?.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", this.themesExtPoint.name, themeLocation.path, extensionLocation.path));
 			}
 
-			let themeData = this.create(theme, themeLocation, extensionData);
+			const themeData = this.create(theme, themeLocation, extensionData);
 			resultingThemes.push(themeData);
 		});
 		return resultingThemes;
 	}
 
-	public findThemeById(themeId: string, defaultId?: string): T | undefined {
+	public findThemeById(themeId: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.id === themeId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
-		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.id === themeId) {
 				return t;
 			}
-			if (t.id === defaultId) {
-				defaultTheme = t;
-			}
 		}
-		return defaultTheme;
+		return undefined;
 	}
 
-	public findThemeBySettingsId(settingsId: string | null, defaultId?: string): T | undefined {
+	public findThemeBySettingsId(settingsId: string | null, defaultSettingsId?: string): T | undefined {
 		if (this.builtInTheme && this.builtInTheme.settingsId === settingsId) {
 			return this.builtInTheme;
 		}
 		const allThemes = this.getThemes();
 		let defaultTheme: T | undefined = undefined;
-		for (let t of allThemes) {
+		for (const t of allThemes) {
 			if (t.settingsId === settingsId) {
 				return t;
 			}
-			if (t.id === defaultId) {
+			if (t.settingsId === defaultSettingsId) {
 				defaultTheme = t;
 			}
 		}

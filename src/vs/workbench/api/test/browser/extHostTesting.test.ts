@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import * as sinon from 'sinon';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { URI } from 'vs/base/common/uri';
 import { mockObject, MockObject } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import * as editorRange from 'vs/editor/common/core/range';
+import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { MainThreadTestingShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { TestRunCoordinator, TestRunDto, TestRunProfileImpl } from 'vs/workbench/api/common/extHostTesting';
+import { ExtHostTestItemCollection, TestItemImpl } from 'vs/workbench/api/common/extHostTestItem';
 import * as convert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Location, Position, Range, TestMessage, TestResultState, TestRunProfileKind, TestRunRequest as TestRunRequestImpl, TestTag } from 'vs/workbench/api/common/extHostTypes';
-import { TestDiffOpType, TestItemExpandState, TestMessageType } from 'vs/workbench/contrib/testing/common/testCollection';
 import { TestId } from 'vs/workbench/contrib/testing/common/testId';
-import { TestItemImpl, testStubs } from 'vs/workbench/contrib/testing/test/common/testStubs';
-import { TestSingleUseCollection } from 'vs/workbench/contrib/testing/test/common/ownedTestCollection';
+import { TestDiffOpType, TestItemExpandState, TestMessageType, TestsDiff } from 'vs/workbench/contrib/testing/common/testTypes';
 import type { TestItem, TestRunRequest } from 'vscode';
 
 const simplify = (item: TestItem) => ({
@@ -37,8 +41,8 @@ const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefin
 
 	assert.deepStrictEqual(simplify(a), simplify(b));
 
-	const aChildren = [...a.children].map(c => c.id).sort();
-	const bChildren = [...b.children].map(c => c.id).sort();
+	const aChildren = [...a.children].map(([_, c]) => c.id).sort();
+	const bChildren = [...b.children].map(([_, c]) => c.id).sort();
 	assert.strictEqual(aChildren.length, bChildren.length, `expected ${a.label}.children.length == ${b.label}.children.length`);
 	aChildren.forEach(key => assertTreesEqual(a.children.get(key) as TestItemImpl, b.children.get(key) as TestItemImpl));
 };
@@ -62,14 +66,37 @@ const assertTreesEqual = (a: TestItemImpl | undefined, b: TestItemImpl | undefin
 // }
 
 suite('ExtHost Testing', () => {
-	let single: TestSingleUseCollection;
-	setup(() => {
-		single = testStubs.nested();
-		single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */));
-	});
+	class TestExtHostTestItemCollection extends ExtHostTestItemCollection {
+		public setDiff(diff: TestsDiff) {
+			this.diff = diff;
+		}
+	}
 
 	teardown(() => {
-		single.dispose();
+		sinon.restore();
+	});
+
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
+
+	let single: TestExtHostTestItemCollection;
+	setup(() => {
+		single = ds.add(new TestExtHostTestItemCollection('ctrlId', 'root', {
+			getDocument: () => undefined,
+		} as Partial<ExtHostDocumentsAndEditors> as ExtHostDocumentsAndEditors));
+		single.resolveHandler = item => {
+			if (item === undefined) {
+				const a = new TestItemImpl('ctrlId', 'id-a', 'a', URI.file('/'));
+				a.canResolveChildren = true;
+				const b = new TestItemImpl('ctrlId', 'id-b', 'b', URI.file('/'));
+				single.root.children.add(a);
+				single.root.children.add(b);
+			} else if (item.id === 'id-a') {
+				item.children.add(new TestItemImpl('ctrlId', 'id-aa', 'aa', URI.file('/')));
+				item.children.add(new TestItemImpl('ctrlId', 'id-ab', 'ab', URI.file('/')));
+			}
+		};
+
+		ds.add(single.onDidGenerateDiff(d => single.setDiff(d /* don't clear during testing */)));
 	});
 
 	suite('OwnedTestCollection', () => {
@@ -80,19 +107,19 @@ suite('ExtHost Testing', () => {
 			assert.deepStrictEqual(single.collectDiff(), [
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: null, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(single.root) } }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a) } }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.BusyExpanding, item: { ...convert.TestItem.from(a) } }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa') as TestItemImpl) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-aa') as TestItemImpl) }
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab') as TestItemImpl) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(a.children.get('id-ab') as TestItemImpl) }
 				},
 				{
 					op: TestDiffOpType.Update,
@@ -100,7 +127,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: single.root.id, expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				},
 				{
 					op: TestDiffOpType.Update,
@@ -117,6 +144,19 @@ suite('ExtHost Testing', () => {
 			const ab = a.children.get('id-ab')!;
 			assert.strictEqual(a.parent, undefined);
 			assert.strictEqual(ab.parent, a);
+		});
+
+		test('can add an item with same ID as root', () => {
+			single.collectDiff();
+
+			const child = new TestItemImpl('ctrlId', 'ctrlId', 'c', undefined);
+			single.root.children.add(child);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(child) },
+				}
+			]);
 		});
 
 		test('no-ops if items not changed', () => {
@@ -162,7 +202,6 @@ suite('ExtHost Testing', () => {
 				{
 					op: TestDiffOpType.Add, item: {
 						controllerId: 'ctrlId',
-						parent: new TestId(['ctrlId', 'id-a']).toString(),
 						expand: TestItemExpandState.NotExpandable,
 						item: convert.TestItem.from(child),
 					}
@@ -186,12 +225,11 @@ suite('ExtHost Testing', () => {
 			single.root.children.get('id-a')!.children.add(child);
 
 			assert.deepStrictEqual(single.collectDiff(), [
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag1' } },
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag2' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag1' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag2' } },
 				{
 					op: TestDiffOpType.Add, item: {
 						controllerId: 'ctrlId',
-						parent: new TestId(['ctrlId', 'id-a']).toString(),
 						expand: TestItemExpandState.NotExpandable,
 						item: convert.TestItem.from(child),
 					}
@@ -200,7 +238,7 @@ suite('ExtHost Testing', () => {
 
 			child.tags = [tag2, tag3];
 			assert.deepStrictEqual(single.collectDiff(), [
-				{ op: TestDiffOpType.AddTag, tag: { ctrlLabel: 'root', id: 'ctrlId\0tag3' } },
+				{ op: TestDiffOpType.AddTag, tag: { id: 'ctrlId\0tag3' } },
 				{
 					op: TestDiffOpType.Update, item: {
 						extId: new TestId(['ctrlId', 'id-a', 'id-ac']).toString(),
@@ -218,16 +256,44 @@ suite('ExtHost Testing', () => {
 			]);
 		});
 
+		test('replaces on uri change', () => {
+			single.expand(single.root.id, Infinity);
+			single.collectDiff();
+
+			const oldA = single.root.children.get('id-a') as TestItemImpl;
+			const uri = single.root.children.get('id-a')!.uri?.with({ path: '/different' });
+			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', uri);
+			newA.children.replace([...oldA.children].map(([_, item]) => item));
+			single.root.children.replace([...single.root.children].map(([id, i]) => id === 'id-a' ? newA : i));
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				{ op: TestDiffOpType.Remove, itemId: new TestId(['ctrlId', 'id-a']).toString() },
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: { ...convert.TestItem.from(newA) } }
+				},
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(newA.children.get('id-aa') as TestItemImpl) }
+				},
+				{
+					op: TestDiffOpType.Add,
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(newA.children.get('id-ab') as TestItemImpl) }
+				},
+			]);
+		});
+
 		test('treats in-place replacement as mutation', () => {
 			single.expand(single.root.id, Infinity);
 			single.collectDiff();
 
 			const oldA = single.root.children.get('id-a') as TestItemImpl;
-			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', undefined);
-			newA.children.replace([...oldA.children]);
+			const uri = single.root.children.get('id-a')!.uri;
+			const newA = new TestItemImpl('ctrlId', 'id-a', 'Hello world', uri);
+			newA.children.replace([...oldA.children].map(([_, item]) => item));
 			single.root.children.replace([
 				newA,
-				new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, undefined),
+				new TestItemImpl('ctrlId', 'id-b', single.root.children.get('id-b')!.label, uri),
 			]);
 
 			assert.deepStrictEqual(single.collectDiff(), [
@@ -235,6 +301,11 @@ suite('ExtHost Testing', () => {
 					op: TestDiffOpType.Update,
 					item: { extId: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.Expanded, item: { label: 'Hello world' } },
 				},
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: uri
+				}
 			]);
 
 			newA.label = 'still connected';
@@ -254,10 +325,11 @@ suite('ExtHost Testing', () => {
 			single.collectDiff();
 
 			const oldA = single.root.children.get('id-a')!;
-			const newA = new TestItemImpl('ctrlId', 'id-a', single.root.children.get('id-a')!.label, undefined);
+			const uri = oldA.uri;
+			const newA = new TestItemImpl('ctrlId', 'id-a', single.root.children.get('id-a')!.label, uri);
 			const oldAA = oldA.children.get('id-aa')!;
 			const oldAB = oldA.children.get('id-ab')!;
-			const newAB = new TestItemImpl('ctrlId', 'id-ab', 'Hello world', undefined);
+			const newAB = new TestItemImpl('ctrlId', 'id-ab', 'Hello world', uri);
 			newA.children.replace([oldAA, newAB]);
 			single.root.children.replace([newA, single.root.children.get('id-b')!]);
 
@@ -270,6 +342,11 @@ suite('ExtHost Testing', () => {
 					op: TestDiffOpType.Update,
 					item: { extId: TestId.fromExtHostTestItem(oldAB, 'ctrlId').toString(), item: { label: 'Hello world' } },
 				},
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: uri
+				}
 			]);
 
 			oldAA.label = 'still connected1';
@@ -304,7 +381,7 @@ suite('ExtHost Testing', () => {
 				},
 				{
 					op: TestDiffOpType.Add,
-					item: { controllerId: 'ctrlId', parent: new TestId(['ctrlId', 'id-a']).toString(), expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
+					item: { controllerId: 'ctrlId', expand: TestItemExpandState.NotExpandable, item: convert.TestItem.from(b) }
 				},
 			]);
 
@@ -316,8 +393,61 @@ suite('ExtHost Testing', () => {
 				},
 			]);
 
-			assert.deepStrictEqual([...single.root.children], [single.root.children.get('id-a')]);
+			assert.deepStrictEqual([...single.root.children].map(([_, item]) => item), [single.root.children.get('id-a')]);
 			assert.deepStrictEqual(b.parent, a);
+		});
+
+		test('sends document sync events', async () => {
+			await single.expand(single.root.id, 0);
+			single.collectDiff();
+
+			const a = single.root.children.get('id-a') as TestItemImpl;
+			a.range = new Range(new Position(0, 0), new Position(1, 0));
+
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+				{
+					op: TestDiffOpType.Update,
+					item: {
+						extId: new TestId(['ctrlId', 'id-a']).toString(),
+						item: {
+							range: editorRange.Range.lift({
+								endColumn: 1,
+								endLineNumber: 2,
+								startColumn: 1,
+								startLineNumber: 1
+							})
+						}
+					},
+				},
+			]);
+
+			// sends on replace even if it's a no-op
+			a.range = a.range;
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri: URI.file('/')
+				},
+			]);
+
+			// sends on a child replacement
+			const uri = URI.file('/');
+			const a2 = new TestItemImpl('ctrlId', 'id-a', 'a', uri);
+			a2.range = a.range;
+			single.root.children.replace([a2, single.root.children.get('id-b')!]);
+			assert.deepStrictEqual(single.collectDiff(), [
+				{
+					op: TestDiffOpType.DocumentSynced,
+					docv: undefined,
+					uri
+				},
+			]);
 		});
 	});
 
@@ -467,6 +597,7 @@ suite('ExtHost Testing', () => {
 		let req: TestRunRequest;
 
 		let dto: TestRunDto;
+		const ext: IRelaxedExtensionDescription = {} as any;
 
 		setup(async () => {
 			proxy = mockObject<MainThreadTestingShape>()();
@@ -494,13 +625,13 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('tracks a run started from a main thread request', () => {
-			const tracker = c.prepareForMainThreadTestRun(req, dto, cts.token);
-			assert.strictEqual(tracker.isRunning, false);
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
+			assert.strictEqual(tracker.hasRunningTasks, false);
 
-			const task1 = c.createTestRun('ctrl', single, req, 'run1', true);
-			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
+			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
 			assert.strictEqual(proxy.$startedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task1.appendOutput('hello');
 			const taskId = proxy.$appendOutputToRun.args[0]?.[1];
@@ -508,19 +639,65 @@ suite('ExtHost Testing', () => {
 			task1.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task2.end();
 
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, false);
+			assert.strictEqual(tracker.hasRunningTasks, false);
+		});
+
+		test('run cancel force ends after a timeout', () => {
+			const clock = sinon.useFakeTimers();
+			try {
+				const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
+				const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+				const onEnded = sinon.stub();
+				ds.add(tracker.onEnd(onEnded));
+
+				assert.strictEqual(task.token.isCancellationRequested, false);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+				tracker.cancel();
+
+				assert.strictEqual(task.token.isCancellationRequested, true);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+
+				clock.tick(9999);
+				assert.strictEqual(tracker.hasRunningTasks, true);
+				assert.strictEqual(onEnded.called, false);
+
+				clock.tick(1);
+				assert.strictEqual(onEnded.called, true);
+				assert.strictEqual(tracker.hasRunningTasks, false);
+			} finally {
+				clock.restore();
+			}
+		});
+
+		test('run cancel force ends on second cancellation request', () => {
+			const tracker = ds.add(c.prepareForMainThreadTestRun(req, dto, ext, cts.token));
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'run1', true);
+			const onEnded = sinon.stub();
+			ds.add(tracker.onEnd(onEnded));
+
+			assert.strictEqual(task.token.isCancellationRequested, false);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			tracker.cancel();
+
+			assert.strictEqual(task.token.isCancellationRequested, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
+			assert.strictEqual(onEnded.called, false);
+			tracker.cancel();
+
+			assert.strictEqual(tracker.hasRunningTasks, false);
+			assert.strictEqual(onEnded.called, true);
 		});
 
 		test('tracks a run started from an extension request', () => {
-			const task1 = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
 
 			const tracker = Iterable.first(c.trackers)!;
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 			assert.deepStrictEqual(proxy.$startedExtensionTestRun.args, [
 				[{
 					profile: { group: 2, id: 42 },
@@ -529,25 +706,26 @@ suite('ExtHost Testing', () => {
 					include: [single.root.id],
 					exclude: [new TestId(['ctrlId', 'id-b']).toString()],
 					persist: false,
+					continuous: false,
 				}]
 			]);
 
-			const task2 = c.createTestRun('ctrl', single, req, 'run2', true);
-			const task3Detached = c.createTestRun('ctrl', single, { ...req }, 'task3Detached', true);
+			const task2 = c.createTestRun(ext, 'ctrl', single, req, 'run2', true);
+			const task3Detached = c.createTestRun(ext, 'ctrl', single, { ...req }, 'task3Detached', true);
 
 			task1.end();
 			assert.strictEqual(proxy.$finishedExtensionTestRun.called, false);
-			assert.strictEqual(tracker.isRunning, true);
+			assert.strictEqual(tracker.hasRunningTasks, true);
 
 			task2.end();
 			assert.deepStrictEqual(proxy.$finishedExtensionTestRun.args, [[tracker.id]]);
-			assert.strictEqual(tracker.isRunning, false);
+			assert.strictEqual(tracker.hasRunningTasks, false);
 
 			task3Detached.end();
 		});
 
 		test('adds tests to run smartly', () => {
-			const task1 = c.createTestRun('ctrlId', single, req, 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 			const expectedArgs: unknown[][] = [];
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
@@ -577,6 +755,8 @@ suite('ExtHost Testing', () => {
 
 			task1.passed(single.root.children.get('id-a')!.children.get('id-ab')!);
 			assert.deepStrictEqual(proxy.$addTestsToRun.args, expectedArgs);
+
+			task1.end();
 		});
 
 		test('adds test messages to run', () => {
@@ -584,7 +764,7 @@ suite('ExtHost Testing', () => {
 			const test2 = new TestItemImpl('ctrlId', 'id-d', 'test d', URI.file('/testd.txt'));
 			test1.range = test2.range = new Range(new Position(0, 0), new Position(1, 0));
 			single.root.children.replace([test1, test2]);
-			const task = c.createTestRun('ctrlId', single, req, 'hello world', false);
+			const task = c.createTestRun(ext, 'ctrlId', single, req, 'hello world', false);
 
 			const message1 = new TestMessage('some message');
 			message1.location = new Location(URI.file('/a.txt'), new Position(0, 0));
@@ -599,6 +779,7 @@ suite('ExtHost Testing', () => {
 					message: 'some message',
 					type: TestMessageType.Error,
 					expected: undefined,
+					contextValue: undefined,
 					actual: undefined,
 					location: convert.location.from(message1.location)
 				}]
@@ -613,15 +794,18 @@ suite('ExtHost Testing', () => {
 				[{
 					message: 'some message',
 					type: TestMessageType.Error,
+					contextValue: undefined,
 					expected: undefined,
 					actual: undefined,
 					location: convert.location.from({ uri: test2.uri!, range: test2.range! }),
 				}]
 			]);
+
+			task.end();
 		});
 
 		test('guards calls after runs are ended', () => {
-			const task = c.createTestRun('ctrl', single, req, 'hello world', false);
+			const task = c.createTestRun(ext, 'ctrl', single, req, 'hello world', false);
 			task.end();
 
 			task.failed(single.root, new TestMessage('some message'));
@@ -633,7 +817,7 @@ suite('ExtHost Testing', () => {
 		});
 
 		test('excludes tests outside tree or explicitly excluded', () => {
-			const task = c.createTestRun('ctrlId', single, {
+			const task = c.createTestRun(ext, 'ctrlId', single, {
 				profile: configuration,
 				include: [single.root.children.get('id-a')!],
 				exclude: [single.root.children.get('id-a')!.children.get('id-aa')!],
@@ -651,6 +835,7 @@ suite('ExtHost Testing', () => {
 				TestResultState.Passed,
 				undefined,
 			]]);
+			task.end();
 		});
 
 		test('sets state of test with identical local IDs (#131827)', () => {
@@ -661,7 +846,7 @@ suite('ExtHost Testing', () => {
 			const childB = new TestItemImpl('ctrlId', 'id-child', 'child', undefined);
 			testB!.children.replace([childB]);
 
-			const task1 = c.createTestRun('ctrl', single, new TestRunRequestImpl(), 'hello world', false);
+			const task1 = c.createTestRun(ext, 'ctrl', single, new TestRunRequestImpl(), 'hello world', false);
 			const tracker = Iterable.first(c.trackers)!;
 
 			task1.passed(childA);
@@ -678,6 +863,8 @@ suite('ExtHost Testing', () => {
 					[single.root, testB, childB].map(t => convert.TestItem.from(t as TestItemImpl)),
 				],
 			]);
+
+			task1.end();
 		});
 	});
 });

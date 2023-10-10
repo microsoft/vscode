@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPastFutureElements, IResourceUndoRedoElement, IUndoRedoElement, IUndoRedoService, IWorkspaceUndoRedoElement, ResourceEditStackSnapshot, UndoRedoElementType, UndoRedoGroup, UndoRedoSource, UriComparisonKeyComputer } from 'vs/platform/undoRedo/common/undoRedo';
 
@@ -90,7 +90,7 @@ class RemovedResources {
 			dest.push(element.resourceLabel);
 		}
 
-		let messages: string[] = [];
+		const messages: string[] = [];
 		if (externalRemoval.length > 0) {
 			messages.push(
 				nls.localize(
@@ -226,7 +226,7 @@ class ResourceEditStack {
 	}
 
 	public toString(): string {
-		let result: string[] = [];
+		const result: string[] = [];
 		result.push(`* ${this.strResource}:`);
 		for (let i = 0; i < this._past.length; i++) {
 			result.push(`   * [UNDO] ${this._past[i]}`);
@@ -495,7 +495,7 @@ export class UndoRedoService implements IUndoRedoService {
 	private _print(label: string): void {
 		console.log(`------------------------------------`);
 		console.log(`AFTER ${label}: `);
-		let str: string[] = [];
+		const str: string[] = [];
 		for (const element of this._editStacks) {
 			str.push(element[1].toString());
 		}
@@ -942,25 +942,36 @@ export class UndoRedoService implements IUndoRedoService {
 		if (element.canSplit() && !this._isPartOfUndoGroup(element)) {
 			// this element can be split
 
-			const result = await this._dialogService.show(
-				Severity.Info,
-				nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
-				[
-					nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1'] }, "Undo in {0} Files", editStackSnapshot.editStacks.length),
-					nls.localize('nok', "Undo this File"),
-					nls.localize('cancel', "Cancel"),
-				],
-				{
-					cancelId: 2
-				}
-			);
+			enum UndoChoice {
+				All = 0,
+				This = 1,
+				Cancel = 2
+			}
 
-			if (result.choice === 2) {
+			const { result } = await this._dialogService.prompt<UndoChoice>({
+				type: Severity.Info,
+				message: nls.localize('confirmWorkspace', "Would you like to undo '{0}' across all files?", element.label),
+				buttons: [
+					{
+						label: nls.localize({ key: 'ok', comment: ['{0} denotes a number that is > 1, && denotes a mnemonic'] }, "&&Undo in {0} Files", editStackSnapshot.editStacks.length),
+						run: () => UndoChoice.All
+					},
+					{
+						label: nls.localize({ key: 'nok', comment: ['&& denotes a mnemonic'] }, "Undo this &&File"),
+						run: () => UndoChoice.This
+					}
+				],
+				cancelButton: {
+					run: () => UndoChoice.Cancel
+				}
+			});
+
+			if (result === UndoChoice.Cancel) {
 				// choice: cancel
 				return;
 			}
 
-			if (result.choice === 1) {
+			if (result === UndoChoice.This) {
 				// choice: undo this file
 				this._splitPastWorkspaceElement(element, null);
 				return this._undo(strResource, 0, true);
@@ -1105,24 +1116,16 @@ export class UndoRedoService implements IUndoRedoService {
 	}
 
 	private async _confirmAndContinueUndo(strResource: string, sourceId: number, element: StackElement): Promise<void> {
-		const result = await this._dialogService.show(
-			Severity.Info,
-			nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
-			[
-				nls.localize('confirmDifferentSource.yes', "Yes"),
-				nls.localize('confirmDifferentSource.no', "No"),
-			],
-			{
-				cancelId: 1
-			}
-		);
+		const result = await this._dialogService.confirm({
+			message: nls.localize('confirmDifferentSource', "Would you like to undo '{0}'?", element.label),
+			primaryButton: nls.localize({ key: 'confirmDifferentSource.yes', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+			cancelButton: nls.localize('confirmDifferentSource.no', "No")
+		});
 
-		if (result.choice === 1) {
-			// choice: cancel
+		if (!result.confirmed) {
 			return;
 		}
 
-		// choice: undo
 		return this._undo(strResource, sourceId, true);
 	}
 
@@ -1393,4 +1396,4 @@ class WorkspaceVerificationError {
 	constructor(public readonly returnValue: Promise<void> | void) { }
 }
 
-registerSingleton(IUndoRedoService, UndoRedoService);
+registerSingleton(IUndoRedoService, UndoRedoService, InstantiationType.Delayed);

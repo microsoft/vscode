@@ -37,9 +37,10 @@ export { ClientCapabilities, DocumentContext, LanguageService, HTMLDocument, HTM
 export { TextDocument } from 'vscode-languageserver-textdocument';
 
 export interface Settings {
-	css?: any;
-	html?: any;
-	javascript?: any;
+	readonly css?: any;
+	readonly html?: any;
+	readonly javascript?: any;
+	readonly 'js/ts'?: any;
 }
 
 export interface Workspace {
@@ -52,6 +53,16 @@ export interface SemanticTokenData {
 	length: number;
 	typeIdx: number;
 	modifierSet: number;
+}
+
+export type CompletionItemData = {
+	languageId: string;
+	uri: string;
+	offset: number;
+};
+
+export function isCompletionItemData(value: any): value is CompletionItemData {
+	return value && typeof value.languageId === 'string' && typeof value.uri === 'string' && typeof value.offset === 'number';
 }
 
 export interface LanguageMode {
@@ -101,7 +112,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 	const htmlLanguageService = getHTMLLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 	const cssLanguageService = getCSSLanguageService({ clientCapabilities, fileSystemProvider: requestService });
 
-	let documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
+	const documentRegions = getLanguageModelCache<HTMLDocumentRegions>(10, 60, document => getDocumentRegions(htmlLanguageService, document));
 
 	let modelCaches: LanguageModelCache<any>[] = [];
 	modelCaches.push(documentRegions);
@@ -120,7 +131,7 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			htmlLanguageService.setDataProviders(true, dataProviders);
 		},
 		getModeAtPosition(document: TextDocument, position: Position): LanguageMode | undefined {
-			let languageId = documentRegions.get(document).getLanguageAtPosition(position);
+			const languageId = documentRegions.get(document).getLanguageAtPosition(position);
 			if (languageId) {
 				return modes[languageId];
 			}
@@ -137,9 +148,9 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			});
 		},
 		getAllModesInDocument(document: TextDocument): LanguageMode[] {
-			let result = [];
-			for (let languageId of documentRegions.get(document).getLanguagesInDocument()) {
-				let mode = modes[languageId];
+			const result = [];
+			for (const languageId of documentRegions.get(document).getLanguagesInDocument()) {
+				const mode = modes[languageId];
 				if (mode) {
 					result.push(mode);
 				}
@@ -147,9 +158,9 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 			return result;
 		},
 		getAllModes(): LanguageMode[] {
-			let result = [];
-			for (let languageId in modes) {
-				let mode = modes[languageId];
+			const result = [];
+			for (const languageId in modes) {
+				const mode = modes[languageId];
 				if (mode) {
 					result.push(mode);
 				}
@@ -161,14 +172,14 @@ export function getLanguageModes(supportedLanguages: { [languageId: string]: boo
 		},
 		onDocumentRemoved(document: TextDocument) {
 			modelCaches.forEach(mc => mc.onDocumentRemoved(document));
-			for (let mode in modes) {
+			for (const mode in modes) {
 				modes[mode].onDocumentRemoved(document);
 			}
 		},
 		dispose(): void {
 			modelCaches.forEach(mc => mc.dispose());
 			modelCaches = [];
-			for (let mode in modes) {
+			for (const mode in modes) {
 				modes[mode].dispose();
 			}
 			modes = {};

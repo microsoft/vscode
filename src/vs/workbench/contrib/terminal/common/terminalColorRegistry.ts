@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 
-import { registerColor, ColorIdentifier, ColorDefaults } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, ColorIdentifier, ColorDefaults, editorFindMatch, editorFindMatchHighlight, overviewRulerFindMatchForeground, editorSelectionBackground, transparent, editorHoverHighlight } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, PANEL_BORDER, TAB_ACTIVE_BORDER } from 'vs/workbench/common/theme';
 
 /**
@@ -24,11 +24,23 @@ export const TERMINAL_FOREGROUND_COLOR = registerColor('terminal.foreground', {
 export const TERMINAL_CURSOR_FOREGROUND_COLOR = registerColor('terminalCursor.foreground', null, nls.localize('terminalCursor.foreground', 'The foreground color of the terminal cursor.'));
 export const TERMINAL_CURSOR_BACKGROUND_COLOR = registerColor('terminalCursor.background', null, nls.localize('terminalCursor.background', 'The background color of the terminal cursor. Allows customizing the color of a character overlapped by a block cursor.'));
 export const TERMINAL_SELECTION_BACKGROUND_COLOR = registerColor('terminal.selectionBackground', {
-	light: '#00000040',
-	dark: '#FFFFFF40',
-	hcDark: '#FFFFFF80',
-	hcLight: '#F2F2F2'
+	light: editorSelectionBackground,
+	dark: editorSelectionBackground,
+	hcDark: editorSelectionBackground,
+	hcLight: editorSelectionBackground
 }, nls.localize('terminal.selectionBackground', 'The selection background color of the terminal.'));
+export const TERMINAL_INACTIVE_SELECTION_BACKGROUND_COLOR = registerColor('terminal.inactiveSelectionBackground', {
+	light: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
+	dark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5),
+	hcDark: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.7),
+	hcLight: transparent(TERMINAL_SELECTION_BACKGROUND_COLOR, 0.5)
+}, nls.localize('terminal.inactiveSelectionBackground', 'The selection background color of the terminal when it does not have focus.'));
+export const TERMINAL_SELECTION_FOREGROUND_COLOR = registerColor('terminal.selectionForeground', {
+	light: null,
+	dark: null,
+	hcDark: '#000000',
+	hcLight: '#ffffff'
+}, nls.localize('terminal.selectionForeground', 'The selection foreground color of the terminal. When this is null the selection foreground will be retained and have the minimum contrast ratio feature applied.'));
 export const TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR = registerColor('terminalCommandDecoration.defaultBackground', {
 	light: '#00000040',
 	dark: '#ffffff40',
@@ -47,12 +59,55 @@ export const TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR = registerColor(
 	hcDark: '#F14C4C',
 	hcLight: '#B5200D'
 }, nls.localize('terminalCommandDecoration.errorBackground', 'The terminal command decoration background color for error commands.'));
+export const TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.cursorForeground', {
+	dark: '#A0A0A0CC',
+	light: '#A0A0A0CC',
+	hcDark: '#A0A0A0CC',
+	hcLight: '#A0A0A0CC'
+}, nls.localize('terminalOverviewRuler.cursorForeground', 'The overview ruler cursor color.'));
 export const TERMINAL_BORDER_COLOR = registerColor('terminal.border', {
 	dark: PANEL_BORDER,
 	light: PANEL_BORDER,
 	hcDark: PANEL_BORDER,
 	hcLight: PANEL_BORDER
 }, nls.localize('terminal.border', 'The color of the border that separates split panes within the terminal. This defaults to panel.border.'));
+export const TERMINAL_FIND_MATCH_BACKGROUND_COLOR = registerColor('terminal.findMatchBackground', {
+	dark: editorFindMatch,
+	light: editorFindMatch,
+	// Use regular selection background in high contrast with a thick border
+	hcDark: null,
+	hcLight: '#0F4A85'
+}, nls.localize('terminal.findMatchBackground', 'Color of the current search match in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+export const TERMINAL_HOVER_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.hoverHighlightBackground', {
+	dark: transparent(editorHoverHighlight, 0.5),
+	light: transparent(editorHoverHighlight, 0.5),
+	hcDark: transparent(editorHoverHighlight, 0.5),
+	hcLight: transparent(editorHoverHighlight, 0.5)
+}, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
+export const TERMINAL_FIND_MATCH_BORDER_COLOR = registerColor('terminal.findMatchBorder', {
+	dark: null,
+	light: null,
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
+}, nls.localize('terminal.findMatchBorder', 'Border color of the current search match in the terminal.'));
+export const TERMINAL_FIND_MATCH_HIGHLIGHT_BACKGROUND_COLOR = registerColor('terminal.findMatchHighlightBackground', {
+	dark: editorFindMatchHighlight,
+	light: editorFindMatchHighlight,
+	hcDark: null,
+	hcLight: null
+}, nls.localize('terminal.findMatchHighlightBackground', 'Color of the other search matches in the terminal. The color must not be opaque so as not to hide underlying terminal content.'));
+export const TERMINAL_FIND_MATCH_HIGHLIGHT_BORDER_COLOR = registerColor('terminal.findMatchHighlightBorder', {
+	dark: null,
+	light: null,
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
+}, nls.localize('terminal.findMatchHighlightBorder', 'Border color of the other search matches in the terminal.'));
+export const TERMINAL_OVERVIEW_RULER_FIND_MATCH_FOREGROUND_COLOR = registerColor('terminalOverviewRuler.findMatchForeground', {
+	dark: overviewRulerFindMatchForeground,
+	light: overviewRulerFindMatchForeground,
+	hcDark: '#f38518',
+	hcLight: '#0F4A85'
+}, nls.localize('terminalOverviewRuler.findMatchHighlightForeground', 'Overview ruler marker color for find matches in the terminal.'));
 export const TERMINAL_DRAG_AND_DROP_BACKGROUND = registerColor('terminal.dropBackground', {
 	dark: EDITOR_DRAG_AND_DROP_BACKGROUND,
 	light: EDITOR_DRAG_AND_DROP_BACKGROUND,
@@ -127,7 +182,7 @@ export const ansiColorMap: { [key: string]: { index: number; defaults: ColorDefa
 			light: '#0598bc',
 			dark: '#11a8cd',
 			hcDark: '#00cdcd',
-			hcLight: '#0598b'
+			hcLight: '#0598bc'
 		}
 	},
 	'terminal.ansiWhite': {

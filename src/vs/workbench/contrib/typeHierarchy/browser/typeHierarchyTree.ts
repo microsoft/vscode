@@ -14,7 +14,7 @@ import { compare } from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { localize } from 'vs/nls';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 
 export class Type {
 	constructor(
@@ -106,7 +106,7 @@ export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderi
 
 	renderTemplate(container: HTMLElement): TypeRenderingTemplate {
 		container.classList.add('typehierarchy-element');
-		let icon = document.createElement('div');
+		const icon = document.createElement('div');
 		container.appendChild(icon);
 		const label = new IconLabel(container, { supportHighlights: true });
 		return new TypeRenderingTemplate(icon, label);
@@ -115,7 +115,7 @@ export class TypeRenderer implements ITreeRenderer<Type, FuzzyScore, TypeRenderi
 	renderElement(node: ITreeNode<Type, FuzzyScore>, _index: number, template: TypeRenderingTemplate): void {
 		const { element, filterData } = node;
 		const deprecated = element.item.tags?.includes(SymbolTag.Deprecated);
-		template.icon.classList.add('inline', ...CSSIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
+		template.icon.classList.add('inline', ...ThemeIcon.asClassNameArray(SymbolKinds.toIcon(element.item.kind)));
 		template.label.setLabel(
 			element.item.name,
 			element.item.detail,

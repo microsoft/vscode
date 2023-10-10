@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-editor.vs .dnd-target {
+.monaco-editor.vs .dnd-target,
+.monaco-editor.hc-light .dnd-target {
 	border-right: 2px dotted black;
 	color: white; /* opposite of black */
 }
@@ -11,8 +12,7 @@
 	border-right: 2px dotted #AEAFAD;
 	color: #51504f; /* opposite of #AEAFAD */
 }
-.monaco-editor.hc-black .dnd-target,
-.monaco-editor.hc-light .dnd-target {
+.monaco-editor.hc-black .dnd-target {
 	border-right: 2px dotted #fff;
 	color: #000; /* opposite of #fff */
 }

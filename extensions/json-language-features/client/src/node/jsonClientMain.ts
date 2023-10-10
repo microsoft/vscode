@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ExtensionContext, OutputChannel, window, workspace } from 'vscode';
+import { ExtensionContext, OutputChannel, window, workspace, l10n, env } from 'vscode';
 import { startClient, LanguageClientConstructor, SchemaRequestService, languageServerDescription } from '../jsonClient';
-import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient } from 'vscode-languageclient/node';
+import { ServerOptions, TransportKind, LanguageClientOptions, LanguageClient, BaseLanguageClient } from 'vscode-languageclient/node';
 
 import { promises as fs } from 'fs';
 import * as path from 'path';
@@ -15,11 +15,12 @@ import TelemetryReporter from '@vscode/extension-telemetry';
 import { JSONSchemaCache } from './schemaCache';
 
 let telemetry: TelemetryReporter | undefined;
+let client: BaseLanguageClient | undefined;
 
 // this method is called when vs code is activated
 export async function activate(context: ExtensionContext) {
 	const clientPackageJSON = await getPackageInfo(context);
-	telemetry = new TelemetryReporter(clientPackageJSON.name, clientPackageJSON.version, clientPackageJSON.aiKey);
+	telemetry = new TelemetryReporter(clientPackageJSON.aiKey);
 
 	const outputChannel = window.createOutputChannel(languageServerDescription);
 
@@ -43,13 +44,20 @@ export async function activate(context: ExtensionContext) {
 	const log = getLog(outputChannel);
 	context.subscriptions.push(log);
 
+	// pass the location of the localization bundle to the server
+	process.env['VSCODE_L10N_BUNDLE_LOCATION'] = l10n.uri?.toString() ?? '';
+
 	const schemaRequests = await getSchemaRequestService(context, log);
 
-	startClient(context, newLanguageClient, { schemaRequests, telemetry });
+	client = await startClient(context, newLanguageClient, { schemaRequests, telemetry });
 }
 
-export function deactivate(): Promise<any> {
-	return telemetry ? telemetry.dispose() : Promise.resolve(null);
+export async function deactivate(): Promise<any> {
+	if (client) {
+		await client.stop();
+		client = undefined;
+	}
+	telemetry?.dispose();
 }
 
 interface IPackageInfo {
@@ -121,7 +129,10 @@ async function getSchemaRequestService(context: ExtensionContext, log: Log): Pro
 	const isXHRResponse = (error: any): error is XHRResponse => typeof error?.status === 'number';
 
 	const request = async (uri: string, etag?: string): Promise<string> => {
-		const headers: Headers = { 'Accept-Encoding': 'gzip, deflate' };
+		const headers: Headers = {
+			'Accept-Encoding': 'gzip, deflate',
+			'User-Agent': `${env.appName} (${env.appHost})`
+		};
 		if (etag) {
 			headers['If-None-Match'] = etag;
 		}

@@ -4,14 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { compareIgnoreCase } from 'vs/base/common/strings';
-import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, IExtensionsControlManifest, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionIdentifier, IExtension, TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { IExtensionIdentifier, IGalleryExtension, ILocalExtension, getTargetPlatform } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionIdentifier, IExtension, TargetPlatform, UNDEFINED_PUBLISHER } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { isLinux, platform } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { ILogService } from 'vs/platform/log/common/log';
 import { arch } from 'vs/base/common/process';
+import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 
 export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifier): boolean {
 	if (a.uuid && b.uuid) {
@@ -27,9 +28,9 @@ const ExtensionKeyRegex = /^([^.]+\..+)-(\d+\.\d+\.\d+)(-(.+))?$/;
 
 export class ExtensionKey {
 
-	static create(extension: ILocalExtension | IGalleryExtension): ExtensionKey {
-		const version = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).manifest.version : (extension as IGalleryExtension).version;
-		const targetPlatform = (extension as ILocalExtension).manifest ? (extension as ILocalExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
+	static create(extension: IExtension | IGalleryExtension): ExtensionKey {
+		const version = (extension as IExtension).manifest ? (extension as IExtension).manifest.version : (extension as IGalleryExtension).version;
+		const targetPlatform = (extension as IExtension).manifest ? (extension as IExtension).targetPlatform : (extension as IGalleryExtension).properties.targetPlatform;
 		return new ExtensionKey(extension.identifier, version, targetPlatform);
 	}
 
@@ -74,11 +75,11 @@ export function getExtensionId(publisher: string, name: string): string {
 }
 
 export function adoptToGalleryExtensionId(id: string): string {
-	return id.toLocaleLowerCase();
+	return id.toLowerCase();
 }
 
-export function getGalleryExtensionId(publisher: string, name: string): string {
-	return adoptToGalleryExtensionId(getExtensionId(publisher, name));
+export function getGalleryExtensionId(publisher: string | undefined, name: string): string {
+	return adoptToGalleryExtensionId(getExtensionId(publisher ?? UNDEFINED_PUBLISHER, name));
 }
 
 export function groupByExtension<T>(extensions: T[], getExtensionIdentifier: (t: T) => IExtensionIdentifier): T[][] {
@@ -125,6 +126,7 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 		"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"isPreReleaseVersion": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"dependencies": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isSigned": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"${include}": [
 			"${GalleryExtensionTelemetryData2}"
 		]
@@ -132,31 +134,20 @@ export function getLocalExtensionTelemetryData(extension: ILocalExtension): any 
 */
 export function getGalleryExtensionTelemetryData(extension: IGalleryExtension): any {
 	return {
-		id: extension.identifier.id,
-		name: extension.name,
+		id: new TelemetryTrustedValue(extension.identifier.id),
+		name: new TelemetryTrustedValue(extension.name),
 		galleryId: extension.identifier.uuid,
 		publisherId: extension.publisherId,
 		publisherName: extension.publisher,
 		publisherDisplayName: extension.publisherDisplayName,
 		isPreReleaseVersion: extension.properties.isPreReleaseVersion,
 		dependencies: !!(extension.properties.dependencies && extension.properties.dependencies.length > 0),
+		isSigned: extension.isSigned,
 		...extension.telemetryData
 	};
 }
 
 export const BetterMergeId = new ExtensionIdentifier('pprice.better-merge');
-
-export function getMaliciousExtensionsSet(manifest: IExtensionsControlManifest): Set<string> {
-	const result = new Set<string>();
-
-	if (manifest.malicious) {
-		for (const extension of manifest.malicious) {
-			result.add(extension.id);
-		}
-	}
-
-	return result;
-}
 
 export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExtension>, extension: IExtension): IExtension[] {
 	const dependencies: IExtension[] = [];
@@ -177,7 +168,7 @@ export function getExtensionDependencies(installedExtensions: ReadonlyArray<IExt
 	return dependencies;
 }
 
-export async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
+async function isAlpineLinux(fileService: IFileService, logService: ILogService): Promise<boolean> {
 	if (!isLinux) {
 		return false;
 	}

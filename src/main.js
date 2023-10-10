@@ -22,9 +22,10 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { stripComments } = require('./vs/base/common/stripComments');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
-const { app, protocol, crashReporter } = require('electron');
+const { app, protocol, crashReporter, Menu } = require('electron');
 
 // Enable portable support
 const portable = bootstrapNode.configurePortable(product);
@@ -32,16 +33,41 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
 const args = parseCLIArgs();
-const userDataPath = getUserDataPath(args);
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+// Enable sandbox globally unless
+// 1) disabled via command line using either
+//    `--no-sandbox` or `--disable-chromium-sandbox` argument.
+// 2) argv.json contains `disable-chromium-sandbox: true`.
+if (args['sandbox'] &&
+	!args['disable-chromium-sandbox'] &&
+	!argvConfig['disable-chromium-sandbox']) {
+	app.enableSandbox();
+} else if (app.commandLine.hasSwitch('no-sandbox') &&
+	!app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+	// Disable GPU sandbox whenever --no-sandbox is used.
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+} else {
+	app.commandLine.appendSwitch('no-sandbox');
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
+// Set userData path before app 'ready' event
+const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
 
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
+// Disable default menu (https://github.com/electron/electron/issues/35512)
+Menu.setApplicationMenu(null);
 
 // Configure crash reporter
 perf.mark('code/willStartCrashReporter');
@@ -53,8 +79,7 @@ perf.mark('code/willStartCrashReporter');
 // * --disable-crash-reporter command line parameter is not set
 //
 // Disable crash reporting in all other cases.
-if (args['crash-reporter-directory'] ||
-	(argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
+if (args['crash-reporter-directory'] || (argvConfig['enable-crash-reporter'] && !args['disable-crash-reporter'])) {
 	configureCrashReporter();
 }
 perf.mark('code/didStartCrashReporter');
@@ -90,11 +115,33 @@ registerListeners();
  */
 let nlsConfigurationPromise = undefined;
 
+/**
+ * @type {String}
+ **/
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
 	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale);
+	nlsConfigurationPromise = getNLSConfiguration(product.commit, userDataPath, metaDataFile, locale, osLocale);
+}
+
+// Pass in the locale to Electron so that the
+// Windows Control Overlay is rendered correctly on Windows.
+// For now, don't pass in the locale on macOS due to
+// https://github.com/microsoft/vscode/issues/167543.
+// If the locale is `qps-ploc`, the Microsoft
+// Pseudo Language Language Pack is being used.
+// In that case, use `en` as the Electron locale.
+
+if (process.platform === 'win32' || process.platform === 'linux') {
+	const electronLocale = (!locale || locale === 'qps-ploc') ? 'en' : locale;
+	app.commandLine.appendSwitch('lang', electronLocale);
 }
 
 // Load our code once ready
@@ -153,17 +200,16 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// alias from us for --disable-gpu
 		'disable-hardware-acceleration',
 
-		// provided by Electron
-		'disable-color-correct-rendering',
-
 		// override for the color profile to use
 		'force-color-profile'
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -171,8 +217,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Persistently enable proposed api via argv.json: https://github.com/microsoft/vscode/issues/99775
 		'enable-proposed-api',
 
-		// Log level to use. Default is 'info'. Allowed values are 'critical', 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -184,8 +233,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
+			if (
+				// Color profile
+				argvKey === 'force-color-profile' ||
+				// Password store
+				argvKey === 'password-store'
+			) {
 				if (argvValue) {
 					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
@@ -215,11 +268,27 @@ function configureCommandlineSwitchesSync(cliArgs) {
 				case 'log-level':
 					if (typeof argvValue === 'string') {
 						process.argv.push('--log', argvValue);
+					} else if (Array.isArray(argvValue)) {
+						for (const value of argvValue) {
+							process.argv.push('--log', value);
+						}
+					}
+					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
 			}
 		}
 	});
+
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
+	const featuresToDisable =
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
@@ -247,9 +316,7 @@ function readArgvConfigSync() {
 
 	// Fallback to default
 	if (!argvConfig) {
-		argvConfig = {
-			'disable-color-correct-rendering': true // Force pre-Chrome-60 color profile handling (for https://github.com/microsoft/vscode/issues/51791)
-		};
+		argvConfig = {};
 	}
 
 	return argvConfig;
@@ -279,11 +346,7 @@ function createDefaultArgvConfigSync(argvConfigPath) {
 			'{',
 			'	// Use software rendering instead of hardware accelerated rendering.',
 			'	// This can help in cases where you see rendering issues in VS Code.',
-			'	// "disable-hardware-acceleration": true,',
-			'',
-			'	// Enabled by default by VS Code to resolve color issues in the renderer',
-			'	// See https://github.com/microsoft/vscode/issues/51791 for details',
-			'	"disable-color-correct-rendering": true',
+			'	// "disable-hardware-acceleration": true',
 			'}'
 		];
 
@@ -305,6 +368,7 @@ function getArgvConfigPath() {
 		dataFolderName = `${dataFolderName}-dev`;
 	}
 
+	// @ts-ignore
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
@@ -322,7 +386,7 @@ function configureCrashReporter() {
 
 		if (!fs.existsSync(crashReporterDirectory)) {
 			try {
-				fs.mkdirSync(crashReporterDirectory);
+				fs.mkdirSync(crashReporterDirectory, { recursive: true });
 			} catch (error) {
 				console.error(`The path '${crashReporterDirectory}' specified for --crash-reporter-directory does not seem to exist or cannot be created.`);
 				app.exit(1);
@@ -393,7 +457,7 @@ function configureCrashReporter() {
 	// Start crash reporter for all processes
 	const productName = (product.crashReporter ? product.crashReporter.productName : undefined) || product.nameShort;
 	const companyName = (product.crashReporter ? product.crashReporter.companyName : undefined) || 'Microsoft';
-	const uploadToServer = !process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory;
+	const uploadToServer = Boolean(!process.env['VSCODE_DEV'] && submitURL && !crashReporterDirectory);
 	crashReporter.start({
 		companyName,
 		productName: process.env['VSCODE_DEV'] ? `${productName} Dev` : productName,
@@ -415,11 +479,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'])) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -434,9 +493,17 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
-		]
+		],
+		boolean: [
+			'disable-chromium-sandbox',
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 
@@ -538,6 +605,30 @@ async function mkdirpIgnoreError(dir) {
 //#region NLS Support
 
 /**
+ * @param {string} appLocale
+ * @returns string
+ */
+function processZhLocale(appLocale) {
+	if (appLocale.startsWith('zh')) {
+		const region = appLocale.split('-')[1];
+		// On Windows and macOS, Chinese languages returned by
+		// app.getPreferredSystemLanguages() start with zh-hans
+		// for Simplified Chinese or zh-hant for Traditional Chinese,
+		// so we can easily determine whether to use Simplified or Traditional.
+		// However, on Linux, Chinese languages returned by that same API
+		// are of the form zh-XY, where XY is a country code.
+		// For China (CN), Singapore (SG), and Malaysia (MY)
+		// country codes, assume they use Simplified Chinese.
+		// For other cases, assume they use Traditional.
+		if (['hans', 'cn', 'sg', 'my'].includes(region)) {
+			return 'zh-cn';
+		}
+		return 'zh-tw';
+	}
+	return appLocale;
+}
+
+/**
  * Resolve the NLS configuration
  *
  * @return {Promise<NLSConfiguration>}
@@ -547,30 +638,28 @@ async function resolveNlsConfiguration() {
 	// First, we need to test a user defined locale. If it fails we try the app locale.
 	// If that fails we fall back to English.
 	let nlsConfiguration = nlsConfigurationPromise ? await nlsConfigurationPromise : undefined;
-	if (!nlsConfiguration) {
-
-		// Try to use the app locale. Please note that the app locale is only
-		// valid after we have received the app ready event. This is why the
-		// code is here.
-		let appLocale = app.getLocale();
-		if (!appLocale) {
-			nlsConfiguration = { locale: 'en', availableLanguages: {} };
-		} else {
-
-			// See above the comment about the loader and case sensitiveness
-			appLocale = appLocale.toLowerCase();
-
-			const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
-			nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale);
-			if (!nlsConfiguration) {
-				nlsConfiguration = { locale: appLocale, availableLanguages: {} };
-			}
-		}
-	} else {
-		// We received a valid nlsConfig from a user defined locale
+	if (nlsConfiguration) {
+		return nlsConfiguration;
 	}
 
-	return nlsConfiguration;
+	// Try to use the app locale. Please note that the app locale is only
+	// valid after we have received the app ready event. This is why the
+	// code is here.
+
+	/**
+	 * @type string
+	 */
+	let appLocale = app.getLocale();
+	if (!appLocale) {
+		return { locale: 'en', osLocale, availableLanguages: {} };
+	}
+
+	// See above the comment about the loader and case sensitiveness
+	appLocale = processZhLocale(appLocale.toLowerCase());
+
+	const { getNLSConfiguration } = require('./vs/base/node/languagePacks');
+	nlsConfiguration = await getNLSConfiguration(product.commit, userDataPath, metaDataFile, appLocale, osLocale);
+	return nlsConfiguration ?? { locale: 'en', osLocale, availableLanguages: {} };
 }
 
 /**

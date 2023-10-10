@@ -3,34 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable } from 'vs/base/common/lifecycle';
-import { isStatusbarEntryLocation, IStatusbarEntryLocation, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { hide, show, isAncestor } from 'vs/base/browser/dom';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
-
-export interface IStatusbarEntryPriority {
-
-	/**
-	 * The main priority of the entry that
-	 * defines the order of appearance:
-	 * either a number or a reference to
-	 * another status bar entry to position
-	 * relative to.
-	 *
-	 * May not be unique across all entries.
-	 */
-	readonly primary: number | IStatusbarEntryLocation;
-
-	/**
-	 * The secondary priority of the entry
-	 * is used in case the main priority
-	 * matches another one's priority.
-	 *
-	 * Should be unique across all entries.
-	 */
-	readonly secondary: number;
-}
 
 export interface IStatusbarViewModelEntry {
 	readonly id: string;
@@ -67,7 +44,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private restoreState(): void {
-		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+		const hiddenRaw = this.storageService.get(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);
 		if (hiddenRaw) {
 			try {
 				const hiddenArray: string[] = JSON.parse(hiddenRaw);
@@ -79,43 +56,41 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private registerListeners(): void {
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageValueChange(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, StatusbarViewModel.HIDDEN_ENTRIES_KEY, this._register(new DisposableStore()))(() => this.onDidStorageValueChange()));
 	}
 
-	private onDidStorageValueChange(event: IStorageValueChangeEvent): void {
-		if (event.key === StatusbarViewModel.HIDDEN_ENTRIES_KEY && event.scope === StorageScope.GLOBAL) {
+	private onDidStorageValueChange(): void {
 
-			// Keep current hidden entries
-			const currentlyHidden = new Set(this.hidden);
+		// Keep current hidden entries
+		const currentlyHidden = new Set(this.hidden);
 
-			// Load latest state of hidden entries
-			this.hidden.clear();
-			this.restoreState();
+		// Load latest state of hidden entries
+		this.hidden.clear();
+		this.restoreState();
 
-			const changed = new Set<string>();
+		const changed = new Set<string>();
 
-			// Check for each entry that is now visible
-			for (const id of currentlyHidden) {
-				if (!this.hidden.has(id)) {
-					changed.add(id);
-				}
+		// Check for each entry that is now visible
+		for (const id of currentlyHidden) {
+			if (!this.hidden.has(id)) {
+				changed.add(id);
 			}
+		}
 
-			// Check for each entry that is now hidden
-			for (const id of this.hidden) {
-				if (!currentlyHidden.has(id)) {
-					changed.add(id);
-				}
+		// Check for each entry that is now hidden
+		for (const id of this.hidden) {
+			if (!currentlyHidden.has(id)) {
+				changed.add(id);
 			}
+		}
 
-			// Update visibility for entries have changed
-			if (changed.size > 0) {
-				for (const entry of this._entries) {
-					if (changed.has(entry.id)) {
-						this.updateVisibility(entry.id, true);
+		// Update visibility for entries have changed
+		if (changed.size > 0) {
+			for (const entry of this._entries) {
+				if (changed.has(entry.id)) {
+					this.updateVisibility(entry.id, true);
 
-						changed.delete(entry.id);
-					}
+					changed.delete(entry.id);
 				}
 			}
 		}
@@ -272,9 +247,9 @@ export class StatusbarViewModel extends Disposable {
 
 	private saveState(): void {
 		if (this.hidden.size > 0) {
-			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.GLOBAL, StorageTarget.USER);
+			this.storageService.store(StatusbarViewModel.HIDDEN_ENTRIES_KEY, JSON.stringify(Array.from(this.hidden.values())), StorageScope.PROFILE, StorageTarget.USER);
 		} else {
-			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.GLOBAL);
+			this.storageService.remove(StatusbarViewModel.HIDDEN_ENTRIES_KEY, StorageScope.PROFILE);
 		}
 	}
 
@@ -397,13 +372,9 @@ export class StatusbarViewModel extends Disposable {
 		}
 
 		// Mark: first visible item
-		if (firstVisibleItem) {
-			firstVisibleItem.container.classList.add('first-visible-item');
-		}
+		firstVisibleItem?.container.classList.add('first-visible-item');
 
 		// Mark: last visible item
-		if (lastVisibleItem) {
-			lastVisibleItem.container.classList.add('last-visible-item');
-		}
+		lastVisibleItem?.container.classList.add('last-visible-item');
 	}
 }

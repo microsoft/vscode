@@ -19,7 +19,7 @@ export type FuzzyScorerCache = { [key: string]: IItemScore };
 const NO_MATCH = 0;
 const NO_SCORE: FuzzyScore = [NO_MATCH, []];
 
-// const DEBUG = false;
+// const DEBUG = true;
 // const DEBUG_MATRIX = false;
 
 export function scoreFuzzy(target: string, query: string, queryLower: string, allowNonContiguousMatches: boolean): FuzzyScore {
@@ -149,7 +149,7 @@ function doScoreFuzzy(query: string, queryLower: string, queryLength: number, ta
 
 	// Print matrix
 	// if (DEBUG_MATRIX) {
-	// printMatrix(query, target, matches, scores);
+	// 	printMatrix(query, target, matches, scores);
 	// }
 
 	return [scores[queryLength * targetLength - 1], positions.reverse()];
@@ -162,11 +162,15 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		return score; // no match of characters
 	}
 
+	// if (DEBUG) {
+	// 	console.groupCollapsed(`%cFound a match of char: ${queryLowerCharAtIndex} at index ${targetIndex}`, 'font-weight: normal');
+	// }
+
 	// Character match bonus
 	score += 1;
 
 	// if (DEBUG) {
-	// console.groupCollapsed(`%cCharacter match bonus: +1 (char: ${queryLowerCharAtIndex} at index ${targetIndex}, total score: ${score})`, 'font-weight: normal');
+	// 	console.log(`%cCharacter match bonus: +1`, 'font-weight: normal');
 	// }
 
 	// Consecutive match bonus
@@ -174,7 +178,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 		score += (matchesSequenceLength * 5);
 
 		// if (DEBUG) {
-		// console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
+		// 	console.log(`Consecutive match bonus: +${matchesSequenceLength * 5}`);
 		// }
 	}
 
@@ -204,7 +208,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 			score += separatorBonus;
 
 			// if (DEBUG) {
-			// console.log(`After separator bonus: +${separatorBonus}`);
+			// 	console.log(`After separator bonus: +${separatorBonus}`);
 			// }
 		}
 
@@ -222,6 +226,7 @@ function computeCharScore(queryCharAtIndex: string, queryLowerCharAtIndex: strin
 	}
 
 	// if (DEBUG) {
+	// 	console.log(`Total score: ${score}`);
 	// 	console.groupEnd();
 	// }
 
@@ -315,7 +320,7 @@ function doScoreFuzzy2Multiple(target: string, query: IPreparedQueryPiece[], pat
 }
 
 function doScoreFuzzy2Single(target: string, query: IPreparedQueryPiece, patternStart: number, wordStart: number): FuzzyScore2 {
-	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, true);
+	const score = fuzzyScore(query.original, query.originalLowercase, patternStart, target, target.toLowerCase(), wordStart, { firstMatchCanBeWeak: true, boostFullMatch: true });
 	if (!score) {
 		return NO_SCORE2;
 	}
@@ -349,7 +354,7 @@ export interface IItemScore {
 	descriptionMatch?: IMatch[];
 }
 
-const NO_ITEM_SCORE: IItemScore = Object.freeze({ score: 0 });
+const NO_ITEM_SCORE = Object.freeze<IItemScore>({ score: 0 });
 
 export interface IItemAccessor<T> {
 

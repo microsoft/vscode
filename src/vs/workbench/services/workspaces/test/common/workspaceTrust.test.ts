@@ -10,7 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ILogService, NullLogService } from 'vs/platform/log/common/log';
+import { NullLogService } from 'vs/platform/log/common/log';
 import { IRemoteAuthorityResolverService } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -21,14 +21,12 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService, WORKSPACE_TRUST_STORAGE_KEY } from 'vs/workbench/services/workspaces/common/workspaceTrust';
-import { TestWorkspaceTrustEnablementService } from 'vs/workbench/services/workspaces/test/common/testWorkspaceTrustService';
-import { TestContextService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
+import { TestContextService, TestStorageService, TestWorkspaceTrustEnablementService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('Workspace Trust', () => {
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let environmentService: IWorkbenchEnvironmentService;
-	let logService: ILogService;
 
 	setup(async () => {
 		instantiationService = new TestInstantiationService();
@@ -39,11 +37,12 @@ suite('Workspace Trust', () => {
 		environmentService = {} as IWorkbenchEnvironmentService;
 		instantiationService.stub(IWorkbenchEnvironmentService, environmentService);
 
-		logService = new NullLogService();
-		instantiationService.stub(ILogService, logService);
-
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(logService)));
+		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
 		instantiationService.stub(IRemoteAuthorityResolverService, new class extends mock<IRemoteAuthorityResolverService>() { });
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	suite('Enablement', () => {
@@ -113,7 +112,7 @@ suite('Workspace Trust', () => {
 		test('empty workspace - trusted, open trusted file', async () => {
 			await configurationService.setUserConfiguration('security', getUserSettings(true, true));
 			const trustInfo: IWorkspaceTrustInfo = { uriTrustInfo: [{ uri: URI.parse('file:///Folder'), trusted: true }] };
-			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.GLOBAL, StorageTarget.MACHINE);
+			storageService.store(WORKSPACE_TRUST_STORAGE_KEY, JSON.stringify(trustInfo), StorageScope.APPLICATION, StorageTarget.MACHINE);
 
 			(environmentService as any).filesToOpenOrCreate = [{ fileUri: URI.parse('file:///Folder/file.txt') }];
 			instantiationService.stub(IWorkbenchEnvironmentService, { ...environmentService });

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { StoredFileWorkingCopy, StoredFileWorkingCopyState, IStoredFileWorkingCopy, IStoredFileWorkingCopyModel, IStoredFileWorkingCopyModelFactory, IStoredFileWorkingCopyResolveOptions, IStoredFileWorkingCopySaveEvent as IBaseStoredFileWorkingCopySaveEvent } from 'vs/workbench/services/workingCopy/common/storedFileWorkingCopy';
@@ -112,17 +113,7 @@ export interface IStoredFileWorkingCopySaveEvent<M extends IStoredFileWorkingCop
 	readonly workingCopy: IStoredFileWorkingCopy<M>;
 }
 
-export interface IStoredFileWorkingCopyManagerResolveOptions {
-
-	/**
-	 * The contents to use for the stored file working copy if known. If not
-	 * provided, the contents will be retrieved from the underlying
-	 * resource or backup if present.
-	 *
-	 * If contents are provided, the stored file working copy will be marked
-	 * as dirty right from the beginning.
-	 */
-	readonly contents?: VSBufferReadableStream;
+export interface IStoredFileWorkingCopyManagerResolveOptions extends IStoredFileWorkingCopyResolveOptions {
 
 	/**
 	 * If the stored file working copy was already resolved before,
@@ -216,23 +207,24 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 		this._register(this.workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this.onDidRunWorkingCopyFileOperation(e)));
 
 		// Lifecycle
-		this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdown(), 'veto.fileWorkingCopyManager'));
-		this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdown(), 'join.fileWorkingCopyManager'));
+		if (isWeb) {
+			this._register(this.lifecycleService.onBeforeShutdown(event => event.veto(this.onBeforeShutdownWeb(), 'veto.fileWorkingCopyManager')));
+		} else {
+			this._register(this.lifecycleService.onWillShutdown(event => event.join(this.onWillShutdownDesktop(), { id: 'join.fileWorkingCopyManager', label: localize('join.fileWorkingCopyManager', "Saving working copies") })));
+		}
 	}
 
-	private onBeforeShutdown(): boolean {
-		if (isWeb) {
-			if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
-				// stored file working copies are pending to be saved:
-				// veto because web does not support long running shutdown
-				return true;
-			}
+	private onBeforeShutdownWeb(): boolean {
+		if (this.workingCopies.some(workingCopy => workingCopy.hasState(StoredFileWorkingCopyState.PENDING_SAVE))) {
+			// stored file working copies are pending to be saved:
+			// veto because web does not support long running shutdown
+			return true;
 		}
 
 		return false;
 	}
 
-	private async onWillShutdown(): Promise<void> {
+	private async onWillShutdownDesktop(): Promise<void> {
 		let pendingSavedWorkingCopies: IStoredFileWorkingCopy<M>[];
 
 		// As long as stored file working copies are pending to be saved, we prolong the shutdown
@@ -379,15 +371,16 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 			if (workingCopiesToRestore) {
 				this.mapCorrelationIdToWorkingCopiesToRestore.delete(e.correlationId);
 
-				workingCopiesToRestore.forEach(workingCopy => {
+				for (const workingCopy of workingCopiesToRestore) {
 
-					// Snapshot presence means this working copy used to be dirty and so we restore that
+					// Snapshot presence means this working copy used to be modified and so we restore that
 					// flag. we do NOT have to restore the content because the working copy was only soft
-					// reverted and did not loose its original dirty contents.
+					// reverted and did not loose its original modified contents.
+
 					if (workingCopy.snapshot) {
-						this.get(workingCopy.source)?.markDirty();
+						this.get(workingCopy.source)?.markModified();
 					}
-				});
+				}
 			}
 		}
 	}
@@ -529,6 +522,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 				resource,
 				this.labelService.getUriBasenameLabel(resource),
 				this.modelFactory,
+				async options => { await this.resolve(resource, { ...options, reload: { async: false } }); },
 				this.fileService, this.logService, this.workingCopyFileService, this.filesConfigurationService,
 				this.workingCopyBackupService, this.workingCopyService, this.notificationService, this.workingCopyEditorService,
 				this.editorService, this.elevatedFileService
@@ -633,7 +627,7 @@ export class StoredFileWorkingCopyManager<M extends IStoredFileWorkingCopyModel>
 	protected override remove(resource: URI): boolean {
 		const removed = super.remove(resource);
 
-		// Dispose any exsting working copy listeners
+		// Dispose any existing working copy listeners
 		const workingCopyListener = this.mapResourceToWorkingCopyListeners.get(resource);
 		if (workingCopyListener) {
 			dispose(workingCopyListener);

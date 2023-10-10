@@ -19,7 +19,7 @@ export interface ItemDescription {
 }
 
 export function assertCompletion(completions: CompletionList, expected: ItemDescription, document: TextDocument) {
-	let matches = completions.items.filter(completion => {
+	const matches = completions.items.filter(completion => {
 		return completion.label === expected.label;
 	});
 	if (expected.notAvailable) {
@@ -28,7 +28,7 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 	}
 
 	assert.strictEqual(matches.length, 1, `${expected.label} should only existing once: Actual: ${completions.items.map(c => c.label).join(', ')}`);
-	let match = matches[0];
+	const match = matches[0];
 	if (expected.documentation) {
 		assert.strictEqual(match.documentation, expected.documentation);
 	}
@@ -47,28 +47,28 @@ export function assertCompletion(completions: CompletionList, expected: ItemDesc
 const testUri = 'test://test/test.html';
 
 export async function testCompletionFor(value: string, expected: { count?: number; items?: ItemDescription[] }, uri = testUri, workspaceFolders?: WorkspaceFolder[]): Promise<void> {
-	let offset = value.indexOf('|');
+	const offset = value.indexOf('|');
 	value = value.substr(0, offset) + value.substr(offset + 1);
 
-	let workspace = {
+	const workspace = {
 		settings: {},
 		folders: workspaceFolders || [{ name: 'x', uri: uri.substr(0, uri.lastIndexOf('/')) }]
 	};
 
-	let document = TextDocument.create(uri, 'html', 0, value);
-	let position = document.positionAt(offset);
+	const document = TextDocument.create(uri, 'html', 0, value);
+	const position = document.positionAt(offset);
 	const context = getDocumentContext(uri, workspace.folders);
 
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const mode = languageModes.getModeAtPosition(document, position)!;
 
-	let list = await mode.doComplete!(document, position, context);
+	const list = await mode.doComplete!(document, position, context);
 
 	if (expected.count) {
 		assert.strictEqual(list.items.length, expected.count);
 	}
 	if (expected.items) {
-		for (let item of expected.items) {
+		for (const item of expected.items) {
 			assertCompletion(list, item, document);
 		}
 	}

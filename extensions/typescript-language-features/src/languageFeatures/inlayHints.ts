@@ -4,37 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import type * as Proto from '../protocol';
+import { DocumentSelector } from '../configuration/documentSelector';
+import { LanguageDescription } from '../configuration/languageDescription';
+import { TelemetryReporter } from '../logging/telemetry';
+import { API } from '../tsServer/api';
+import type * as Proto from '../tsServer/protocol/protocol';
+import { Location, Position } from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { conditionalRegistration, requireMinVersion, requireSomeCapability } from '../utils/dependentRegistration';
 import { Disposable } from '../utils/dispose';
-import { DocumentSelector } from '../utils/documentSelector';
-import { LanguageDescription } from '../utils/languageDescription';
-import { Position } from '../utils/typeConverters';
-import FileConfigurationManager, { getInlayHintsPreferences, InlayHintSettingNames } from './fileConfigurationManager';
+import FileConfigurationManager, { InlayHintSettingNames, getInlayHintsPreferences } from './fileConfigurationManager';
+import { conditionalRegistration, requireMinVersion, requireSomeCapability } from './util/dependentRegistration';
 
 
-const inlayHintSettingNames = [
+const inlayHintSettingNames = Object.freeze([
 	InlayHintSettingNames.parameterNamesSuppressWhenArgumentMatchesName,
 	InlayHintSettingNames.parameterNamesEnabled,
 	InlayHintSettingNames.variableTypesEnabled,
+	InlayHintSettingNames.variableTypesSuppressWhenTypeMatchesName,
 	InlayHintSettingNames.propertyDeclarationTypesEnabled,
 	InlayHintSettingNames.functionLikeReturnTypesEnabled,
 	InlayHintSettingNames.enumMemberValuesEnabled,
-];
+]);
 
 class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHintsProvider {
 
 	public static readonly minVersion = API.v440;
 
-	private readonly _onDidChangeInlayHints = new vscode.EventEmitter<void>();
+	private readonly _onDidChangeInlayHints = this._register(new vscode.EventEmitter<void>());
 	public readonly onDidChangeInlayHints = this._onDidChangeInlayHints.event;
+
+	private hasReportedTelemetry = false;
 
 	constructor(
 		private readonly language: LanguageDescription,
 		private readonly client: ITypeScriptServiceClient,
-		private readonly fileConfigurationManager: FileConfigurationManager
+		private readonly fileConfigurationManager: FileConfigurationManager,
+		private readonly telemetryReporter: TelemetryReporter,
 	) {
 		super();
 
@@ -53,36 +58,66 @@ class TypeScriptInlayHintsProvider extends Disposable implements vscode.InlayHin
 		}));
 	}
 
-	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[]> {
-		const filepath = this.client.toOpenedFilePath(model);
+	async provideInlayHints(model: vscode.TextDocument, range: vscode.Range, token: vscode.CancellationToken): Promise<vscode.InlayHint[] | undefined> {
+		const filepath = this.client.toOpenTsFilePath(model);
 		if (!filepath) {
-			return [];
+			return;
 		}
 
 		if (!areInlayHintsEnabledForFile(this.language, model)) {
-			return [];
+			return;
 		}
 
 		const start = model.offsetAt(range.start);
 		const length = model.offsetAt(range.end) - start;
 
 		await this.fileConfigurationManager.ensureConfigurationForDocument(model, token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		if (!this.hasReportedTelemetry) {
+			this.hasReportedTelemetry = true;
+			/* __GDPR__
+				"inlayHints.provide" : {
+					"owner": "mjbvz",
+					"${include}": [
+						"${TypeScriptCommonProperties}"
+					]
+				}
+			*/
+			this.telemetryReporter.logTelemetry('inlayHints.provide', {});
+		}
 
 		const response = await this.client.execute('provideInlayHints', { file: filepath, start, length }, token);
 		if (response.type !== 'response' || !response.success || !response.body) {
-			return [];
+			return;
 		}
 
 		return response.body.map(hint => {
 			const result = new vscode.InlayHint(
 				Position.fromLocation(hint.position),
-				hint.text,
-				hint.kind && fromProtocolInlayHintKind(hint.kind)
+				this.convertInlayHintText(hint),
+				fromProtocolInlayHintKind(hint.kind)
 			);
 			result.paddingLeft = hint.whitespaceBefore;
 			result.paddingRight = hint.whitespaceAfter;
 			return result;
 		});
+	}
+
+	private convertInlayHintText(tsHint: Proto.InlayHintItem): string | vscode.InlayHintLabelPart[] {
+		if (tsHint.displayParts) {
+			return tsHint.displayParts.map((part): vscode.InlayHintLabelPart => {
+				const out = new vscode.InlayHintLabelPart(part.text);
+				if (part.span) {
+					out.location = Location.fromTextSpan(this.client.toResource(part.span.file), part.span);
+				}
+				return out;
+			});
+		}
+
+		return tsHint.text;
 	}
 }
 
@@ -112,13 +147,14 @@ export function register(
 	selector: DocumentSelector,
 	language: LanguageDescription,
 	client: ITypeScriptServiceClient,
-	fileConfigurationManager: FileConfigurationManager
+	fileConfigurationManager: FileConfigurationManager,
+	telemetryReporter: TelemetryReporter,
 ) {
 	return conditionalRegistration([
 		requireMinVersion(client, TypeScriptInlayHintsProvider.minVersion),
 		requireSomeCapability(client, ClientCapability.Semantic),
 	], () => {
-		const provider = new TypeScriptInlayHintsProvider(language, client, fileConfigurationManager);
+		const provider = new TypeScriptInlayHintsProvider(language, client, fileConfigurationManager, telemetryReporter);
 		return vscode.languages.registerInlayHintsProvider(selector.semantic, provider);
 	});
 }

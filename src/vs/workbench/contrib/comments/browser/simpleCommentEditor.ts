@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
+import { EditorOption, IEditorOptions } from 'vs/editor/common/config/editorOptions';
+import { EditorAction, EditorContributionInstantiation, EditorExtensionsRegistry, IEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -20,17 +20,23 @@ import { TabCompletionController } from 'vs/workbench/contrib/snippets/browser/t
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommentThreadWidget } from 'vs/workbench/contrib/comments/common/commentThreadWidget';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { clamp } from 'vs/base/common/numbers';
 
 export const ctxCommentEditorFocused = new RawContextKey<boolean>('commentEditorFocused', false);
+export const MIN_EDITOR_HEIGHT = 5 * 18;
+export const MAX_EDITOR_HEIGHT = 25 * 18;
 
+export interface LayoutableEditor {
+	getLayoutInfo(): { height: number };
+}
 
 export class SimpleCommentEditor extends CodeEditorWidget {
-	private _parentEditor: ICodeEditor;
 	private _parentThread: ICommentThreadWidget;
 	private _commentEditorFocused: IContextKey<boolean>;
 	private _commentEditorEmpty: IContextKey<boolean>;
@@ -38,12 +44,11 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 	constructor(
 		domElement: HTMLElement,
 		options: IEditorOptions,
-		parentEditor: ICodeEditor,
+		scopedContextKeyService: IContextKeyService,
 		parentThread: ICommentThreadWidget,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 		@IAccessibilityService accessibilityService: IAccessibilityService,
@@ -51,43 +56,37 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService,
 	) {
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
 			contributions: <IEditorContributionDescription[]>[
-				{ id: MenuPreventer.ID, ctor: MenuPreventer },
-				{ id: ContextMenuController.ID, ctor: ContextMenuController },
-				{ id: SuggestController.ID, ctor: SuggestController },
-				{ id: SnippetController2.ID, ctor: SnippetController2 },
-				{ id: TabCompletionController.ID, ctor: TabCompletionController },
+				{ id: MenuPreventer.ID, ctor: MenuPreventer, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
+				{ id: ContextMenuController.ID, ctor: ContextMenuController, instantiation: EditorContributionInstantiation.BeforeFirstInteraction },
+				{ id: SuggestController.ID, ctor: SuggestController, instantiation: EditorContributionInstantiation.Eager },
+				{ id: SnippetController2.ID, ctor: SnippetController2, instantiation: EditorContributionInstantiation.Lazy },
+				{ id: TabCompletionController.ID, ctor: TabCompletionController, instantiation: EditorContributionInstantiation.Eager }, // eager because it needs to define a context key
 			]
 		};
 
-		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
+		super(domElement, options, codeEditorWidgetOptions, instantiationService, codeEditorService, commandService, scopedContextKeyService, themeService, notificationService, accessibilityService, languageConfigurationService, languageFeaturesService);
 
-		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(contextKeyService);
-		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(contextKeyService);
-		this._commentEditorEmpty.set(!this.getValue());
-		this._parentEditor = parentEditor;
+		this._commentEditorFocused = ctxCommentEditorFocused.bindTo(scopedContextKeyService);
+		this._commentEditorEmpty = CommentContextKeys.commentIsEmpty.bindTo(scopedContextKeyService);
+		this._commentEditorEmpty.set(!this.getModel()?.getValueLength());
 		this._parentThread = parentThread;
 
 		this._register(this.onDidFocusEditorWidget(_ => this._commentEditorFocused.set(true)));
 
-		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getValue())));
+		this._register(this.onDidChangeModelContent(e => this._commentEditorEmpty.set(!this.getModel()?.getValueLength())));
 		this._register(this.onDidBlurEditorWidget(_ => this._commentEditorFocused.reset()));
-	}
-
-	getParentEditor(): ICodeEditor {
-		return this._parentEditor;
 	}
 
 	getParentThread(): ICommentThreadWidget {
 		return this._parentThread;
 	}
 
-	protected _getActions(): EditorAction[] {
+	protected _getActions(): Iterable<EditorAction> {
 		return EditorExtensionsRegistry.getEditorActions();
 	}
 
-	public static getEditorOptions(): IEditorOptions {
+	public static getEditorOptions(configurationService: IConfigurationService): IEditorOptions {
 		return {
 			wordWrap: 'on',
 			glyphMargin: false,
@@ -100,7 +99,8 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 				horizontal: 'auto',
 				useShadows: true,
 				verticalHasArrows: false,
-				horizontalHasArrows: false
+				horizontalHasArrows: false,
+				alwaysConsumeMouseWheel: false
 			},
 			overviewRulerLanes: 2,
 			lineDecorationsWidth: 0,
@@ -111,7 +111,22 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 			minimap: {
 				enabled: false
 			},
-			quickSuggestions: false
+			autoClosingBrackets: configurationService.getValue('editor.autoClosingBrackets'),
+			quickSuggestions: false,
+			accessibilitySupport: configurationService.getValue<'auto' | 'off' | 'on'>('editor.accessibilitySupport'),
 		};
 	}
+}
+
+export function calculateEditorHeight(parentEditor: LayoutableEditor, editor: ICodeEditor, currentHeight: number): number {
+	const layoutInfo = editor.getLayoutInfo();
+	const lineHeight = editor.getOption(EditorOption.lineHeight);
+	const contentHeight = (editor.getModel()?.getLineCount()! * lineHeight) ?? editor.getContentHeight(); // Can't just call getContentHeight() because it returns an incorrect, large, value when the editor is first created.
+	if ((contentHeight > layoutInfo.height) ||
+		(contentHeight < layoutInfo.height && currentHeight > MIN_EDITOR_HEIGHT)) {
+		const linesToAdd = Math.ceil((contentHeight - layoutInfo.height) / lineHeight);
+		const proposedHeight = layoutInfo.height + (lineHeight * linesToAdd);
+		return clamp(proposedHeight, MIN_EDITOR_HEIGHT, clamp(parentEditor.getLayoutInfo().height - 90, MIN_EDITOR_HEIGHT, MAX_EDITOR_HEIGHT));
+	}
+	return currentHeight;
 }

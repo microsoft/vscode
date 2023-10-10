@@ -3,20 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { MoveCaretCommand } from 'vs/editor/contrib/caretOperations/browser/moveCaretCommand';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 
 function testMoveCaretLeftCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveCaretCommand(sel, true), expectedLines, expectedSelection);
 }
 
 function testMoveCaretRightCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new MoveCaretCommand(sel, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new MoveCaretCommand(sel, false), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Move Caret Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('move selection to left', function () {
 		testMoveCaretLeftCommand(

@@ -4,9 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 import { Emitter, Event } from 'vs/base/common/event';
 import { splitGlobAware } from 'vs/base/common/glob';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IObservableValue, MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testCollection';
+import { StoredValue } from 'vs/workbench/contrib/testing/common/storedValue';
+import { namespaceTestTag } from 'vs/workbench/contrib/testing/common/testTypes';
 
 export interface ITestExplorerFilterState {
 	_serviceBrand: undefined;
@@ -36,6 +39,11 @@ export interface ITestExplorerFilterState {
 	readonly excludeTags: ReadonlySet<string>;
 
 	/**
+	 * Whether fuzzy searching is enabled.
+	 */
+	readonly fuzzy: MutableObservableValue<boolean>;
+
+	/**
 	 * Focuses the filter input in the test explorer view.
 	 */
 	focusInput(): void;
@@ -61,7 +69,7 @@ export const ITestExplorerFilterState = createDecorator<ITestExplorerFilterState
 const tagRe = /!?@([^ ,:]+)/g;
 const trimExtraWhitespace = (str: string) => str.replace(/\s\s+/g, ' ').trim();
 
-export class TestExplorerFilterState implements ITestExplorerFilterState {
+export class TestExplorerFilterState extends Disposable implements ITestExplorerFilterState {
 	declare _serviceBrand: undefined;
 	private readonly focusEmitter = new Emitter<void>();
 	/**
@@ -79,11 +87,22 @@ export class TestExplorerFilterState implements ITestExplorerFilterState {
 	public excludeTags = new Set<string>();
 
 	/** @inheritdoc */
-	public readonly text = new MutableObservableValue('');
+	public readonly text = this._register(new MutableObservableValue(''));
 
-	public readonly reveal = new MutableObservableValue</* test ID */string | undefined>(undefined);
+	/** @inheritdoc */
+	public readonly fuzzy = this._register(MutableObservableValue.stored(new StoredValue<boolean>({
+		key: 'testHistoryFuzzy',
+		scope: StorageScope.PROFILE,
+		target: StorageTarget.USER,
+	}, this.storageService), false));
+
+	public readonly reveal = this._register(new MutableObservableValue</* test ID */string | undefined>(undefined));
 
 	public readonly onDidRequestInputFocus = this.focusEmitter.event;
+
+	constructor(@IStorageService private readonly storageService: IStorageService) {
+		super();
+	}
 
 	/** @inheritdoc */
 	public focusInput() {
@@ -183,7 +202,7 @@ export const enum TestFilterTerm {
 	Hidden = '@hidden',
 }
 
-export const allTestFilterTerms: readonly TestFilterTerm[] = [
+const allTestFilterTerms: readonly TestFilterTerm[] = [
 	TestFilterTerm.Failed,
 	TestFilterTerm.Executed,
 	TestFilterTerm.CurrentDoc,

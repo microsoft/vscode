@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IIconRegistry, Extensions as IconRegistryExtensions } from 'vs/platform/theme/common/iconRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { CSSIcon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import * as resources from 'vs/base/common/resources';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { extname, posix } from 'vs/base/common/path';
@@ -22,7 +22,7 @@ interface IIconExtensionPoint {
 const iconRegistry: IIconRegistry = Registry.as<IIconRegistry>(IconRegistryExtensions.IconContribution);
 
 const iconReferenceSchema = iconRegistry.getIconReferenceSchema();
-const iconIdPattern = `^${CSSIcon.iconNameSegment}(-${CSSIcon.iconNameSegment})+$`;
+const iconIdPattern = `^${ThemeIcon.iconNameSegment}(-${ThemeIcon.iconNameSegment})+$`;
 
 const iconConfigurationExtPoint = ExtensionsRegistry.registerExtensionPoint<IIconExtensionPoint>({
 	extensionPoint: 'icons',
@@ -93,13 +93,14 @@ export class IconExtensionPoint {
 						collector.error(nls.localize('invalid.icons.description', "'configuration.icons.description' must be defined and can not be empty"));
 						return;
 					}
-					let defaultIcon = iconContribution.default;
+					const defaultIcon = iconContribution.default;
 					if (typeof defaultIcon === 'string') {
 						iconRegistry.registerIcon(id, { id: defaultIcon }, iconContribution.description);
 					} else if (typeof defaultIcon === 'object' && typeof defaultIcon.fontPath === 'string' && typeof defaultIcon.fontCharacter === 'string') {
-						const format = extname(defaultIcon.fontPath).substring(1);
-						if (['woff', 'woff2', 'ttf'].indexOf(format) === -1) {
-							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", format));
+						const fileExt = extname(defaultIcon.fontPath).substring(1);
+						const format = formatMap[fileExt];
+						if (!format) {
+							collector.warn(nls.localize('invalid.icons.default.fontPath.extension', "Expected `contributes.icons.default.fontPath` to have file extension 'woff', woff2' or 'ttf', is '{0}'.", fileExt));
 							return;
 						}
 						const extensionLocation = extension.description.extensionLocation;
@@ -131,6 +132,12 @@ export class IconExtensionPoint {
 		});
 	}
 }
+
+const formatMap: Record<string, string> = {
+	'ttf': 'truetype',
+	'woff': 'woff',
+	'woff2': 'woff2'
+};
 
 function getFontId(description: IExtensionDescription, fontPath: string) {
 	return posix.join(description.identifier.value, fontPath);

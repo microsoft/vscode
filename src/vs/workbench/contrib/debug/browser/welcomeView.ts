@@ -9,7 +9,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService, RawContextKey, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { IDebugService, CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUG_EXTENSION_AVAILABLE } from 'vs/workbench/contrib/debug/common/debug';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
@@ -25,6 +25,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { SELECT_AND_START_ID, DEBUG_CONFIGURE_COMMAND_ID, DEBUG_START_COMMAND_ID } from 'vs/workbench/contrib/debug/browser/debugCommands';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const debugStartLanguageKey = 'debugStartLanguage';
 const CONTEXT_DEBUG_START_LANGUAGE = new RawContextKey<string>(debugStartLanguageKey, undefined);
@@ -33,7 +34,7 @@ const CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR = new RawContextKey<boolean>(
 export class WelcomeView extends ViewPane {
 
 	static readonly ID = 'workbench.debug.welcome';
-	static readonly LABEL = localize('run', "Run");
+	static readonly LABEL: ILocalizedString = localize2('run', "Run");
 
 	private debugStartLanguageContext: IContextKey<string | undefined>;
 	private debuggerInterestedContext: IContextKey<boolean>;
@@ -65,7 +66,7 @@ export class WelcomeView extends ViewPane {
 			if (isCodeEditor(editorControl)) {
 				const model = editorControl.getModel();
 				const language = model ? model.getLanguageId() : undefined;
-				if (language && this.debugService.getAdapterManager().isDebuggerInterestedInLanguage(language)) {
+				if (language && this.debugService.getAdapterManager().someDebuggerInterestedInLanguage(language)) {
 					this.debugStartLanguageContext.set(language);
 					this.debuggerInterestedContext.set(true);
 					storageSevice.store(debugStartLanguageKey, language, StorageScope.WORKSPACE, StorageTarget.MACHINE);
@@ -107,37 +108,59 @@ export class WelcomeView extends ViewPane {
 
 const viewsRegistry = Registry.as<IViewsRegistry>(Extensions.ViewsRegistry);
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'openAFileWhichCanBeDebugged', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID),
+	content: localize(
+		{
+			key: 'openAFileWhichCanBeDebugged',
+			comment: [
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
+		"[Open a file](command:{0}) which can be debugged or run.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFileAction.ID
+	),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, CONTEXT_DEBUGGER_INTERESTED_IN_ACTIVE_EDITOR.toNegated()),
-	group: ViewContentGroups.Open
+	group: ViewContentGroups.Open,
 });
 
 let debugKeybindingLabel = '';
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'runAndDebugAction', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Run and Debug{0}](command:{1})", debugKeybindingLabel, DEBUG_START_COMMAND_ID),
+	content: `[${localize('runAndDebugAction', "Run and Debug")}${debugKeybindingLabel}](command:${DEBUG_START_COMMAND_ID})`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
-	group: ViewContentGroups.Debug
+	group: ViewContentGroups.Debug,
+	// Allow inserting more buttons directly after this one (by setting order to 1).
+	order: 1
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'detectThenRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
-		"[Show all automatic debug configurations](command:{0}).", SELECT_AND_START_ID),
+	content: `[${localize('detectThenRunAndDebug', "Show all automatic debug configurations")}](command:${SELECT_AND_START_ID}).`,
 	when: CONTEXT_DEBUGGERS_AVAILABLE,
 	group: ViewContentGroups.Debug,
 	order: 10
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebug', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'customizeRunAndDebug',
+			comment: [
+				'Please do not translate the word "command", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
 		"To customize Run and Debug [create a launch.json file](command:{0}).", DEBUG_CONFIGURE_COMMAND_ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.notEqualsTo('empty')),
 	group: ViewContentGroups.Debug
 });
 
 viewsRegistry.registerViewWelcomeContent(WelcomeView.ID, {
-	content: localize({ key: 'customizeRunAndDebugOpenFolder', comment: ['Please do not translate the word "commmand", it is part of our internal syntax which must not change'] },
+	content: localize(
+		{
+			key: 'customizeRunAndDebugOpenFolder',
+			comment: [
+				'Please do not translate the word "commmand", it is part of our internal syntax which must not change',
+				'{Locked="](command:{0})"}'
+			]
+		},
 		"To customize Run and Debug, [open a folder](command:{0}) and create a launch.json file.", (isMacintosh && !isWeb) ? OpenFileFolderAction.ID : OpenFolderAction.ID),
 	when: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, WorkbenchStateContext.isEqualTo('empty')),
 	group: ViewContentGroups.Debug

@@ -11,7 +11,10 @@
 		"resolveJsonModule": true,
 		"rootDir": "src",
 		"skipLibCheck": true,
-		"sourceMap": true
+		"sourceMap": true,
+		"lib": [
+			"WebWorker"
+		]
 	},
 	"exclude": [
 		"node_modules"

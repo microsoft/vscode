@@ -5,7 +5,7 @@
 
 export namespace Iterable {
 
-	export function is<T = any>(thing: any): thing is IterableIterator<T> {
+	export function is<T = any>(thing: any): thing is Iterable<T> {
 		return thing && typeof thing === 'object' && typeof thing[Symbol.iterator] === 'function';
 	}
 
@@ -18,8 +18,22 @@ export namespace Iterable {
 		yield element;
 	}
 
+	export function wrap<T>(iterableOrElement: Iterable<T> | T): Iterable<T> {
+		if (is(iterableOrElement)) {
+			return iterableOrElement;
+		} else {
+			return single(iterableOrElement);
+		}
+	}
+
 	export function from<T>(iterable: Iterable<T> | undefined | null): Iterable<T> {
 		return iterable || _empty;
+	}
+
+	export function* reverse<T>(array: Array<T>): Iterable<T> {
+		for (let i = array.length - 1; i >= 0; i--) {
+			yield array[i];
+		}
 	}
 
 	export function isEmpty<T>(iterable: Iterable<T> | undefined | null): boolean {
@@ -39,7 +53,7 @@ export namespace Iterable {
 		return false;
 	}
 
-	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): T | undefined;
+	export function find<T, R extends T>(iterable: Iterable<T>, predicate: (t: T) => t is R): R | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined;
 	export function find<T>(iterable: Iterable<T>, predicate: (t: T) => boolean): T | undefined {
 		for (const element of iterable) {
@@ -69,14 +83,6 @@ export namespace Iterable {
 	}
 
 	export function* concat<T>(...iterables: Iterable<T>[]): Iterable<T> {
-		for (const iterable of iterables) {
-			for (const element of iterable) {
-				yield element;
-			}
-		}
-	}
-
-	export function* concatNested<T>(iterables: Iterable<Iterable<T>>): Iterable<T> {
 		for (const iterable of iterables) {
 			for (const element of iterable) {
 				yield element;
@@ -135,26 +141,5 @@ export namespace Iterable {
 		}
 
 		return [consumed, { [Symbol.iterator]() { return iterator; } }];
-	}
-
-	/**
-	 * Returns whether the iterables are the same length and all items are
-	 * equal using the comparator function.
-	 */
-	export function equals<T>(a: Iterable<T>, b: Iterable<T>, comparator = (at: T, bt: T) => at === bt) {
-		const ai = a[Symbol.iterator]();
-		const bi = b[Symbol.iterator]();
-		while (true) {
-			const an = ai.next();
-			const bn = bi.next();
-
-			if (an.done !== bn.done) {
-				return false;
-			} else if (an.done) {
-				return true;
-			} else if (!comparator(an.value, bn.value)) {
-				return false;
-			}
-		}
 	}
 }

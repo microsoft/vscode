@@ -6,13 +6,14 @@
 
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { LRUCache, TernarySearchTree } from 'vs/base/common/map';
+import { LRUCache } from 'vs/base/common/map';
+import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import { IPosition } from 'vs/editor/common/core/position';
 import { ITextModel } from 'vs/editor/common/model';
 import { CompletionItemKind, CompletionItemKinds } from 'vs/editor/common/languages';
 import { CompletionItem } from 'vs/editor/contrib/suggest/browser/suggest';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 
@@ -24,7 +25,7 @@ export abstract class Memory {
 		if (items.length === 0) {
 			return 0;
 		}
-		let topScore = items[0].score[0];
+		const topScore = items[0].score[0];
 		for (let i = 0; i < items.length; i++) {
 			const { score, completion: suggestion } = items[i];
 			if (score[0] !== topScore) {
@@ -100,7 +101,7 @@ export class LRUMemory extends Memory {
 			return super.select(model, pos, items);
 		}
 
-		let topScore = items[0].score[0];
+		const topScore = items[0].score[0];
 		let indexPreselect = -1;
 		let indexRecency = -1;
 		let seq = -1;
@@ -135,7 +136,7 @@ export class LRUMemory extends Memory {
 
 	fromJSON(data: [string, MemItem][]): void {
 		this._cache.clear();
-		let seq = 0;
+		const seq = 0;
 		for (const [key, value] of data) {
 			value.touch = seq;
 			value.type = typeof value.type === 'number' ? value.type : CompletionItemKinds.fromString(value.type);
@@ -166,18 +167,18 @@ export class PrefixMemory extends Memory {
 	}
 
 	override select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number {
-		let { word } = model.getWordUntilPosition(pos);
+		const { word } = model.getWordUntilPosition(pos);
 		if (!word) {
 			return super.select(model, pos, items);
 		}
-		let key = `${model.getLanguageId()}/${word}`;
+		const key = `${model.getLanguageId()}/${word}`;
 		let item = this._trie.get(key);
 		if (!item) {
 			item = this._trie.findSubstr(key);
 		}
 		if (item) {
 			for (let i = 0; i < items.length; i++) {
-				let { kind, insertText } = items[i].completion;
+				const { kind, insertText } = items[i].completion;
 				if (kind === item.type && insertText === item.insertText) {
 					return i;
 				}
@@ -188,7 +189,7 @@ export class PrefixMemory extends Memory {
 
 	toJSON(): object {
 
-		let entries: [string, MemItem][] = [];
+		const entries: [string, MemItem][] = [];
 		this._trie.forEach((value, key) => entries.push([key, value]));
 
 		// sort by last recently used (touch), then
@@ -274,7 +275,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 
 			try {
 				const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-				const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+				const scope = share ? StorageScope.PROFILE : StorageScope.WORKSPACE;
 				const raw = this._storageService.get(`${SuggestMemoryService._storagePrefix}/${mode}`, scope);
 				if (raw) {
 					this._strategy.fromJSON(JSON.parse(raw));
@@ -290,7 +291,7 @@ export class SuggestMemoryService implements ISuggestMemoryService {
 	private _saveState() {
 		if (this._strategy) {
 			const share = this._configService.getValue<boolean>('editor.suggest.shareSuggestSelections');
-			const scope = share ? StorageScope.GLOBAL : StorageScope.WORKSPACE;
+			const scope = share ? StorageScope.PROFILE : StorageScope.WORKSPACE;
 			const raw = JSON.stringify(this._strategy);
 			this._storageService.store(`${SuggestMemoryService._storagePrefix}/${this._strategy.name}`, raw, scope, StorageTarget.MACHINE);
 		}
@@ -306,4 +307,4 @@ export interface ISuggestMemoryService {
 	select(model: ITextModel, pos: IPosition, items: CompletionItem[]): number;
 }
 
-registerSingleton(ISuggestMemoryService, SuggestMemoryService, true);
+registerSingleton(ISuggestMemoryService, SuggestMemoryService, InstantiationType.Delayed);

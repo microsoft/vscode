@@ -8,7 +8,7 @@ import { ISandboxConfiguration } from 'vs/base/parts/sandbox/common/sandboxTypes
 import { IpcRenderer, ProcessMemoryInfo, WebFrame } from 'vs/base/parts/sandbox/electron-sandbox/electronTypes';
 
 /**
- * In sandboxed renderers we cannot expose all of the `process` global of node.js
+ * In Electron renderers we cannot expose all of the `process` global of node.js
  */
 export interface ISandboxNodeProcess extends INodeProcess {
 
@@ -28,11 +28,6 @@ export interface ISandboxNodeProcess extends INodeProcess {
 	 * The type will always be `renderer`.
 	 */
 	readonly type: string;
-
-	/**
-	 * Whether the process is sandboxed or not.
-	 */
-	readonly sandboxed: boolean;
 
 	/**
 	 * A list of versions for the current node.js/electron configuration.
@@ -125,3 +120,32 @@ export const ipcMessagePort: IpcMessagePort = globals.vscode.ipcMessagePort;
 export const webFrame: WebFrame = globals.vscode.webFrame;
 export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;
+
+export interface IGlobalsSlim {
+	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
+	readonly webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
+}
+
+/**
+ * Get the globals that are available in the given window. Since
+ * this method supports auxiliary windows, only a subset of globals
+ * is returned.
+ */
+export function getGlobals(win: Window): IGlobalsSlim | undefined {
+	if (win === window) {
+		return { ipcRenderer, webFrame };
+	}
+
+	const auxiliaryWindowCandidate = win as unknown as {
+		vscode: {
+			ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
+			webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
+		};
+	};
+
+	if (auxiliaryWindowCandidate?.vscode?.ipcRenderer && auxiliaryWindowCandidate?.vscode?.webFrame) {
+		return auxiliaryWindowCandidate.vscode;
+	}
+
+	return undefined;
+}

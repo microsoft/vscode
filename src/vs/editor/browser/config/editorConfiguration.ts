@@ -47,6 +47,7 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 	private _viewLineCount: number = 1;
 	private _lineNumbersDigitCount: number = 1;
 	private _reservedHeight: number = 0;
+	private _glyphMarginDecorationLaneCount: number = 1;
 
 	private readonly _computeOptionsMemory: ComputeOptionsMemory = new ComputeOptionsMemory();
 	/**
@@ -117,7 +118,8 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			emptySelectionClipboard: partialEnv.emptySelectionClipboard,
 			pixelRatio: partialEnv.pixelRatio,
 			tabFocusMode: TabFocus.getTabFocusMode(),
-			accessibilitySupport: partialEnv.accessibilitySupport
+			accessibilitySupport: partialEnv.accessibilitySupport,
+			glyphMarginDecorationLaneCount: this._glyphMarginDecorationLaneCount
 		};
 		return EditorOptionsUtil.computeOptions(this._validatedOptions, env);
 	}
@@ -191,6 +193,14 @@ export class EditorConfiguration extends Disposable implements IEditorConfigurat
 			return;
 		}
 		this._reservedHeight = reservedHeight;
+		this._recomputeOptions();
+	}
+
+	public setGlyphMarginDecorationLaneCount(decorationLaneCount: number): void {
+		if (this._glyphMarginDecorationLaneCount === decorationLaneCount) {
+			return;
+		}
+		this._glyphMarginDecorationLaneCount = decorationLaneCount;
 		this._recomputeOptions();
 	}
 }
@@ -285,7 +295,7 @@ class EditorOptionsUtil {
 		if (Array.isArray(a) || Array.isArray(b)) {
 			return (Array.isArray(a) && Array.isArray(b) ? arrays.equals(a, b) : false);
 		}
-		if (Object.keys(a).length !== Object.keys(b).length) {
+		if (Object.keys(a as unknown as object).length !== Object.keys(b as unknown as object).length) {
 			return false;
 		}
 		for (const key in a) {

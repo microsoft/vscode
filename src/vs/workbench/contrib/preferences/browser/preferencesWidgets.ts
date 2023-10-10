@@ -28,15 +28,12 @@ import { IContextMenuService, IContextViewService } from 'vs/platform/contextvie
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { activeContrastBorder, badgeBackground, badgeForeground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
-import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { IColorTheme, ICssStyleCollector, IThemeService, registerThemingParticipant, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { asCssVariable, badgeBackground, badgeForeground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { isWorkspaceFolder, IWorkspaceContextService, IWorkspaceFolder, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from 'vs/workbench/common/theme';
 import { settingsEditIcon, settingsScopeDropDownIcon } from 'vs/workbench/contrib/preferences/browser/preferencesIcons';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-
+import { ILanguageService } from 'vs/editor/common/languages/language';
 export class FolderSettingsActionViewItem extends BaseActionViewItem {
 
 	private _folder: IWorkspaceFolder | null;
@@ -52,7 +49,6 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		action: IAction,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super(null, action);
 		const workspace = this.contextService.getWorkspace();
@@ -142,14 +138,14 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 		}
 	}
 
-	private async update(): Promise<void> {
+	private update(): void {
 		let total = 0;
 		this._folderSettingCounts.forEach(n => total += n);
 
 		const workspace = this.contextService.getWorkspace();
 		if (this._folder) {
 			this.labelElement.textContent = this._folder.name;
-			this.anchorElement.title = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE_FOLDER, this._folder.uri))?.fsPath || '';
+			this.anchorElement.title = this._folder.name;
 			const detailsText = this.labelWithCount(this._action.label, total);
 			this.detailsElement.textContent = detailsText;
 			this.dropDownElement.classList.toggle('hide', workspace.folders.length === 1 || !this._action.checked);
@@ -204,7 +200,7 @@ export class FolderSettingsActionViewItem extends BaseActionViewItem {
 	}
 }
 
-export type SettingsTarget = ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
+export type SettingsTarget = ConfigurationTarget.APPLICATION | ConfigurationTarget.USER_LOCAL | ConfigurationTarget.USER_REMOTE | ConfigurationTarget.WORKSPACE | URI;
 
 export interface ISettingsTargetsWidgetOptions {
 	enableRemoteSettings?: boolean;
@@ -216,6 +212,7 @@ export class SettingsTargetsWidget extends Widget {
 	private userLocalSettings!: Action;
 	private userRemoteSettings!: Action;
 	private workspaceSettings!: Action;
+	private folderSettingsAction!: Action;
 	private folderSettings!: FolderSettingsActionViewItem;
 	private options: ISettingsTargetsWidgetOptions;
 
@@ -231,13 +228,22 @@ export class SettingsTargetsWidget extends Widget {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IPreferencesService private readonly preferencesService: IPreferencesService,
+		@ILanguageService private readonly languageService: ILanguageService
 	) {
 		super();
-		this.options = options || {};
+		this.options = options ?? {};
 		this.create(parent);
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.onWorkbenchStateChanged()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.update()));
+	}
+
+	private resetLabels() {
+		const remoteAuthority = this.environmentService.remoteAuthority;
+		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
+		this.userLocalSettings.label = localize('userSettings', "User");
+		this.userRemoteSettings.label = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
+		this.workspaceSettings.label = localize('workspaceSettings', "Workspace");
+		this.folderSettingsAction.label = localize('folderSettings', "Folder");
 	}
 
 	private create(parent: HTMLElement): void {
@@ -250,31 +256,25 @@ export class SettingsTargetsWidget extends Widget {
 			actionViewItemProvider: (action: IAction) => action.id === 'folderSettings' ? this.folderSettings : undefined
 		}));
 
-		this.userLocalSettings = new Action('userSettings', localize('userSettings', "User"), '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_LOCAL).then(uri => {
-			// Don't wait to create UI on resolving remote
-			this.userLocalSettings.tooltip = uri?.fsPath || '';
-		});
+		this.userLocalSettings = new Action('userSettings', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_LOCAL));
+		this.userLocalSettings.tooltip = localize('userSettings', "User");
 
+		this.userRemoteSettings = new Action('userSettingsRemote', '', '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
 		const remoteAuthority = this.environmentService.remoteAuthority;
 		const hostLabel = remoteAuthority && this.labelService.getHostLabel(Schemas.vscodeRemote, remoteAuthority);
-		const remoteSettingsLabel = localize('userSettingsRemote', "Remote") +
-			(hostLabel ? ` [${hostLabel}]` : '');
-		this.userRemoteSettings = new Action('userSettingsRemote', remoteSettingsLabel, '.settings-tab', true, () => this.updateTarget(ConfigurationTarget.USER_REMOTE));
-		this.preferencesService.getEditableSettingsURI(ConfigurationTarget.USER_REMOTE).then(uri => {
-			this.userRemoteSettings.tooltip = uri?.fsPath || '';
-		});
+		this.userRemoteSettings.tooltip = localize('userSettingsRemote', "Remote") + (hostLabel ? ` [${hostLabel}]` : '');
 
-		this.workspaceSettings = new Action('workspaceSettings', localize('workspaceSettings', "Workspace"), '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
+		this.workspaceSettings = new Action('workspaceSettings', '', '.settings-tab', false, () => this.updateTarget(ConfigurationTarget.WORKSPACE));
 
-		const folderSettingsAction = new Action('folderSettings', localize('folderSettings', "Folder"), '.settings-tab', false, async folder => {
+		this.folderSettingsAction = new Action('folderSettings', '', '.settings-tab', false, async folder => {
 			this.updateTarget(isWorkspaceFolder(folder) ? folder.uri : ConfigurationTarget.USER_LOCAL);
 		});
-		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, folderSettingsAction);
+		this.folderSettings = this.instantiationService.createInstance(FolderSettingsActionViewItem, this.folderSettingsAction);
 
+		this.resetLabels();
 		this.update();
 
-		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, folderSettingsAction]);
+		this.settingsSwitcherBar.push([this.userLocalSettings, this.userRemoteSettings, this.workspaceSettings, this.folderSettingsAction]);
 	}
 
 	get settingsTarget(): SettingsTarget | null {
@@ -287,10 +287,10 @@ export class SettingsTargetsWidget extends Widget {
 		this.userRemoteSettings.checked = ConfigurationTarget.USER_REMOTE === this.settingsTarget;
 		this.workspaceSettings.checked = ConfigurationTarget.WORKSPACE === this.settingsTarget;
 		if (this.settingsTarget instanceof URI) {
-			this.folderSettings.getAction().checked = true;
+			this.folderSettings.action.checked = true;
 			this.folderSettings.folder = this.contextService.getWorkspaceFolder(this.settingsTarget as URI);
 		} else {
-			this.folderSettings.getAction().checked = false;
+			this.folderSettings.action.checked = false;
 		}
 	}
 
@@ -311,6 +311,20 @@ export class SettingsTargetsWidget extends Widget {
 			this.userLocalSettings.label = label;
 		} else if (settingsTarget instanceof URI) {
 			this.folderSettings.setCount(settingsTarget, count);
+		}
+	}
+
+	updateLanguageFilterIndicators(filter: string | undefined) {
+		this.resetLabels();
+		if (filter) {
+			const languageToUse = this.languageService.getLanguageName(filter);
+			if (languageToUse) {
+				const languageSuffix = ` [${languageToUse}]`;
+				this.userLocalSettings.label += languageSuffix;
+				this.userRemoteSettings.label += languageSuffix;
+				this.workspaceSettings.label += languageSuffix;
+				this.folderSettingsAction.label += languageSuffix;
+			}
 		}
 	}
 
@@ -340,9 +354,9 @@ export class SettingsTargetsWidget extends Widget {
 		this.settingsSwitcherBar.domNode.classList.toggle('empty-workbench', this.contextService.getWorkbenchState() === WorkbenchState.EMPTY);
 		this.userRemoteSettings.enabled = !!(this.options.enableRemoteSettings && this.environmentService.remoteAuthority);
 		this.workspaceSettings.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
-		this.folderSettings.getAction().enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
+		this.folderSettings.action.enabled = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && this.contextService.getWorkspace().folders.length > 0;
 
-		this.workspaceSettings.tooltip = (await this.preferencesService.getEditableSettingsURI(ConfigurationTarget.WORKSPACE))?.fsPath || '';
+		this.workspaceSettings.tooltip = localize('workspaceSettings', "Workspace");
 	}
 }
 
@@ -371,7 +385,6 @@ export class SearchWidget extends Widget {
 	constructor(parent: HTMLElement, protected options: SearchOptions,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IThemeService private readonly themeService: IThemeService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IKeybindingService protected readonly keybindingService: IKeybindingService
 	) {
@@ -386,19 +399,10 @@ export class SearchWidget extends Widget {
 
 		if (this.options.showResultCount) {
 			this.countElement = DOM.append(this.controlsDiv, DOM.$('.settings-count-widget'));
-			this._register(attachStylerCallback(this.themeService, { badgeBackground, contrastBorder }, colors => {
-				const background = colors.badgeBackground ? colors.badgeBackground.toString() : '';
-				const border = colors.contrastBorder ? colors.contrastBorder.toString() : '';
 
-				this.countElement.style.backgroundColor = background;
-
-				this.countElement.style.borderWidth = border ? '1px' : '';
-				this.countElement.style.borderStyle = border ? 'solid' : '';
-				this.countElement.style.borderColor = border;
-
-				const color = this.themeService.getColorTheme().getColor(badgeForeground);
-				this.countElement.style.color = color ? color.toString() : '';
-			}));
+			this.countElement.style.backgroundColor = asCssVariable(badgeBackground);
+			this.countElement.style.color = asCssVariable(badgeForeground);
+			this.countElement.style.border = `1px solid ${asCssVariable(contrastBorder)}`;
 		}
 
 		this.inputBox.inputElement.setAttribute('aria-live', this.options.ariaLive || 'off');
@@ -425,8 +429,6 @@ export class SearchWidget extends Widget {
 	protected createInputBox(parent: HTMLElement): HistoryInputBox {
 		const showHistoryHint = () => showHistoryKeybindingHint(this.keybindingService);
 		const box = this._register(new ContextScopedHistoryInputBox(parent, this.contextViewService, { ...this.options, showHistoryHint }, this.contextKeyService));
-		this._register(attachInputBoxStyler(box, this.themeService));
-
 		return box;
 	}
 
@@ -441,15 +443,11 @@ export class SearchWidget extends Widget {
 
 	layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
-			if (this.countElement) {
-				this.countElement.classList.add('hide');
-			}
+			this.countElement?.classList.add('hide');
 
 			this.inputBox.inputElement.style.paddingRight = '0px';
 		} else {
-			if (this.countElement) {
-				this.countElement.classList.remove('hide');
-			}
+			this.countElement?.classList.remove('hide');
 
 			this.inputBox.inputElement.style.paddingRight = this.getControlsWidth() + 'px';
 		}
@@ -484,9 +482,7 @@ export class SearchWidget extends Widget {
 	}
 
 	override dispose(): void {
-		if (this.options.focusKey) {
-			this.options.focusKey.set(false);
-		}
+		this.options.focusKey?.set(false);
 		super.dispose();
 	}
 }
@@ -496,14 +492,13 @@ export class EditPreferenceWidget<T> extends Disposable {
 	private _line: number = -1;
 	private _preferences: T[] = [];
 
-	private _editPreferenceDecoration: string[];
+	private readonly _editPreferenceDecoration = this.editor.createDecorationsCollection();
 
 	private readonly _onClick = this._register(new Emitter<IEditorMouseEvent>());
 	readonly onClick: Event<IEditorMouseEvent> = this._onClick.event;
 
 	constructor(private editor: ICodeEditor) {
 		super();
-		this._editPreferenceDecoration = [];
 		this._register(this.editor.onMouseDown((e: IEditorMouseEvent) => {
 			if (e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.isVisible()) {
 				return;
@@ -538,11 +533,11 @@ export class EditPreferenceWidget<T> extends Disposable {
 				endColumn: 1
 			}
 		});
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, newDecoration);
+		this._editPreferenceDecoration.set(newDecoration);
 	}
 
 	hide(): void {
-		this._editPreferenceDecoration = this.editor.deltaDecorations(this._editPreferenceDecoration, []);
+		this._editPreferenceDecoration.clear();
 	}
 
 	isVisible(): boolean {
@@ -554,72 +549,3 @@ export class EditPreferenceWidget<T> extends Disposable {
 		super.dispose();
 	}
 }
-
-registerThemingParticipant((theme: IColorTheme, collector: ICssStyleCollector) => {
-
-	collector.addRule(`
-		.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus,
-		.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-			border-bottom: 1px solid;
-		}
-	`);
-	// Title Active
-	const titleActive = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
-	const titleActiveBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
-	if (titleActive || titleActiveBorder) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover,
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked {
-				color: ${titleActive};
-				border-bottom-color: ${titleActiveBorder};
-			}
-		`);
-	}
-
-	// Title Inactive
-	const titleInactive = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
-	if (titleInactive) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
-				color: ${titleInactive};
-			}
-		`);
-	}
-
-	// Title focus
-	const focusBorderColor = theme.getColor(focusBorder);
-	if (focusBorderColor) {
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-				border-bottom-color: ${focusBorderColor} !important;
-			}
-			`);
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
-				outline: none;
-			}
-			`);
-	}
-
-	// Styling with Outline color (e.g. high contrast theme)
-	const outline = theme.getColor(activeContrastBorder);
-	if (outline) {
-		const outline = theme.getColor(activeContrastBorder);
-
-		collector.addRule(`
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
-				outline-color: ${outline};
-				outline-width: 1px;
-				outline-style: solid;
-				border-bottom: none;
-				padding-bottom: 0;
-				outline-offset: -1px;
-			}
-
-			.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
-				outline-style: dashed;
-			}
-		`);
-	}
-});

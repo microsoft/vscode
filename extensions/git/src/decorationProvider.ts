@@ -106,7 +106,7 @@ class GitDecorationProvider implements FileDecorationProvider {
 	}
 
 	private onDidRunGitStatus(): void {
-		let newDecorations = new Map<string, FileDecoration>();
+		const newDecorations = new Map<string, FileDecoration>();
 
 		this.collectSubmoduleDecorationData(newDecorations);
 		this.collectDecorationData(this.repository.indexGroup, newDecorations);
@@ -127,7 +127,11 @@ class GitDecorationProvider implements FileDecorationProvider {
 				// not deleted and has a decoration
 				bucket.set(r.original.toString(), decoration);
 
-				if (r.type === Status.INDEX_RENAMED) {
+				if (r.type === Status.DELETED && r.rightUri) {
+					bucket.set(r.rightUri.toString(), decoration);
+				}
+
+				if (r.type === Status.INDEX_RENAMED || r.type === Status.INTENT_TO_RENAME) {
 					bucket.set(r.resourceUri.toString(), decoration);
 				}
 			}

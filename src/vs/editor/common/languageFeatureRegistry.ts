@@ -39,13 +39,15 @@ class MatchCandidate {
 	constructor(
 		readonly uri: URI,
 		readonly languageId: string,
+		readonly notebookUri: URI | undefined,
 		readonly notebookType: string | undefined
 	) { }
 
 	equals(other: MatchCandidate): boolean {
 		return this.notebookType === other.notebookType
 			&& this.languageId === other.languageId
-			&& this.uri.toString() === other.uri.toString();
+			&& this.uri.toString() === other.uri.toString()
+			&& this.notebookUri?.toString() === other.notebookUri?.toString();
 	}
 }
 
@@ -98,7 +100,7 @@ export class LanguageFeatureRegistry<T> {
 		const result: T[] = [];
 
 		// from registry
-		for (let entry of this._entries) {
+		for (const entry of this._entries) {
 			if (entry._score > 0) {
 				result.push(entry.provider);
 			}
@@ -151,8 +153,8 @@ export class LanguageFeatureRegistry<T> {
 		// use the uri (scheme, pattern) of the notebook info iff we have one
 		// otherwise it's the model's/document's uri
 		const candidate = notebookInfo
-			? new MatchCandidate(notebookInfo.uri, model.getLanguageId(), notebookInfo.type)
-			: new MatchCandidate(model.uri, model.getLanguageId(), undefined);
+			? new MatchCandidate(model.uri, model.getLanguageId(), notebookInfo.uri, notebookInfo.type)
+			: new MatchCandidate(model.uri, model.getLanguageId(), undefined, undefined);
 
 		if (this._lastCandidate?.equals(candidate)) {
 			// nothing has changed
@@ -161,13 +163,13 @@ export class LanguageFeatureRegistry<T> {
 
 		this._lastCandidate = candidate;
 
-		for (let entry of this._entries) {
-			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookType);
+		for (const entry of this._entries) {
+			entry._score = score(entry.selector, candidate.uri, candidate.languageId, shouldSynchronizeModel(model), candidate.notebookUri, candidate.notebookType);
 
 			if (isExclusive(entry.selector) && entry._score > 0) {
 				// support for one exclusive selector that overwrites
 				// any other selector
-				for (let entry of this._entries) {
+				for (const entry of this._entries) {
 					entry._score = 0;
 				}
 				entry._score = 1000;
@@ -184,7 +186,16 @@ export class LanguageFeatureRegistry<T> {
 			return 1;
 		} else if (a._score > b._score) {
 			return -1;
-		} else if (a._time < b._time) {
+		}
+
+		// De-prioritize built-in providers
+		if (isBuiltinSelector(a.selector) && !isBuiltinSelector(b.selector)) {
+			return 1;
+		} else if (!isBuiltinSelector(a.selector) && isBuiltinSelector(b.selector)) {
+			return -1;
+		}
+
+		if (a._time < b._time) {
 			return 1;
 		} else if (a._time > b._time) {
 			return -1;
@@ -193,3 +204,16 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 }
+
+function isBuiltinSelector(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	}
+
+	if (Array.isArray(selector)) {
+		return selector.some(isBuiltinSelector);
+	}
+
+	return Boolean((selector as LanguageFilter).isBuiltin);
+}
+

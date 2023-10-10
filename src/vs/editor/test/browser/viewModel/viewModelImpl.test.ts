@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ViewEvent } from 'vs/editor/common/viewEvents';
-import { Position } from 'vs/editor/common/core/position';
+import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 
 suite('ViewModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #21073: SplitLinesCollection: attempt to access a \'newer\' model', () => {
 		const text = [''];
@@ -63,19 +66,23 @@ suite('ViewModel', () => {
 				text: '\ninsert3'
 			}], () => ([]));
 
-			let viewLineCount: number[] = [];
+			const viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addViewEventHandler(new class extends ViewEventHandler {
+			const eventHandler = new class extends ViewEventHandler {
 				override handleEvents(events: ViewEvent[]): void {
 					// Access the view model
 					viewLineCount.push(viewModel.getLineCount());
 				}
-			});
+			};
+			viewModel.addViewEventHandler(eventHandler);
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
 			assert.deepStrictEqual(viewLineCount, [4, 1, 1, 1, 1]);
+
+			viewModel.removeViewEventHandler(eventHandler);
+			eventHandler.dispose();
 		});
 	});
 
@@ -114,7 +121,7 @@ suite('ViewModel', () => {
 
 	function assertGetPlainTextToCopy(text: string[], ranges: Range[], emptySelectionClipboard: boolean, expected: string | string[]): void {
 		testViewModel(text, {}, (viewModel, model) => {
-			let actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
+			const actual = viewModel.getPlainTextToCopy(ranges, emptySelectionClipboard, false);
 			assert.deepStrictEqual(actual, expected);
 		});
 	}
@@ -259,7 +266,7 @@ suite('ViewModel', () => {
 	test('issue #22688 - always use CRLF for clipboard on Windows', () => {
 		testViewModel(USUAL_TEXT, {}, (viewModel, model) => {
 			model.setEOL(EndOfLineSequence.LF);
-			let actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
+			const actual = viewModel.getPlainTextToCopy([new Range(2, 1, 5, 1)], true, true);
 			assert.deepStrictEqual(actual, 'line2\r\nline3\r\nline4\r\n');
 		});
 	});

@@ -6,7 +6,7 @@
 import { tmpdir } from 'os';
 import { basename, dirname, join } from 'vs/base/common/path';
 import { Promises, RimRafMode } from 'vs/base/node/pfs';
-import { flakySuite, getPathFromAmdModule, getRandomTestPath } from 'vs/base/test/node/testUtils';
+import { flakySuite, getRandomTestPath } from 'vs/base/test/node/testUtils';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { INonRecursiveWatchRequest } from 'vs/platform/files/common/watcher';
 import { NodeJSFileWatcherLibrary, watchFileContents } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
@@ -16,13 +16,17 @@ import { ltrim } from 'vs/base/common/strings';
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcher';
+import { FileAccess } from 'vs/base/common/network';
+import { extUriBiasedIgnorePathCase } from 'vs/base/common/resources';
+import { URI } from 'vs/base/common/uri';
+import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 
 // this suite has shown flaky runs in Azure pipelines where
 // tasks would just hang and timeout after a while (not in
 // mocha but generally). as such they will run only on demand
 // whenever we update the watcher library.
 
-((process.env['BUILD_SOURCEVERSION'] || process.env['CI']) ? suite.skip : flakySuite)('File Watcher (node.js)', () => {
+flakySuite('File Watcher (node.js)', () => {
 
 	class TestNodeJSWatcher extends NodeJSWatcher {
 
@@ -64,6 +68,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 	setup(async () => {
 		watcher = new TestNodeJSWatcher();
+		watcher?.setVerboseLogging(loggingEnabled);
 
 		watcher.onDidLogMessage(e => {
 			if (loggingEnabled) {
@@ -79,7 +84,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'filewatcher');
 
-		const sourceDir = getPathFromAmdModule(require, './fixtures/service');
+		const sourceDir = FileAccess.asFileUri('vs/platform/files/test/node/fixtures/service').fsPath;
 
 		await Promises.copy(sourceDir, testDir, { preserveSymlinks: false });
 	});
@@ -103,16 +108,22 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		}
 	}
 
-	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType): Promise<void> {
+	async function awaitEvent(service: TestNodeJSWatcher, path: string, type: FileChangeType, correlationId?: number | null, expectedCount?: number): Promise<void> {
 		if (loggingEnabled) {
 			console.log(`Awaiting change type '${toMsg(type)}' on file '${path}'`);
 		}
 
 		// Await the event
 		await new Promise<void>(resolve => {
+			let counter = 0;
 			const disposable = service.onDidChangeFile(events => {
 				for (const event of events) {
-					if (event.path === path && event.type === type) {
+					if (extUriBiasedIgnorePathCase.isEqual(event.resource, URI.file(path)) && event.type === type && (correlationId === null || event.cId === correlationId)) {
+						counter++;
+						if (typeof expectedCount === 'number' && counter < expectedCount) {
+							continue; // not yet
+						}
+
 						disposable.dispose();
 						resolve();
 						break;
@@ -250,7 +261,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Move file
 		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
-		await Promises.move(filePath, `${filePath}-moved`);
+		await Promises.rename(filePath, `${filePath}-moved`);
 		await changeFuture;
 	});
 
@@ -259,7 +270,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(testDir, 'lorem.txt');
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -271,7 +282,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		// Delete + Recreate file
 		const newFilePath = join(filePath);
-		let changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
+		const changeFuture: Promise<unknown> = awaitEvent(watcher, newFilePath, FileChangeType.UPDATED);
 		await Promises.unlink(newFilePath);
 		Promises.writeFile(newFilePath, 'Hello Atomic World');
 		await changeFuture;
@@ -372,6 +383,45 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return basicCrudTest(filePath, true);
 	});
 
+	test('includes can be updated (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['nothing'], recursive: false }]);
+		await watcher.watch([{ path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('non-includes are ignored (file watch)', async function () {
+		const filePath = join(testDir, 'lorem.txt');
+		await watcher.watch([{ path: filePath, excludes: [], includes: ['nothing'], recursive: false }]);
+
+		return basicCrudTest(filePath, true);
+	});
+
+	test('includes are supported (folder watch)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['**/files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern explicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: [{ base: testDir, pattern: 'files-includes.txt' }], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('includes are supported (folder watch, relative pattern implicit)', async function () {
+		await watcher.watch([{ path: testDir, excludes: [], includes: ['files-includes.txt'], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'files-includes.txt'));
+	});
+
+	test('correlationId is supported', async function () {
+		const correlationId = Math.random();
+		await watcher.watch([{ correlationId, path: testDir, excludes: [], recursive: false }]);
+
+		return basicCrudTest(join(testDir, 'newFile.txt'), undefined, correlationId);
+	});
+
 	(isWindows /* windows: cannot create file symbolic link without elevated context */ ? test.skip : test)('symlink support (folder watch)', async function () {
 		const link = join(testDir, 'deep-linked');
 		const linkTarget = join(testDir, 'deep');
@@ -382,23 +432,23 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 		return basicCrudTest(join(link, 'newFile.txt'));
 	});
 
-	async function basicCrudTest(filePath: string, skipAdd?: boolean): Promise<void> {
+	async function basicCrudTest(filePath: string, skipAdd?: boolean, correlationId?: number | null, expectedCount?: number): Promise<void> {
 		let changeFuture: Promise<unknown>;
 
 		// New file
 		if (!skipAdd) {
-			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED);
+			changeFuture = awaitEvent(watcher, filePath, FileChangeType.ADDED, correlationId, expectedCount);
 			await Promises.writeFile(filePath, 'Hello World');
 			await changeFuture;
 		}
 
 		// Change file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.UPDATED, correlationId, expectedCount);
 		await Promises.writeFile(filePath, 'Hello Change');
 		await changeFuture;
 
 		// Delete file
-		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED);
+		changeFuture = awaitEvent(watcher, filePath, FileChangeType.DELETED, correlationId, expectedCount);
 		await Promises.unlink(await Promises.realpath(filePath)); // support symlinks
 		await changeFuture;
 	}
@@ -414,6 +464,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 	});
 
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (folder watch)', async function () {
+		addUNCHostToAllowlist('localhost');
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}`;
@@ -424,6 +475,7 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 	});
 
 	(!isWindows /* UNC is windows only */ ? test.skip : test)('unc support (file watch)', async function () {
+		addUNCHostToAllowlist('localhost');
 
 		// Local UNC paths are in the form of: \\localhost\c$\my_dir
 		const uncPath = `\\\\localhost\\${getDriveLetter(testDir)?.toLowerCase()}$\\${ltrim(testDir.substr(testDir.indexOf(':') + 1), '\\')}\\lorem.txt`;
@@ -494,6 +546,17 @@ import { NodeJSWatcher } from 'vs/platform/files/node/watcher/nodejs/nodejsWatch
 
 		return watchPromise;
 	});
-});
 
-// TODO test for excludes? subsequent updates to rewatch like parcel?
+	test('watching same or overlapping paths supported when correlation is applied', async () => {
+
+		// same path, same options
+		await watcher.watch([
+			{ path: testDir, excludes: [], recursive: false, correlationId: 1 },
+			{ path: testDir, excludes: [], recursive: false, correlationId: 2, },
+			{ path: testDir, excludes: [], recursive: false, correlationId: undefined }
+		]);
+
+		await basicCrudTest(join(testDir, 'newFile.txt'), undefined, null, 3);
+		await basicCrudTest(join(testDir, 'otherNewFile.txt'), undefined, null, 3);
+	});
+});

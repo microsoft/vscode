@@ -2,32 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+// @ts-check
 const path = require('path');
-const esbuild = require('esbuild');
 
-const args = process.argv.slice(2);
+const srcDir = path.join(__dirname, 'notebook');
+const outDir = path.join(__dirname, 'notebook-out');
 
-const isWatch = args.indexOf('--watch') >= 0;
-
-let outputRoot = __dirname;
-const outputRootIndex = args.indexOf('--outputRoot');
-if (outputRootIndex >= 0) {
-	outputRoot = args[outputRootIndex + 1];
-}
-
-const outDir = path.join(outputRoot, 'notebook-out');
-
-esbuild.build({
+require('../esbuild-webview-common').run({
 	entryPoints: [
-		path.join(__dirname, 'notebook', 'index.ts'),
+		path.join(srcDir, 'index.ts'),
 	],
-	bundle: true,
-	minify: true,
-	sourcemap: false,
-	format: 'esm',
+	srcDir,
 	outdir: outDir,
-	platform: 'browser',
-	target: ['es2020'],
-	watch: isWatch,
-	incremental: isWatch,
-}).catch(() => process.exit(1));
+}, process.argv);

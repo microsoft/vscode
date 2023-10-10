@@ -17,7 +17,7 @@ realdir() {
 	echo "$( cd -P "$(dirname "$SOURCE")" >/dev/null 2>&1 && pwd )"
 }
 
-ROOT=$(dirname "$(realdir "$0")")
+ROOT="$(dirname "$(realdir "$0")")"
 
 "$ROOT/node" ${INSPECT:-} "$ROOT/out/server-main.js" "$@"
 

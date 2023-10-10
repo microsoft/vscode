@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISaveOptions, IRevertOptions, SaveReason } from 'vs/workbench/common/editor';
 import { ReadableStream } from 'vs/base/common/stream';
-import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions } from 'vs/platform/files/common/files';
+import { IBaseFileStatWithMetadata, IFileStatWithMetadata, IWriteFileOptions, FileOperationError, FileOperationResult, IReadFileStreamOptions, IFileReadLimits } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory, ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -178,6 +178,7 @@ export class TextFileOperationError extends FileOperationError {
 }
 
 export interface IResourceEncodings {
+	getPreferredReadEncoding(resource: URI): Promise<IResourceEncoding>;
 	getPreferredWriteEncoding(resource: URI, preferredEncoding?: string): Promise<IResourceEncoding>;
 }
 
@@ -265,12 +266,7 @@ export interface ITextFileStreamContent extends IBaseTextFileContent {
 	readonly value: ITextBufferFactory;
 }
 
-export interface ITextFileEditorModelResolveOrCreateOptions {
-
-	/**
-	 * Context why the model is being resolved or created.
-	 */
-	readonly reason?: TextFileResolveReason;
+export interface ITextFileEditorModelResolveOrCreateOptions extends ITextFileResolveOptions {
 
 	/**
 	 * The language id to use for the model text content.
@@ -281,13 +277,6 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 	 * The encoding to use when resolving the model text content.
 	 */
 	readonly encoding?: string;
-
-	/**
-	 * The contents to use for the model if known. If not
-	 * provided, the contents will be retrieved from the
-	 * underlying resource or backup if present.
-	 */
-	readonly contents?: ITextBufferFactory;
 
 	/**
 	 * If the model was already resolved before, allows to trigger
@@ -301,11 +290,6 @@ export interface ITextFileEditorModelResolveOrCreateOptions {
 		 */
 		readonly async: boolean;
 	};
-
-	/**
-	 * Allow to resolve a model even if we think it is a binary file.
-	 */
-	readonly allowBinary?: boolean;
 }
 
 export interface ITextFileSaveEvent extends ITextFileEditorModelSaveEvent {
@@ -451,6 +435,12 @@ export interface ITextFileResolveOptions {
 	 * Context why the model is being resolved.
 	 */
 	readonly reason?: TextFileResolveReason;
+
+	/**
+	 * If provided, the size of the file will be checked against the limits
+	 * and an error will be thrown if any limit is exceeded.
+	 */
+	readonly limits?: IFileReadLimits;
 }
 
 export const enum EncodingMode {
@@ -484,7 +474,7 @@ export interface ILanguageSupport {
 	/**
 	 * Sets the language id of the object.
 	 */
-	setLanguageId(languageId: string, setExplicitly?: boolean): void;
+	setLanguageId(languageId: string, source?: string): void;
 }
 
 export interface ITextFileEditorModelSaveEvent extends IWorkingCopySaveEvent {

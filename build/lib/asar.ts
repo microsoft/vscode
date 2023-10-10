@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as path from 'path';
 import * as es from 'event-stream';
 const pickle = require('chromium-pickle-js');
@@ -98,7 +96,7 @@ export function createAsar(folderPath: string, unpackGlobs: string[], destFilena
 		}
 	}, function () {
 
-		let finish = () => {
+		const finish = () => {
 			{
 				const headerPickle = pickle.createEmpty();
 				headerPickle.writeString(JSON.stringify(filesystem.header));

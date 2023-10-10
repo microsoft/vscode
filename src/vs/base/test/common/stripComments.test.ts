@@ -122,4 +122,26 @@ suite('Strip Comments', () => {
 		].join('\n');
 		assert.strictEqual(stripComments(content), expected);
 	});
+	test('Trailing comma in object', () => {
+		const content: string = [
+			"{",
+			`  "a": 10,`,
+			"}"
+		].join('\n');
+		const expected: string = [
+			"{",
+			`  "a": 10`,
+			"}"
+		].join('\n');
+		assert.strictEqual(stripComments(content), expected);
+	});
+	test('Trailing comma in array', () => {
+		const content: string = [
+			`[ "a", "b", "c", ]`
+		].join('\n');
+		const expected: string = [
+			`[ "a", "b", "c" ]`
+		].join('\n');
+		assert.strictEqual(stripComments(content), expected);
+	});
 });

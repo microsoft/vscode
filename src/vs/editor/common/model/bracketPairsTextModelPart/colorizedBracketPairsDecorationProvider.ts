@@ -42,7 +42,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 
 	//#endregion
 
-	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean): IModelDecoration[] {
+	getDecorationsInRange(range: Range, ownerId?: number, filterOutValidation?: boolean, onlyMinimapDecorations?: boolean): IModelDecoration[] {
+		if (onlyMinimapDecorations) {
+			// Bracket pair colorization decorations are not rendered in the minimap
+			return [];
+		}
 		if (ownerId === undefined) {
 			return [];
 		}
@@ -50,22 +54,19 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 			return [];
 		}
 
-		const result = new Array<IModelDecoration>();
-		const bracketsInRange = this.textModel.bracketPairs.getBracketsInRange(range);
-		for (const bracket of bracketsInRange) {
-			result.push({
-				id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
-				options: {
-					description: 'BracketPairColorization',
-					inlineClassName: this.colorProvider.getInlineClassName(
-						bracket,
-						this.colorizationOptions.useIndependentColorPoolPerBracketType
-					),
-				},
-				ownerId: 0,
-				range: bracket.range,
-			});
-		}
+		const result = this.textModel.bracketPairs.getBracketsInRange(range, true).map<IModelDecoration>(bracket => ({
+			id: `bracket${bracket.range.toString()}-${bracket.nestingLevel}`,
+			options: {
+				description: 'BracketPairColorization',
+				inlineClassName: this.colorProvider.getInlineClassName(
+					bracket,
+					this.colorizationOptions.independentColorPoolPerBracketType
+				),
+			},
+			ownerId: 0,
+			range: bracket.range,
+		})).toArray();
+
 		return result;
 	}
 
@@ -87,11 +88,11 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 class ColorProvider {
 	public readonly unexpectedClosingBracketClassName = 'unexpected-closing-bracket';
 
-	getInlineClassName(bracket: BracketInfo, useIndependentColorPoolPerBracketType: boolean): string {
+	getInlineClassName(bracket: BracketInfo, independentColorPoolPerBracketType: boolean): string {
 		if (bracket.isInvalid) {
 			return this.unexpectedClosingBracketClassName;
 		}
-		return this.getInlineClassNameOfLevel(useIndependentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
+		return this.getInlineClassNameOfLevel(independentColorPoolPerBracketType ? bracket.nestingLevelOfEqualBracketType : bracket.nestingLevel);
 	}
 
 	getInlineClassNameOfLevel(level: number): string {

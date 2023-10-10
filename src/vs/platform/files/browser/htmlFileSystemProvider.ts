@@ -14,7 +14,7 @@ import { basename, extname, normalize } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
 import { extUri, extUriIgnorePathCase } from 'vs/base/common/resources';
 import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream';
-import { createFileSystemProviderError, FileDeleteOptions, FileOverwriteOptions, FileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, FileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileDeleteOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IStat, IWatchOptions } from 'vs/platform/files/common/files';
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IndexedDB } from 'vs/base/browser/indexedDB';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -110,7 +110,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 	//#region File Reading/Writing
 
-	readFileStream(resource: URI, opts: FileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer, {
 			// Set a highWaterMark to prevent the stream
 			// for file upload to produce large buffers
@@ -144,8 +144,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 
 				// Entire file
 				else {
-					// TODO@electron: duplicate type definitions originate from `@types/node/stream/consumers.d.ts`
-					const reader: ReadableStreamDefaultReader<Uint8Array> = (file.stream() as unknown as ReadableStream<Uint8Array>).getReader();
+					const reader: ReadableStreamDefaultReader<Uint8Array> = file.stream().getReader();
 
 					let res = await reader.read();
 					while (!res.done) {
@@ -189,7 +188,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async writeFile(resource: URI, content: Uint8Array, opts: FileWriteOptions): Promise<void> {
+	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 		try {
 			let handle = await this.getFileHandle(resource);
 
@@ -245,7 +244,7 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async delete(resource: URI, opts: FileDeleteOptions): Promise<void> {
+	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {
 		try {
 			const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
 			if (!parent) {
@@ -258,20 +257,20 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 		}
 	}
 
-	async rename(from: URI, to: URI, opts: FileOverwriteOptions): Promise<void> {
+	async rename(from: URI, to: URI, opts: IFileOverwriteOptions): Promise<void> {
 		try {
 			if (this.extUri.isEqual(from, to)) {
 				return; // no-op if the paths are the same
 			}
 
 			// Implement file rename by write + delete
-			let fileHandle = await this.getFileHandle(from);
+			const fileHandle = await this.getFileHandle(from);
 			if (fileHandle) {
 				const file = await fileHandle.getFile();
 				const contents = new Uint8Array(await file.arrayBuffer());
 
-				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false });
-				await this.delete(from, { recursive: false, useTrash: false });
+				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false, atomic: false });
+				await this.delete(from, { recursive: false, useTrash: false, atomic: false });
 			}
 
 			// File API does not support any real rename otherwise
@@ -382,7 +381,12 @@ export class HTMLFileSystemProvider implements IFileSystemProviderWithFileReadWr
 			return handle;
 		}
 
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+		const parentUri = this.extUri.dirname(resource);
+		if (this.extUri.isEqual(parentUri, resource)) {
+			return undefined; // return when root is reached to prevent infinite recursion
+		}
+
+		const parent = await this.getDirectoryHandle(parentUri);
 
 		try {
 			return await parent?.getDirectoryHandle(extUri.basename(resource));

@@ -12,19 +12,19 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from 'vs/plat
 import * as platform from 'vs/platform/registry/common/platform';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 
-export const TOKEN_TYPE_WILDCARD = '*';
-export const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
-export const CLASSIFIER_MODIFIER_SEPARATOR = '.';
+const TOKEN_TYPE_WILDCARD = '*';
+const TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR = ':';
+const CLASSIFIER_MODIFIER_SEPARATOR = '.';
 
 // qualified string [type|*](.modifier)*(/language)!
-export type TokenClassificationString = string;
+type TokenClassificationString = string;
 
-export const idPattern = '\\w+[-_\\w+]*';
+const idPattern = '\\w+[-_\\w+]*';
 export const typeAndModifierIdPattern = `^${idPattern}$`;
 
-export const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
+const selectorPattern = `^(${idPattern}|\\*)(\\${CLASSIFIER_MODIFIER_SEPARATOR}${idPattern})*(${TOKEN_CLASSIFIER_LANGUAGE_SEPARATOR}${idPattern})?$`;
 
-export const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
+const fontStylePattern = '^(\\s*(italic|bold|underline|strikethrough))*\\s*$';
 
 export interface TokenSelector {
 	match(type: string, modifiers: string[], language: string): number;
@@ -186,7 +186,7 @@ export namespace SemanticTokenRule {
 export type TokenStyleValue = TokenStyle | TokenClassificationString;
 
 // TokenStyle registry
-export const Extensions = {
+const Extensions = {
 	TokenClassificationContribution: 'base.contributions.tokenClassification'
 };
 
@@ -361,7 +361,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 		}
 
 		const num = this.currentTypeNumber++;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, superType, description, deprecationMessage };
 		this.tokenTypeById[id] = tokenStyleContribution;
 
 		const stylingSchemeEntry = getStylingSchemeEntry(description, deprecationMessage);
@@ -376,7 +376,7 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 		const num = this.currentModifierBit;
 		this.currentModifierBit = this.currentModifierBit * 2;
-		let tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
+		const tokenStyleContribution: TokenTypeOrModifierContribution = { num, id, description, deprecationMessage };
 		this.tokenModifierById[id] = tokenStyleContribution;
 
 		this.tokenStylingSchema.properties[`*.${id}`] = getStylingSchemeEntry(description, deprecationMessage);
@@ -472,9 +472,9 @@ class TokenClassificationRegistry implements ITokenClassificationRegistry {
 
 
 	public toString() {
-		let sorter = (a: string, b: string) => {
-			let cat1 = a.indexOf('.') === -1 ? 0 : 1;
-			let cat2 = b.indexOf('.') === -1 ? 0 : 1;
+		const sorter = (a: string, b: string) => {
+			const cat1 = a.indexOf('.') === -1 ? 0 : 1;
+			const cat2 = b.indexOf('.') === -1 ? 0 : 1;
 			if (cat1 !== cat2) {
 				return cat1 - cat2;
 			}
@@ -513,7 +513,7 @@ export function parseClassifierString(s: string, defaultLanguage: string | undef
 }
 
 
-let tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
+const tokenClassificationRegistry = createDefaultTokenClassificationRegistry();
 platform.Registry.add(Extensions.TokenClassificationContribution, tokenClassificationRegistry);
 
 
@@ -579,7 +579,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registry.registerTokenModifier('deprecated', nls.localize('deprecated', "Style to use for symbols that are deprecated."), undefined);
 	registry.registerTokenModifier('modification', nls.localize('modification', "Style to use for write accesses."), undefined);
 	registry.registerTokenModifier('async', nls.localize('async', "Style to use for symbols that are async."), undefined);
-	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are readonly."), undefined);
+	registry.registerTokenModifier('readonly', nls.localize('readonly', "Style to use for symbols that are read-only."), undefined);
 
 
 	registerTokenStyleDefault('variable.readonly', [['variable.other.constant']]);
@@ -619,7 +619,7 @@ function getStylingSchemeEntry(description?: string, deprecationMessage?: string
 
 export const tokenStylingSchemaId = 'vscode://schemas/token-styling';
 
-let schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+const schemaRegistry = platform.Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 schemaRegistry.registerSchema(tokenStylingSchemaId, tokenClassificationRegistry.getTokenStylingSchema());
 
 const delayer = new RunOnceScheduler(() => schemaRegistry.notifySchemaChanged(tokenStylingSchemaId), 200);

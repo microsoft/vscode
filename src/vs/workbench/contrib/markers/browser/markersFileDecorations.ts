@@ -28,7 +28,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {
-		let markers = this._markerService.read({
+		const markers = this._markerService.read({
 			resource,
 			severities: MarkerSeverity.Error | MarkerSeverity.Warning
 		});
@@ -66,7 +66,11 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	) {
 		//
 		this._disposables = [
-			this._configurationService.onDidChangeConfiguration(this._updateEnablement, this),
+			this._configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration('problems')) {
+					this._updateEnablement();
+				}
+			}),
 		];
 		this._updateEnablement();
 	}
@@ -77,7 +81,7 @@ class MarkersFileDecorations implements IWorkbenchContribution {
 	}
 
 	private _updateEnablement(): void {
-		let value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
+		const value = this._configurationService.getValue<{ decorations: { enabled: boolean } }>('problems');
 		if (value.decorations.enabled === this._enabled) {
 			return;
 		}

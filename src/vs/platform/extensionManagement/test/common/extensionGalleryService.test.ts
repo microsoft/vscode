@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { isUUID } from 'vs/base/common/uuid';
@@ -23,6 +22,8 @@ import { resolveMarketplaceHeaders } from 'vs/platform/externalServices/common/m
 import { InMemoryStorageService, IStorageService } from 'vs/platform/storage/common/storage';
 import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
 import { TargetPlatform } from 'vs/platform/extensions/common/extensions';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 	override readonly serviceMachineIdResource: URI;
@@ -34,7 +35,7 @@ class EnvironmentServiceMock extends mock<IEnvironmentService>() {
 }
 
 suite('Extension Gallery Service', () => {
-	const disposables: DisposableStore = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let fileService: IFileService, environmentService: IEnvironmentService, storageService: IStorageService, productService: IProductService, configurationService: IConfigurationService;
 
 	setup(() => {
@@ -42,19 +43,17 @@ suite('Extension Gallery Service', () => {
 		environmentService = new EnvironmentServiceMock(serviceMachineIdResource);
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider);
-		storageService = new InMemoryStorageService();
+		disposables.add(fileService.registerProvider(serviceMachineIdResource.scheme, fileSystemProvider));
+		storageService = disposables.add(new InMemoryStorageService());
 		configurationService = new TestConfigurationService({ [TELEMETRY_SETTING_ID]: TelemetryConfiguration.ON });
 		configurationService.updateValue(TELEMETRY_SETTING_ID, TelemetryConfiguration.ON);
 		productService = { _serviceBrand: undefined, ...product, enableTelemetry: true };
 	});
 
-	teardown(() => disposables.clear());
-
 	test('marketplace machine id', async () => {
-		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.ok(isUUID(headers['X-Market-User-Id']));
-		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService);
+		const headers2 = await resolveMarketplaceHeaders(product.version, productService, environmentService, configurationService, fileService, storageService, NullTelemetryService);
 		assert.strictEqual(headers['X-Market-User-Id'], headers2['X-Market-User-Id']);
 	});
 

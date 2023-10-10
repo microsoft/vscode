@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, AsyncEmitter, IWaitUntil } from 'vs/base/common/event';
 import { Promises } from 'vs/base/common/async';
 import { insert } from 'vs/base/common/arrays';
@@ -525,4 +525,4 @@ export class WorkingCopyFileService extends Disposable implements IWorkingCopyFi
 	//#endregion
 }
 
-registerSingleton(IWorkingCopyFileService, WorkingCopyFileService, true);
+registerSingleton(IWorkingCopyFileService, WorkingCopyFileService, InstantiationType.Delayed);

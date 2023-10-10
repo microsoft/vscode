@@ -30,9 +30,24 @@ export function setupNativeHover(htmlElement: HTMLElement, tooltip: string | ITo
 	}
 }
 
-export type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
+type IHoverContent = string | ITooltipMarkdownString | HTMLElement | undefined;
 type IResolvedHoverContent = IMarkdownString | string | HTMLElement | undefined;
 
+/**
+ * Copied from src\vs\workbench\services\hover\browser\hover.ts
+ * @deprecated Use IHoverService
+ */
+interface IHoverAction {
+	label: string;
+	commandId: string;
+	iconClass?: string;
+	run(target: HTMLElement): void;
+}
+
+export interface IUpdatableHoverOptions {
+	actions?: IHoverAction[];
+	linkHandler?(url: string): void;
+}
 
 export interface ICustomHover extends IDisposable {
 
@@ -49,7 +64,7 @@ export interface ICustomHover extends IDisposable {
 	/**
 	 * Updates the contents of the hover.
 	 */
-	update(tooltip: IHoverContent): void;
+	update(tooltip: IHoverContent, options?: IUpdatableHoverOptions): void;
 }
 
 
@@ -61,7 +76,7 @@ class UpdatableHoverWidget implements IDisposable {
 	constructor(private hoverDelegate: IHoverDelegate, private target: IHoverDelegateTarget | HTMLElement, private fadeInAnimation: boolean) {
 	}
 
-	async update(content: IHoverContent, focus?: boolean): Promise<void> {
+	async update(content: IHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): Promise<void> {
 		if (this._cancellationTokenSource) {
 			// there's an computation ongoing, cancel it
 			this._cancellationTokenSource.dispose(true);
@@ -99,10 +114,10 @@ class UpdatableHoverWidget implements IDisposable {
 			}
 		}
 
-		this.show(resolvedContent, focus);
+		this.show(resolvedContent, focus, options);
 	}
 
-	private show(content: IResolvedHoverContent, focus?: boolean): void {
+	private show(content: IResolvedHoverContent, focus?: boolean, options?: IUpdatableHoverOptions): void {
 		const oldHoverWidget = this._hoverWidget;
 
 		if (this.hasContent(content)) {
@@ -111,7 +126,8 @@ class UpdatableHoverWidget implements IDisposable {
 				target: this.target,
 				showPointer: this.hoverDelegate.placement === 'element',
 				hoverPosition: HoverPosition.BELOW,
-				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget // do not fade in if the hover is already showing
+				skipFadeInAnimation: !this.fadeInAnimation || !!oldHoverWidget, // do not fade in if the hover is already showing
+				...options
 			};
 
 			this._hoverWidget = this.hoverDelegate.showHover(hoverOptions, focus);
@@ -142,12 +158,13 @@ class UpdatableHoverWidget implements IDisposable {
 	}
 }
 
-export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContent): ICustomHover {
+export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTMLElement, content: IHoverContent, options?: IUpdatableHoverOptions): ICustomHover {
 	let hoverPreparation: IDisposable | undefined;
 
 	let hoverWidget: UpdatableHoverWidget | undefined;
 
 	const hideHover = (disposeWidget: boolean, disposePreparation: boolean) => {
+		const hadHover = hoverWidget !== undefined;
 		if (disposeWidget) {
 			hoverWidget?.dispose();
 			hoverWidget = undefined;
@@ -156,14 +173,16 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 			hoverPreparation?.dispose();
 			hoverPreparation = undefined;
 		}
-		hoverDelegate.onDidHideHover?.();
+		if (hadHover) {
+			hoverDelegate.onDidHideHover?.();
+		}
 	};
 
 	const triggerShowHover = (delay: number, focus?: boolean, target?: IHoverDelegateTarget) => {
 		return new TimeoutTimer(async () => {
 			if (!hoverWidget || hoverWidget.isDisposed) {
 				hoverWidget = new UpdatableHoverWidget(hoverDelegate, target || htmlElement, delay > 0);
-				await hoverWidget.update(content, focus);
+				await hoverWidget.update(content, focus, options);
 			}
 		}, delay);
 	};
@@ -187,7 +206,12 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		};
 		if (hoverDelegate.placement === undefined || hoverDelegate.placement === 'mouse') {
 			// track the mouse position
-			const onMouseMove = (e: MouseEvent) => target.x = e.x + 10;
+			const onMouseMove = (e: MouseEvent) => {
+				target.x = e.x + 10;
+				if ((e.target instanceof HTMLElement) && e.target.classList.contains('action-label')) {
+					hideHover(true, true);
+				}
+			};
 			toDispose.add(dom.addDisposableListener(htmlElement, dom.EventType.MOUSE_MOVE, onMouseMove, true));
 		}
 		toDispose.add(triggerShowHover(hoverDelegate.delay, false, target));
@@ -203,9 +227,9 @@ export function setupCustomHover(hoverDelegate: IHoverDelegate, htmlElement: HTM
 		hide: () => {
 			hideHover(true, true);
 		},
-		update: async newContent => {
+		update: async (newContent, hoverOptions) => {
 			content = newContent;
-			await hoverWidget?.update(content);
+			await hoverWidget?.update(content, undefined, hoverOptions);
 		},
 		dispose: () => {
 			mouseOverDomEmitter.dispose();

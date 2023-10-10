@@ -9,7 +9,8 @@
 	--dropdown-padding-bottom: 1px;
 }
 
-.hc-black .monaco-select-box-dropdown-padding {
+.hc-black .monaco-select-box-dropdown-padding,
+.hc-light .monaco-select-box-dropdown-padding {
 	--dropdown-padding-top: 3px;
 	--dropdown-padding-bottom: 4px;
 }
@@ -40,6 +41,8 @@
 	text-align: left;
 	width: 1px;
 	overflow: hidden;
+	border-bottom-left-radius: 3px;
+	border-bottom-right-radius: 3px;
 }
 
 .monaco-select-box-dropdown-container > .select-box-dropdown-list-container {

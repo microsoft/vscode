@@ -4,12 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
 import { InlineDecoration, InlineDecorationType } from 'vs/editor/common/viewModel';
 import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 
 suite('ViewModelDecorations', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('getDecorationsViewportData', () => {
 		const text = [
 			'hello world, this is a buffer that will be wrapped'
@@ -26,7 +30,7 @@ suite('ViewModelDecorations', () => {
 			assert.strictEqual(viewModel.getLineContent(5), 'wrapped');
 
 			model.changeDecorations((accessor) => {
-				let createOpts = (id: string) => {
+				const createOpts = (id: string) => {
 					return {
 						description: 'test',
 						className: id,
@@ -74,7 +78,7 @@ suite('ViewModelDecorations', () => {
 				accessor.addDecoration(new Range(1, 40, 1, 51), createOpts('dec15'));
 			});
 
-			let actualDecorations = viewModel.getDecorationsInViewport(
+			const actualDecorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).map((dec) => {
 				return dec.options.className;
@@ -97,7 +101,7 @@ suite('ViewModelDecorations', () => {
 				'dec14',
 			]);
 
-			const inlineDecorations1 = viewModel.getViewLineRenderingData(
+			const inlineDecorations1 = viewModel.getViewportViewLineRenderingData(
 				new Range(1, viewModel.getLineMinColumn(1), 2, viewModel.getLineMaxColumn(2)),
 				1
 			).inlineDecorations;
@@ -118,7 +122,7 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(1, 2, 1, 2), 'b-dec5', InlineDecorationType.Before),
 			]);
 
-			const inlineDecorations2 = viewModel.getViewLineRenderingData(
+			const inlineDecorations2 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
@@ -148,7 +152,7 @@ suite('ViewModelDecorations', () => {
 				new InlineDecoration(new Range(2, 3, 2, 3), 'b-dec12', InlineDecorationType.Before),
 			]);
 
-			const inlineDecorations3 = viewModel.getViewLineRenderingData(
+			const inlineDecorations3 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
@@ -193,18 +197,18 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let decorations = viewModel.getDecorationsInViewport(
+			const decorations = viewModel.getDecorationsInViewport(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3))
 			).filter(x => Boolean(x.options.beforeContentClassName));
 			assert.deepStrictEqual(decorations, []);
 
-			let inlineDecorations1 = viewModel.getViewLineRenderingData(
+			const inlineDecorations1 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				2
 			).inlineDecorations;
 			assert.deepStrictEqual(inlineDecorations1, []);
 
-			let inlineDecorations2 = viewModel.getViewLineRenderingData(
+			const inlineDecorations2 = viewModel.getViewportViewLineRenderingData(
 				new Range(2, viewModel.getLineMinColumn(2), 3, viewModel.getLineMaxColumn(3)),
 				3
 			).inlineDecorations;
@@ -229,7 +233,7 @@ suite('ViewModelDecorations', () => {
 				);
 			});
 
-			let inlineDecorations = viewModel.getViewLineRenderingData(
+			const inlineDecorations = viewModel.getViewportViewLineRenderingData(
 				new Range(1, 1, 1, 1),
 				1
 			).inlineDecorations;

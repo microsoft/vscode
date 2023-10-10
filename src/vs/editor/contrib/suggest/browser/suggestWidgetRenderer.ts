@@ -3,18 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isSafari } from 'vs/base/browser/browser';
 import { $, append, hide, show } from 'vs/base/browser/dom';
 import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { flatten } from 'vs/base/common/arrays';
-import { Codicon, CSSIcon } from 'vs/base/common/codicons';
+import { Codicon } from 'vs/base/common/codicons';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { createMatches } from 'vs/base/common/filters';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorOption, EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { CompletionItemKind, CompletionItemKinds, CompletionItemTag } from 'vs/editor/common/languages';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -22,7 +21,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import * as nls from 'vs/nls';
 import { FileKind } from 'vs/platform/files/common/files';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService, ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionItem } from './suggest';
 import { canExpandCompletionItem } from './suggestWidgetDetails';
 
@@ -30,7 +29,7 @@ export function getAriaId(index: number): string {
 	return `suggest-aria-id:${index}`;
 }
 
-export const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
+const suggestMoreInfoIcon = registerIcon('suggest-more-info', Codicon.chevronRight, nls.localize('suggestMoreInfoIcon', 'Icon for more information in the suggest widget.'));
 
 const _completionItemColor = new class ColorExtractor {
 
@@ -59,28 +58,28 @@ const _completionItemColor = new class ColorExtractor {
 
 
 export interface ISuggestionTemplateData {
-	root: HTMLElement;
+	readonly root: HTMLElement;
 
 	/**
 	 * Flexbox
 	 * < ------------- left ------------ >     < --- right -- >
 	 * <icon><label><signature><qualifier>     <type><readmore>
 	 */
-	left: HTMLElement;
-	right: HTMLElement;
+	readonly left: HTMLElement;
+	readonly right: HTMLElement;
 
-	icon: HTMLElement;
-	colorspan: HTMLElement;
-	iconLabel: IconLabel;
-	iconContainer: HTMLElement;
-	parametersLabel: HTMLElement;
-	qualifierLabel: HTMLElement;
+	readonly icon: HTMLElement;
+	readonly colorspan: HTMLElement;
+	readonly iconLabel: IconLabel;
+	readonly iconContainer: HTMLElement;
+	readonly parametersLabel: HTMLElement;
+	readonly qualifierLabel: HTMLElement;
 	/**
 	 * Showing either `CompletionItem#details` or `CompletionItemLabel#type`
 	 */
-	detailsLabel: HTMLElement;
-	readMore: HTMLElement;
-	disposables: DisposableStore;
+	readonly detailsLabel: HTMLElement;
+	readonly readMore: HTMLElement;
+	readonly disposables: DisposableStore;
 }
 
 export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTemplateData> {
@@ -102,63 +101,65 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 	}
 
 	renderTemplate(container: HTMLElement): ISuggestionTemplateData {
-		const data = <ISuggestionTemplateData>Object.create(null);
-		data.disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 
-		data.root = container;
-		data.root.classList.add('show-file-icons');
+		const root = container;
+		root.classList.add('show-file-icons');
 
-		data.icon = append(container, $('.icon'));
-		data.colorspan = append(data.icon, $('span.colorspan'));
+		const icon = append(container, $('.icon'));
+		const colorspan = append(icon, $('span.colorspan'));
 
 		const text = append(container, $('.contents'));
 		const main = append(text, $('.main'));
 
-		data.iconContainer = append(main, $('.icon-label.codicon'));
-		data.left = append(main, $('span.left'));
-		data.right = append(main, $('span.right'));
+		const iconContainer = append(main, $('.icon-label.codicon'));
+		const left = append(main, $('span.left'));
+		const right = append(main, $('span.right'));
 
-		data.iconLabel = new IconLabel(data.left, { supportHighlights: true, supportIcons: true });
-		data.disposables.add(data.iconLabel);
+		const iconLabel = new IconLabel(left, { supportHighlights: true, supportIcons: true });
+		disposables.add(iconLabel);
 
-		data.parametersLabel = append(data.left, $('span.signature-label'));
-		data.qualifierLabel = append(data.left, $('span.qualifier-label'));
-		data.detailsLabel = append(data.right, $('span.details-label'));
+		const parametersLabel = append(left, $('span.signature-label'));
+		const qualifierLabel = append(left, $('span.qualifier-label'));
+		const detailsLabel = append(right, $('span.details-label'));
 
-		data.readMore = append(data.right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
-		data.readMore.title = nls.localize('readMore', "Read More");
+		const readMore = append(right, $('span.readMore' + ThemeIcon.asCSSSelector(suggestMoreInfoIcon)));
+		readMore.title = nls.localize('readMore', "Read More");
 
 		const configureFont = () => {
 			const options = this._editor.getOptions();
 			const fontInfo = options.get(EditorOption.fontInfo);
-			const fontFamily = fontInfo.getMassagedFontFamily(isSafari ? EDITOR_FONT_DEFAULTS.fontFamily : null);
+			const fontFamily = fontInfo.getMassagedFontFamily();
 			const fontFeatureSettings = fontInfo.fontFeatureSettings;
 			const fontSize = options.get(EditorOption.suggestFontSize) || fontInfo.fontSize;
 			const lineHeight = options.get(EditorOption.suggestLineHeight) || fontInfo.lineHeight;
 			const fontWeight = fontInfo.fontWeight;
+			const letterSpacing = fontInfo.letterSpacing;
 			const fontSizePx = `${fontSize}px`;
 			const lineHeightPx = `${lineHeight}px`;
+			const letterSpacingPx = `${letterSpacing}px`;
 
-			data.root.style.fontSize = fontSizePx;
-			data.root.style.fontWeight = fontWeight;
+			root.style.fontSize = fontSizePx;
+			root.style.fontWeight = fontWeight;
+			root.style.letterSpacing = letterSpacingPx;
 			main.style.fontFamily = fontFamily;
 			main.style.fontFeatureSettings = fontFeatureSettings;
 			main.style.lineHeight = lineHeightPx;
-			data.icon.style.height = lineHeightPx;
-			data.icon.style.width = lineHeightPx;
-			data.readMore.style.height = lineHeightPx;
-			data.readMore.style.width = lineHeightPx;
+			icon.style.height = lineHeightPx;
+			icon.style.width = lineHeightPx;
+			readMore.style.height = lineHeightPx;
+			readMore.style.width = lineHeightPx;
 		};
 
 		configureFont();
 
-		data.disposables.add(this._editor.onDidChangeConfiguration(e => {
+		disposables.add(this._editor.onDidChangeConfiguration(e => {
 			if (e.hasChanged(EditorOption.fontInfo) || e.hasChanged(EditorOption.suggestFontSize) || e.hasChanged(EditorOption.suggestLineHeight)) {
 				configureFont();
 			}
 		}));
 
-		return data;
+		return { root, left, right, icon, colorspan, iconLabel, iconContainer, parametersLabel, qualifierLabel, detailsLabel, readMore, disposables };
 	}
 
 	renderElement(element: CompletionItem, index: number, data: ISuggestionTemplateData): void {
@@ -171,7 +172,7 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			matches: createMatches(element.score)
 		};
 
-		let color: string[] = [];
+		const color: string[] = [];
 		if (completion.kind === CompletionItemKind.Color && _completionItemColor.extract(element, color)) {
 			// special logic for 'color' completion items
 			data.icon.className = 'icon customcolor';
@@ -190,15 +191,15 @@ export class ItemRenderer implements IListRenderer<CompletionItem, ISuggestionTe
 			// special logic for 'folder' completion items
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = 'icon hide';
-			labelOptions.extraClasses = flatten([
+			labelOptions.extraClasses = [
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: element.textLabel }), FileKind.FOLDER),
 				getIconClasses(this._modelService, this._languageService, URI.from({ scheme: 'fake', path: completion.detail }), FileKind.FOLDER)
-			]);
+			].flat();
 		} else {
 			// normal icon
 			data.icon.className = 'icon hide';
 			data.iconContainer.className = '';
-			data.iconContainer.classList.add('suggest-icon', ...CSSIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
+			data.iconContainer.classList.add('suggest-icon', ...ThemeIcon.asClassNameArray(CompletionItemKinds.toIcon(completion.kind)));
 		}
 
 		if (completion.tags && completion.tags.indexOf(CompletionItemTag.Deprecated) >= 0) {

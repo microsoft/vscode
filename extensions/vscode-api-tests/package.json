@@ -7,48 +7,51 @@
   "enabledApiProposals": [
     "authSession",
     "contribViewsRemote",
+    "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
+    "documentPaste",
     "editorInsets",
     "extensionRuntime",
+    "extensionsAny",
     "externalUriOpener",
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
-    "inlineCompletions",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
-    "notebookConcatTextDocument",
-    "notebookContentProvider",
-    "notebookControllerKind",
-    "notebookDebugOptions",
     "notebookDeprecated",
-    "notebookEditor",
-    "notebookEditorDecorationType",
-    "notebookEditorEdit",
     "notebookLiveShare",
     "notebookMessaging",
     "notebookMime",
     "portsAttributes",
     "quickPickSortByLabel",
+    "readonlyMessage",
+    "languageStatusText",
     "resolvers",
+    "saveEditor",
     "scmActionButton",
     "scmSelectedProvider",
+    "scmTextDocument",
     "scmValidation",
-    "tabs",
     "taskPresentationGroup",
     "terminalDataWriteEvent",
     "terminalDimensions",
-    "terminalNameChangeEvent",
+    "tunnels",
     "testCoverage",
     "testObserver",
-    "textDocumentNotebook",
+    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
-    "telemetry"
+    "telemetry",
+    "windowActivity",
+    "interactiveUserActions"
   ],
   "private": true,
   "activationEvents": [],
@@ -191,15 +194,27 @@
           }
         ]
       }
-    ]
+    ],
+    "statusBarItems": {
+      "id": "myStaticItem",
+      "alignment": "right",
+      "priority": 17,
+      "name": "My Static Item",
+      "text": "Hello $(globe)",
+      "tooltip": "Hover World",
+      "accessibilityInformation": {
+        "label": "Hello World",
+        "role": "button"
+      }
+    }
   },
   "scripts": {
     "compile": "node ./node_modules/vscode/bin/compile -watch -p ./",
     "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.js compile-extension:vscode-api-tests ./tsconfig.json"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
-    "@types/node": "16.x"
+    "@types/mocha": "^9.1.1",
+    "@types/node": "18.x"
   },
   "repository": {
     "type": "git",

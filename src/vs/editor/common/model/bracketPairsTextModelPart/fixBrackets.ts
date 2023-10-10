@@ -76,7 +76,10 @@ class StaticTokenizerSource implements ITokenizerSource {
 	getLineLength(lineNumber: number): number {
 		return this.lines[lineNumber - 1].getLineContent().length;
 	}
-	getLineTokens(lineNumber: number): IViewLineTokens {
-		return this.lines[lineNumber - 1];
-	}
+
+	tokenization = {
+		getLineTokens: (lineNumber: number): IViewLineTokens => {
+			return this.lines[lineNumber - 1];
+		}
+	};
 }

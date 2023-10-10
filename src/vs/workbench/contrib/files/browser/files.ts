@@ -23,7 +23,7 @@ export interface IExplorerService {
 	readonly roots: ExplorerItem[];
 	readonly sortOrderConfiguration: ISortOrderConfiguration;
 
-	getContext(respectMultiSelection: boolean): ExplorerItem[];
+	getContext(respectMultiSelection: boolean, ignoreNestedChildren?: boolean): ExplorerItem[];
 	hasViewFocus(): boolean;
 	setEditable(stat: ExplorerItem, data: IEditableData | null): Promise<void>;
 	getEditable(): { stat: ExplorerItem; data: IEditableData } | undefined;
@@ -56,11 +56,12 @@ export interface IExplorerView {
 	itemsCopied(tats: ExplorerItem[], cut: boolean, previousCut: ExplorerItem[] | undefined): void;
 	setEditable(stat: ExplorerItem, isEditing: boolean): Promise<void>;
 	isItemVisible(item: ExplorerItem): boolean;
+	isItemCollapsed(item: ExplorerItem): boolean;
 	hasFocus(): boolean;
 }
 
 function getFocus(listService: IListService): unknown | undefined {
-	let list = listService.lastFocusedList;
+	const list = listService.lastFocusedList;
 	if (list?.getHTMLElement() === document.activeElement) {
 		let focus: unknown;
 		if (list instanceof List) {
@@ -104,7 +105,7 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
-			const context = explorerService.getContext(true);
+			const context = explorerService.getContext(true, true);
 			if (context.length) {
 				return context.map(c => c.resource);
 			}
@@ -149,6 +150,7 @@ export function getOpenEditorsViewMultiSelection(listService: IListService, edit
 			if (selection.some(s => s === mainEditor)) {
 				return selection;
 			}
+			return mainEditor ? [mainEditor] : undefined;
 		}
 	}
 

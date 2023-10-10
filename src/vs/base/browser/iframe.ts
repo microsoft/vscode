@@ -27,8 +27,8 @@ function getParentWindowIfSameOrigin(w: Window): Window | null {
 
 	// Cannot really tell if we have access to the parent window unless we try to access something in it
 	try {
-		let location = w.location;
-		let parentLocation = w.parent.location;
+		const location = w.location;
+		const parentLocation = w.parent.location;
 		if (location.origin !== 'null' && parentLocation.origin !== 'null' && location.origin !== parentLocation.origin) {
 			hasDifferentOriginAncestorFlag = true;
 			return null;
@@ -97,7 +97,7 @@ export class IframeUtils {
 
 		let top = 0, left = 0;
 
-		let windowChain = this.getSameOriginWindowChain();
+		const windowChain = this.getSameOriginWindowChain();
 
 		for (const windowChainEl of windowChain) {
 
@@ -112,7 +112,7 @@ export class IframeUtils {
 				break;
 			}
 
-			let boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
+			const boundingRect = windowChainEl.iframeElement.getBoundingClientRect();
 			top += boundingRect.top;
 			left += boundingRect.left;
 		}
@@ -122,4 +122,27 @@ export class IframeUtils {
 			left: left
 		};
 	}
+}
+
+/**
+ * Returns a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+ */
+export async function parentOriginHash(parentOrigin: string, salt: string): Promise<string> {
+	// This same code is also inlined at `src/vs/workbench/services/extensions/worker/webWorkerExtensionHostIframe.html`
+	if (!crypto.subtle) {
+		throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
+	}
+
+	const strData = JSON.stringify({ parentOrigin, salt });
+	const encoder = new TextEncoder();
+	const arrData = encoder.encode(strData);
+	const hash = await crypto.subtle.digest('sha-256', arrData);
+	return sha256AsBase32(hash);
+}
+
+function sha256AsBase32(bytes: ArrayBuffer): string {
+	const array = Array.from(new Uint8Array(bytes));
+	const hexArray = array.map(b => b.toString(16).padStart(2, '0')).join('');
+	// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+	return BigInt(`0x${hexArray}`).toString(32).padStart(52, '0');
 }

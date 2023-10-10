@@ -31,7 +31,7 @@
 	"emmetShowAbbreviationSuggestions": "Shows possible Emmet abbreviations as suggestions. Not applicable in stylesheets or when emmet.showExpandedAbbreviation is set to `\"never\"`.",
 	"emmetIncludeLanguages": "Enable Emmet abbreviations in languages that are not supported by default. Add a mapping here between the language and Emmet supported language.\n For example: `{\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}`",
 	"emmetVariables": "Variables to be used in Emmet snippets.",
-	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB.",
+	"emmetTriggerExpansionOnTab": "When enabled, Emmet abbreviations are expanded when pressing TAB, even when completions do not show up. When disabled, completions that show up can still be accepted by pressing TAB.",
 	"emmetPreferences": "Preferences used to modify behavior of some actions and resolvers of Emmet.",
 	"emmetPreferencesIntUnit": "Default unit for integer values.",
 	"emmetPreferencesFloatUnit": "Default unit for float values.",
@@ -59,5 +59,6 @@
 	"emmetPreferencesOutputInlineBreak": "The number of sibling inline elements needed for line breaks to be placed between those elements. If `0`, inline elements are always expanded onto a single line.",
 	"emmetPreferencesOutputReverseAttributes": "If `true`, reverses attribute merging directions when resolving snippets.",
 	"emmetPreferencesOutputSelfClosingStyle": "Style of self-closing tags: html (`<br>`), xml (`<br/>`) or xhtml (`<br />`).",
-	"emmetPreferencesCssColorShort": "If `true`, color values like `#f` will be expanded to `#fff` instead of `#ffffff`."
+	"emmetPreferencesCssColorShort": "If `true`, color values like `#f` will be expanded to `#fff` instead of `#ffffff`.",
+	"emmetUseInlineCompletions": "If `true`, Emmet will use inline completions to suggest expansions. To prevent the non-inline completion item provider from showing up as often while this setting is `true`, turn `#editor.quickSuggestions#` to `inline` or `off` for the `other` item."
 }

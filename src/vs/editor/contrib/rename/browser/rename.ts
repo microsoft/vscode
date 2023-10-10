@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IdleValue, raceCancellation } from 'vs/base/common/async';
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -13,8 +13,8 @@ import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, EditorCommand, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkEditService';
+import { EditorAction, EditorCommand, EditorContributionInstantiation, registerEditorAction, registerEditorCommand, registerEditorContribution, registerModelAndPositionCommand, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -63,7 +63,7 @@ class RenameSkeleton {
 			if (!provider.resolveRenameLocation) {
 				break;
 			}
-			let res = await provider.resolveRenameLocation(this.model, this.position, token);
+			const res = await provider.resolveRenameLocation(this.model, this.position, token);
 			if (!res) {
 				continue;
 			}
@@ -131,8 +131,8 @@ class RenameController implements IEditorContribution {
 		return editor.getContribution<RenameController>(RenameController.ID);
 	}
 
-	private readonly _renameInputField: IdleValue<RenameInputField>;
-	private readonly _dispoableStore = new DisposableStore();
+	private readonly _renameInputField: RenameInputField;
+	private readonly _disposableStore = new DisposableStore();
 	private _cts: CancellationTokenSource = new CancellationTokenSource();
 
 	constructor(
@@ -145,17 +145,20 @@ class RenameController implements IEditorContribution {
 		@ITextResourceConfigurationService private readonly _configService: ITextResourceConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 	) {
-		this._renameInputField = this._dispoableStore.add(new IdleValue(() => this._dispoableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']))));
+		this._renameInputField = this._disposableStore.add(this._instaService.createInstance(RenameInputField, this.editor, ['acceptRenameInput', 'acceptRenameInputWithPreview']));
 	}
 
 	dispose(): void {
-		this._dispoableStore.dispose();
+		this._disposableStore.dispose();
 		this._cts.dispose(true);
 	}
 
 	async run(): Promise<void> {
 
+		// set up cancellation token to prevent reentrant rename, this
+		// is the parent to the resolve- and rename-tokens
 		this._cts.dispose(true);
+		this._cts = new CancellationTokenSource();
 
 		if (!this.editor.hasModel()) {
 			return undefined;
@@ -168,17 +171,21 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
-		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value);
+		// part 1 - resolve rename location
+		const cts1 = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, undefined, this._cts.token);
 
-		// resolve rename location
 		let loc: RenameLocation & Rejection | undefined;
 		try {
-			const resolveLocationOperation = skeleton.resolveRenameLocation(this._cts.token);
+			const resolveLocationOperation = skeleton.resolveRenameLocation(cts1.token);
 			this._progressService.showWhile(resolveLocationOperation, 250);
 			loc = await resolveLocationOperation;
+
 		} catch (e) {
 			MessageController.get(this.editor)?.showMessage(e || nls.localize('resolveRenameLocationFailed', "An unknown error occurred while resolving rename location"), position);
 			return undefined;
+
+		} finally {
+			cts1.dispose();
 		}
 
 		if (!loc) {
@@ -190,14 +197,14 @@ class RenameController implements IEditorContribution {
 			return undefined;
 		}
 
-		if (this._cts.token.isCancellationRequested) {
+		if (cts1.token.isCancellationRequested) {
 			return undefined;
 		}
-		this._cts.dispose();
-		this._cts = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range);
 
-		// do rename at location
-		let selection = this.editor.getSelection();
+		// part 2 - do rename at location
+		const cts2 = new EditorStateCancellationTokenSource(this.editor, CodeEditorStateFlag.Position | CodeEditorStateFlag.Value, loc.range, this._cts.token);
+
+		const selection = this.editor.getSelection();
 		let selectionStart = 0;
 		let selectionEnd = loc.text.length;
 
@@ -207,19 +214,20 @@ class RenameController implements IEditorContribution {
 		}
 
 		const supportPreview = this._bulkEditService.hasPreviewHandler() && this._configService.getValue<boolean>(this.editor.getModel().uri, 'editor.rename.enablePreview');
-		const inputFieldResult = await this._renameInputField.value.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, this._cts.token);
+		const inputFieldResult = await this._renameInputField.getInput(loc.range, loc.text, selectionStart, selectionEnd, supportPreview, cts2.token);
 
 		// no result, only hint to focus the editor or not
 		if (typeof inputFieldResult === 'boolean') {
 			if (inputFieldResult) {
 				this.editor.focus();
 			}
+			cts2.dispose();
 			return undefined;
 		}
 
 		this.editor.focus();
 
-		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, this._cts.token), this._cts.token).then(async renameResult => {
+		const renameOperation = raceCancellation(skeleton.provideRenameEdits(inputFieldResult.newName, cts2.token), cts2.token).then(async renameResult => {
 
 			if (!renameResult || !this.editor.hasModel()) {
 				return;
@@ -233,12 +241,13 @@ class RenameController implements IEditorContribution {
 			// collapse selection to active end
 			this.editor.setSelection(Range.fromPositions(this.editor.getSelection().getPosition()));
 
-			this._bulkEditService.apply(ResourceEdit.convert(renameResult), {
+			this._bulkEditService.apply(renameResult, {
 				editor: this.editor,
 				showPreview: inputFieldResult.wantsPreview,
-				label: nls.localize('label', "Renaming '{0}'", loc?.text),
+				label: nls.localize('label', "Renaming '{0}' to '{1}'", loc?.text, inputFieldResult.newName),
 				code: 'undoredo.rename',
-				quotableLabel: nls.localize('quotableLabel', "Renaming {0}", loc?.text),
+				quotableLabel: nls.localize('quotableLabel', "Renaming {0} to {1}", loc?.text, inputFieldResult.newName),
+				respectAutoSaveConfig: true
 			}).then(result => {
 				if (result.ariaSummary) {
 					alert(nls.localize('aria', "Successfully renamed '{0}' to '{1}'. Summary: {2}", loc!.text, inputFieldResult.newName, result.ariaSummary));
@@ -251,6 +260,9 @@ class RenameController implements IEditorContribution {
 		}, err => {
 			this._notificationService.error(nls.localize('rename.failed', "Rename failed to compute edits"));
 			this._logService.error(err);
+
+		}).finally(() => {
+			cts2.dispose();
 		});
 
 		this._progressService.showWhile(renameOperation, 250);
@@ -259,11 +271,11 @@ class RenameController implements IEditorContribution {
 	}
 
 	acceptRenameInput(wantsPreview: boolean): void {
-		this._renameInputField.value.acceptInput(wantsPreview);
+		this._renameInputField.acceptInput(wantsPreview);
 	}
 
 	cancelRenameInput(): void {
-		this._renameInputField.value.cancelInput(true);
+		this._renameInputField.cancelInput(true);
 	}
 }
 
@@ -318,7 +330,7 @@ export class RenameAction extends EditorAction {
 	}
 }
 
-registerEditorContribution(RenameController.ID, RenameController);
+registerEditorContribution(RenameController.ID, RenameController, EditorContributionInstantiation.Lazy);
 registerEditorAction(RenameAction);
 
 const RenameCommand = EditorCommand.bindToContribution<RenameController>(RenameController.get);
@@ -329,7 +341,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(false),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyCode.Enter
 	}
 }));
@@ -340,7 +352,7 @@ registerEditorCommand(new RenameCommand({
 	handler: x => x.acceptRenameInput(true),
 	kbOpts: {
 		weight: KeybindingWeight.EditorContrib + 99,
-		kbExpr: EditorContextKeys.focus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.focus, ContextKeyExpr.not('isComposing')),
 		primary: KeyMod.Shift + KeyCode.Enter
 	}
 }));

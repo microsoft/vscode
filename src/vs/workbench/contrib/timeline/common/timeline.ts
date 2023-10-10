@@ -11,7 +11,7 @@ import { Command } from 'vs/editor/common/languages';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export function toKey(extension: ExtensionIdentifier | string, source: string) {
@@ -51,6 +51,7 @@ export interface TimelineItem {
 	contextValue?: string;
 
 	relativeTime?: string;
+	relativeTimeFullWord?: string;
 	hideRelativeTime?: boolean;
 }
 
@@ -76,11 +77,8 @@ export interface TimelineChangeEvent {
 export interface TimelineOptions {
 	cursor?: string;
 	limit?: number | { timestamp: number; id?: string };
-}
-
-export interface InternalTimelineOptions {
-	cacheResults: boolean;
-	resetCache: boolean;
+	resetCache?: boolean;
+	cacheResults?: boolean;
 }
 
 export interface Timeline {
@@ -100,7 +98,7 @@ export interface Timeline {
 export interface TimelineProvider extends TimelineProviderDescriptor, IDisposable {
 	onDidChange?: Event<TimelineChangeEvent>;
 
-	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken, internalOptions?: InternalTimelineOptions): Promise<Timeline | undefined>;
+	provideTimeline(uri: URI, options: TimelineOptions, token: CancellationToken): Promise<Timeline | undefined>;
 }
 
 export interface TimelineSource {
@@ -151,7 +149,7 @@ export interface ITimelineService {
 
 	getSources(): TimelineSource[];
 
-	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource, internalOptions?: InternalTimelineOptions): TimelineRequest | undefined;
+	getTimeline(id: string, uri: URI, options: TimelineOptions, tokenSource: CancellationTokenSource): TimelineRequest | undefined;
 
 	setUri(uri: URI): void;
 }

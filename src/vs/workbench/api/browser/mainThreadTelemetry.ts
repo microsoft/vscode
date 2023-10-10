@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
-import { MainThreadTelemetryShape, MainContext, ExtHostTelemetryShape, ExtHostContext } from '../common/extHost.protocol';
-import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ClassifiedEvent, StrictPropertyCheck, GDPRClassification } from 'vs/platform/telemetry/common/gdprTypings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { getTelemetryLevel, supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from 'vs/platform/telemetry/common/gdprTypings';
+import { ITelemetryService, TelemetryLevel, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SETTING_ID } from 'vs/platform/telemetry/common/telemetry';
+import { supportsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
+import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
+import { ExtHostContext, ExtHostTelemetryShape, MainContext, MainThreadTelemetryShape } from '../common/extHost.protocol';
 
 @extHostNamedCustomer(MainContext.MainThreadTelemetry)
 export class MainThreadTelemetry extends Disposable implements MainThreadTelemetryShape {
@@ -24,7 +24,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IProductService private readonly _productService: IProductService
+		@IProductService private readonly _productService: IProductService,
 	) {
 		super();
 
@@ -37,8 +37,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 				}
 			}));
 		}
-
-		this._proxy.$initializeTelemetryLevel(this.telemetryLevel);
+		this._proxy.$initializeTelemetryLevel(this.telemetryLevel, supportsTelemetry(this._productService, this._environmentService), this._productService.enabledTelemetryLevels);
 	}
 
 	private get telemetryLevel(): TelemetryLevel {
@@ -46,7 +45,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 			return TelemetryLevel.NONE;
 		}
 
-		return getTelemetryLevel(this._configurationService);
+		return this._telemetryService.telemetryLevel;
 	}
 
 	$publicLog(eventName: string, data: any = Object.create(null)): void {
@@ -55,7 +54,7 @@ export class MainThreadTelemetry extends Disposable implements MainThreadTelemet
 		this._telemetryService.publicLog(eventName, data);
 	}
 
-	$publicLog2<E extends ClassifiedEvent<T> = never, T extends GDPRClassification<T> = never>(eventName: string, data: StrictPropertyCheck<T, E>): void {
+	$publicLog2<E extends ClassifiedEvent<OmitMetadata<T>> = never, T extends IGDPRProperty = never>(eventName: string, data?: StrictPropertyCheck<T, E>): void {
 		this.$publicLog(eventName, data as any);
 	}
 }

@@ -4,20 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { disposableTimeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellInternalMetadata } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
 
-export class CellExecutionPart extends CellPart {
+const UPDATE_EXECUTION_ORDER_GRACE_PERIOD = 200;
+
+export class CellExecutionPart extends CellContentPart {
 	private kernelDisposables = this._register(new DisposableStore());
-	private currentCell: ICellViewModel | undefined;
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
-		private readonly _executionOrderLabel: HTMLElement
+		private readonly _executionOrderLabel: HTMLElement,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService
 	) {
 		super();
 
@@ -38,13 +41,23 @@ export class CellExecutionPart extends CellPart {
 		}));
 	}
 
-	renderCell(element: ICellViewModel, _templateData: BaseCellRenderTemplate): void {
-		this.currentCell = element;
-		this.updateExecutionOrder(element.internalMetadata);
+	override didRenderCell(element: ICellViewModel): void {
+		this.updateExecutionOrder(element.internalMetadata, true);
 	}
 
-	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata): void {
-		if (this._notebookEditor.activeKernel?.implementsExecutionOrder) {
+	private updateExecutionOrder(internalMetadata: NotebookCellInternalMetadata, forceClear = false): void {
+		if (this._notebookEditor.activeKernel?.implementsExecutionOrder || (!this._notebookEditor.activeKernel && typeof internalMetadata.executionOrder === 'number')) {
+			// If the executionOrder was just cleared, and the cell is executing, wait just a bit before clearing the view to avoid flashing
+			if (typeof internalMetadata.executionOrder !== 'number' && !forceClear && !!this._notebookExecutionStateService.getCellExecution(this.currentCell!.uri)) {
+				const renderingCell = this.currentCell;
+				this.cellDisposables.add(disposableTimeout(() => {
+					if (this.currentCell === renderingCell) {
+						this.updateExecutionOrder(this.currentCell!.internalMetadata, true);
+					}
+				}, UPDATE_EXECUTION_ORDER_GRACE_PERIOD));
+				return;
+			}
+
 			const executionOrderLabel = typeof internalMetadata.executionOrder === 'number' ?
 				`[${internalMetadata.executionOrder}]` :
 				'[ ]';
@@ -54,20 +67,19 @@ export class CellExecutionPart extends CellPart {
 		}
 	}
 
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
 		if (e.internalMetadataChanged) {
 			this.updateExecutionOrder(element.internalMetadata);
 		}
 	}
 
-	updateInternalLayoutNow(element: ICellViewModel): void {
+	override updateInternalLayoutNow(element: ICellViewModel): void {
 		if (element.isInputCollapsed) {
 			DOM.hide(this._executionOrderLabel);
 		} else {
 			DOM.show(this._executionOrderLabel);
-			this._executionOrderLabel.style.top = `${element.layoutInfo.editorHeight}px`;
+			const top = element.layoutInfo.editorHeight - 22 + element.layoutInfo.statusBarHeight;
+			this._executionOrderLabel.style.top = `${top}px`;
 		}
 	}
-
-	prepareLayout(): void { }
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { Event } from 'vs/base/common/event';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -12,17 +12,18 @@ import { CommonFindController } from 'vs/editor/contrib/find/browser/findControl
 import { AddSelectionToNextFindMatchAction, InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import { ITestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Multicursor', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #26393: Multiple cursors + Word wrap', () => {
 		withTestCodeEditor([
 			'a'.repeat(20),
 			'a'.repeat(20),
 		], { wordWrap: 'wordWrapColumn', wordWrapColumn: 10 }, (editor, viewModel) => {
-			let addCursorDownAction = new InsertCursorBelow();
+			const addCursorDownAction = new InsertCursorBelow();
 			addCursorDownAction.run(null!, editor, {});
 
 			assert.strictEqual(viewModel.getCursorStates().length, 2);
@@ -31,7 +32,7 @@ suite('Multicursor', () => {
 			assert.strictEqual(viewModel.getCursorStates()[1].viewState.position.lineNumber, 3);
 
 			editor.setPosition({ lineNumber: 4, column: 1 });
-			let addCursorUpAction = new InsertCursorAbove();
+			const addCursorUpAction = new InsertCursorAbove();
 			addCursorUpAction.run(null!, editor, {});
 
 			assert.strictEqual(viewModel.getCursorStates().length, 2);
@@ -46,7 +47,7 @@ suite('Multicursor', () => {
 			'abc',
 			'def'
 		], {}, (editor, viewModel) => {
-			let addCursorUpAction = new InsertCursorAbove();
+			const addCursorUpAction = new InsertCursorAbove();
 
 			editor.setSelection(new Selection(2, 1, 2, 1));
 			addCursorUpAction.run(null!, editor, {});
@@ -69,7 +70,7 @@ suite('Multicursor', () => {
 		withTestCodeEditor([
 			'abc'
 		], {}, (editor, viewModel) => {
-			let addCursorDownAction = new InsertCursorBelow();
+			const addCursorDownAction = new InsertCursorBelow();
 			addCursorDownAction.run(null!, editor, {});
 			assert.strictEqual(viewModel.getSelections().length, 1);
 		});
@@ -82,24 +83,8 @@ function fromRange(rng: Range): number[] {
 }
 
 suite('Multicursor selection', () => {
-	let queryState: { [key: string]: any } = {};
-	let serviceCollection = new ServiceCollection();
-	serviceCollection.set(IStorageService, {
-		_serviceBrand: undefined,
-		onDidChangeValue: Event.None,
-		onDidChangeTarget: Event.None,
-		onWillSaveState: Event.None,
-		get: (key: string) => queryState[key],
-		getBoolean: (key: string) => !!queryState[key],
-		getNumber: (key: string) => undefined!,
-		store: (key: string, value: any) => { queryState[key] = value; return Promise.resolve(); },
-		remove: (key) => undefined,
-		logStorage: () => undefined,
-		migrate: (toWorkspace) => Promise.resolve(undefined),
-		flush: () => Promise.resolve(undefined),
-		isNew: () => true,
-		keys: () => []
-	} as IStorageService);
+	const serviceCollection = new ServiceCollection();
+	serviceCollection.set(IStorageService, new InMemoryStorageService());
 
 	test('issue #8817: Cursor position changes when you cancel multicursor', () => {
 		withTestCodeEditor([
@@ -108,9 +93,9 @@ suite('Multicursor selection', () => {
 			'var z = (3 * 5)',
 		], { serviceCollection: serviceCollection }, (editor) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let selectHighlightsAction = new SelectHighlightsAction();
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(2, 9, 2, 16));
 
@@ -138,9 +123,9 @@ suite('Multicursor selection', () => {
 			'nothing'
 		], { serviceCollection: serviceCollection }, (editor) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let selectHighlightsAction = new SelectHighlightsAction();
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const selectHighlightsAction = new SelectHighlightsAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
 			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
@@ -172,9 +157,9 @@ suite('Multicursor selection', () => {
 			'rty'
 		], { serviceCollection: serviceCollection }, (editor) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
 
@@ -200,9 +185,9 @@ suite('Multicursor selection', () => {
 			'abcabc',
 		], { serviceCollection: serviceCollection }, (editor) => {
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(1, 1, 1, 4));
 
@@ -257,9 +242,9 @@ suite('Multicursor selection', () => {
 
 			editor.getModel()!.setEOL(EndOfLineSequence.CRLF);
 
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
-			let addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const addSelectionToNextFindMatch = new AddSelectionToNextFindMatchAction();
 
 			editor.setSelection(new Selection(2, 1, 3, 4));
 
@@ -280,8 +265,8 @@ suite('Multicursor selection', () => {
 
 	function testMulticursor(text: string[], callback: (editor: ITestCodeEditor, findController: CommonFindController) => void): void {
 		withTestCodeEditor(text, { serviceCollection: serviceCollection }, (editor) => {
-			let findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
-			let multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
+			const findController = editor.registerAndInstantiateContribution(CommonFindController.ID, CommonFindController);
+			const multiCursorSelectController = editor.registerAndInstantiateContribution(MultiCursorSelectionController.ID, MultiCursorSelectionController);
 
 			callback(editor, findController);
 
@@ -292,7 +277,7 @@ suite('Multicursor selection', () => {
 
 	function testAddSelectionToNextFindMatchAction(text: string[], callback: (editor: ITestCodeEditor, action: AddSelectionToNextFindMatchAction, findController: CommonFindController) => void): void {
 		testMulticursor(text, (editor, findController) => {
-			let action = new AddSelectionToNextFindMatchAction();
+			const action = new AddSelectionToNextFindMatchAction();
 			callback(editor, action, findController);
 		});
 	}
@@ -584,7 +569,7 @@ suite('Multicursor selection', () => {
 
 		test('Select Highlights respects mode ', () => {
 			testMulticursor(text, (editor, findController) => {
-				let action = new SelectHighlightsAction();
+				const action = new SelectHighlightsAction();
 				editor.setSelections([
 					new Selection(1, 2, 1, 2),
 				]);

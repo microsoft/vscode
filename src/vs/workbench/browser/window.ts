@@ -6,6 +6,7 @@
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
 import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
+import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -14,14 +15,18 @@ import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
 
 export class BrowserWindow extends Disposable {
 
@@ -30,8 +35,11 @@ export class BrowserWindow extends Disposable {
 		@ILifecycleService private readonly lifecycleService: BrowserLifecycleService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@ILabelService private readonly labelService: ILabelService,
+		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -65,9 +73,9 @@ export class BrowserWindow extends Disposable {
 		this._register(addDisposableListener(this.layoutService.container, EventType.DROP, e => EventHelper.stop(e, true)));
 
 		// Fullscreen (Browser)
-		[EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE].forEach(event => {
+		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
 			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
-		});
+		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
@@ -93,35 +101,39 @@ export class BrowserWindow extends Disposable {
 			// the workbench was shutdown while the page is still there,
 			// inform the user that only a reload can bring back a working
 			// state.
-			const res = await this.dialogService.show(
-				Severity.Error,
-				localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
-				[
-					localize('reload', "Reload")
-				],
-				{
-					detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running.")
-				}
-			);
-
-			if (res.choice === 0) {
-				window.location.reload(); // do not use any services at this point since they are likely not functional at this point
-			}
+			await this.dialogService.prompt({
+				type: Severity.Error,
+				message: localize('shutdownError', "An unexpected error occurred that requires a reload of this page."),
+				detail: localize('shutdownErrorDetail', "The workbench was unexpectedly disposed while running."),
+				buttons: [
+					{
+						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
+						run: () => window.location.reload() // do not use any services at this point since they are likely not functional at this point
+					}
+				]
+			});
 		});
 	}
 
 	private create(): void {
-
-		// Driver
-		if (this.environmentService.options?.developmentOptions?.enableSmokeTestDriver) {
-			(async () => this._register(await registerWindowDriver()))();
-		}
 
 		// Handle open calls
 		this.setupOpenHandlers();
 
 		// Label formatting
 		this.registerLabelFormatters();
+
+		// Commands
+		this.registerCommands();
+
+		// Smoke Test Driver
+		this.setupDriver();
+	}
+
+	private setupDriver(): void {
+		if (this.environmentService.enableSmokeTestDriver) {
+			registerWindowDriver(this.instantiationService);
+		}
 	}
 
 	private setupOpenHandlers(): void {
@@ -150,29 +162,22 @@ export class BrowserWindow extends Disposable {
 					if (isSafari) {
 						const opened = windowOpenWithSuccess(href, !isAllowedOpener);
 						if (!opened) {
-							const showResult = await this.dialogService.show(
-								Severity.Warning,
-								localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
-								[
-									localize('open', "Open"),
-									localize('learnMore', "Learn More"),
-									localize('cancel', "Cancel")
+							await this.dialogService.prompt({
+								type: Severity.Warning,
+								message: localize('unableToOpenExternal', "The browser interrupted the opening of a new tab or window. Press 'Open' to open it anyway."),
+								detail: href,
+								buttons: [
+									{
+										label: localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Open"),
+										run: () => isAllowedOpener ? windowOpenPopup(href) : windowOpenNoOpener(href)
+									},
+									{
+										label: localize({ key: 'learnMore', comment: ['&& denotes a mnemonic'] }, "&&Learn More"),
+										run: () => this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'))
+									}
 								],
-								{
-									cancelId: 2,
-									detail: href
-								}
-							);
-
-							if (showResult.choice === 0) {
-								isAllowedOpener
-									? windowOpenPopup(href)
-									: windowOpenNoOpener(href);
-							}
-
-							if (showResult.choice === 1) {
-								await this.openerService.open(URI.parse('https://aka.ms/allow-vscode-popup'));
-							}
+								cancelButton: true
+							});
 						}
 					} else {
 						isAllowedOpener
@@ -185,7 +190,65 @@ export class BrowserWindow extends Disposable {
 				// but make sure to signal this as an expected unload and disable unload
 				// handling explicitly to prevent the workbench from going down.
 				else {
-					this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+					const invokeProtocolHandler = () => {
+						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+					};
+
+					invokeProtocolHandler();
+
+					const showProtocolUrlOpenedDialog = async () => {
+						const { downloadUrl } = this.productService;
+						let detail: string;
+
+						const buttons: IPromptButton<void>[] = [
+							{
+								label: localize({ key: 'openExternalDialogButtonRetry.v2', comment: ['&& denotes a mnemonic'] }, "&&Try Again"),
+								run: () => invokeProtocolHandler()
+							}
+						];
+
+						if (downloadUrl !== undefined) {
+							detail = localize(
+								'openExternalDialogDetail.v2',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again or install it below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+
+							buttons.push({
+								label: localize({ key: 'openExternalDialogButtonInstall.v3', comment: ['&& denotes a mnemonic'] }, "&&Install"),
+								run: async () => {
+									await this.openerService.open(URI.parse(downloadUrl));
+
+									// Re-show the dialog so that the user can come back after installing and try again
+									showProtocolUrlOpenedDialog();
+								}
+							});
+						} else {
+							detail = localize(
+								'openExternalDialogDetailNoInstall',
+								"We launched {0} on your computer.\n\nIf {1} did not launch, try again below.",
+								this.productService.nameLong,
+								this.productService.nameLong
+							);
+						}
+
+						// While this dialog shows, closing the tab will not display a confirmation dialog
+						// to avoid showing the user two dialogs at once
+						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
+							type: Severity.Info,
+							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
+							detail,
+							buttons,
+							cancelButton: true
+						}));
+					};
+
+					// We cannot know whether the protocol handler succeeded.
+					// Display guidance in case it did not, e.g. the app is not installed locally.
+					if (matchesScheme(href, this.productService.urlProtocol)) {
+						await showProtocolUrlOpenedDialog();
+					}
 				}
 
 				return true;
@@ -193,14 +256,32 @@ export class BrowserWindow extends Disposable {
 		});
 	}
 
-	private registerLabelFormatters() {
+	private registerLabelFormatters(): void {
 		this._register(this.labelService.registerFormatter({
-			scheme: Schemas.userData,
+			scheme: Schemas.vscodeUserData,
 			priority: true,
 			formatting: {
 				label: '(Settings) ${path}',
 				separator: '/',
 			}
 		}));
+	}
+
+	private registerCommands(): void {
+
+		// Allow extensions to request USB devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestUsbDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<UsbDeviceData | undefined> => {
+			return requestUsbDevice(options);
+		});
+
+		// Allow extensions to request Serial devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestSerialPort', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<SerialPortData | undefined> => {
+			return requestSerialPort(options);
+		});
+
+		// Allow extensions to request HID devices in Web
+		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
+			return requestHidDevice(options);
+		});
 	}
 }

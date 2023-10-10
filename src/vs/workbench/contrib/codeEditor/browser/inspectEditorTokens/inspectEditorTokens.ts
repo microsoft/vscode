@@ -11,26 +11,24 @@ import { Color } from 'vs/base/common/color';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
-import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
+import { EditorAction, ServicesAccessor, registerEditorAction, registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { FontStyle, StandardTokenType, TokenMetadata, SemanticTokensLegend, SemanticTokens, ColorId } from 'vs/editor/common/languages';
+import { SemanticTokensLegend, SemanticTokens } from 'vs/editor/common/languages';
+import { FontStyle, ColorId, StandardTokenType, TokenMetadata } from 'vs/editor/common/encodedTokenAttributes';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorHoverBackground, editorHoverBorder } from 'vs/platform/theme/common/colorRegistry';
-import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { findMatchingThemeRule } from 'vs/workbench/services/textMate/common/TMHelper';
-import { ITextMateService } from 'vs/workbench/services/textMate/browser/textMate';
-import type { IGrammar, IToken, StackElement } from 'vscode-textmate';
+import { ITextMateTokenizationService } from 'vs/workbench/services/textMate/browser/textMateTokenizationFeature';
+import type { IGrammar, IToken, StateStack } from 'vscode-textmate';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { ColorThemeData, TokenStyleDefinitions, TokenStyleDefinition, TextMateThemingRuleDefinitions } from 'vs/workbench/services/themes/common/colorThemeData';
 import { SemanticTokenRule, TokenStyleData, TokenStyle } from 'vs/platform/theme/common/tokenClassificationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/common/services/modelService';
-import { isHighContrast } from 'vs/platform/theme/common/theme';
+import { SEMANTIC_HIGHLIGHTING_SETTING_ID, IEditorSemanticHighlightingOptions } from 'vs/editor/contrib/semanticTokens/common/semanticTokensConfig';
 import { Schemas } from 'vs/base/common/network';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 
@@ -45,7 +43,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 	}
 
 	private _editor: ICodeEditor;
-	private _textMateService: ITextMateService;
+	private _textMateService: ITextMateTokenizationService;
 	private _themeService: IWorkbenchThemeService;
 	private _languageService: ILanguageService;
 	private _notificationService: INotificationService;
@@ -55,7 +53,7 @@ class InspectEditorTokensController extends Disposable implements IEditorContrib
 
 	constructor(
 		editor: ICodeEditor,
-		@ITextMateService textMateService: ITextMateService,
+		@ITextMateTokenizationService textMateService: ITextMateTokenizationService,
 		@ILanguageService languageService: ILanguageService,
 		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -124,10 +122,8 @@ class InspectEditorTokens extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let controller = InspectEditorTokensController.get(editor);
-		if (controller) {
-			controller.toggle();
-		}
+		const controller = InspectEditorTokensController.get(editor);
+		controller?.toggle();
 	}
 }
 
@@ -161,7 +157,7 @@ function renderTokenText(tokenText: string): string {
 	}
 	let result: string = '';
 	for (let charIndex = 0, len = tokenText.length; charIndex < len; charIndex++) {
-		let charCode = tokenText.charCodeAt(charIndex);
+		const charCode = tokenText.charCodeAt(charIndex);
 		switch (charCode) {
 			case CharCode.Tab:
 				result += '\u2192'; // &rarr;
@@ -191,7 +187,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	private readonly _editor: IActiveCodeEditor;
 	private readonly _languageService: ILanguageService;
 	private readonly _themeService: IWorkbenchThemeService;
-	private readonly _textMateService: ITextMateService;
+	private readonly _textMateService: ITextMateTokenizationService;
 	private readonly _notificationService: INotificationService;
 	private readonly _configurationService: IConfigurationService;
 	private readonly _languageFeaturesService: ILanguageFeaturesService;
@@ -201,7 +197,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	constructor(
 		editor: IActiveCodeEditor,
-		textMateService: ITextMateService,
+		textMateService: ITextMateTokenizationService,
 		languageService: ILanguageService,
 		themeService: IWorkbenchThemeService,
 		notificationService: INotificationService,
@@ -240,7 +236,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _beginCompute(position: Position): void {
-		const grammar = this._textMateService.createGrammar(this._model.getLanguageId());
+		const grammar = this._textMateService.createTokenizer(this._model.getLanguageId());
 		const semanticTokens = this._computeSemanticTokens(position);
 
 		dom.clearNode(this._domNode);
@@ -279,8 +275,8 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 			return;
 		}
 
-		let tmMetadata = textMateTokenInfo?.metadata;
-		let semMetadata = semanticTokenInfo?.metadata;
+		const tmMetadata = textMateTokenInfo?.metadata;
+		const semMetadata = semanticTokenInfo?.metadata;
 
 		const semTokenText = semanticTokenInfo && renderTokenText(this._model.getValueInRange(semanticTokenInfo.range));
 		const tmTokenText = textMateTokenInfo && renderTokenText(this._model.getLineContent(position.lineNumber).substring(textMateTokenInfo.token.startIndex, textMateTokenInfo.token.endIndex));
@@ -326,7 +322,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const propertiesByDefValue: { [rule: string]: string[] } = {};
 				const allDefValues = new Array<[Array<HTMLElement | string>, string]>(); // remember the order
 				// first collect to detect when the same rule is used for multiple properties
-				for (let property of properties) {
+				for (const property of properties) {
 					if (semanticTokenInfo.metadata[property] !== undefined) {
 						const definition = semanticTokenInfo.definitions[property];
 						const defValue = this._renderTokenStyleDefinition(definition, property);
@@ -349,7 +345,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		}
 
 		if (textMateTokenInfo) {
-			let theme = this._themeService.getColorTheme();
+			const theme = this._themeService.getColorTheme();
 			dom.append(this._domNode, $('hr.tiw-metadata-separator'));
 			const table = dom.append(this._domNode, $('table.tiw-metadata-table'));
 			const tbody = dom.append(table, $('tbody'));
@@ -372,7 +368,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				$('td.tiw-metadata-value.tiw-metadata-scopes', undefined, ...scopes),
 			));
 
-			let matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
+			const matchingRule = findMatchingThemeRule(theme, textMateTokenInfo.token.scopes, false);
 			const semForeground = semanticTokenInfo?.metadata?.foreground;
 			if (matchingRule) {
 				if (semForeground !== textMateTokenInfo.metadata.foreground) {
@@ -399,7 +395,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		const elements = new Array<HTMLElement | string>();
 
 		function render(property: 'foreground' | 'background') {
-			let value = semantic?.[property] || tm?.[property];
+			const value = semantic?.[property] || tm?.[property];
 			if (value !== undefined) {
 				const semanticStyle = semantic?.[property] ? 'tiw-metadata-semantic' : '';
 				elements.push($('tr', undefined,
@@ -457,12 +453,12 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 
 	private _decodeMetadata(metadata: number): IDecodedMetadata {
-		let colorMap = this._themeService.getColorTheme().tokenColorMap;
-		let languageId = TokenMetadata.getLanguageId(metadata);
-		let tokenType = TokenMetadata.getTokenType(metadata);
-		let fontStyle = TokenMetadata.getFontStyle(metadata);
-		let foreground = TokenMetadata.getForeground(metadata);
-		let background = TokenMetadata.getBackground(metadata);
+		const colorMap = this._themeService.getColorTheme().tokenColorMap;
+		const languageId = TokenMetadata.getLanguageId(metadata);
+		const tokenType = TokenMetadata.getTokenType(metadata);
+		const fontStyle = TokenMetadata.getFontStyle(metadata);
+		const foreground = TokenMetadata.getForeground(metadata);
+		const background = TokenMetadata.getBackground(metadata);
 		return {
 			languageId: this._languageService.languageIdCodec.decodeLanguageId(languageId),
 			tokenType: tokenType,
@@ -487,14 +483,14 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 
 	private _getTokensAtPosition(grammar: IGrammar, position: Position): ITextMateTokenInfo {
 		const lineNumber = position.lineNumber;
-		let stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
+		const stateBeforeLine = this._getStateBeforeLine(grammar, lineNumber);
 
-		let tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
-		let tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
+		const tokenizationResult1 = grammar.tokenizeLine(this._model.getLineContent(lineNumber), stateBeforeLine);
+		const tokenizationResult2 = grammar.tokenizeLine2(this._model.getLineContent(lineNumber), stateBeforeLine);
 
 		let token1Index = 0;
 		for (let i = tokenizationResult1.tokens.length - 1; i >= 0; i--) {
-			let t = tokenizationResult1.tokens[i];
+			const t = tokenizationResult1.tokens[i];
 			if (position.column - 1 >= t.startIndex) {
 				token1Index = i;
 				break;
@@ -515,11 +511,11 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 		};
 	}
 
-	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StackElement | null {
-		let state: StackElement | null = null;
+	private _getStateBeforeLine(grammar: IGrammar, lineNumber: number): StateStack | null {
+		let state: StateStack | null = null;
 
 		for (let i = 1; i < lineNumber; i++) {
-			let tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
+			const tokenizationResult = grammar.tokenizeLine(this._model.getLineContent(i), state);
 			state = tokenizationResult.ruleStack;
 		}
 
@@ -622,7 +618,7 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 				const scopes = $('ul.tiw-metadata-values');
 				const strScopes = Array.isArray(matchingRule.scope) ? matchingRule.scope : [String(matchingRule.scope)];
 
-				for (let strScope of strScopes) {
+				for (const strScope of strScopes) {
 					scopes.appendChild($('li.tiw-metadata-value.tiw-metadata-scopes', undefined, strScope));
 				}
 
@@ -669,18 +665,5 @@ class InspectEditorTokensWidget extends Disposable implements IContentWidget {
 	}
 }
 
-registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController);
+registerEditorContribution(InspectEditorTokensController.ID, InspectEditorTokensController, EditorContributionInstantiation.Lazy);
 registerEditorAction(InspectEditorTokens);
-
-registerThemingParticipant((theme, collector) => {
-	const border = theme.getColor(editorHoverBorder);
-	if (border) {
-		let borderWidth = isHighContrast(theme.type) ? 2 : 1;
-		collector.addRule(`.monaco-editor .token-inspect-widget { border: ${borderWidth}px solid ${border}; }`);
-		collector.addRule(`.monaco-editor .token-inspect-widget .tiw-metadata-separator { background-color: ${border}; }`);
-	}
-	const background = theme.getColor(editorHoverBackground);
-	if (background) {
-		collector.addRule(`.monaco-editor .token-inspect-widget { background-color: ${background}; }`);
-	}
-});

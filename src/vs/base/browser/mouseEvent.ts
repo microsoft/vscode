@@ -69,12 +69,12 @@ export class StandardMouseEvent implements IMouseEvent {
 			this.posy = e.pageY;
 		} else {
 			// Probably hit by MSGestureEvent
-			this.posx = e.clientX + document.body.scrollLeft + document.documentElement!.scrollLeft;
-			this.posy = e.clientY + document.body.scrollTop + document.documentElement!.scrollTop;
+			this.posx = e.clientX + this.target.ownerDocument.body.scrollLeft + this.target.ownerDocument.documentElement.scrollLeft;
+			this.posy = e.clientY + this.target.ownerDocument.body.scrollTop + this.target.ownerDocument.documentElement.scrollTop;
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		let iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(self, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(window, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}
@@ -88,28 +88,14 @@ export class StandardMouseEvent implements IMouseEvent {
 	}
 }
 
-export interface IDataTransfer {
-	dropEffect: string;
-	effectAllowed: string;
-	types: any[];
-	files: any[];
-
-	setData(type: string, data: string): void;
-	setDragImage(image: any, x: number, y: number): void;
-
-	getData(type: string): string;
-	clearData(types?: string[]): void;
-}
-
 export class DragMouseEvent extends StandardMouseEvent {
 
-	public readonly dataTransfer: IDataTransfer;
+	public readonly dataTransfer: DataTransfer;
 
 	constructor(e: MouseEvent) {
 		super(e);
 		this.dataTransfer = (<any>e).dataTransfer;
 	}
-
 }
 
 export interface IMouseWheelEvent extends MouseEvent {
@@ -152,8 +138,8 @@ export class StandardWheelEvent {
 
 		if (e) {
 			// Old (deprecated) wheel events
-			let e1 = <IWebKitMouseWheelEvent><any>e;
-			let e2 = <IGeckoMouseWheelEvent><any>e;
+			const e1 = <IWebKitMouseWheelEvent><any>e;
+			const e2 = <IGeckoMouseWheelEvent><any>e;
 
 			// vertical delta scroll
 			if (typeof e1.wheelDeltaY !== 'undefined') {
@@ -211,14 +197,10 @@ export class StandardWheelEvent {
 	}
 
 	public preventDefault(): void {
-		if (this.browserEvent) {
-			this.browserEvent.preventDefault();
-		}
+		this.browserEvent?.preventDefault();
 	}
 
 	public stopPropagation(): void {
-		if (this.browserEvent) {
-			this.browserEvent.stopPropagation();
-		}
+		this.browserEvent?.stopPropagation();
 	}
 }

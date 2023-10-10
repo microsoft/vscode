@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getWindows } from 'vs/base/browser/dom';
+import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 
 /**
@@ -12,12 +13,11 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
  * browser helper so that it can be accessed in non-electron layers.
  */
 export function applyZoom(zoomLevel: number): void {
-	webFrame.setZoomLevel(zoomLevel);
+	for (const window of getWindows()) {
+		getGlobals(window)?.webFrame?.setZoomLevel(zoomLevel);
+	}
 	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));
-	// Cannot be trusted because the webFrame might take some time
-	// until it really applies the new zoom level
-	// See https://github.com/microsoft/vscode/issues/26151
-	setZoomLevel(zoomLevel, false /* isTrusted */);
+	setZoomLevel(zoomLevel);
 }
 
 export function zoomIn(): void {

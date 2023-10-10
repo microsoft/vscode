@@ -141,8 +141,8 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('case operations', () => {
-		let testObject = new ReplacePattern('a\\u$1l\\u\\l\\U$2M$3n', { pattern: 'a(l)l(good)m(e)n', isRegExp: true });
-		let actual = testObject.getReplaceString('allgoodmen');
+		const testObject = new ReplacePattern('a\\u$1l\\u\\l\\U$2M$3n', { pattern: 'a(l)l(good)m(e)n', isRegExp: true });
+		const actual = testObject.getReplaceString('allgoodmen');
 		assert.strictEqual(actual, 'aLlGoODMen');
 	});
 
@@ -161,8 +161,8 @@ suite('Replace Pattern test', () => {
 	});
 
 	test('case operations and newline', () => { // #140734
-		let testObject = new ReplacePattern('$1\n\\U$2', { pattern: '(multi)(line)', isRegExp: true });
-		let actual = testObject.getReplaceString('multiline');
+		const testObject = new ReplacePattern('$1\n\\U$2', { pattern: '(multi)(line)', isRegExp: true });
+		const actual = testObject.getReplaceString('multiline');
 		assert.strictEqual(actual, 'multi\nLINE');
 	});
 

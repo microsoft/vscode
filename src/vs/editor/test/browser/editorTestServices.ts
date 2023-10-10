@@ -22,7 +22,7 @@ export class TestCodeEditorService extends AbstractCodeEditorService {
 		return null;
 	}
 	public lastInput?: IResourceEditorInput;
-	openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
+	override openCodeEditor(input: IResourceEditorInput, source: ICodeEditor | null, sideBySide?: boolean): Promise<ICodeEditor | null> {
 		this.lastInput = input;
 		return Promise.resolve(null);
 	}

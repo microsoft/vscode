@@ -14,6 +14,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { CommandsConverter } from 'vs/workbench/api/common/extHostCommands';
 import { IURITransformer } from 'vs/base/common/uriIpc';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export class ExtHostLanguages implements ExtHostLanguagesShape {
 
@@ -90,7 +91,7 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 		}
 		ids.add(fullyQualifiedId);
 
-		const data: Omit<vscode.LanguageStatusItem, 'dispose'> = {
+		const data: Omit<vscode.LanguageStatusItem, 'dispose' | 'text2'> = {
 			selector,
 			id,
 			name: extension.displayName ?? extension.name,
@@ -101,10 +102,17 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			busy: false
 		};
 
+
 		let soonHandle: IDisposable | undefined;
-		let commandDisposables = new DisposableStore();
+		const commandDisposables = new DisposableStore();
 		const updateAsync = () => {
 			soonHandle?.dispose();
+
+			if (!ids.has(fullyQualifiedId)) {
+				console.warn(`LanguageStatusItem (${id}) from ${extension.identifier.value} has been disposed and CANNOT be updated anymore`);
+				return; // disposed in the meantime
+			}
+
 			soonHandle = disposableTimeout(() => {
 				commandDisposables.clear();
 				this._proxy.$setLanguageStatus(handle, {
@@ -152,6 +160,15 @@ export class ExtHostLanguages implements ExtHostLanguagesShape {
 			set text(value) {
 				data.text = value;
 				updateAsync();
+			},
+			set text2(value) {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				data.text = value;
+				updateAsync();
+			},
+			get text2() {
+				checkProposedApiEnabled(extension, 'languageStatusText');
+				return data.text;
 			},
 			get detail() {
 				return data.detail;

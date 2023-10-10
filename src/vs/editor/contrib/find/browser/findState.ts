@@ -132,7 +132,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	}
 
 	public changeMatchInfo(matchesPosition: number, matchesCount: number, currentMatch: Range | undefined): void {
-		let changeEvent: FindReplaceStateChangedEvent = {
+		const changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: false,
 			updateHistory: false,
 			searchString: false,
@@ -185,7 +185,7 @@ export class FindReplaceState<T extends { update: (value: T) => void } = { updat
 	}
 
 	public change(newState: INewFindReplaceState<T>, moveCursor: boolean, updateHistory: boolean = true): void {
-		let changeEvent: FindReplaceStateChangedEvent = {
+		const changeEvent: FindReplaceStateChangedEvent = {
 			moveCursor: moveCursor,
 			updateHistory: updateHistory,
 			searchString: false,

@@ -21,12 +21,13 @@ import { Range } from 'vs/editor/common/core/range';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { ILogger, ILoggerService, ILogService } from 'vs/platform/log/common/log';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { OutputChannelUpdateMode } from 'vs/workbench/contrib/output/common/output';
+import { OutputChannelUpdateMode } from 'vs/workbench/services/output/common/output';
+import { isCancellationError } from 'vs/base/common/errors';
 
 export interface IOutputChannelModel extends IDisposable {
 	readonly onDispose: Event<void>;
 	append(output: string): void;
-	update(mode: OutputChannelUpdateMode, till?: number): void;
+	update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void;
 	loadModel(): Promise<ITextModel>;
 	clear(): void;
 	replace(value: string): void;
@@ -61,7 +62,11 @@ class OutputFileListener extends Disposable {
 
 	private poll(): void {
 		const loop = () => this.doWatch().then(() => this.poll());
-		this.syncDelayer.trigger(loop);
+		this.syncDelayer.trigger(loop).catch(error => {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
+		});
 	}
 
 	private async doWatch(): Promise<void> {
@@ -129,12 +134,12 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 	}
 
 	clear(): void {
-		this.update(OutputChannelUpdateMode.Clear, this.endOffset);
+		this.update(OutputChannelUpdateMode.Clear, this.endOffset, true);
 	}
 
-	update(mode: OutputChannelUpdateMode, till?: number): void {
+	update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
 		const loadModelPromise: Promise<any> = this.loadModelPromise ? this.loadModelPromise : Promise.resolve();
-		loadModelPromise.then(() => this.doUpdate(mode, till));
+		loadModelPromise.then(() => this.doUpdate(mode, till, immediate));
 	}
 
 	loadModel(): Promise<ITextModel> {
@@ -174,7 +179,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		return this.model;
 	}
 
-	private doUpdate(mode: OutputChannelUpdateMode, till?: number): void {
+	private doUpdate(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
 		if (mode === OutputChannelUpdateMode.Clear || mode === OutputChannelUpdateMode.Replace) {
 			this.startOffset = this.endOffset = isNumber(till) ? till : this.endOffset;
 			this.cancelModelUpdate();
@@ -198,7 +203,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		}
 
 		else {
-			this.appendContent(this.model, token);
+			this.appendContent(this.model, immediate, token);
 		}
 	}
 
@@ -206,7 +211,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 		this.doUpdateModel(model, [EditOperation.delete(model.getFullModelRange())], VSBuffer.fromString(''));
 	}
 
-	private async appendContent(model: ITextModel, token: CancellationToken): Promise<void> {
+	private appendContent(model: ITextModel, immediate: boolean, token: CancellationToken): void {
 		this.appendThrottler.trigger(async () => {
 			/* Abort if operation is cancelled */
 			if (token.isCancellationRequested) {
@@ -234,6 +239,10 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 			const lastLineMaxColumn = model.getLineMaxColumn(lastLine);
 			const edits = [EditOperation.insert(new Position(lastLine, lastLineMaxColumn), contentToAppend.toString())];
 			this.doUpdateModel(model, edits, contentToAppend);
+		}, immediate ? 0 : undefined).catch(error => {
+			if (!isCancellationError(error)) {
+				throw error;
+			}
 		});
 	}
 
@@ -278,9 +287,7 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 	}
 
 	protected cancelModelUpdate(): void {
-		if (this.modelUpdateCancellationSource.value) {
-			this.modelUpdateCancellationSource.value.cancel();
-		}
+		this.modelUpdateCancellationSource.value?.cancel();
 		this.modelUpdateCancellationSource.value = undefined;
 		this.appendThrottler.cancel();
 		this.replacePromise = undefined;
@@ -298,10 +305,10 @@ export class FileOutputChannelModel extends Disposable implements IOutputChannel
 			if (!this.modelUpdateInProgress) {
 				if (isNumber(size) && this.endOffset > size) {
 					// Reset - Content is removed
-					this.update(OutputChannelUpdateMode.Clear, 0);
+					this.update(OutputChannelUpdateMode.Clear, 0, true);
 				}
 			}
-			this.update(OutputChannelUpdateMode.Append);
+			this.update(OutputChannelUpdateMode.Append, undefined, false /* Not needed to update immediately. Wait to collect more changes and update. */);
 		}
 	}
 
@@ -334,19 +341,19 @@ class OutputChannelBackedByFile extends FileOutputChannelModel implements IOutpu
 		super(modelUri, language, file, fileService, modelService, logService, editorWorkerService);
 
 		// Donot rotate to check for the file reset
-		this.logger = loggerService.createLogger(file, { always: true, donotRotate: true, donotUseFormatters: true });
+		this.logger = loggerService.createLogger(file, { logLevel: 'always', donotRotate: true, donotUseFormatters: true, hidden: true });
 		this._offset = 0;
 	}
 
 	override append(message: string): void {
 		this.write(message);
-		this.update(OutputChannelUpdateMode.Append);
+		this.update(OutputChannelUpdateMode.Append, undefined, this.isVisible());
 	}
 
 	override replace(message: string): void {
 		const till = this._offset;
 		this.write(message);
-		this.update(OutputChannelUpdateMode.Replace, till);
+		this.update(OutputChannelUpdateMode.Replace, till, true);
 	}
 
 	private write(content: string): void {
@@ -391,8 +398,8 @@ export class DelegatedOutputChannelModel extends Disposable implements IOutputCh
 		this.outputChannelModel.then(outputChannelModel => outputChannelModel.append(output));
 	}
 
-	update(mode: OutputChannelUpdateMode, till?: number): void {
-		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update(mode, till));
+	update(mode: OutputChannelUpdateMode, till: number | undefined, immediate: boolean): void {
+		this.outputChannelModel.then(outputChannelModel => outputChannelModel.update(mode, till, immediate));
 	}
 
 	loadModel(): Promise<ITextModel> {

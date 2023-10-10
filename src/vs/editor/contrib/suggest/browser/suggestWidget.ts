@@ -10,8 +10,8 @@ import { IListEvent, IListGestureEvent, IListMouseEvent } from 'vs/base/browser/
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { CancelablePromise, createCancelablePromise, disposableTimeout, TimeoutTimer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./media/suggest';
@@ -26,27 +26,28 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { activeContrastBorder, editorForeground, editorWidgetBackground, editorWidgetBorder, listFocusHighlightForeground, listHighlightForeground, quickInputListFocusBackground, quickInputListFocusForeground, quickInputListFocusIconForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
-import { attachListStyler } from 'vs/platform/theme/common/styler';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { CompletionModel } from './completionModel';
-import { ResizableHTMLElement } from './resizable';
-import { CompletionItem, Context as SuggestContext } from './suggest';
+import { ResizableHTMLElement } from 'vs/base/browser/ui/resizable/resizable';
+import { CompletionItem, Context as SuggestContext, suggestWidgetStatusbarMenu } from './suggest';
 import { canExpandCompletionItem, SuggestDetailsOverlay, SuggestDetailsWidget } from './suggestWidgetDetails';
 import { getAriaId, ItemRenderer } from './suggestWidgetRenderer';
+import { getListStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 /**
  * Suggest widget colors
  */
-export const editorSuggestWidgetBackground = registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
-export const editorSuggestWidgetBorder = registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
-export const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hcDark: editorForeground, hcLight: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
-export const editorSuggestWidgetSelectedForeground = registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hcDark: quickInputListFocusForeground, hcLight: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetSelectedIconForeground = registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hcDark: quickInputListFocusIconForeground, hcLight: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
+registerColor('editorSuggestWidget.background', { dark: editorWidgetBackground, light: editorWidgetBackground, hcDark: editorWidgetBackground, hcLight: editorWidgetBackground }, nls.localize('editorSuggestWidgetBackground', 'Background color of the suggest widget.'));
+registerColor('editorSuggestWidget.border', { dark: editorWidgetBorder, light: editorWidgetBorder, hcDark: editorWidgetBorder, hcLight: editorWidgetBorder }, nls.localize('editorSuggestWidgetBorder', 'Border color of the suggest widget.'));
+const editorSuggestWidgetForeground = registerColor('editorSuggestWidget.foreground', { dark: editorForeground, light: editorForeground, hcDark: editorForeground, hcLight: editorForeground }, nls.localize('editorSuggestWidgetForeground', 'Foreground color of the suggest widget.'));
+registerColor('editorSuggestWidget.selectedForeground', { dark: quickInputListFocusForeground, light: quickInputListFocusForeground, hcDark: quickInputListFocusForeground, hcLight: quickInputListFocusForeground }, nls.localize('editorSuggestWidgetSelectedForeground', 'Foreground color of the selected entry in the suggest widget.'));
+registerColor('editorSuggestWidget.selectedIconForeground', { dark: quickInputListFocusIconForeground, light: quickInputListFocusIconForeground, hcDark: quickInputListFocusIconForeground, hcLight: quickInputListFocusIconForeground }, nls.localize('editorSuggestWidgetSelectedIconForeground', 'Icon foreground color of the selected entry in the suggest widget.'));
 export const editorSuggestWidgetSelectedBackground = registerColor('editorSuggestWidget.selectedBackground', { dark: quickInputListFocusBackground, light: quickInputListFocusBackground, hcDark: quickInputListFocusBackground, hcLight: quickInputListFocusBackground }, nls.localize('editorSuggestWidgetSelectedBackground', 'Background color of the selected entry in the suggest widget.'));
-export const editorSuggestWidgetHighlightForeground = registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
-export const editorSuggestWidgetHighlightFocusForeground = registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hcDark: listFocusHighlightForeground, hcLight: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
-export const editorSuggestWidgetStatusForeground = registerColor('editorSuggestWidgetStatus.foreground', { dark: transparent(editorSuggestWidgetForeground, .5), light: transparent(editorSuggestWidgetForeground, .5), hcDark: transparent(editorSuggestWidgetForeground, .5), hcLight: transparent(editorSuggestWidgetForeground, .5) }, nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
+registerColor('editorSuggestWidget.highlightForeground', { dark: listHighlightForeground, light: listHighlightForeground, hcDark: listHighlightForeground, hcLight: listHighlightForeground }, nls.localize('editorSuggestWidgetHighlightForeground', 'Color of the match highlights in the suggest widget.'));
+registerColor('editorSuggestWidget.focusHighlightForeground', { dark: listFocusHighlightForeground, light: listFocusHighlightForeground, hcDark: listFocusHighlightForeground, hcLight: listFocusHighlightForeground }, nls.localize('editorSuggestWidgetFocusHighlightForeground', 'Color of the match highlights in the suggest widget when an item is focused.'));
+registerColor('editorSuggestWidgetStatus.foreground', { dark: transparent(editorSuggestWidgetForeground, .5), light: transparent(editorSuggestWidgetForeground, .5), hcDark: transparent(editorSuggestWidgetForeground, .5), hcLight: transparent(editorSuggestWidgetForeground, .5) }, nls.localize('editorSuggestWidgetStatusForeground', 'Foreground color of the suggest widget status.'));
 
 const enum State {
 	Hidden,
@@ -75,7 +76,7 @@ class PersistedWidgetSize {
 	}
 
 	restore(): dom.Dimension | undefined {
-		const raw = this._service.get(this._key, StorageScope.GLOBAL) ?? '';
+		const raw = this._service.get(this._key, StorageScope.PROFILE) ?? '';
 		try {
 			const obj = JSON.parse(raw);
 			if (dom.Dimension.is(obj)) {
@@ -88,11 +89,11 @@ class PersistedWidgetSize {
 	}
 
 	store(size: dom.Dimension) {
-		this._service.store(this._key, JSON.stringify(size), StorageScope.GLOBAL, StorageTarget.MACHINE);
+		this._service.store(this._key, JSON.stringify(size), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	reset(): void {
-		this._service.remove(this._key, StorageScope.GLOBAL);
+		this._service.remove(this._key, StorageScope.PROFILE);
 	}
 }
 
@@ -104,6 +105,8 @@ export class SuggestWidget implements IDisposable {
 	private _state: State = State.Hidden;
 	private _isAuto: boolean = false;
 	private _loadingTimeout?: IDisposable;
+	private readonly _pendingLayout = new MutableDisposable();
+	private readonly _pendingShowDetails = new MutableDisposable();
 	private _currentSuggestionDetails?: CancelablePromise<void>;
 	private _focusedItem?: CompletionItem;
 	private _ignoreFocusEvents: boolean = false;
@@ -124,13 +127,14 @@ export class SuggestWidget implements IDisposable {
 	private readonly _ctxSuggestWidgetVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetDetailsVisible: IContextKey<boolean>;
 	private readonly _ctxSuggestWidgetMultipleSuggestions: IContextKey<boolean>;
+	private readonly _ctxSuggestWidgetHasFocusedSuggestion: IContextKey<boolean>;
 
 	private readonly _showTimeout = new TimeoutTimer();
 	private readonly _disposables = new DisposableStore();
 
 
-	private readonly _onDidSelect = new Emitter<ISelectedSuggestion>();
-	private readonly _onDidFocus = new Emitter<ISelectedSuggestion>();
+	private readonly _onDidSelect = new PauseableEmitter<ISelectedSuggestion>();
+	private readonly _onDidFocus = new PauseableEmitter<ISelectedSuggestion>();
 	private readonly _onDidHide = new Emitter<this>();
 	private readonly _onDidShow = new Emitter<this>();
 
@@ -205,7 +209,7 @@ export class SuggestWidget implements IDisposable {
 		this._messageElement = dom.append(this.element.domNode, dom.$('.message'));
 		this._listElement = dom.append(this.element.domNode, dom.$('.tree'));
 
-		const details = instantiationService.createInstance(SuggestDetailsWidget, this.editor);
+		const details = this._disposables.add(instantiationService.createInstance(SuggestDetailsWidget, this.editor));
 		details.onDidClose(this.toggleDetails, this, this._disposables);
 		this._details = new SuggestDetailsOverlay(details, this.editor);
 
@@ -223,6 +227,7 @@ export class SuggestWidget implements IDisposable {
 			alwaysConsumeMouseWheel: true,
 			useShadows: false,
 			mouseSupport: false,
+			multipleSelectionSupport: false,
 			accessibilityProvider: {
 				getRole: () => 'option',
 				getWidgetAriaLabel: () => nls.localize('suggest', "Suggest"),
@@ -233,9 +238,9 @@ export class SuggestWidget implements IDisposable {
 					if (typeof item.completion.label !== 'string') {
 						const { detail, description } = item.completion.label;
 						if (detail && description) {
-							label = nls.localize('label.full', '{0}{1}, {2}', label, detail, description);
+							label = nls.localize('label.full', '{0} {1}, {2}', label, detail, description);
 						} else if (detail) {
-							label = nls.localize('label.detail', '{0}{1}', label, detail);
+							label = nls.localize('label.detail', '{0} {1}', label, detail);
 						} else if (description) {
 							label = nls.localize('label.desc', '{0}, {1}', label, description);
 						}
@@ -255,15 +260,15 @@ export class SuggestWidget implements IDisposable {
 				},
 			}
 		});
-
-		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode);
-		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
-		applyStatusBarStyle();
-
-		this._disposables.add(attachListStyler(this._list, _themeService, {
+		this._list.style(getListStyles({
 			listInactiveFocusBackground: editorSuggestWidgetSelectedBackground,
 			listInactiveFocusOutline: activeContrastBorder
 		}));
+
+		this._status = instantiationService.createInstance(SuggestWidgetStatus, this.element.domNode, suggestWidgetStatusbarMenu);
+		const applyStatusBarStyle = () => this.element.domNode.classList.toggle('with-status-bar', this.editor.getOption(EditorOption.suggest).showStatusBar);
+		applyStatusBarStyle();
+
 		this._disposables.add(_themeService.onDidColorThemeChange(t => this._onThemeChange(t)));
 		this._onThemeChange(_themeService.getColorTheme());
 
@@ -282,7 +287,7 @@ export class SuggestWidget implements IDisposable {
 		this._ctxSuggestWidgetVisible = SuggestContext.Visible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetDetailsVisible = SuggestContext.DetailsVisible.bindTo(_contextKeyService);
 		this._ctxSuggestWidgetMultipleSuggestions = SuggestContext.MultipleSuggestions.bindTo(_contextKeyService);
-
+		this._ctxSuggestWidgetHasFocusedSuggestion = SuggestContext.HasFocusedSuggestion.bindTo(_contextKeyService);
 
 		this._disposables.add(dom.addStandardDisposableListener(this._details.widget.domNode, 'keydown', e => {
 			this._onDetailsKeydown.fire(e);
@@ -298,6 +303,8 @@ export class SuggestWidget implements IDisposable {
 		this._status.dispose();
 		this._disposables.dispose();
 		this._loadingTimeout?.dispose();
+		this._pendingLayout.dispose();
+		this._pendingShowDetails.dispose();
 		this._showTimeout.dispose();
 		this._contentWidget.dispose();
 		this.element.dispose();
@@ -364,6 +371,7 @@ export class SuggestWidget implements IDisposable {
 			}
 
 			this.editor.setAriaOptions({ activeDescendant: undefined });
+			this._ctxSuggestWidgetHasFocusedSuggestion.set(false);
 			return;
 		}
 
@@ -371,6 +379,7 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
+		this._ctxSuggestWidgetHasFocusedSuggestion.set(true);
 		const item = e.elements[0];
 		const index = e.indexes[0];
 
@@ -390,10 +399,12 @@ export class SuggestWidget implements IDisposable {
 					}
 				}, 250);
 				const sub = token.onCancellationRequested(() => loading.dispose());
-				const result = await item.resolve(token);
-				loading.dispose();
-				sub.dispose();
-				return result;
+				try {
+					return await item.resolve(token);
+				} finally {
+					loading.dispose();
+					sub.dispose();
+				}
 			});
 
 			this._currentSuggestionDetails.then(() => {
@@ -439,6 +450,7 @@ export class SuggestWidget implements IDisposable {
 				this._contentWidget.hide();
 				this._ctxSuggestWidgetVisible.reset();
 				this._ctxSuggestWidgetMultipleSuggestions.reset();
+				this._ctxSuggestWidgetHasFocusedSuggestion.reset();
 				this._showTimeout.cancel();
 				this.element.domNode.classList.remove('visible');
 				this._list.splice(0, this._list.length);
@@ -454,6 +466,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.LOADING_MESSAGE);
 				break;
 			case State.Empty:
 				this.element.domNode.classList.add('message');
@@ -463,6 +476,7 @@ export class SuggestWidget implements IDisposable {
 				this._details.hide();
 				this._show();
 				this._focusedItem = undefined;
+				status(SuggestWidget.NO_SUGGESTIONS_MESSAGE);
 				break;
 			case State.Open:
 				dom.hide(this._messageElement);
@@ -507,7 +521,7 @@ export class SuggestWidget implements IDisposable {
 		}
 	}
 
-	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean): void {
+	showSuggestions(completionModel: CompletionModel, selectionIndex: number, isFrozen: boolean, isAuto: boolean, noFocus: boolean): void {
 
 		this._contentWidget.setPosition(this.editor.getPosition());
 		this._loadingTimeout?.dispose();
@@ -535,14 +549,35 @@ export class SuggestWidget implements IDisposable {
 		}
 
 		this._focusedItem = undefined;
-		this._list.splice(0, this._list.length, this._completionModel.items);
-		this._setState(isFrozen ? State.Frozen : State.Open);
-		this._list.reveal(selectionIndex, 0);
-		this._list.setFocus([selectionIndex]);
 
-		this._layout(this.element.size);
-		// Reset focus border
-		this._details.widget.domNode.classList.remove('focused');
+		// calling list.splice triggers focus event which this widget forwards. That can lead to
+		// suggestions being cancelled and the widget being cleared (and hidden). All this happens
+		// before revealing and focusing is done which means revealing and focusing will fail when
+		// they get run.
+		this._onDidFocus.pause();
+		this._onDidSelect.pause();
+		try {
+			this._list.splice(0, this._list.length, this._completionModel.items);
+			this._setState(isFrozen ? State.Frozen : State.Open);
+			this._list.reveal(selectionIndex, 0);
+			this._list.setFocus(noFocus ? [] : [selectionIndex]);
+		} finally {
+			this._onDidFocus.resume();
+			this._onDidSelect.resume();
+		}
+
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingLayout.clear();
+			this._layout(this.element.size);
+			// Reset focus border
+			this._details.widget.domNode.classList.remove('focused');
+		});
+	}
+
+	focusSelected(): void {
+		if (this._list.length > 0) {
+			this._list.setFocus([0]);
+		}
 	}
 
 	selectNextPage(): boolean {
@@ -634,6 +669,7 @@ export class SuggestWidget implements IDisposable {
 			&& this._state !== State.Empty
 			&& this._state !== State.Loading
 			&& this._completionModel
+			&& this._list.getFocus().length > 0
 		) {
 
 			return {
@@ -659,6 +695,7 @@ export class SuggestWidget implements IDisposable {
 	toggleDetails(): void {
 		if (this._isDetailsVisible()) {
 			// hide details widget
+			this._pendingShowDetails.clear();
 			this._ctxSuggestWidgetDetailsVisible.set(false);
 			this._setDetailsVisible(false);
 			this._details.hide();
@@ -673,15 +710,18 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	showDetails(loading: boolean): void {
-		this._details.show();
-		if (loading) {
-			this._details.widget.renderLoading();
-		} else {
-			this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
-		}
-		this._positionDetails();
-		this.editor.focus();
-		this.element.domNode.classList.add('shows-details');
+		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this._pendingShowDetails.clear();
+			this._details.show();
+			if (loading) {
+				this._details.widget.renderLoading();
+			} else {
+				this._details.widget.renderItem(this._list.getFocusedElements()[0], this._explainMode);
+			}
+			this._positionDetails();
+			this.editor.focus();
+			this.element.domNode.classList.add('shows-details');
+		});
 	}
 
 	toggleExplainMode(): void {
@@ -700,7 +740,10 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	hideWidget(): void {
+		this._pendingLayout.clear();
+		this._pendingShowDetails.clear();
 		this._loadingTimeout?.dispose();
+
 		this._setState(State.Hidden);
 		this._onDidHide.fire(this);
 		this.element.clearSashHoverState();
@@ -744,7 +787,7 @@ export class SuggestWidget implements IDisposable {
 			return;
 		}
 
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.element.domNode.ownerDocument.body);
 		const info = this.getLayoutInfo();
 
 		if (!size) {
@@ -755,7 +798,7 @@ export class SuggestWidget implements IDisposable {
 		let width = size.width;
 
 		// status bar
-		this._status.element.style.lineHeight = `${info.itemHeight}px`;
+		this._status.element.style.height = `${info.itemHeight}px`;
 
 		if (this._state === State.Empty || this._state === State.Loading) {
 			// showing a message only
@@ -864,11 +907,11 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	private _isDetailsVisible(): boolean {
-		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.GLOBAL, false);
+		return this._storageService.getBoolean('expandSuggestionDocs', StorageScope.PROFILE, false);
 	}
 
 	private _setDetailsVisible(value: boolean) {
-		this._storageService.store('expandSuggestionDocs', value, StorageScope.GLOBAL, StorageTarget.USER);
+		this._storageService.store('expandSuggestionDocs', value, StorageScope.PROFILE, StorageTarget.USER);
 	}
 
 	forceRenderingAbove() {

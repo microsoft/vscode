@@ -3,11 +3,36 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions, CATEGORIES } from 'vs/workbench/common/actions';
-import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
+import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { OpenLogsFolderAction, OpenExtensionLogsFolderAction } from 'vs/workbench/contrib/logs/electron-sandbox/logsActions';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
-const workbenchActionsRegistry = Registry.as<IWorkbenchActionRegistry>(WorkbenchActionExtensions.WorkbenchActions);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenLogsFolderAction), 'Developer: Open Logs Folder', CATEGORIES.Developer.value);
-workbenchActionsRegistry.registerWorkbenchAction(SyncActionDescriptor.from(OpenExtensionLogsFolderAction), 'Developer: Open Extension Logs Folder', CATEGORIES.Developer.value);
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OpenLogsFolderAction.ID,
+			title: OpenLogsFolderAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(OpenLogsFolderAction, OpenLogsFolderAction.ID, OpenLogsFolderAction.TITLE.value).run();
+	}
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: OpenExtensionLogsFolderAction.ID,
+			title: OpenExtensionLogsFolderAction.TITLE,
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+	run(servicesAccessor: ServicesAccessor): Promise<void> {
+		return servicesAccessor.get(IInstantiationService).createInstance(OpenExtensionLogsFolderAction, OpenExtensionLogsFolderAction.ID, OpenExtensionLogsFolderAction.TITLE.value).run();
+	}
+});

@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Promises } from 'vs/base/node/pfs';
 import * as cp from 'child_process';
-import * as stream from 'stream';
-import * as nls from 'vs/nls';
 import * as net from 'net';
-import * as path from 'vs/base/common/path';
-import * as strings from 'vs/base/common/strings';
+import * as stream from 'stream';
 import * as objects from 'vs/base/common/objects';
+import * as path from 'vs/base/common/path';
 import * as platform from 'vs/base/common/platform';
-import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IOutputService } from 'vs/workbench/contrib/output/common/output';
-import { IDebugAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IDebugAdapterServer, IDebugAdapterNamedPipeServer } from 'vs/workbench/contrib/debug/common/debug';
+import * as strings from 'vs/base/common/strings';
+import { Promises } from 'vs/base/node/pfs';
+import * as nls from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
+import { IDebugAdapterExecutable, IDebugAdapterNamedPipeServer, IDebugAdapterServer, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/contrib/debug/common/debug';
 import { AbstractDebugAdapter } from '../common/abstractDebugAdapter';
 
 /**
@@ -169,7 +167,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 
 	private serverProcess: cp.ChildProcess | undefined;
 
-	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string, private readonly outputService?: IOutputService) {
+	constructor(private adapterExecutable: IDebugAdapterExecutable, private debugType: string) {
 		super();
 	}
 
@@ -251,21 +249,7 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 				this._onError.fire(error);
 			});
 
-			const outputService = this.outputService;
-			if (outputService) {
-				const sanitize = (s: string) => s.toString().replace(/\r?\n$/mg, '');
-				// this.serverProcess.stdout.on('data', (data: string) => {
-				// 	console.log('%c' + sanitize(data), 'background: #ddd; font-style: italic;');
-				// });
-				this.serverProcess.stderr!.on('data', (data: string) => {
-					const channel = outputService.getChannel(ExtensionsChannelId);
-					if (channel) {
-						channel.append(sanitize(data));
-					}
-				});
-			} else {
-				this.serverProcess.stderr!.resume();
-			}
+			this.serverProcess.stderr!.resume();
 
 			// finally connect to the DA
 			this.connect(this.serverProcess.stdout!, this.serverProcess.stdin!);

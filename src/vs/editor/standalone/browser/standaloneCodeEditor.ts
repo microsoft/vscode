@@ -8,18 +8,16 @@ import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { StandaloneKeybindingService, updateConfigurationService } from 'vs/editor/standalone/browser/standaloneServices';
 import { IStandaloneThemeService } from 'vs/editor/standalone/common/standaloneTheme';
 import { IMenuItem, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandHandler, ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, ContextKeyValue, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -38,6 +36,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 /**
  * Description of an action contribution
@@ -133,7 +133,7 @@ export interface IGlobalEditorOptions {
 	 */
 	'semanticHighlighting.enabled'?: true | false | 'configuredByTheme';
 	/**
-	 * Keep peek editors open even when double clicking their content or when hitting `Escape`.
+	 * Keep peek editors open even when double-clicking their content or when hitting `Escape`.
 	 * Defaults to false.
 	 */
 	stablePeek?: boolean;
@@ -224,13 +224,13 @@ export interface IStandaloneDiffEditorConstructionOptions extends IDiffEditorCon
 export interface IStandaloneCodeEditor extends ICodeEditor {
 	updateOptions(newOptions: IEditorOptions & IGlobalEditorOptions): void;
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 }
 
 export interface IStandaloneDiffEditor extends IDiffEditor {
 	addCommand(keybinding: number, handler: ICommandHandler, context?: string): string | null;
-	createContextKey<T>(key: string, defaultValue: T): IContextKey<T>;
+	createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T>;
 	addAction(descriptor: IActionDescriptor): IDisposable;
 
 	getOriginalEditor(): IStandaloneCodeEditor;
@@ -301,7 +301,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		return commandId;
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this._contextKeyService.createKey(key, defaultValue);
 	}
 
@@ -328,7 +328,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 		);
 		const contextMenuGroupId = _descriptor.contextMenuGroupId || null;
 		const contextMenuOrder = _descriptor.contextMenuOrder || 0;
-		const run = (accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
+		const run = (_accessor?: ServicesAccessor, ...args: any[]): Promise<void> => {
 			return Promise.resolve(_descriptor.run(this, ...args));
 		};
 
@@ -368,14 +368,14 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			label,
 			label,
 			precondition,
-			run,
+			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService
 		);
 
 		// Store it under the original id, such that trigger with the original id will work
-		this._actions[id] = internalAction;
+		this._actions.set(id, internalAction);
 		toDispose.add(toDisposable(() => {
-			delete this._actions[id];
+			this._actions.delete(id);
 		}));
 
 		return toDispose;
@@ -471,7 +471,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 		super.updateOptions(newOptions);
 	}
 
-	override _postDetachModelCleanup(detachedModel: ITextModel): void {
+	protected override _postDetachModelCleanup(detachedModel: ITextModel): void {
 		super._postDetachModelCleanup(detachedModel);
 		if (detachedModel && this._ownsModel) {
 			detachedModel.dispose();
@@ -480,7 +480,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
+export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -490,7 +490,6 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		_options: Readonly<IStandaloneDiffEditorConstructionOptions> | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IStandaloneThemeService themeService: IStandaloneThemeService,
 		@INotificationService notificationService: INotificationService,
@@ -498,6 +497,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
 		@IClipboardService clipboardService: IClipboardService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -509,7 +509,16 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, editorWorkerService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(
+			domElement,
+			options,
+			{},
+			contextKeyService,
+			instantiationService,
+			codeEditorService,
+			audioCueService,
+			editorProgressService,
+		);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;
@@ -548,7 +557,7 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		return this.getModifiedEditor().addCommand(keybinding, handler, context);
 	}
 
-	public createContextKey<T>(key: string, defaultValue: T): IContextKey<T> {
+	public createContextKey<T extends ContextKeyValue = ContextKeyValue>(key: string, defaultValue: T): IContextKey<T> {
 		return this.getModifiedEditor().createContextKey(key, defaultValue);
 	}
 

@@ -7,12 +7,15 @@ import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
 import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 
 suite('TextAreaInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface OutgoingType {
 		type: 'type';
@@ -41,13 +44,13 @@ suite('TextAreaInput', () => {
 	}
 
 	async function simulateInteraction(recorded: IRecorded): Promise<OutoingEvent[]> {
-		let disposables = new DisposableStore();
+		const disposables = new DisposableStore();
 		const host: ITextAreaInputHost = {
 			getDataToCopy: function (): ClipboardDataToCopy {
 				throw new Error('Function not implemented.');
 			},
-			getScreenReaderContent: function (currentState: TextAreaState): TextAreaState {
-				return new TextAreaState('', 0, 0, null, null);
+			getScreenReaderContent: function (): TextAreaState {
+				return new TextAreaState('', 0, 0, null, undefined);
 			},
 			deduceModelPosition: function (viewAnchorPosition: Position, deltaOffset: number, lineFeedCnt: number): Position {
 				throw new Error('Function not implemented.');
@@ -88,6 +91,8 @@ suite('TextAreaInput', () => {
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
 
+			public ownerDocument = document;
+
 			constructor() {
 				super();
 				this._state = {
@@ -127,6 +132,7 @@ suite('TextAreaInput', () => {
 						metaKey: event.metaKey,
 						repeat: event.repeat,
 						shiftKey: event.shiftKey,
+						getModifierState: (keyArg: string) => false
 					};
 					if (event.type === 'keydown') {
 						this._onKeyDown.fire(mockEvent);
@@ -202,7 +208,7 @@ suite('TextAreaInput', () => {
 		wrapper._initialize(recorded.initial);
 		input._initializeFromTest();
 
-		let outgoingEvents: OutoingEvent[] = [];
+		const outgoingEvents: OutoingEvent[] = [];
 
 		disposables.add(input.onType((e) => outgoingEvents.push({
 			type: 'type',
@@ -227,6 +233,8 @@ suite('TextAreaInput', () => {
 			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
+
+		disposables.dispose();
 
 		return outgoingEvents;
 	}

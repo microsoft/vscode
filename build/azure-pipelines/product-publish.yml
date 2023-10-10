@@ -1,20 +1,23 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "12.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode
+      KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - pwsh: |
-      . build/azure-pipelines/win32/exec.ps1
-      cd build
-      exec { yarn }
-    displayName: Install dependencies
+  # allow-any-unicode-next-line
+  - pwsh: Write-Host "##vso[build.addbuildtag]🚀"
+    displayName: Add build tag
+
+  - pwsh: yarn
+    workingDirectory: build
+    displayName: Install build dependencies
 
   - download: current
     patterns: "**/artifacts_processed_*.txt"
@@ -50,24 +53,24 @@ steps:
         return
       }
 
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
       $VERSION = node -p "require('./package.json').version"
       Write-Host "Creating build with version: $VERSION"
       exec { node build/azure-pipelines/common/createBuild.js $VERSION }
+    env:
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
     displayName: Create build if it hasn't been created before
 
-  - pwsh: |
-      $env:VSCODE_MIXIN_PASSWORD = "$(github-distro-mixin-password)"
-      $env:AZURE_TENANT_ID = "$(AZURE_TENANT_ID)"
-      $env:AZURE_CLIENT_ID = "$(AZURE_CLIENT_ID)"
-      $env:AZURE_CLIENT_SECRET = "$(AZURE_CLIENT_SECRET)"
-      $env:AZURE_MOONCAKE_TENANT_ID = "$(AZURE_MOONCAKE_TENANT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_ID = "$(AZURE_MOONCAKE_CLIENT_ID)"
-      $env:AZURE_MOONCAKE_CLIENT_SECRET = "$(AZURE_MOONCAKE_CLIENT_SECRET)"
-      build/azure-pipelines/product-publish.ps1
+  - pwsh: build/azure-pipelines/product-publish.ps1
     env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+      AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
+      AZURE_CLIENT_ID: "$(AZURE_CLIENT_ID)"
+      AZURE_CLIENT_SECRET: "$(AZURE_CLIENT_SECRET)"
+      AZURE_MOONCAKE_TENANT_ID: "$(AZURE_MOONCAKE_TENANT_ID)"
+      AZURE_MOONCAKE_CLIENT_ID: "$(AZURE_MOONCAKE_CLIENT_ID)"
+      AZURE_MOONCAKE_CLIENT_SECRET: "$(AZURE_MOONCAKE_CLIENT_SECRET)"
       SYSTEM_ACCESSTOKEN: $(System.AccessToken)
     displayName: Process artifacts
 
@@ -83,7 +86,9 @@ steps:
       $stages = @(
         if ($env:VSCODE_BUILD_STAGE_WINDOWS -eq 'True') { 'Windows' }
         if ($env:VSCODE_BUILD_STAGE_LINUX -eq 'True') { 'Linux' }
+        if ($env:VSCODE_BUILD_STAGE_ALPINE -eq 'True') { 'Alpine' }
         if ($env:VSCODE_BUILD_STAGE_MACOS -eq 'True') { 'macOS' }
+        if ($env:VSCODE_BUILD_STAGE_WEB -eq 'True') { 'Web' }
       )
       Write-Host "Stages to check: $stages"
 

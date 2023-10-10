@@ -4,8 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 export interface ICommentsConfiguration {
-	openView: 'never' | 'file';
+	openView: 'never' | 'file' | 'firstFile' | 'firstFileUnresolved';
 	useRelativeTime: boolean;
+	visible: boolean;
+	maxHeight: boolean;
+	collapseOnResolve: boolean;
+	experimentalContinueOn: boolean;
 }
 
 export const COMMENTS_SECTION = 'comments';

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { deepStrictEqual, doesNotThrow, equal, strictEqual, throws } from 'assert';
-import { ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalOptions, TerminalState, UIKind, window, workspace } from 'vscode';
+import { deepStrictEqual, doesNotThrow, equal, ok, strictEqual, throws } from 'assert';
+import { commands, ConfigurationTarget, Disposable, env, EnvironmentVariableMutator, EnvironmentVariableMutatorOptions, EnvironmentVariableMutatorType, EventEmitter, ExtensionContext, extensions, ExtensionTerminalOptions, Pseudoterminal, Terminal, TerminalDimensions, TerminalExitReason, TerminalOptions, TerminalState, UIKind, Uri, window, workspace } from 'vscode';
 import { assertNoRpc, poll } from '../utils';
 
 // Disable terminal tests:
@@ -26,15 +26,18 @@ import { assertNoRpc, poll } from '../utils';
 		await config.update('gpuAcceleration', 'off', ConfigurationTarget.Global);
 		// Disable env var relaunch for tests to prevent terminals relaunching themselves
 		await config.update('environmentChangesRelaunch', false, ConfigurationTarget.Global);
+		await config.update('shellIntegration.enabled', false);
 	});
 
 	suite('Terminal', () => {
-		let disposables: Disposable[] = [];
+		const disposables: Disposable[] = [];
 
-		teardown(() => {
+		teardown(async () => {
 			assertNoRpc();
 			disposables.forEach(d => d.dispose());
 			disposables.length = 0;
+			const config = workspace.getConfiguration('terminal.integrated');
+			await config.update('shellIntegration.enabled', undefined);
 		});
 
 		test('sendText immediately after createTerminal should not throw', async () => {
@@ -129,7 +132,7 @@ import { assertNoRpc, poll } from '../utils';
 				}));
 			});
 			equal(result, terminal);
-			let pid = await result.processId;
+			const pid = await result.processId;
 			equal(true, pid && pid > 0);
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
@@ -220,7 +223,7 @@ import { assertNoRpc, poll } from '../utils';
 			await new Promise<void>(r => {
 				disposables.push(window.onDidCloseTerminal(t => {
 					if (t === terminal) {
-						deepStrictEqual(t.exitStatus, { code: undefined });
+						deepStrictEqual(t.exitStatus, { code: undefined, reason: TerminalExitReason.Extension });
 						r();
 					}
 				}));
@@ -344,8 +347,53 @@ import { assertNoRpc, poll } from '../utils';
 			});
 		});
 
+		suite('selection', () => {
+			test('should be undefined immediately after creation', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				equal(terminal.selection, undefined);
+				terminal.dispose();
+			});
+			test('should be defined after selecting all content', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
+				await commands.executeCommand('workbench.action.terminal.selectAll');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
+				terminal.dispose();
+			});
+			test('should be undefined after clearing a selection', async () => {
+				const terminal = window.createTerminal({ name: 'selection test' });
+				terminal.show();
+				// Wait for some terminal data
+				await new Promise<void>(r => {
+					const disposable = window.onDidWriteTerminalData(() => {
+						disposable.dispose();
+						r();
+					});
+				});
+				await commands.executeCommand('workbench.action.terminal.selectAll');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection !== undefined, 'selection should be defined');
+				await commands.executeCommand('workbench.action.terminal.clearSelection');
+				await poll<void>(() => Promise.resolve(), () => terminal.selection === undefined, 'selection should not be defined');
+				terminal.dispose();
+			});
+		});
+
 		suite('window.onDidWriteTerminalData', () => {
-			test('should listen to all future terminal data events', (done) => {
+			// still flaky with retries, skipping https://github.com/microsoft/vscode/issues/193505
+			test.skip('should listen to all future terminal data events', function (done) {
+				// This test has been flaky in the past but it's not clear why, possibly because
+				// events from previous tests polluting the event recording in this test. Retries
+				// was added so we continue to have coverage of the onDidWriteTerminalData API.
+				this.retries(3);
+
 				const openEvents: string[] = [];
 				const dataEvents: { name: string; data: string }[] = [];
 				const closeEvents: string[] = [];
@@ -365,11 +413,12 @@ import { assertNoRpc, poll } from '../utils';
 					try {
 						if (closeEvents.length === 1) {
 							deepStrictEqual(openEvents, ['test1']);
-							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }]);
+							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
 							deepStrictEqual(closeEvents, ['test1']);
 						} else if (closeEvents.length === 2) {
 							deepStrictEqual(openEvents, ['test1', 'test2']);
-							deepStrictEqual(dataEvents, [{ name: 'test1', data: 'write1' }, { name: 'test2', data: 'write2' }]);
+							ok(dataEvents.some(e => e.name === 'test1' && e.data === 'write1'));
+							ok(dataEvents.some(e => e.name === 'test2' && e.data === 'write2'));
 							deepStrictEqual(closeEvents, ['test1', 'test2']);
 						}
 						resolveOnceClosed!();
@@ -576,7 +625,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: undefined });
+									deepStrictEqual(created.exitStatus, { code: undefined, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -601,7 +650,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: 0 });
+									deepStrictEqual(created.exitStatus, { code: 0, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -631,7 +680,7 @@ import { assertNoRpc, poll } from '../utils';
 							strictEqual(created.exitStatus, undefined);
 							disposables.push(window.onDidCloseTerminal(t2 => {
 								if (t2 === created) {
-									deepStrictEqual(created.exitStatus, { code: 22 });
+									deepStrictEqual(created.exitStatus, { code: 22, reason: TerminalExitReason.Process });
 									r();
 								}
 							}));
@@ -845,20 +894,54 @@ import { assertNoRpc, poll } from '../utils';
 				collection.replace('A', '~a2~');
 				collection.append('B', '~b2~');
 				collection.prepend('C', '~c2~');
-
 				// Verify get
-				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace });
-				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append });
-				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend });
-
+				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+					applyAtProcessCreation: true,
+					applyAtShellIntegration: false
+				};
+				deepStrictEqual(collection.get('A'), { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
+				deepStrictEqual(collection.get('B'), { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
+				deepStrictEqual(collection.get('C'), { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
 				// Verify forEach
 				const entries: [string, EnvironmentVariableMutator][] = [];
 				collection.forEach((v, m) => entries.push([v, m]));
 				deepStrictEqual(entries, [
-					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace }],
-					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append }],
-					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend }]
+					['A', { value: '~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions }],
+					['B', { value: '~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions }],
+					['C', { value: '~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }]
 				]);
+			});
+
+			test('get and forEach should work (scope)', () => {
+				const collection = extensionContext.environmentVariableCollection;
+				disposables.push({ dispose: () => collection.clear() });
+				const scope = { workspaceFolder: { uri: Uri.file('workspace1'), name: 'workspace1', index: 0 } };
+				const scopedCollection = collection.getScoped(scope);
+				scopedCollection.replace('A', 'scoped~a2~');
+				scopedCollection.append('B', 'scoped~b2~');
+				scopedCollection.prepend('C', 'scoped~c2~');
+				collection.replace('A', '~a2~');
+				collection.append('B', '~b2~');
+				collection.prepend('C', '~c2~');
+				// Verify get for scope
+				const defaultOptions: Required<EnvironmentVariableMutatorOptions> = {
+					applyAtProcessCreation: true,
+					applyAtShellIntegration: false
+				};
+				const expectedScopedCollection = collection.getScoped(scope);
+				deepStrictEqual(expectedScopedCollection.get('A'), { value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions });
+				deepStrictEqual(expectedScopedCollection.get('B'), { value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions });
+				deepStrictEqual(expectedScopedCollection.get('C'), { value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions });
+
+				// Verify forEach
+				const entries: [string, EnvironmentVariableMutator][] = [];
+				expectedScopedCollection.forEach((v, m) => entries.push([v, m]));
+				deepStrictEqual(entries.map(v => v[1]), [
+					{ value: 'scoped~a2~', type: EnvironmentVariableMutatorType.Replace, options: defaultOptions },
+					{ value: 'scoped~b2~', type: EnvironmentVariableMutatorType.Append, options: defaultOptions },
+					{ value: 'scoped~c2~', type: EnvironmentVariableMutatorType.Prepend, options: defaultOptions }
+				]);
+				deepStrictEqual(entries.map(v => v[0]), ['A', 'B', 'C']);
 			});
 		});
 	});

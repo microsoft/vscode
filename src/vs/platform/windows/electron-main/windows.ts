@@ -3,14 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { WebContents } from 'electron';
+import { BrowserWindowConstructorOptions, WebContents } from 'electron';
 import { Event } from 'vs/base/common/event';
-import { IProcessEnvironment } from 'vs/base/common/platform';
+import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IOpenEmptyWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ICodeWindow, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
+import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { join } from 'vs/base/common/path';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -22,14 +27,17 @@ export interface IWindowsMainService {
 
 	readonly onDidOpenWindow: Event<ICodeWindow>;
 	readonly onDidSignalReadyWindow: Event<ICodeWindow>;
+	readonly onDidTriggerSystemContextMenu: Event<{ window: ICodeWindow; x: number; y: number }>;
 	readonly onDidDestroyWindow: Event<ICodeWindow>;
 
-	open(openConfig: IOpenConfiguration): ICodeWindow[];
-	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): ICodeWindow[];
+	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
+	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
-	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): ICodeWindow[];
 
 	sendToFocused(channel: string, ...args: any[]): void;
+	sendToOpeningWindow(channel: string, ...args: any[]): void;
 	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
@@ -84,6 +92,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	readonly forceReuseWindow?: boolean;
 	readonly forceEmpty?: boolean;
 	readonly diffMode?: boolean;
+	readonly mergeMode?: boolean;
 	addMode?: boolean;
 	readonly gotoLineMode?: boolean;
 	readonly initialStartup?: boolean;
@@ -94,6 +103,57 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 	 * - a workspace that is neither `file://` nor `vscode-remote://`
 	 */
 	readonly remoteAuthority?: string;
+	readonly forceProfile?: string;
+	readonly forceTempProfile?: boolean;
 }
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
+
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState = defaultWindowState(), overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+	const themeMainService = accessor.get(IThemeMainService);
+	const productService = accessor.get(IProductService);
+	const configurationService = accessor.get(IConfigurationService);
+	const environmentMainService = accessor.get(IEnvironmentMainService);
+
+	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
+
+	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+		width: windowState.width,
+		height: windowState.height,
+		x: windowState.x,
+		y: windowState.y,
+		backgroundColor: themeMainService.getBackgroundColor(),
+		minWidth: WindowMinimumSize.WIDTH,
+		minHeight: WindowMinimumSize.HEIGHT,
+		title: productService.nameLong,
+		...overrides,
+		webPreferences: {
+			enableWebSQL: false,
+			spellcheck: false,
+			zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
+			autoplayPolicy: 'user-gesture-required',
+			// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
+			// Refs https://github.com/microsoft/vscode/issues/140098
+			enableBlinkFeatures: 'HighlightAPI',
+			...overrides?.webPreferences,
+			sandbox: true
+		},
+		experimentalDarkMode: true
+	};
+
+	if (isLinux) {
+		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
+	} else if (isWindows && !environmentMainService.isBuilt) {
+		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	}
+
+	if (isMacintosh) {
+		options.acceptFirstMouse = true; // enabled by default
+
+		if (windowSettings?.clickThroughInactive === false) {
+			options.acceptFirstMouse = false;
+		}
+	}
+
+	return options;
+}

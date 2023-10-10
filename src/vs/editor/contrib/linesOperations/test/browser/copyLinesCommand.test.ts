@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Selection } from 'vs/editor/common/core/selection';
 import { CopyLinesCommand } from 'vs/editor/contrib/linesOperations/browser/copyLinesCommand';
 import { DuplicateSelectionAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
@@ -11,14 +12,16 @@ import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function testCopyLinesDownCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new CopyLinesCommand(sel, true), expectedLines, expectedSelection);
 }
 
 function testCopyLinesUpCommand(lines: string[], selection: Selection, expectedLines: string[], expectedSelection: Selection): void {
-	testCommand(lines, null, selection, (sel) => new CopyLinesCommand(sel, false), expectedLines, expectedSelection);
+	testCommand(lines, null, selection, (accessor, sel) => new CopyLinesCommand(sel, false), expectedLines, expectedSelection);
 }
 
 suite('Editor Contrib - Copy Lines Command', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('copy first line down', function () {
 		testCopyLinesDownCommand(
@@ -200,6 +203,8 @@ suite('Editor Contrib - Copy Lines Command', () => {
 });
 
 suite('Editor Contrib - Duplicate Selection', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	const duplicateSelectionAction = new DuplicateSelectionAction();
 

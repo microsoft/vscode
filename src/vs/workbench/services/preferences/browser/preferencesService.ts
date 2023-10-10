@@ -17,21 +17,17 @@ import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Extensions, getDefaultValue, IConfigurationRegistry, OVERRIDE_PROPERTY_REGEX } from 'vs/platform/configuration/common/configurationRegistry';
-import { EditorResolution } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEditorPane } from 'vs/workbench/common/editor';
+import { DEFAULT_EDITOR_ASSOCIATION, IEditorPane } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
@@ -45,6 +41,10 @@ import { defaultKeybindingsContents, DefaultKeybindingsEditorModel, DefaultRawSe
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { isObject } from 'vs/base/common/types';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
+import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -66,8 +66,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@INotificationService private readonly notificationService: INotificationService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
-		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
+		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ITextModelService private readonly textModelResolverService: ITextModelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IModelService private readonly modelService: IModelService,
@@ -75,7 +75,6 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@ICommandService private readonly commandService: ICommandService,
 		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
@@ -95,7 +94,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private readonly defaultSettingsRawResource = URI.from({ scheme: network.Schemas.vscode, authority: 'defaultsettings', path: '/defaultSettings.json' });
 
 	get userSettingsResource(): URI {
-		return this.environmentService.settingsResource;
+		return this.userDataProfileService.currentProfile.settingsResource;
 	}
 
 	get workspaceSettingsResource(): URI | null {
@@ -168,7 +167,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			return this.createDefaultSettingsEditorModel(uri);
 		}
 
-		if (this.userSettingsResource.toString() === uri.toString()) {
+		if (this.userSettingsResource.toString() === uri.toString() || this.userDataProfilesService.defaultProfile.settingsResource.toString() === uri.toString()) {
 			return this.createEditableSettingsEditorModel(ConfigurationTarget.USER_LOCAL, uri);
 		}
 
@@ -217,6 +216,18 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.open(this.userSettingsResource, options);
 	}
 
+	openLanguageSpecificSettings(languageId: string, options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		if (this.shouldOpenJsonByDefault()) {
+			options.query = undefined;
+			options.revealSetting = { key: `[${languageId}]`, edit: true };
+		} else {
+			options.query = `@lang:${languageId}${options.query ? ` ${options.query}` : ''}`;
+		}
+		options.target = options.target ?? ConfigurationTarget.USER_LOCAL;
+
+		return this.open(this.userSettingsResource, options);
+	}
+
 	private open(settingsResource: URI, options: IOpenSettingsOptions): Promise<IEditorPane | undefined> {
 		options = {
 			...options,
@@ -236,6 +247,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		};
 		await this.editorService.openEditor(input, validateSettingsEditorOptions(options), options.openToSide ? SIDE_GROUP : undefined);
 		return this.editorGroupService.activeGroup.activeEditorPane!;
+	}
+
+	openApplicationSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
+		options = {
+			...options,
+			target: ConfigurationTarget.USER_LOCAL,
+		};
+		return this.open(this.userDataProfilesService.defaultProfile.settingsResource, options);
 	}
 
 	openUserSettings(options: IOpenSettingsOptions = {}): Promise<IEditorPane | undefined> {
@@ -291,15 +310,10 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	async openGlobalKeybindingSettings(textual: boolean, options?: IKeybindingsEditorOptions): Promise<void> {
-		type OpenKeybindingsClassification = {
-			textual: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true };
-		};
-		this.telemetryService.publicLog2<{ textual: boolean }, OpenKeybindingsClassification>('openKeybindings', { textual });
-
 		options = { pinned: true, revealIfOpened: true, ...options };
 		if (textual) {
 			const emptyContents = '// ' + nls.localize('emptyKeybindingsHeader', "Place your key bindings in this file to override the defaults") + '\n[\n]';
-			const editableKeybindings = this.environmentService.keybindingsResource;
+			const editableKeybindings = this.userDataProfileService.currentProfile.keybindingsResource;
 			const openDefaultKeybindings = !!this.configurationService.getValue('workbench.settings.openDefaultKeybindings');
 
 			// Create as needed and open in editor
@@ -308,7 +322,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 				const activeEditorGroup = this.editorGroupService.activeGroup;
 				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
 				await Promise.all([
-					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: EditorResolution.DISABLED }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true, revealIfOpened: true, override: DEFAULT_EDITOR_ASSOCIATION.id }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
 					this.editorService.openEditor({ resource: editableKeybindings, options }, sideEditorGroup.id)
 				]);
 			} else {
@@ -316,7 +330,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			}
 
 		} else {
-			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options, override: EditorResolution.DISABLED })) as IKeybindingsEditorPane;
+			const editor = (await this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { ...options })) as IKeybindingsEditorPane;
 			if (options.query) {
 				editor.search(options.query);
 			}
@@ -445,6 +459,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	public async getEditableSettingsURI(configurationTarget: ConfigurationTarget, resource?: URI): Promise<URI | null> {
 		switch (configurationTarget) {
+			case ConfigurationTarget.APPLICATION:
+				return this.userDataProfilesService.defaultProfile.settingsResource;
 			case ConfigurationTarget.USER:
 			case ConfigurationTarget.USER_LOCAL:
 				return this.userSettingsResource;
@@ -529,7 +545,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			codeEditor.revealPositionNearTop(position);
 			codeEditor.focus();
 			if (edit) {
-				await this.commandService.executeCommand('editor.action.triggerSuggest');
+				SuggestController.get(codeEditor)?.triggerSuggest();
 			}
 		}
 	}
@@ -546,7 +562,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		}
 
 		let position = null;
-		const type = schema ? schema.type : 'object' /* Override Identifier */;
+		const type = schema?.type ?? 'object' /* Type not defined or is an Override Identifier */;
 		let setting = settingsModel.getPreference(settingKey);
 		if (!setting && edit) {
 			let defaultValue = (type === 'object' || type === 'array') ? this.configurationService.inspect(settingKey).defaultValue : getDefaultValue(type);
@@ -560,8 +576,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 		if (setting) {
 			if (edit) {
-				position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
-				if (type === 'object' || type === 'array') {
+				if (isObject(setting.value) || Array.isArray(setting.value)) {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
 					codeEditor.setPosition(position);
 					await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 					position = { lineNumber: position.lineNumber + 1, column: model.getLineMaxColumn(position.lineNumber + 1) };
@@ -572,6 +588,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 						await CoreEditingCommands.LineBreakInsert.runEditorCommand(null, codeEditor, null);
 						position = { lineNumber: position.lineNumber, column: model.getLineMaxColumn(position.lineNumber) };
 					}
+				} else {
+					position = { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.endColumn };
 				}
 			} else {
 				position = { lineNumber: setting.keyRange.startLineNumber, column: setting.keyRange.startColumn };
@@ -587,4 +605,4 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 }
 
-registerSingleton(IPreferencesService, PreferencesService);
+registerSingleton(IPreferencesService, PreferencesService, InstantiationType.Delayed);

@@ -12,7 +12,6 @@ import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListVirtualDelega
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { createMatches, FuzzyScore, IMatch } from 'vs/base/common/filters';
-import { getBaseLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { basename, dirname } from 'vs/base/common/resources';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -20,8 +19,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { FileReferences, OneReference, ReferencesModel } from '../referencesModel';
 
 //#region data source
@@ -113,23 +111,25 @@ class FileReferencesTemplate extends Disposable {
 
 	constructor(
 		container: HTMLElement,
-		@ILabelService private readonly _uriLabel: ILabelService,
-		@IThemeService themeService: IThemeService,
+		@ILabelService private readonly _labelService: ILabelService
 	) {
 		super();
 		const parent = document.createElement('div');
 		parent.classList.add('reference-file');
 		this.file = this._register(new IconLabel(parent, { supportHighlights: true }));
 
-		this.badge = new CountBadge(dom.append(parent, dom.$('.count')));
-		this._register(attachBadgeStyler(this.badge, themeService));
+		this.badge = new CountBadge(dom.append(parent, dom.$('.count')), {}, defaultCountBadgeStyles);
 
 		container.appendChild(parent);
 	}
 
 	set(element: FileReferences, matches: IMatch[]) {
-		let parent = dirname(element.uri);
-		this.file.setLabel(getBaseLabel(element.uri), this._uriLabel.getUriLabel(parent, { relative: true }), { title: this._uriLabel.getUriLabel(element.uri), matches });
+		const parent = dirname(element.uri);
+		this.file.setLabel(
+			this._labelService.getUriBasenameLabel(element.uri),
+			this._labelService.getUriLabel(parent, { relative: true }),
+			{ title: this._labelService.getUriLabel(element.uri), matches }
+		);
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (len > 1) {

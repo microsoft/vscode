@@ -68,7 +68,7 @@ class DecorationsManager implements IDisposable {
 		if (!model) {
 			return;
 		}
-		for (let ref of this._model.references) {
+		for (const ref of this._model.references) {
 			if (ref.uri.toString() === model.uri.toString()) {
 				this._addDecorations(ref.parent);
 				return;
@@ -86,7 +86,7 @@ class DecorationsManager implements IDisposable {
 		const newDecorationsActualIndex: number[] = [];
 
 		for (let i = 0, len = reference.children.length; i < len; i++) {
-			let oneReference = reference.children[i];
+			const oneReference = reference.children[i];
 			if (this._decorationIgnoreSet.has(oneReference.id)) {
 				continue;
 			}
@@ -100,10 +100,12 @@ class DecorationsManager implements IDisposable {
 			newDecorationsActualIndex.push(i);
 		}
 
-		const decorations = this._editor.deltaDecorations([], newDecorations);
-		for (let i = 0; i < decorations.length; i++) {
-			this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
-		}
+		this._editor.changeDecorations((changeAccessor) => {
+			const decorations = changeAccessor.deltaDecorations([], newDecorations);
+			for (let i = 0; i < decorations.length; i++) {
+				this._decorations.set(decorations[i], reference.children[newDecorationsActualIndex[i]]);
+			}
+		});
 	}
 
 	private _onDecorationChanged(): void {
@@ -114,7 +116,7 @@ class DecorationsManager implements IDisposable {
 			return;
 		}
 
-		for (let [decorationId, reference] of this._decorations) {
+		for (const [decorationId, reference] of this._decorations) {
 
 			const newRange = model.getDecorationRange(decorationId);
 
@@ -151,11 +153,11 @@ class DecorationsManager implements IDisposable {
 		for (let i = 0, len = toRemove.length; i < len; i++) {
 			this._decorations.delete(toRemove[i]);
 		}
-		this._editor.deltaDecorations(toRemove, []);
+		this._editor.removeDecorations(toRemove);
 	}
 
 	removeDecorations(): void {
-		this._editor.deltaDecorations([...this._decorations.keys()], []);
+		this._editor.removeDecorations([...this._decorations.keys()]);
 		this._decorations.clear();
 	}
 }
@@ -259,7 +261,6 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 	}
 
 	override show(where: IRange) {
-		this.editor.revealRangeInCenterIfOutsideViewport(where, ScrollType.Smooth);
 		super.show(where, this.layoutData.heightInLines || 18);
 	}
 
@@ -296,7 +297,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 
 		// editor
 		this._previewContainer = dom.append(containerElement, dom.$('div.preview.inline'));
-		let options: IEditorOptions = {
+		const options: IEditorOptions = {
 			scrollBeyondLastLine: false,
 			scrollbar: {
 				verticalScrollbarSize: 14,
@@ -304,7 +305,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				useShadows: true,
 				verticalHasArrows: false,
 				horizontalHasArrows: false,
-				alwaysConsumeMouseWheel: false
+				alwaysConsumeMouseWheel: true
 			},
 			overviewRulerLanes: 2,
 			fixedOverflowWidgets: true,
@@ -312,7 +313,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 				enabled: false
 			}
 		};
-		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, this.editor);
+		this._preview = this._instantiationService.createInstance(EmbeddedCodeEditorWidget, this._previewContainer, options, {}, this.editor);
 		dom.hide(this._previewContainer);
 		this._previewNotAvailableMessage = new TextModel(nls.localize('missingPreviewMessage', "no preview available"), PLAINTEXT_LANGUAGE_ID, TextModel.DEFAULT_CREATION_OPTIONS, null, this._undoRedoService, this._languageService, this._languageConfigurationService);
 
@@ -381,7 +382,7 @@ export class ReferenceWidget extends peekView.PeekViewWidget {
 		}, undefined));
 
 		// listen on selection and focus
-		let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+		const onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 			if (element instanceof OneReference) {
 				if (kind === 'show') {
 					this._revealReference(element, false);

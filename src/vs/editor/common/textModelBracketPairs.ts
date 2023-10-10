@@ -3,9 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CallbackIterable } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
+import { ClosingBracketKind, OpeningBracketKind } from 'vs/editor/common/languages/supports/languageBracketsConfiguration';
+import { PairAstNode } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/ast';
 
 export interface IBracketPairsTextModelPart {
 	/**
@@ -17,15 +20,15 @@ export interface IBracketPairsTextModelPart {
 	 * Gets all bracket pairs that intersect the given position.
 	 * The result is sorted by the start position.
 	 */
-	getBracketPairsInRange(range: IRange): BracketPairInfo[];
+	getBracketPairsInRange(range: IRange): CallbackIterable<BracketPairInfo>;
 
 	/**
 	 * Gets all bracket pairs that intersect the given position.
 	 * The result is sorted by the start position.
 	 */
-	getBracketPairsInRangeWithMinIndentation(range: IRange): BracketPairWithMinIndentationInfo[];
+	getBracketPairsInRangeWithMinIndentation(range: IRange): CallbackIterable<BracketPairWithMinIndentationInfo>;
 
-	getBracketsInRange(range: IRange): BracketInfo[];
+	getBracketsInRange(range: IRange, onlyColorizedBrackets?: boolean): CallbackIterable<BracketInfo>;
 
 	/**
 	 * Find the matching bracket of `request` up, counting brackets.
@@ -65,9 +68,7 @@ export interface IBracketPairsTextModelPart {
 
 export interface IFoundBracket {
 	range: Range;
-	open: string[];
-	close: string[];
-	isOpen: boolean;
+	bracketInfo: OpeningBracketKind | ClosingBracketKind;
 }
 
 export class BracketInfo {
@@ -85,11 +86,21 @@ export class BracketPairInfo {
 		public readonly range: Range,
 		public readonly openingBracketRange: Range,
 		public readonly closingBracketRange: Range | undefined,
-		/**
-		 * 0-based
-		*/
+		/** 0-based */
 		public readonly nestingLevel: number,
-	) { }
+		public readonly nestingLevelOfEqualBracketType: number,
+		private readonly bracketPairNode: PairAstNode,
+
+	) {
+	}
+
+	public get openingBracketInfo(): OpeningBracketKind {
+		return this.bracketPairNode.openingBracket.bracketInfo as OpeningBracketKind;
+	}
+
+	public get closingBracketInfo(): ClosingBracketKind | undefined {
+		return this.bracketPairNode.closingBracket?.bracketInfo as ClosingBracketKind | undefined;
+	}
 }
 
 export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
@@ -101,11 +112,13 @@ export class BracketPairWithMinIndentationInfo extends BracketPairInfo {
 		 * 0-based
 		*/
 		nestingLevel: number,
+		nestingLevelOfEqualBracketType: number,
+		bracketPairNode: PairAstNode,
 		/**
 		 * -1 if not requested, otherwise the size of the minimum indentation in the bracket pair in terms of visible columns.
 		*/
 		public readonly minVisibleColumnIndentation: number,
 	) {
-		super(range, openingBracketRange, closingBracketRange, nestingLevel);
+		super(range, openingBracketRange, closingBracketRange, nestingLevel, nestingLevelOfEqualBracketType, bracketPairNode);
 	}
 }

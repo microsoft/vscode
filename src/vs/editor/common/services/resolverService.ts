@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { ITextModel, ITextSnapshot } from 'vs/editor/common/model';
@@ -55,7 +56,7 @@ export interface ITextEditorModel extends IEditorModel {
 	/**
 	 * Signals if this model is readonly or not.
 	 */
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 
 	/**
 	 * The language id of the text model if known.
@@ -69,4 +70,10 @@ export interface IResolvedTextEditorModel extends ITextEditorModel {
 	 * Same as ITextEditorModel#textEditorModel, but never null.
 	 */
 	readonly textEditorModel: ITextModel;
+}
+
+export function isResolvedTextEditorModel(model: ITextEditorModel): model is IResolvedTextEditorModel {
+	const candidate = model as IResolvedTextEditorModel;
+
+	return !!candidate.textEditorModel;
 }

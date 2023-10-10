@@ -6,19 +6,15 @@
 import * as DOM from 'vs/base/browser/dom';
 import { FastDomNode } from 'vs/base/browser/fastDomNode';
 import { CodeCellLayoutInfo, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellTitleToolbarPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellToolbars';
-import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { CodeCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/codeCellViewModel';
 import { MarkupCellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/markupCellViewModel';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 
-export class CellFocusIndicator extends CellPart {
+export class CellFocusIndicator extends CellContentPart {
 	public codeFocusIndicator: FastDomNode<HTMLElement>;
 	public outputFocusIndicator: FastDomNode<HTMLElement>;
-
-	private currentElement: ICellViewModel | undefined;
 
 	constructor(
 		readonly notebookEditor: INotebookEditorDelegate,
@@ -45,26 +41,31 @@ export class CellFocusIndicator extends CellPart {
 				DOM.$('.codeOutput-focus-indicator.output-focus-indicator'))));
 
 		this._register(DOM.addDisposableListener(this.codeFocusIndicator.domNode, DOM.EventType.CLICK, () => {
-			if (this.currentElement) {
-				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;
+			if (this.currentCell) {
+				this.currentCell.isInputCollapsed = !this.currentCell.isInputCollapsed;
 			}
 		}));
 		this._register(DOM.addDisposableListener(this.outputFocusIndicator.domNode, DOM.EventType.CLICK, () => {
-			if (this.currentElement) {
-				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
+			if (this.currentCell) {
+				this.currentCell.isOutputCollapsed = !this.currentCell.isOutputCollapsed;
 			}
 		}));
 
 		this._register(DOM.addDisposableListener(this.left.domNode, DOM.EventType.DBLCLICK, e => {
-			if (!this.currentElement || !this.notebookEditor.hasModel()) {
+			if (!this.currentCell || !this.notebookEditor.hasModel()) {
 				return;
 			}
 
-			const clickedOnInput = e.offsetY < (this.currentElement.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
+			if (e.target !== this.left.domNode) {
+				// Don't allow dblclick on the codeFocusIndicator/outputFocusIndicator
+				return;
+			}
+
+			const clickedOnInput = e.offsetY < (this.currentCell.layoutInfo as CodeCellLayoutInfo).outputContainerOffset;
 			if (clickedOnInput) {
-				this.currentElement.isInputCollapsed = !this.currentElement.isInputCollapsed;
+				this.currentCell.isInputCollapsed = !this.currentCell.isInputCollapsed;
 			} else {
-				this.currentElement.isOutputCollapsed = !this.currentElement.isOutputCollapsed;
+				this.currentCell.isOutputCollapsed = !this.currentCell.isOutputCollapsed;
 			}
 		}));
 
@@ -73,28 +74,18 @@ export class CellFocusIndicator extends CellPart {
 		}));
 	}
 
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		this.currentElement = element;
-	}
-
-	prepareLayout(): void {
-		// nothing to read
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
+	override updateInternalLayoutNow(element: ICellViewModel): void {
 		if (element.cellKind === CellKind.Markup) {
-			// markdown cell
 			const indicatorPostion = this.notebookEditor.notebookOptions.computeIndicatorPosition(element.layoutInfo.totalHeight, (element as MarkupCellViewModel).layoutInfo.foldHintHeight, this.notebookEditor.textModel?.viewType);
 			this.bottom.domNode.style.transform = `translateY(${indicatorPostion.bottomIndicatorTop}px)`;
 			this.left.setHeight(indicatorPostion.verticalIndicatorHeight);
 			this.right.setHeight(indicatorPostion.verticalIndicatorHeight);
-			this.codeFocusIndicator.setHeight(indicatorPostion.verticalIndicatorHeight);
+			this.codeFocusIndicator.setHeight(indicatorPostion.verticalIndicatorHeight - this.getIndicatorTopMargin() * 2);
 		} else {
-			// code cell
 			const cell = element as CodeCellViewModel;
 			const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
 			const bottomToolbarDimensions = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
-			const indicatorHeight = cell.layoutInfo.codeIndicatorHeight + cell.layoutInfo.outputIndicatorHeight;
+			const indicatorHeight = cell.layoutInfo.codeIndicatorHeight + cell.layoutInfo.outputIndicatorHeight + cell.layoutInfo.commentHeight;
 			this.left.setHeight(indicatorHeight);
 			this.right.setHeight(indicatorHeight);
 			this.codeFocusIndicator.setHeight(cell.layoutInfo.codeIndicatorHeight);
@@ -105,18 +96,18 @@ export class CellFocusIndicator extends CellPart {
 		this.updateFocusIndicatorsForTitleMenu();
 	}
 
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
-		// nothing to update
+	private updateFocusIndicatorsForTitleMenu(): void {
+		this.left.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
+		this.right.domNode.style.transform = `translateY(${this.getIndicatorTopMargin()}px)`;
 	}
 
-	private updateFocusIndicatorsForTitleMenu(): void {
+	private getIndicatorTopMargin() {
 		const layoutInfo = this.notebookEditor.notebookOptions.getLayoutConfiguration();
+
 		if (this.titleToolbar.hasActions) {
-			this.left.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
-			this.right.domNode.style.transform = `translateY(${layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin}px)`;
+			return layoutInfo.editorToolbarHeight + layoutInfo.cellTopMargin;
 		} else {
-			this.left.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
-			this.right.domNode.style.transform = `translateY(${layoutInfo.cellTopMargin}px)`;
+			return layoutInfo.cellTopMargin;
 		}
 	}
 }

@@ -49,7 +49,7 @@ export class SuggestAlternatives {
 		}
 
 		// no alternative suggestions -> nothing to do
-		let nextIndex = SuggestAlternatives._moveIndex(true, model, index);
+		const nextIndex = SuggestAlternatives._moveIndex(true, model, index);
 		if (nextIndex === index) {
 			this.reset();
 			return;
@@ -68,7 +68,7 @@ export class SuggestAlternatives {
 
 	private static _moveIndex(fwd: boolean, model: CompletionModel, index: number): number {
 		let newIndex = index;
-		while (true) {
+		for (let rounds = model.items.length; rounds > 0; rounds--) {
 			newIndex = (newIndex + model.items.length + (fwd ? +1 : -1)) % model.items.length;
 			if (newIndex === index) {
 				break;

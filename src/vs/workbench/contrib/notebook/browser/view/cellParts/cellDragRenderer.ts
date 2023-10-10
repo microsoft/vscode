@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
 import { Color } from 'vs/base/common/color';
 import * as platform from 'vs/base/common/platform';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
+import { ColorId } from 'vs/editor/common/encodedTokenAttributes';
 import * as languages from 'vs/editor/common/languages';
 import { tokenizeLineToHTML } from 'vs/editor/common/languages/textToHtmlTokenizer';
 import { ITextModel } from 'vs/editor/common/model';
@@ -16,7 +18,7 @@ import { BaseCellRenderTemplate } from 'vs/workbench/contrib/notebook/browser/vi
 
 class EditorTextRenderer {
 
-	private static _ttPolicy = window.trustedTypes?.createPolicy('cellRendererEditorText', {
+	private static _ttPolicy = createTrustedTypesPolicy('cellRendererEditorText', {
 		createHTML(input) { return input; }
 	});
 
@@ -33,8 +35,8 @@ class EditorTextRenderer {
 		const fontWeightVar = '--notebook-editor-font-weight';
 
 		const style = ``
-			+ `color: ${colorMap[languages.ColorId.DefaultForeground]};`
-			+ `background-color: ${colorMap[languages.ColorId.DefaultBackground]};`
+			+ `color: ${colorMap[ColorId.DefaultForeground]};`
+			+ `background-color: ${colorMap[ColorId.DefaultBackground]};`
 			+ `font-family: var(${fontFamilyVar});`
 			+ `font-weight: var(${fontWeightVar});`
 			+ `font-size: var(${fontSizeVar});`
@@ -65,7 +67,7 @@ class EditorTextRenderer {
 		let result = '';
 
 		for (let lineNumber = startLineNumber; lineNumber <= endLineNumber; lineNumber++) {
-			const lineTokens = model.getLineTokens(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
 			const lineContent = lineTokens.getLineContent();
 			const startOffset = (lineNumber === startLineNumber ? startColumn - 1 : 0);
 			const endOffset = (lineNumber === endLineNumber ? endColumn - 1 : lineContent.length);

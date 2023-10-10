@@ -9,7 +9,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { expandCellRangesWithHiddenCells, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
-import { CellPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellPart';
+import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { BaseCellRenderTemplate, INotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookRenderingCommon';
 import { cloneNotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
 import { CellEditType, ICellMoveEdit, SelectionStateType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -30,22 +30,25 @@ interface CellDragEvent {
 	dragPosRatio: number;
 }
 
-export class CellDragAndDropPart extends CellPart {
-	renderCell(element: ICellViewModel, templateData: BaseCellRenderTemplate): void {
-		if (element.dragging) {
-			templateData.container.classList.add(DRAGGING_CLASS);
-		} else {
-			templateData.container.classList.remove(DRAGGING_CLASS);
+export class CellDragAndDropPart extends CellContentPart {
+	constructor(
+		private readonly container: HTMLElement
+	) {
+		super();
+	}
+
+	override didRenderCell(element: ICellViewModel): void {
+		this.update(element);
+	}
+
+	override updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+		if (e.dragStateChanged) {
+			this.update(element);
 		}
 	}
 
-	prepareLayout(): void {
-	}
-
-	updateInternalLayoutNow(element: ICellViewModel): void {
-	}
-
-	updateState(element: ICellViewModel, e: CellViewModelStateChangeEvent): void {
+	private update(element: ICellViewModel) {
+		this.container.classList.toggle(DRAGGING_CLASS, element.dragging);
 	}
 }
 
@@ -53,6 +56,7 @@ export class CellDragAndDropController extends Disposable {
 	// TODO@roblourens - should probably use dataTransfer here, but any dataTransfer set makes the editor think I am dropping a file, need
 	// to figure out how to prevent that
 	private currentDraggedCell: ICellViewModel | undefined;
+	private draggedCells: ICellViewModel[] = [];
 
 	private listInsertionIndicator: HTMLElement;
 
@@ -64,7 +68,7 @@ export class CellDragAndDropController extends Disposable {
 	private readonly listOnWillScrollListener = this._register(new MutableDisposable());
 
 	constructor(
-		private readonly notebookEditor: INotebookEditorDelegate,
+		private notebookEditor: INotebookEditorDelegate,
 		private readonly notebookListContainer: HTMLElement
 	) {
 		super();
@@ -74,7 +78,7 @@ export class CellDragAndDropController extends Disposable {
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
 		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
-		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void) => {
+		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(
 				notebookEditor.getDomNode(),
 				eventType,
@@ -83,14 +87,20 @@ export class CellDragAndDropController extends Disposable {
 					if (cellDragEvent) {
 						handler(cellDragEvent);
 					}
-				}));
+				}, useCapture));
 		};
 
 		addCellDragListener(DOM.EventType.DRAG_OVER, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDragover(event);
-		});
+		}, true);
 		addCellDragListener(DOM.EventType.DROP, event => {
+			if (!this.currentDraggedCell) {
+				return;
+			}
 			event.browserEvent.preventDefault();
 			this.onCellDrop(event);
 		});
@@ -130,7 +140,7 @@ export class CellDragAndDropController extends Disposable {
 			return undefined;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 
 		const dragPosInElement = dragOffset - cellTop;
@@ -218,7 +228,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	private _dropImpl(draggedCell: ICellViewModel, dropDirection: 'above' | 'below', ctx: { ctrlKey: boolean; altKey: boolean }, draggedOverCell: ICellViewModel) {
-		const cellTop = this.list.getAbsoluteTopOfElement(draggedOverCell);
+		const cellTop = this.list.getCellViewScrollTop(draggedOverCell);
 		const cellHeight = this.list.elementHeight(draggedOverCell);
 		const insertionIndicatorAbsolutePos = dropDirection === 'above' ? cellTop : cellTop + cellHeight;
 		const { bottomToolbarGap } = this.notebookEditor.notebookOptions.computeBottomToolbarDimensions(this.notebookEditor.textModel?.viewType);
@@ -282,8 +292,9 @@ export class CellDragAndDropController extends Disposable {
 
 	private dragCleanup(): void {
 		if (this.currentDraggedCell) {
-			this.currentDraggedCell.dragging = false;
+			this.draggedCells.forEach(cell => cell.dragging = false);
 			this.currentDraggedCell = undefined;
+			this.draggedCells = [];
 		}
 
 		this.setInsertIndicatorVisibility(false);
@@ -318,14 +329,13 @@ export class CellDragAndDropController extends Disposable {
 			}
 
 			this.currentDraggedCell = templateData.currentRenderedCell!;
-			this.currentDraggedCell.dragging = true;
+			this.draggedCells = this.notebookEditor.getSelections().map(range => this.notebookEditor.getCellsInRange(range)).flat();
+			this.draggedCells.forEach(cell => cell.dragging = true);
 
 			const dragImage = dragImageProvider();
 			cellRoot.parentElement!.appendChild(dragImage);
 			event.dataTransfer.setDragImage(dragImage, 0, 0);
 			setTimeout(() => cellRoot.parentElement!.removeChild(dragImage!), 0); // Comment this out to debug drag image layout
-
-			container.classList.add(DRAGGING_CLASS);
 		};
 		for (const dragHandle of dragHandles) {
 			templateData.templateDisposables.add(DOM.addDisposableListener(dragHandle, DOM.EventType.DRAG_START, onDragStart));
@@ -348,7 +358,7 @@ export class CellDragAndDropController extends Disposable {
 
 		const target = this.list.elementAt(dragOffsetY);
 		if (target && target !== cell) {
-			const cellTop = this.list.getAbsoluteTopOfElement(target);
+			const cellTop = this.list.getCellViewScrollTop(target);
 			const cellHeight = this.list.elementHeight(target);
 
 			const dropDirection = this.getExplicitDragDropDirection(dragOffsetY, cellTop, cellHeight);
@@ -390,7 +400,7 @@ export class CellDragAndDropController extends Disposable {
 			return;
 		}
 
-		const cellTop = this.list.getAbsoluteTopOfElement(target);
+		const cellTop = this.list.getCellViewScrollTop(target);
 		const cellHeight = this.list.elementHeight(target);
 		const dropDirection = this.getExplicitDragDropDirection(ctx.dragOffsetY, cellTop, cellHeight);
 		this._dropImpl(cell, dropDirection, ctx, target);
@@ -401,6 +411,11 @@ export class CellDragAndDropController extends Disposable {
 		const dragPosRatio = dragPosInElement / cellHeight;
 
 		return this.getDropInsertDirection(dragPosRatio);
+	}
+
+	override dispose() {
+		this.notebookEditor = null!;
+		super.dispose();
 	}
 }
 
@@ -423,12 +438,20 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 		selections = [editor.getFocus()];
 	}
 
+	let originalFocusIdx = editor.getFocus().start;
+
+	// If the dragged cell is not focused/selected, ignore the current focus/selection and use the dragged idx
+	if (!selections.some(s => s.start <= draggedCellIndex && s.end > draggedCellIndex)) {
+		selections = [{ start: draggedCellIndex, end: draggedCellIndex + 1 }];
+		originalFocusIdx = draggedCellIndex;
+	}
+
 	const droppedInSelection = selections.find(range => range.start <= originalToIdx && range.end > originalToIdx);
 	if (droppedInSelection) {
 		originalToIdx = droppedInSelection.start;
 	}
 
-	const originalFocusIdx = editor.getFocus().start;
+
 	let numCells = 0;
 	let focusNewIdx = originalToIdx;
 	let newInsertionIdx = originalToIdx;
@@ -477,14 +500,11 @@ export function performCellDropEdits(editor: INotebookEditorDelegate, draggedCel
 	const finalSelection = { start: lastEdit.newIdx, end: lastEdit.newIdx + numCells };
 	const finalFocus = { start: focusNewIdx, end: focusNewIdx + 1 };
 
-	// console.log(JSON.stringify(edits));
-	// console.log(JSON.stringify(finalSelection));
-	// console.log(JSON.stringify(finalFocus));
 	editor.textModel!.applyEdits(
 		edits,
 		true,
 		{ kind: SelectionStateType.Index, focus: editor.getFocus(), selections: editor.getSelections() },
 		() => ({ kind: SelectionStateType.Index, focus: finalFocus, selections: [finalSelection] }),
-		undefined);
+		undefined, true);
 	editor.revealCellRangeInView(finalSelection);
 }

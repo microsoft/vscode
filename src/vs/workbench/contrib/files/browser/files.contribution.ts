@@ -9,7 +9,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope, IConfigurationPropertySchema } from 'vs/platform/configuration/common/configurationRegistry';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IFileEditorInput, IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/editor';
-import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
+import { AutoSaveConfiguration, HotExitConfiguration, FILES_EXCLUDE_CONFIG, FILES_ASSOCIATIONS_CONFIG, FILES_READONLY_INCLUDE_CONFIG, FILES_READONLY_EXCLUDE_CONFIG, FILES_READONLY_FROM_PERMISSIONS_CONFIG } from 'vs/platform/files/common/files';
 import { SortOrder, LexicographicOptions, FILE_EDITOR_INPUT_ID, BINARY_TEXT_FILE_MODE, UndoConfirmLevel, IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
 import { TextFileEditorTracker } from 'vs/workbench/contrib/files/browser/editors/textFileEditorTracker';
 import { TextFileSaveErrorHandler } from 'vs/workbench/contrib/files/browser/editors/textFileSaveErrorHandler';
@@ -22,7 +22,7 @@ import { ExplorerViewletViewsContribution } from 'vs/workbench/contrib/files/bro
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILabelService } from 'vs/platform/label/common/label';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ExplorerService, UNDO_REDO_SOURCE } from 'vs/workbench/contrib/files/browser/explorerService';
 import { SUPPORTED_ENCODINGS } from 'vs/workbench/services/textfile/common/encoding';
 import { Schemas } from 'vs/base/common/network';
@@ -35,6 +35,7 @@ import { IExplorerService } from 'vs/workbench/contrib/files/browser/files';
 import { FileEditorInputSerializer, FileEditorWorkingCopyEditorHandler } from 'vs/workbench/contrib/files/browser/editors/fileEditorHandler';
 import { ModesRegistry } from 'vs/editor/common/languages/modesRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TextFileEditor } from 'vs/workbench/contrib/files/browser/editors/textFileEditor';
 
 class FileUriLabelContribution implements IWorkbenchContribution {
 
@@ -53,9 +54,21 @@ class FileUriLabelContribution implements IWorkbenchContribution {
 	}
 }
 
-registerSingleton(IExplorerService, ExplorerService, true);
+registerSingleton(IExplorerService, ExplorerService, InstantiationType.Delayed);
 
 // Register file editors
+
+Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
+	EditorPaneDescriptor.create(
+		TextFileEditor,
+		TextFileEditor.ID,
+		nls.localize('textFileEditor', "Text File Editor")
+	),
+	[
+		new SyncDescriptor(FileEditorInput)
+	]
+);
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		BinaryFileEditor,
@@ -117,7 +130,7 @@ const hotExitConfiguration: IConfigurationPropertySchema = isNative ?
 			nls.localize('hotExit.onExit', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu). All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`'),
 			nls.localize('hotExit.onExitAndWindowClose', 'Hot exit will be triggered when the last window is closed on Windows/Linux or when the `workbench.action.quit` command is triggered (command palette, keybinding, menu), and also for any window with a folder opened regardless of whether it\'s the last window. All windows without folders opened will be restored upon next launch. A list of previously opened windows with unsaved files can be accessed via `File > Open Recent > More...`')
 		],
-		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		'markdownDescription': nls.localize('hotExit', "[Hot Exit](https://aka.ms/vscode-hot-exit) controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 	} : {
 		'type': 'string',
 		'scope': ConfigurationScope.APPLICATION,
@@ -127,7 +140,7 @@ const hotExitConfiguration: IConfigurationPropertySchema = isNative ?
 			nls.localize('hotExit.off', 'Disable hot exit. A prompt will show when attempting to close a window with editors that have unsaved changes.'),
 			nls.localize('hotExit.onExitAndWindowCloseBrowser', 'Hot exit will be triggered when the browser quits or the window or tab is closed.')
 		],
-		'description': nls.localize('hotExit', "Controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
+		'markdownDescription': nls.localize('hotExit', "[Hot Exit](https://aka.ms/vscode-hot-exit) controls whether unsaved files are remembered between sessions, allowing the save prompt when exiting the editor to be skipped.", HotExitConfiguration.ON_EXIT, HotExitConfiguration.ON_EXIT_AND_WINDOW_CLOSE)
 	};
 
 configurationRegistry.registerConfiguration({
@@ -138,7 +151,7 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		[FILES_EXCLUDE_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://code.visualstudio.com/docs/editor/codebasics#_advanced-search-options) for excluding files and folders. For example, the file explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes."),
+			'markdownDescription': nls.localize('exclude', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders. For example, the File Explorer decides which files and folders to show or hide based on this setting. Refer to the `#search.exclude#` setting to define search-specific excludes. Refer to the `#explorer.excludeGitIgnore#` setting for ignoring files based on your `.gitignore`."),
 			'default': {
 				...{ '**/.git': true, '**/.svn': true, '**/.hg': true, '**/CVS': true, '**/.DS_Store': true, '**/Thumbs.db': true },
 				...(isWeb ? { '**/*.crswap': true /* filter out swap files used for local file access */ } : undefined)
@@ -148,6 +161,8 @@ configurationRegistry.registerConfiguration({
 				'anyOf': [
 					{
 						'type': 'boolean',
+						'enum': [true, false],
+						'enumDescriptions': [nls.localize('trueDescription', "Enable the pattern."), nls.localize('falseDescription', "Disable the pattern.")],
 						'description': nls.localize('files.exclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
 					},
 					{
@@ -157,7 +172,7 @@ configurationRegistry.registerConfiguration({
 								'type': 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
 								'pattern': '\\w*\\$\\(basename\\)\\w*',
 								'default': '$(basename).ext',
-								'description': nls.localize('files.exclude.when', "Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.")
+								'markdownDescription': nls.localize({ key: 'files.exclude.when', comment: ['\\$(basename) should not be translated'] }, "Additional check on the siblings of a matching file. Use \\$(basename) as variable for the matching file name.")
 							}
 						}
 					}
@@ -166,7 +181,7 @@ configurationRegistry.registerConfiguration({
 		},
 		[FILES_ASSOCIATIONS_CONFIG]: {
 			'type': 'object',
-			'markdownDescription': nls.localize('associations', "Configure file associations to languages (e.g. `\"*.extension\": \"html\"`). These have precedence over the default associations of the languages installed."),
+			'markdownDescription': nls.localize('associations', "Configure [glob patterns](https://aka.ms/vscode-glob-patterns) of file associations to languages (for example `\"*.extension\": \"html\"`). Patterns will match on the absolute path of a file if they contain a path separator and will match on the name of the file otherwise. These have precedence over the default associations of the languages installed."),
 			'additionalProperties': {
 				'type': 'string'
 			}
@@ -183,7 +198,7 @@ configurationRegistry.registerConfiguration({
 		'files.autoGuessEncoding': {
 			'type': 'boolean',
 			'default': false,
-			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only `#files.encoding#` is respected."),
+			'markdownDescription': nls.localize('autoGuessEncoding', "When enabled, the editor will attempt to guess the character set encoding when opening files. This setting can also be configured per language. Note, this setting is not respected by text search. Only {0} is respected.", '`#files.encoding#`'),
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
 		'files.eol': {
@@ -245,8 +260,11 @@ configurationRegistry.registerConfiguration({
 		},
 		'files.watcherExclude': {
 			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
 			'default': { '**/.git/objects/**': true, '**/.git/subtree-cache/**': true, '**/node_modules/*/**': true, '**/.hg/store/**': true },
-			'markdownDescription': nls.localize('watcherExclude', "Configure paths or glob patterns to exclude from file watching. Paths that are relative (for example `build/output`) will be resolved to an absolute path using the currently opened workspace. Glob patterns must match on absolute paths (i.e. prefix with `**/` or the full path and suffix with `/**` to match files within a path) to match properly (for example `**/build/output/**` or `/Users/name/workspaces/project/build/output/**`). When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
+			'markdownDescription': nls.localize('watcherExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from file watching. Paths can either be relative to the watched folder or absolute. Glob patterns are matched relative from the watched folder. When you experience the file watcher process consuming a lot of CPU, make sure to exclude large folders that are of less interest (such as build output folders)."),
 			'scope': ConfigurationScope.RESOURCE
 		},
 		'files.watcherInclude': {
@@ -263,12 +281,28 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'markdownDescription': nls.localize('defaultLanguage', "The default language identifier that is assigned to new files. If configured to `${activeEditorLanguage}`, will use the language identifier of the currently active text editor if any.")
 		},
-		'files.maxMemoryForLargeFilesMB': {
-			'type': 'number',
-			'default': 4096,
-			'minimum': 0,
-			'markdownDescription': nls.localize('maxMemoryForLargeFilesMB', "Controls the memory available to VS Code after restart when trying to open large files. Same effect as specifying `--max-memory=NEWSIZE` on the command line."),
-			included: isNative
+		[FILES_READONLY_INCLUDE_CONFIG]: {
+			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
+			'default': {},
+			'markdownDescription': nls.localize('filesReadonlyInclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to mark as read-only. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. You can exclude matching paths via the `#files.readonlyExclude#` setting. Files from readonly file system providers will always be read-only independent of this setting."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		[FILES_READONLY_EXCLUDE_CONFIG]: {
+			'type': 'object',
+			'patternProperties': {
+				'.*': { 'type': 'boolean' }
+			},
+			'default': {},
+			'markdownDescription': nls.localize('filesReadonlyExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) to exclude from being marked as read-only if they match as a result of the `#files.readonlyInclude#` setting. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths. Files from readonly file system providers will always be read-only independent of this setting."),
+			'scope': ConfigurationScope.RESOURCE
+		},
+		[FILES_READONLY_FROM_PERMISSIONS_CONFIG]: {
+			'type': 'boolean',
+			'markdownDescription': nls.localize('filesReadonlyFromPermissions', "Marks files as read-only when their file permissions indicate as such. This can be overridden via `#files.readonlyInclude#` and `#files.readonlyExclude#` settings."),
+			'default': false
 		},
 		'files.restoreUndoStack': {
 			'type': 'boolean',
@@ -289,10 +323,22 @@ configurationRegistry.registerConfiguration({
 			'default': 'askUser',
 			'scope': ConfigurationScope.LANGUAGE_OVERRIDABLE
 		},
+		'files.dialog.defaultPath': {
+			'type': 'string',
+			'pattern': '^((\\/|\\\\\\\\|[a-zA-Z]:\\\\).*)?$', // slash OR UNC-root OR drive-root OR undefined
+			'patternErrorMessage': nls.localize('defaultPathErrorMessage', "Default path for file dialogs must be an absolute path (e.g. C:\\\\myFolder or /myFolder)."),
+			'description': nls.localize('fileDialogDefaultPath', "Default path for file dialogs, overriding user's home path. Only used in the absence of a context-specific path, such as most recently opened file or folder."),
+			'scope': ConfigurationScope.MACHINE
+		},
 		'files.simpleDialog.enable': {
 			'type': 'boolean',
-			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog. The simple file dialog replaces the system file dialog when enabled."),
+			'description': nls.localize('files.simpleDialog.enable', "Enables the simple file dialog for opening and saving files and folders. The simple file dialog replaces the system file dialog when enabled."),
 			'default': false
+		},
+		'files.participants.timeout': {
+			type: 'number',
+			default: 60000,
+			markdownDescription: nls.localize('files.participants.timeout', "Timeout in milliseconds after which file participants for create, rename, and delete are cancelled. Use `0` to disable participants."),
 		}
 	}
 });
@@ -332,8 +378,14 @@ configurationRegistry.registerConfiguration({
 	'properties': {
 		'explorer.openEditors.visible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "Number of editors shown in the Open Editors pane. Setting this to 0 hides the Open Editors pane."),
+			'description': nls.localize({ key: 'openEditorsVisible', comment: ['Open is an adjective'] }, "The initial maximum number of editors shown in the Open Editors pane. Exceeding this limit will show a scroll bar and allow resizing the pane to display more items."),
 			'default': 9,
+			'minimum': 1
+		},
+		'explorer.openEditors.minVisible': {
+			'type': 'number',
+			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots pre-allocated in the Open Editors pane. If set to 0 the Open Editors pane will dynamically resize based on the number of editors."),
+			'default': 0,
 			'minimum': 0
 		},
 		'explorer.openEditors.sortOrder': {
@@ -356,32 +408,56 @@ configurationRegistry.registerConfiguration({
 				nls.localize('autoReveal.off', 'Files will not be revealed and selected.'),
 				nls.localize('autoReveal.focusNoScroll', 'Files will not be scrolled into view, but will still be focused.'),
 			],
-			'description': nls.localize('autoReveal', "Controls whether the explorer should automatically reveal and select files when opening them.")
+			'description': nls.localize('autoReveal', "Controls whether the Explorer should automatically reveal and select files when opening them.")
+		},
+		'explorer.autoRevealExclude': {
+			'type': 'object',
+			'markdownDescription': nls.localize('autoRevealExclude', "Configure paths or [glob patterns](https://aka.ms/vscode-glob-patterns) for excluding files and folders from being revealed and selected in the Explorer when they are opened. Glob patterns are always evaluated relative to the path of the workspace folder unless they are absolute paths."),
+			'default': { '**/node_modules': true, '**/bower_components': true },
+			'additionalProperties': {
+				'anyOf': [
+					{
+						'type': 'boolean',
+						'description': nls.localize('explorer.autoRevealExclude.boolean', "The glob pattern to match file paths against. Set to true or false to enable or disable the pattern."),
+					},
+					{
+						type: 'object',
+						properties: {
+							when: {
+								type: 'string', // expression ({ "**/*.js": { "when": "$(basename).js" } })
+								pattern: '\\w*\\$\\(basename\\)\\w*',
+								default: '$(basename).ext',
+								description: nls.localize('explorer.autoRevealExclude.when', 'Additional check on the siblings of a matching file. Use $(basename) as variable for the matching file name.')
+							}
+						}
+					}
+				]
+			}
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the explorer."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the Explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the Explorer."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDragAndDrop', "Controls whether the explorer should ask for confirmation to move files and folders via drag and drop."),
+			'description': nls.localize('confirmDragAndDrop', "Controls whether the Explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
-			'description': nls.localize('confirmDelete', "Controls whether the explorer should ask for confirmation when deleting a file via the trash."),
+			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),
 			'default': true
 		},
 		'explorer.enableUndo': {
 			'type': 'boolean',
-			'description': nls.localize('enableUndo', "Controls whether the explorer should support undoing file and folder operations."),
+			'description': nls.localize('enableUndo', "Controls whether the Explorer should support undoing file and folder operations."),
 			'default': true
 		},
 		'explorer.confirmUndo': {
 			'type': 'string',
 			'enum': [UndoConfirmLevel.Verbose, UndoConfirmLevel.Default, UndoConfirmLevel.Light],
-			'description': nls.localize('confirmUndo', "Controls whether the explorer should ask for confirmation when undoing."),
+			'description': nls.localize('confirmUndo', "Controls whether the Explorer should ask for confirmation when undoing."),
 			'default': UndoConfirmLevel.Default,
 			'enumDescriptions': [
 				nls.localize('enableUndo.verbose', 'Explorer will prompt before all undo operations.'),
@@ -391,7 +467,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.expandSingleFolderWorkspaces': {
 			'type': 'boolean',
-			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the explorer should expand multi-root workspaces containing only one folder during initilization"),
+			'description': nls.localize('expandSingleFolderWorkspaces', "Controls whether the Explorer should expand multi-root workspaces containing only one folder during initialization"),
 			'default': true
 		},
 		'explorer.sortOrder': {
@@ -403,10 +479,10 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrder.mixed', 'Files and folders are sorted by their names. Files are interwoven with folders.'),
 				nls.localize('sortOrder.filesFirst', 'Files and folders are sorted by their names. Files are displayed before folders.'),
 				nls.localize('sortOrder.type', 'Files and folders are grouped by extension type then sorted by their names. Folders are displayed before files.'),
-				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before  files.'),
+				nls.localize('sortOrder.modified', 'Files and folders are sorted by last modified date in descending order. Folders are displayed before files.'),
 				nls.localize('sortOrder.foldersNestsFiles', 'Files and folders are sorted by their names. Folders are displayed before files. Files with nested children are displayed before other files.')
 			],
-			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the explorer. When `#explorer.experimental.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
+			'markdownDescription': nls.localize('sortOrder', "Controls the property-based sorting of files and folders in the Explorer. When `#explorer.fileNesting.enabled#` is enabled, also controls sorting of nested files.")
 		},
 		'explorer.sortOrderLexicographicOptions': {
 			'type': 'string',
@@ -416,7 +492,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('sortOrderLexicographicOptions.default', 'Uppercase and lowercase names are mixed together.'),
 				nls.localize('sortOrderLexicographicOptions.upper', 'Uppercase names are grouped together before lowercase names.'),
 				nls.localize('sortOrderLexicographicOptions.lower', 'Lowercase names are grouped together before uppercase names.'),
-				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in unicode order.')
+				nls.localize('sortOrderLexicographicOptions.unicode', 'Names are sorted in Unicode order.')
 			],
 			'description': nls.localize('sortOrderLexicographicOptions', "Controls the lexicographic sorting of file and folder names in the Explorer.")
 		},
@@ -432,17 +508,18 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.incrementalNaming': {
 			'type': 'string',
-			enum: ['simple', 'smart'],
+			enum: ['simple', 'smart', 'disabled'],
 			enumDescriptions: [
-				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number"),
-				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number")
+				nls.localize('simple', "Appends the word \"copy\" at the end of the duplicated name potentially followed by a number."),
+				nls.localize('smart', "Adds a number at the end of the duplicated name. If some number is already part of the name, tries to increase that number."),
+				nls.localize('disabled', "Disables incremental naming. If two files with the same name exist you will be prompted to overwrite the existing file.")
 			],
-			description: nls.localize('explorer.incrementalNaming', "Controls what naming strategy to use when a giving a new name to a duplicated explorer item on paste."),
+			description: nls.localize('explorer.incrementalNaming', "Controls which naming strategy to use when giving a new name to a duplicated Explorer item on paste."),
 			default: 'simple'
 		},
 		'explorer.compactFolders': {
 			'type': 'boolean',
-			'description': nls.localize('compressSingleChildFolders', "Controls whether the explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
+			'description': nls.localize('compressSingleChildFolders', "Controls whether the Explorer should render folders in a compact form. In such a form, single child folders will be compressed in a combined tree element. Useful for Java package structures, for example."),
 			'default': true
 		},
 		'explorer.copyRelativePathSeparator': {
@@ -460,34 +537,42 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyRelativePathSeparator', "The path separation character used when copying relative file paths."),
 			'default': 'auto'
 		},
-		'explorer.experimental.fileNesting.enabled': {
+		'explorer.excludeGitIgnore': {
+			type: 'boolean',
+			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
+			default: false,
+			scope: ConfigurationScope.RESOURCE
+		},
+		'explorer.fileNesting.enabled': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingEnabled', "Experimental. Controls whether file nesting is enabled in the explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingEnabled', "Controls whether file nesting is enabled in the Explorer. File nesting allows for related files in a directory to be visually grouped together under a single parent file."),
 			'default': false,
 		},
-		'explorer.experimental.fileNesting.expand': {
+		'explorer.fileNesting.expand': {
 			'type': 'boolean',
-			'markdownDescription': nls.localize('fileNestingExpand', "Experimental. Controls whether file nests are automatically expanded. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect."),
+			'markdownDescription': nls.localize('fileNestingExpand', "Controls whether file nests are automatically expanded. {0} must be set for this to take effect.", '`#explorer.fileNesting.enabled#`'),
 			'default': true,
 		},
-		'explorer.experimental.fileNesting.patterns': {
+		'explorer.fileNesting.patterns': {
 			'type': 'object',
-			'markdownDescription': nls.localize('fileNestingPatterns', "Experimental. Controls nesting of files in the explorer. `#explorer.experimental.fileNesting.enabled#` must be set for this to take effect. Each key describes a parent file pattern and each value should be a comma separated list of children file patterns that will be nested under the parent.\n\nA single `*` in a parent pattern may be used to capture any substring, which can then be matched against using `$\u200b(capture)` in a child pattern. Child patterns may also contain one `*` to match any substring.\n\nFor example, given the configuration `*.ts => $(capture).js, $(capture).*.ts`, and a directory containing `a.ts, a.js, a.d.ts`, and `b.js`, nesting would apply as follows: \n- `*.ts` matches `a.ts`, capturing `a`. This causes any sibilings matching `a.js` or `a.*.ts` to be nested under `a.ts`\n    - `a.js` matches `a.js` exactly, so is nested under `a.ts`\n    - `a.d.ts` matches `a.*.ts`, so is also nested under `a.ts`\n\nThe final directory will be rendered with `a.ts` containg `a.js` and `a.d.ts` as nested children, and `b.js` as normal file."),
+			scope: ConfigurationScope.RESOURCE,
+			'markdownDescription': nls.localize('fileNestingPatterns', "Controls nesting of files in the Explorer. {0} must be set for this to take effect. Each __Item__ represents a parent pattern and may contain a single `*` character that matches any string. Each __Value__ represents a comma separated list of the child patterns that should be shown nested under a given parent. Child patterns may contain several special tokens:\n- `${capture}`: Matches the resolved value of the `*` from the parent pattern\n- `${basename}`: Matches the parent file's basename, the `file` in `file.ts`\n- `${extname}`: Matches the parent file's extension, the `ts` in `file.ts`\n- `${dirname}`: Matches the parent file's directory name, the `src` in `src/file.ts`\n- `*`:  Matches any string, may only be used once per child pattern", '`#explorer.fileNesting.enabled#`'),
 			patternProperties: {
 				'^[^*]*\\*?[^*]*$': {
-					markdownDescription: nls.localize('fileNesting.description', "Key patterns may contain a single `*` capture group which matches any string. Each value pattern may contain one `$\u200b(capture)` token to be substituted with the parent capture group and one `*` token to match any string"),
+					markdownDescription: nls.localize('fileNesting.description', "Each key pattern may contain a single `*` character which will match any string."),
 					type: 'string',
 					pattern: '^([^,*]*\\*?[^,*]*)(, ?[^,*]*\\*?[^,*]*)*$',
 				}
 			},
 			additionalProperties: false,
 			'default': {
-				'*.ts': '$(capture).js, $(capture).*.ts',
-				'*.js': '$(capture).js.map, $(capture).min.js, $(capture).d.ts',
-				'*.jsx': '$(capture).js',
-				'*.tsx': '$(capture).ts',
+				'*.ts': '${capture}.js',
+				'*.js': '${capture}.js.map, ${capture}.min.js, ${capture}.d.ts',
+				'*.jsx': '${capture}.js',
+				'*.tsx': '${capture}.ts',
 				'tsconfig.json': 'tsconfig.*.json',
-				'package.json': 'package-lock.json, .npmrc, yarn.lock, .yarnrc, pnpm-lock.yaml',
+				'package.json': 'package-lock.json, yarn.lock, pnpm-lock.yaml',
 			}
 		}
 	}

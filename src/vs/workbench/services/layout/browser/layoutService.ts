@@ -23,6 +23,16 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+export const enum LayoutSettings {
+	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
+}
+
+export const enum ActivityBarPosition {
+	SIDE = 'side',
+	TOP = 'top',
+	HIDDEN = 'hidden'
+}
+
 export const enum Position {
 	LEFT,
 	RIGHT,
@@ -56,7 +66,7 @@ export function positionFromString(str: string): Position {
 	return positionsByString[str];
 }
 
-export function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
+function panelOpensMaximizedSettingToString(setting: PanelOpensMaximizedOptions): string {
 	switch (setting) {
 		case PanelOpensMaximizedOptions.ALWAYS: return 'always';
 		case PanelOpensMaximizedOptions.NEVER: return 'never';

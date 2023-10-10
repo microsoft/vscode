@@ -18,7 +18,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 
 suite('MainThreadConfiguration', function () {
 
-	let proxy = {
+	const proxy = {
 		$initializeConfiguration: () => { }
 	};
 	let instantiationService: TestInstantiationService;
@@ -57,6 +57,10 @@ suite('MainThreadConfiguration', function () {
 		instantiationService.stub(IEnvironmentService, {
 			isBuilt: false
 		});
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('update resource configuration without configuration target defaults to workspace in multi root workspace when no resource is provided', function () {

@@ -41,19 +41,40 @@ export class Cache<T> {
  * Caches just the last value.
  * The key must be JSON serializable.
 */
-export class LRUCachedComputed<TArg, TComputed> {
+export class LRUCachedFunction<TArg, TComputed> {
 	private lastCache: TComputed | undefined = undefined;
 	private lastArgKey: string | undefined = undefined;
 
-	constructor(private readonly computeFn: (arg: TArg) => TComputed) {
+	constructor(private readonly fn: (arg: TArg) => TComputed) {
 	}
 
 	public get(arg: TArg): TComputed {
 		const key = JSON.stringify(arg);
 		if (this.lastArgKey !== key) {
 			this.lastArgKey = key;
-			this.lastCache = this.computeFn(arg);
+			this.lastCache = this.fn(arg);
 		}
 		return this.lastCache!;
+	}
+}
+
+/**
+ * Uses an unbounded cache (referential equality) to memoize the results of the given function.
+*/
+export class CachedFunction<TArg, TValue> {
+	private readonly _map = new Map<TArg, TValue>();
+	public get cachedValues(): ReadonlyMap<TArg, TValue> {
+		return this._map;
+	}
+
+	constructor(private readonly fn: (arg: TArg) => TValue) { }
+
+	public get(arg: TArg): TValue {
+		if (this._map.has(arg)) {
+			return this._map.get(arg)!;
+		}
+		const value = this.fn(arg);
+		this._map.set(arg, value);
+		return value;
 	}
 }

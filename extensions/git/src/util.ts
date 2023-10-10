@@ -16,10 +16,6 @@ export function log(...args: any[]): void {
 	console.log.apply(console, ['git:', ...args]);
 }
 
-export function logTimestamp(): string {
-	return `[${new Date().toISOString()}]`;
-}
-
 export interface IDisposable {
 	dispose(): void;
 }
@@ -55,9 +51,7 @@ export function anyEvent<T>(...events: Event<T>[]): Event<T> {
 	return (listener: (e: T) => any, thisArgs?: any, disposables?: Disposable[]) => {
 		const result = combinedDisposable(events.map(event => event(i => listener.call(thisArgs, i))));
 
-		if (disposables) {
-			disposables.push(result);
-		}
+		disposables?.push(result);
 
 		return result;
 	};
@@ -93,7 +87,7 @@ export function eventToPromise<T>(event: Event<T>): Promise<T> {
 }
 
 export function once(fn: (...args: any[]) => any): (...args: any[]) => any {
-	let didRun = false;
+	const didRun = false;
 
 	return (...args) => {
 		if (didRun) {
@@ -223,11 +217,11 @@ export async function grep(filename: string, pattern: RegExp): Promise<boolean> 
 export function readBytes(stream: Readable, bytes: number): Promise<Buffer> {
 	return new Promise<Buffer>((complete, error) => {
 		let done = false;
-		let buffer = Buffer.allocUnsafe(bytes);
+		const buffer = Buffer.allocUnsafe(bytes);
 		let bytesRead = 0;
 
 		stream.on('data', (data: Buffer) => {
-			let bytesToRead = Math.min(bytes - bytesRead, data.length);
+			const bytesToRead = Math.min(bytes - bytesRead, data.length);
 			data.copy(buffer, bytesRead, 0, bytesToRead);
 			bytesRead += bytesToRead;
 
@@ -317,11 +311,19 @@ export function pathEquals(a: string, b: string): boolean {
  * Given the `repository.root` compute the relative path while trying to preserve
  * the casing of the resource URI. The `repository.root` segment of the path can
  * have a casing mismatch if the folder/workspace is being opened with incorrect
- * casing.
+ * casing which is why we attempt to use substring() before relative().
  */
 export function relativePath(from: string, to: string): string {
+	// There are cases in which the `from` path may contain a trailing separator at
+	// the end (ex: "C:\", "\\server\folder\" (Windows) or "/" (Linux/macOS)) which
+	// is by design as documented in https://github.com/nodejs/node/issues/1765. If
+	// the trailing separator is missing, we add it.
+	if (from.charAt(from.length - 1) !== sep) {
+		from += sep;
+	}
+
 	if (isDescendant(from, to) && from.length < to.length) {
-		return to.substring(from.length + 1);
+		return to.substring(from.length);
 	}
 
 	// Fallback to `path.relative`

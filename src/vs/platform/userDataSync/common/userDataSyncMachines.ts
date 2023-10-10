@@ -16,14 +16,14 @@ import { getServiceMachineId } from 'vs/platform/externalServices/common/service
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IUserData, IUserDataManifest, IUserDataSyncLogService, IUserDataSyncStoreService } from 'vs/platform/userDataSync/common/userDataSync';
 
-interface IMachineData {
+export interface IMachineData {
 	id: string;
 	name: string;
 	disabled?: boolean;
 	platform?: string;
 }
 
-interface IMachinesData {
+export interface IMachinesData {
 	version: number;
 	machines: IMachineData[];
 }
@@ -132,7 +132,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 			await this.writeMachinesData(machineData);
 			const currentMachineId = await this.currentMachineIdPromise;
 			if (machineId === currentMachineId) {
-				this.storageService.store(currentMachineNameKey, name, StorageScope.GLOBAL, StorageTarget.MACHINE);
+				this.storageService.store(currentMachineNameKey, name, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		}
 	}
@@ -149,7 +149,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 	}
 
 	private computeCurrentMachineName(machines: IMachineData[]): string {
-		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.GLOBAL);
+		const previousName = this.storageService.get(currentMachineNameKey, StorageScope.APPLICATION);
 		if (previousName) {
 			return previousName;
 		}
@@ -176,7 +176,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 
 	private async writeMachinesData(machinesData: IMachinesData): Promise<void> {
 		const content = JSON.stringify(machinesData);
-		const ref = await this.userDataSyncStoreService.write(UserDataSyncMachinesService.RESOURCE, content, this.userData?.ref || null);
+		const ref = await this.userDataSyncStoreService.writeResource(UserDataSyncMachinesService.RESOURCE, content, this.userData?.ref || null);
 		this.userData = { ref, content };
 		this._onDidChange.fire();
 	}
@@ -197,7 +197,7 @@ export class UserDataSyncMachinesService extends Disposable implements IUserData
 			}
 		}
 
-		return this.userDataSyncStoreService.read(UserDataSyncMachinesService.RESOURCE, this.userData);
+		return this.userDataSyncStoreService.readResource(UserDataSyncMachinesService.RESOURCE, this.userData);
 	}
 
 	private parse(userData: IUserData): IMachinesData {

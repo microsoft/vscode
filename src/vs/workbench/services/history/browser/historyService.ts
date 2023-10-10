@@ -5,7 +5,6 @@
 
 import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
-import { parse, stringify } from 'vs/base/common/marshalling';
 import { IResourceEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorPane, IEditorCloseEvent, EditorResourceAccessor, IEditorIdentifier, GroupIdentifier, EditorsOrder, SideBySideEditor, IUntypedEditorInput, isResourceEditorInput, isEditorInput, isSideBySideEditorInput, EditorCloseContext, IEditorPaneSelection, EditorPaneSelectionCompareResult, EditorPaneSelectionChangeReason, isEditorPaneWithSelection, IEditorPaneSelectionChangeEvent, IEditorPaneWithSelection, IEditorWillMoveEvent } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -24,7 +23,7 @@ import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
@@ -112,7 +111,8 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDown(e)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 			}
 		};
 
@@ -125,17 +125,26 @@ export class HistoryService extends Disposable implements IHistoryService {
 		handleMouseBackForwardSupport();
 	}
 
-	private onMouseDown(event: MouseEvent): void {
+	private onMouseDownOrUp(event: MouseEvent, isMouseDown: boolean): void {
 
 		// Support to navigate in history when mouse buttons 4/5 are pressed
+		// We want to trigger this on mouse down for a faster experience
+		// but we also need to prevent mouse up from triggering the default
+		// which is to navigate in the browser history.
+
 		switch (event.button) {
 			case 3:
 				EventHelper.stop(event);
-				this.goBack();
+				if (isMouseDown) {
+					this.goBack();
+				}
 				break;
 			case 4:
 				EventHelper.stop(event);
-				this.goForward();
+				if (isMouseDown) {
+					this.goForward();
+				}
+
 				break;
 		}
 	}
@@ -987,18 +996,34 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	private loadHistoryFromStorage(): Array<IResourceEditorInput> {
-		let entries: ISerializedEditorHistoryEntry[] = [];
+		const entries: IResourceEditorInput[] = [];
 
 		const entriesRaw = this.storageService.get(HistoryService.HISTORY_STORAGE_KEY, StorageScope.WORKSPACE);
 		if (entriesRaw) {
 			try {
-				entries = coalesce(parse(entriesRaw));
+				const entriesParsed: ISerializedEditorHistoryEntry[] = JSON.parse(entriesRaw);
+				for (const entryParsed of entriesParsed) {
+					if (!entryParsed.editor || !entryParsed.editor.resource) {
+						continue; // unexpected data format
+					}
+
+					try {
+						entries.push({
+							...entryParsed.editor,
+							resource: typeof entryParsed.editor.resource === 'string' ?
+								URI.parse(entryParsed.editor.resource) :  	//  from 1.67.x: URI is stored efficiently as URI.toString()
+								URI.from(entryParsed.editor.resource)		// until 1.66.x: URI was stored very verbose as URI.toJSON()
+						});
+					} catch (error) {
+						onUnexpectedError(error); // do not fail entire history when one entry fails
+					}
+				}
 			} catch (error) {
 				onUnexpectedError(error); // https://github.com/microsoft/vscode/issues/99075
 			}
 		}
 
-		return coalesce(entries.map(entry => entry.editor));
+		return entries;
 	}
 
 	private saveState(): void {
@@ -1012,10 +1037,15 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue; // only save resource editor inputs
 			}
 
-			entries.push({ editor });
+			entries.push({
+				editor: {
+					...editor,
+					resource: editor.resource.toString()
+				}
+			});
 		}
 
-		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store(HistoryService.HISTORY_STORAGE_KEY, JSON.stringify(entries), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	//#endregion
@@ -1085,9 +1115,23 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		for (const [, stack] of this.editorGroupScopedNavigationStacks) {
+			stack.disposable.dispose();
+		}
+
+		for (const [, editors] of this.editorScopedNavigationStacks) {
+			for (const [, stack] of editors) {
+				stack.disposable.dispose();
+			}
+		}
+	}
 }
 
-registerSingleton(IHistoryService, HistoryService);
+registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);
 
 class EditorSelectionState {
 
@@ -1344,12 +1388,12 @@ export class EditorNavigationStack extends Disposable {
 			return;
 		}
 
-		let entryLabels: string[] = [];
+		const entryLabels: string[] = [];
 		for (const entry of this.stack) {
 			if (typeof entry.selection?.log === 'function') {
-				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: ${entry.selection.log()}`);
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: ${entry.selection.log()}`);
 			} else {
-				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString(true)}, selection: <none>`);
+				entryLabels.push(`- group: ${entry.groupId}, editor: ${entry.editor.resource?.toString()}, selection: <none>`);
 			}
 		}
 
@@ -1388,7 +1432,7 @@ ${entryLabels.join('\n')}
 		}
 
 		if (editor !== null) {
-			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg} (editor: ${editor?.resource?.toString(true)}, event: ${this.traceEvent(event)})`);
+			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg} (editor: ${editor?.resource?.toString()}, event: ${this.traceEvent(event)})`);
 		} else {
 			this.logService.trace(`[History stack ${filterLabel}-${scopeLabel}]: ${msg}`);
 		}
@@ -1558,7 +1602,7 @@ ${entryLabels.join('\n')}
 		const newStackEntry: IEditorNavigationStackEntry = { groupId, editor, selection };
 
 		// Replace at current position
-		let removedEntries: IEditorNavigationStackEntry[] = [];
+		const removedEntries: IEditorNavigationStackEntry[] = [];
 		if (replace) {
 			if (this.current) {
 				removedEntries.push(this.current);
@@ -1899,7 +1943,7 @@ class EditorHelper {
 		const hasValidResourceEditorInputScheme =
 			resource?.scheme === Schemas.file ||
 			resource?.scheme === Schemas.vscodeRemote ||
-			resource?.scheme === Schemas.userData ||
+			resource?.scheme === Schemas.vscodeUserData ||
 			resource?.scheme === this.pathService.defaultUriScheme;
 
 		// Scheme is valid: prefer the untyped input
@@ -2014,7 +2058,7 @@ class EditorHelper {
 }
 
 interface ISerializedEditorHistoryEntry {
-	editor: IResourceEditorInput;
+	editor: Omit<IResourceEditorInput, 'resource'> & { resource: string };
 }
 
 interface IRecentlyClosedEditor {

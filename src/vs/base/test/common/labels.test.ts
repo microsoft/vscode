@@ -5,7 +5,9 @@
 
 import * as assert from 'assert';
 import * as labels from 'vs/base/common/labels';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, OperatingSystem } from 'vs/base/common/platform';
+import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Labels', () => {
 	(!isWindows ? test.skip : test)('shorten - windows', () => {
@@ -14,6 +16,8 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
+		assert.deepStrictEqual(labels.shorten(['\\\\x\\a', '\\\\x\\a']), ['\\\\x\\a', '\\\\x\\a']);
+		assert.deepStrictEqual(labels.shorten(['C:\\a', 'C:\\b']), ['C:\\a', 'C:\\b']);
 
 		// completely different paths
 		assert.deepStrictEqual(labels.shorten(['a\\b', 'c\\d', 'e\\f']), ['…\\b', '…\\d', '…\\f']);
@@ -56,7 +60,7 @@ suite('Labels', () => {
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']), ['a', 'a\\b', 'a\\b\\c', 'd\\b\\c', 'd\\b']);
 		assert.deepStrictEqual(labels.shorten(['a', 'a\\b', 'b']), ['a', 'a\\b', 'b']);
 		assert.deepStrictEqual(labels.shorten(['', 'a', 'b', 'b\\c', 'a\\c']), ['.\\', 'a', 'b', 'b\\c', 'a\\c']);
-		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-browser', 'src\\vs\\workbench\\parts\\execution\\electron-browser\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-browser']), ['…\\execution\\electron-browser', '…\\something', '…\\terminal\\…']);
+		assert.deepStrictEqual(labels.shorten(['src\\vs\\workbench\\parts\\execution\\electron-sandbox', 'src\\vs\\workbench\\parts\\execution\\electron-sandbox\\something', 'src\\vs\\workbench\\parts\\terminal\\electron-sandbox']), ['…\\execution\\electron-sandbox', '…\\something', '…\\terminal\\…']);
 	});
 
 	(isWindows ? test.skip : test)('shorten - not windows', () => {
@@ -64,6 +68,8 @@ suite('Labels', () => {
 		// nothing to shorten
 		assert.deepStrictEqual(labels.shorten(['a']), ['a']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b']), ['a', 'b']);
+		assert.deepStrictEqual(labels.shorten(['/a', '/b']), ['/a', '/b']);
+		assert.deepStrictEqual(labels.shorten(['~/a/b/c', '~/a/b/c']), ['~/a/b/c', '~/a/b/c']);
 		assert.deepStrictEqual(labels.shorten(['a', 'b', 'c']), ['a', 'b', 'c']);
 
 		// completely different paths
@@ -132,20 +138,10 @@ suite('Labels', () => {
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'somefile.txt - monaco - Visual Studio Code');
 		assert.strictEqual(labels.template(t, { dirty: '* ', activeEditorShort: 'somefile.txt', rootName: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), '* somefile.txt - monaco - Visual Studio Code');
-	});
 
-	(isWindows ? test.skip : test)('getBaseLabel - unix', () => {
-		assert.strictEqual(labels.getBaseLabel('/some/folder/file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('/some/folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('/'), '/');
-	});
-
-	(!isWindows ? test.skip : test)('getBaseLabel - windows', () => {
-		assert.strictEqual(labels.getBaseLabel('c:'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\'), 'C:');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder\\file.txt'), 'file.txt');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\folder'), 'folder');
-		assert.strictEqual(labels.getBaseLabel('c:\\some\\f:older'), 'f:older'); // https://github.com/microsoft/vscode-remote-release/issues/4227
+		// real world example (other)
+		t = '${dirty}${activeEditorShort}${separator}${rootNameShort}${separator}${appName}';
+		assert.strictEqual(labels.template(t, { dirty: '', activeEditorShort: '', rootName: 'monaco (Workspace)', rootNameShort: 'monaco', appName: 'Visual Studio Code', separator: { label: ' - ' } }), 'monaco - Visual Studio Code');
 	});
 
 	test('mnemonicButtonLabel', () => {
@@ -162,4 +158,80 @@ suite('Labels', () => {
 			assert.strictEqual(labels.mnemonicButtonLabel('Do &&not Save & Continue'), 'Do _not Save & Continue');
 		}
 	});
+
+	test('getPathLabel', () => {
+		const winFileUri = URI.file('c:/some/folder/file.txt');
+		const nixFileUri = URI.file('/some/folder/file.txt');
+		const uncFileUri = URI.file('c:/some/folder/file.txt').with({ authority: 'auth' });
+		const remoteFileUri = URI.file('/some/folder/file.txt').with({ scheme: 'vscode-test', authority: 'auth' });
+
+		// Basics
+
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows }), 'C:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh }), 'c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux }), 'c:/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux }), '/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Windows }), '\\\\auth\\c:\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Macintosh }), '/auth/c:/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(uncFileUri, { os: OperatingSystem.Linux }), '/auth/c:/some/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Windows }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Macintosh }), '/some/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(remoteFileUri, { os: OperatingSystem.Linux }), '/some/folder/file.txt');
+
+		// Tildify
+
+		const nixUserHome = URI.file('/some');
+		const remoteUserHome = URI.file('/some').with({ scheme: 'vscode-test', authority: 'auth' });
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+
+		const nixUntitledUri = URI.file('/some/folder/file.txt').with({ scheme: 'untitled' });
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, tildify: { userHome: nixUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, tildify: { userHome: nixUserHome } }), '~/folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, tildify: { userHome: remoteUserHome } }), '\\some\\folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, tildify: { userHome: remoteUserHome } }), '~/folder/file.txt');
+
+		// Relative
+
+		const winFolder = URI.file('c:/some');
+		const winRelativePathProvider: labels.IRelativePathProvider = {
+			getWorkspace() { return { folders: [{ uri: winFolder }] }; },
+			getWorkspaceFolder(resource) { return { uri: winFolder }; }
+		};
+
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Windows, relative: winRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Macintosh, relative: winRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(winFileUri, { os: OperatingSystem.Linux, relative: winRelativePathProvider }), 'folder/file.txt');
+
+		const nixFolder = URI.file('/some');
+		const nixRelativePathProvider: labels.IRelativePathProvider = {
+			getWorkspace() { return { folders: [{ uri: nixFolder }] }; },
+			getWorkspaceFolder(resource) { return { uri: nixFolder }; }
+		};
+
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Windows, relative: nixRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixFileUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
+
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Windows, relative: nixRelativePathProvider }), 'folder\\file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Macintosh, relative: nixRelativePathProvider }), 'folder/file.txt');
+		assert.strictEqual(labels.getPathLabel(nixUntitledUri, { os: OperatingSystem.Linux, relative: nixRelativePathProvider }), 'folder/file.txt');
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

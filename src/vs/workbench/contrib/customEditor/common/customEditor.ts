@@ -5,6 +5,7 @@
 
 import { distinct } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
@@ -57,7 +58,7 @@ export interface ICustomEditorModel extends IDisposable {
 	readonly resource: URI;
 	readonly backupId: string | undefined;
 
-	isReadonly(): boolean;
+	isReadonly(): boolean | IMarkdownString;
 	readonly onDidChangeReadonly: Event<void>;
 
 	isOrphaned(): boolean;

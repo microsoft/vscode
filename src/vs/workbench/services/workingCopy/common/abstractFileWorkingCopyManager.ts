@@ -73,7 +73,7 @@ export abstract class BaseFileWorkingCopyManager<M extends IFileWorkingCopyModel
 		// Add to our working copy map
 		this.mapResourceToWorkingCopy.set(resource, workingCopy);
 
-		// Update our dipsose listener to remove it on dispose
+		// Update our dispose listener to remove it on dispose
 		this.mapResourceToDisposeListener.get(resource)?.dispose();
 		this.mapResourceToDisposeListener.set(resource, workingCopy.onWillDispose(() => this.remove(resource)));
 

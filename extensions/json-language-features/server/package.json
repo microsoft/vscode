@@ -12,15 +12,16 @@
   },
   "main": "./out/node/jsonServerMain",
   "dependencies": {
-    "jsonc-parser": "^3.0.0",
-    "request-light": "^0.5.7",
-    "vscode-json-languageservice": "^4.2.0",
-    "vscode-languageserver": "^7.0.0",
-    "vscode-uri": "^3.0.3"
+    "@vscode/l10n": "^0.0.16",
+    "jsonc-parser": "^3.2.0",
+    "request-light": "^0.7.0",
+    "vscode-json-languageservice": "^5.3.6",
+    "vscode-languageserver": "^8.2.0-next.3",
+    "vscode-uri": "^3.0.7"
   },
   "devDependencies": {
-    "@types/mocha": "^8.2.0",
-    "@types/node": "16.x"
+    "@types/mocha": "^9.1.1",
+    "@types/node": "18.x"
   },
   "scripts": {
     "prepublishOnly": "npm run clean && npm run compile",

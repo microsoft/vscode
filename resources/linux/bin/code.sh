@@ -3,9 +3,18 @@
 # Copyright (c) Microsoft Corporation. All rights reserved.
 # Licensed under the MIT License. See License.txt in the project root for license information.
 
+# when run in remote terminal, use the remote cli
+if [ -n "$VSCODE_IPC_HOOK_CLI" ]; then
+	REMOTE_CLI="$(which -a '@@APPNAME@@' | grep /remote-cli/)"
+	if [ -n "$REMOTE_CLI" ]; then
+		"$REMOTE_CLI" "$@"
+		exit $?
+	fi
+fi
+
 # test that VSCode wasn't installed inside WSL
 if grep -qi Microsoft /proc/version && [ -z "$DONT_PROMPT_WSL_INSTALL" ]; then
-	echo "To use @@PRODNAME@@ with the Windows Subsystem for Linux, please install @@PRODNAME@@ in Windows and uninstall the Linux version in WSL. You can then use the \`@@NAME@@\` command in a WSL terminal just as you would in a normal command prompt." 1>&2
+	echo "To use @@PRODNAME@@ with the Windows Subsystem for Linux, please install @@PRODNAME@@ in Windows and uninstall the Linux version in WSL. You can then use the \`@@APPNAME@@\` command in a WSL terminal just as you would in a normal command prompt." 1>&2
 	printf "Do you want to continue anyway? [y/N] " 1>&2
 	read -r YN
 	YN=$(printf '%s' "$YN" | tr '[:upper:]' '[:lower:]')
@@ -44,11 +53,11 @@ else
 		VSCODE_PATH="$(dirname "$(readlink -f "$0")")/.."
 	else
 		# else use the standard install location
-		VSCODE_PATH="/usr/share/@@NAME@@"
+		VSCODE_PATH="/usr/share/@@APPNAME@@"
 	fi
 fi
 
-ELECTRON="$VSCODE_PATH/@@NAME@@"
+ELECTRON="$VSCODE_PATH/@@APPNAME@@"
 CLI="$VSCODE_PATH/resources/app/out/cli.js"
 ELECTRON_RUN_AS_NODE=1 "$ELECTRON" "$CLI" --ms-enable-electron-run-as-node "$@"
 exit $?

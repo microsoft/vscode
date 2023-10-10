@@ -8,7 +8,9 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
@@ -20,23 +22,13 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF",
-			"hc_light": "default: #292929"
+			"dark_modern": "default: #CCCCCC",
+			"hc_light": "default: #292929",
+			"light_modern": "default: #3B3B3B"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": " Please enter the commit message for your changes. Lines starting",
+		"c": "# Please enter the commit message for your changes. Lines starting",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -44,23 +36,13 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": " with '#' will be ignored, and an empty message aborts the commit.",
+		"c": "# with '#' will be ignored, and an empty message aborts the commit.",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -68,23 +50,13 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": " On branch master",
+		"c": "# On branch master",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -92,23 +64,13 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": " Your branch is up-to-date with 'origin/master'.",
+		"c": "# Your branch is up-to-date with 'origin/master'.",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -116,35 +78,13 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
 		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": " Changes to be committed:",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -152,23 +92,13 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": "\t",
+		"c": "# Changes to be committed:",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -176,7 +106,23 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
+		}
+	},
+	{
+		"c": "#\t",
+		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
+		"r": {
+			"dark_plus": "comment: #6A9955",
+			"light_plus": "comment: #008000",
+			"dark_vs": "comment: #6A9955",
+			"light_vs": "comment: #008000",
+			"hc_black": "comment: #7CA668",
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -188,23 +134,13 @@
 			"dark_vs": "markup.deleted: #CE9178",
 			"light_vs": "markup.deleted: #A31515",
 			"hc_black": "markup.deleted: #CE9178",
-			"hc_light": "markup.deleted: #A31515"
+			"dark_modern": "markup.deleted: #CE9178",
+			"hc_light": "markup.deleted: #5A5A5A",
+			"light_modern": "markup.deleted: #A31515"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": "\t",
+		"c": "#\t",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -212,7 +148,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -224,23 +162,13 @@
 			"dark_vs": "markup.changed: #569CD6",
 			"light_vs": "markup.changed: #0451A5",
 			"hc_black": "markup.changed: #569CD6",
-			"hc_light": "markup.changed: #0451A5"
+			"dark_modern": "markup.changed: #569CD6",
+			"hc_light": "markup.changed: #0451A5",
+			"light_modern": "markup.changed: #0451A5"
 		}
 	},
 	{
-		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
-		"r": {
-			"dark_plus": "comment: #6A9955",
-			"light_plus": "comment: #008000",
-			"dark_vs": "comment: #6A9955",
-			"light_vs": "comment: #008000",
-			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
-		}
-	},
-	{
-		"c": "\t",
+		"c": "#\t",
 		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
@@ -248,7 +176,9 @@
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	},
 	{
@@ -260,19 +190,23 @@
 			"dark_vs": "markup.inserted: #B5CEA8",
 			"light_vs": "markup.inserted: #098658",
 			"hc_black": "markup.inserted: #B5CEA8",
-			"hc_light": "markup.inserted: #098658"
+			"dark_modern": "markup.inserted: #B5CEA8",
+			"hc_light": "markup.inserted: #096D48",
+			"light_modern": "markup.inserted: #098658"
 		}
 	},
 	{
 		"c": "#",
-		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit punctuation.definition.comment.git-commit",
+		"t": "text.git-commit meta.scope.metadata.git-commit comment.line.number-sign.git-commit",
 		"r": {
 			"dark_plus": "comment: #6A9955",
 			"light_plus": "comment: #008000",
 			"dark_vs": "comment: #6A9955",
 			"light_vs": "comment: #008000",
 			"hc_black": "comment: #7CA668",
-			"hc_light": "comment: #008000"
+			"dark_modern": "comment: #6A9955",
+			"hc_light": "comment: #515151",
+			"light_modern": "comment: #008000"
 		}
 	}
 ]

@@ -11,12 +11,14 @@ import { Command } from 'vs/editor/common/languages';
 import { ISequence } from 'vs/base/common/sequence';
 import { IAction } from 'vs/base/common/actions';
 import { IMenu } from 'vs/platform/actions/common/actions';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
 export const REPOSITORIES_VIEW_PANE_ID = 'workbench.scm.repositories';
+export const SYNC_VIEW_PANE_ID = 'workbench.scm.sync';
 
 export interface IBaselineResourceProvider {
 	getBaselineResource(resource: URI): Promise<URI>;
@@ -60,13 +62,16 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChangeResources: Event<void>;
 
 	readonly rootUri?: URI;
+	readonly inputBoxDocumentUri: URI;
 	readonly count?: number;
 	readonly commitTemplate: string;
+	readonly historyProvider?: ISCMHistoryProvider;
 	readonly onDidChangeCommitTemplate: Event<string>;
-	readonly onDidChangeStatusBarCommands?: Event<Command[]>;
+	readonly onDidChangeHistoryProvider: Event<void>;
+	readonly onDidChangeStatusBarCommands?: Event<readonly Command[]>;
 	readonly acceptInputCommand?: Command;
 	readonly actionButton?: ISCMActionButtonDescriptor;
-	readonly statusBarCommands?: Command[];
+	readonly statusBarCommands?: readonly Command[];
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
@@ -99,7 +104,9 @@ export interface ISCMInputChangeEvent {
 
 export interface ISCMActionButtonDescriptor {
 	command: Command;
+	secondaryCommands?: Command[][];
 	description?: string;
+	enabled: boolean;
 }
 
 export interface ISCMActionButton {
@@ -121,6 +128,9 @@ export interface ISCMInput {
 	validateInput: IInputValidator;
 	readonly onDidChangeValidateInput: Event<void>;
 
+	enabled: boolean;
+	readonly onDidChangeEnablement: Event<boolean>;
+
 	visible: boolean;
 	readonly onDidChangeVisibility: Event<boolean>;
 
@@ -135,6 +145,7 @@ export interface ISCMInput {
 }
 
 export interface ISCMRepository extends IDisposable {
+	readonly id: string;
 	readonly provider: ISCMProvider;
 	readonly input: ISCMInput;
 }
@@ -144,9 +155,11 @@ export interface ISCMService {
 	readonly _serviceBrand: undefined;
 	readonly onDidAddRepository: Event<ISCMRepository>;
 	readonly onDidRemoveRepository: Event<ISCMRepository>;
-	readonly repositories: ISCMRepository[];
+	readonly repositories: Iterable<ISCMRepository>;
+	readonly repositoryCount: number;
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
+	getRepository(id: string): ISCMRepository | undefined;
 }
 
 export interface ISCMTitleMenu {
@@ -168,6 +181,12 @@ export interface ISCMMenus {
 	getRepositoryMenus(provider: ISCMProvider): ISCMRepositoryMenus;
 }
 
+export const enum ISCMRepositorySortKey {
+	DiscoveryTime = 'discoveryTime',
+	Name = 'name',
+	Path = 'path'
+}
+
 export const ISCMViewService = createDecorator<ISCMViewService>('scmView');
 
 export interface ISCMViewVisibleRepositoryChangeEvent {
@@ -180,11 +199,16 @@ export interface ISCMViewService {
 
 	readonly menus: ISCMMenus;
 
-	visibleRepositories: ISCMRepository[];
+	repositories: ISCMRepository[];
+	readonly onDidChangeRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
+
+	visibleRepositories: readonly ISCMRepository[];
 	readonly onDidChangeVisibleRepositories: Event<ISCMViewVisibleRepositoryChangeEvent>;
 
 	isVisible(repository: ISCMRepository): boolean;
 	toggleVisibility(repository: ISCMRepository, visible?: boolean): void;
+
+	toggleSortKey(sortKey: ISCMRepositorySortKey): void;
 
 	readonly focusedRepository: ISCMRepository | undefined;
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
