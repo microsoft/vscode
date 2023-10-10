@@ -134,13 +134,13 @@ export class ViewModelDecorations implements IDisposable {
 			const modelDecorations = this._linesCollection.getDecorationsInRange(viewRange, this.editorId, true, false, false);
 
 			for (const decoration of modelDecorations) {
-				const range = decoration.range;
 				const decorationLineHeight = decoration.options.lineHeight;
 
 				if (!decorationLineHeight) {
 					continue;
 				}
 
+				const range = this._linesCollection.convertModelRangeToViewRange(decoration.range);
 				for (let rangeLine = range.startLineNumber; rangeLine <= range.endLineNumber; rangeLine++) {
 					lineHeights[rangeLine] = Math.max(lineHeights[rangeLine], decorationLineHeight);
 				}

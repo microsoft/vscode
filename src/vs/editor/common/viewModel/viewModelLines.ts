@@ -49,6 +49,8 @@ export interface IViewModelLines extends IDisposable {
 
 	getInjectedTextAt(viewPosition: Position): InjectedText | null;
 
+	convertModelRangeToViewRange(modelRange: Range, affinity?: PositionAffinity): Range;
+
 	normalizePosition(position: Position, affinity: PositionAffinity): Position;
 	/**
 	 * Gets the column at which indentation stops at a given line.
@@ -1183,6 +1185,10 @@ export class ViewModelLinesFromModelAsIs implements IViewModelLines {
 
 	public getViewLinesBracketGuides(startLineNumber: number, endLineNumber: number, activePosition: IPosition | null): IndentGuide[][] {
 		return new Array(endLineNumber - startLineNumber + 1).fill([]);
+	}
+
+	public convertModelRangeToViewRange(modelRange: Range): Range {
+		return modelRange;
 	}
 
 	public getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[] {
