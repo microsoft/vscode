@@ -13,6 +13,7 @@ import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/e
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -22,7 +23,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
 		super();
 
@@ -48,7 +50,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this));
 		disposables.add(this.registerEditorPart(editorPart));
+
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
+		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		editorPart.create(partContainer, { restorePreviousState: false });
 		disposables.add(auxiliaryWindow.onDidResize(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
