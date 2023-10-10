@@ -65,6 +65,7 @@
 }
 
 .monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	height: 24px;
 	padding: 0 5px;
 }
 
