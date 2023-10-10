@@ -122,7 +122,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '0px';
 	}
 
-	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
 		return {
 			partContainerClass: 'auxiliarybar',
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,

@@ -222,7 +222,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public getTitle(): string {
-		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
+		return Messages.MARKERS_PANEL_TITLE_PROBLEMS.value;
 	}
 
 	protected layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {

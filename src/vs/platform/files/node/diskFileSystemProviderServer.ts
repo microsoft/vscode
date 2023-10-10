@@ -292,7 +292,8 @@ export abstract class AbstractSessionFileWatcher extends Disposable implements I
 			sessionEmitter.fire(
 				events.map(e => ({
 					resource: this.uriTransformer.transformOutgoingURI(e.resource),
-					type: e.type
+					type: e.type,
+					cId: e.cId
 				}))
 			);
 		}));

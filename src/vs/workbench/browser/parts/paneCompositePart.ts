@@ -31,10 +31,13 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { IPartOptions } from 'vs/workbench/browser/part';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { CompositeMenuActions } from 'vs/workbench/browser/actions';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { Composite } from 'vs/workbench/browser/composite';
+import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 export interface IPaneCompositePart extends IView {
 
@@ -192,11 +195,14 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 			this.removeComposite(viewletDescriptor.id);
 		}));
+
+		this._register(this.extensionService.onDidRegisterExtensions(() => {
+			this.layoutCompositeBar();
+		}));
 	}
 
 	private onDidOpen(composite: IComposite): void {
 		this.activePaneContextKey.set(composite.getId());
-		this.layoutEmptyMessage();
 	}
 
 	private onDidClose(composite: IComposite): void {
@@ -204,7 +210,19 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		if (this.activePaneContextKey.get() === id) {
 			this.activePaneContextKey.reset();
 		}
+	}
+
+	protected override showComposite(composite: Composite): void {
+		super.showComposite(composite);
+		this.layoutCompositeBar();
 		this.layoutEmptyMessage();
+	}
+
+	protected override hideActiveComposite(): Composite | undefined {
+		const composite = super.hideActiveComposite();
+		this.layoutCompositeBar();
+		this.layoutEmptyMessage();
+		return composite;
 	}
 
 	override create(parent: HTMLElement): void {
@@ -329,7 +347,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	protected createCompisteBar(): PaneCompositeBar {
-		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompoisteBarOptions(), this.partId, this);
+		return this.instantiationService.createInstance(PaneCompositeBar, this.getCompositeBarOptions(), this.partId, this);
 	}
 
 	protected override onTitleAreaUpdate(compositeId: string): void {
@@ -463,32 +481,49 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-		if (this.shouldShowCompositeBar()) {
-			const actions = this.paneCompositeBar.value?.getContextMenuActions() ?? [];
+
+		if (this.shouldShowCompositeBar() && this.paneCompositeBar.value) {
+			const actions: IAction[] = [...this.paneCompositeBar.value.getContextMenuActions()];
+
+			const viewsActions: IAction[] = [];
+			const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
+			const activePaneCompositeActions = activePaneComposite ? activePaneComposite.getSecondaryActions() : [];
+			const viewsSubmenuAction = activePaneCompositeActions.find(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu) as SubmenuItemAction | undefined;
+			if (viewsSubmenuAction) {
+				viewsActions.push(...viewsSubmenuAction.actions);
+			} else {
+				viewsActions.push(...activePaneCompositeActions);
+			}
+
+			if (viewsActions.length > 1) {
+				actions.push(new Separator());
+				actions.push(new SubmenuAction('views', localize('views', "Views"), viewsActions));
+			}
+
 			if (actions.length) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
 					getActions: () => actions,
+					skipTelemetry: true
 				});
 			}
 		} else {
-			const activeViewlet = this.getActivePaneComposite() as PaneComposite;
-			if (activeViewlet) {
-				const contextMenuActions = activeViewlet ? activeViewlet.getContextMenuActions() : [];
-				if (contextMenuActions.length) {
-					this.contextMenuService.showContextMenu({
-						getAnchor: () => event,
-						getActions: () => contextMenuActions.slice(),
-						getActionViewItem: action => this.actionViewItemProvider(action),
-						actionRunner: activeViewlet.getActionRunner(),
-						skipTelemetry: true
-					});
-				}
+			const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
+			const activePaneCompositeActions = activePaneComposite ? activePaneComposite.getContextMenuActions() : [];
+			if (activePaneCompositeActions.length) {
+				this.contextMenuService.showContextMenu({
+					getAnchor: () => event,
+					getActions: () => activePaneCompositeActions,
+					getActionViewItem: action => this.actionViewItemProvider(action),
+					actionRunner: activePaneComposite.getActionRunner(),
+					skipTelemetry: true
+				});
 			}
+
 		}
 	}
 
 	protected abstract shouldShowCompositeBar(): boolean;
-	protected abstract getCompoisteBarOptions(): IPaneCompositeBarOptions;
+	protected abstract getCompositeBarOptions(): IPaneCompositeBarOptions;
 
 }
