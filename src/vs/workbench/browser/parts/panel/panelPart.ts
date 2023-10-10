@@ -115,7 +115,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		}
 	}
 
-	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
 		return {
 			partContainerClass: 'panel',
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
