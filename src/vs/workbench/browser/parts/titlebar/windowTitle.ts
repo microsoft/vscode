@@ -101,10 +101,10 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-		const editor = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(editor)) {
-			this.activeEditorListeners.add(editor.onDidBlurEditorText(() => this.titleUpdater.schedule()));
-			this.activeEditorListeners.add(editor.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(activeTextEditorControl)) {
+			this.activeEditorListeners.add(activeTextEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+			this.activeEditorListeners.add(activeTextEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 		}
 	}
 
