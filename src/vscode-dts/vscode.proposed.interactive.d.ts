@@ -107,7 +107,6 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveRequest {
-		id: string;
 		session: InteractiveSession;
 		message: string | InteractiveSessionReplyFollowup;
 		// TODO@API move to agent
@@ -200,19 +199,13 @@ declare module 'vscode' {
 	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
-		// provideHelpText(): string; // to implement `/help` slash command on the vscode side
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
-		// Align this with whatever we decide for chat agents
 		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
-		// Delete this
 		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 
 		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
-		// If copilot chat can register a 'default agent' then this API can go away. Lower-priority to figure this out soon because most extenders generally shouldn't have to care about it.
-		// But if we don't do that in the near term, this still needs to take the history.
 		provideResponseWithProgress(request: InteractiveRequest, progress: Progress<InteractiveProgress>, token: CancellationToken): ProviderResult<InteractiveResponseForProgress>;
 
-		// If the above goes away, this can go away. But, then we need to fire onDidPerformUserAction for deletions
 		// eslint-disable-next-line local/vscode-dts-provider-naming
 		removeRequest(session: S, requestId: string): void;
 	}

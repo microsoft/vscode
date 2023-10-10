@@ -3,28 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DisposableMap } from 'vs/base/common/lifecycle';
+import { DisposableMap, IDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { IProgress } from 'vs/platform/progress/common/progress';
-import { ExtHostChatAgentsShape, ExtHostContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatResponseProgressDto, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatAgentMetadata, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 
-@extHostNamedCustomer(MainContext.MainThreadChatAgents)
-export class MainThreadChatAgents implements MainThreadChatAgentsShape {
+@extHostNamedCustomer(MainContext.MainThreadChatAgents2)
+export class MainThreadChatAgents implements MainThreadChatAgentsShape2, IDisposable {
 
-	private readonly _agents = new DisposableMap<number>;
+	private readonly _agents = new DisposableMap<number, { name: string; dispose: () => void }>;
 	private readonly _pendingProgress = new Map<number, IProgress<IChatProgress>>();
-	private readonly _proxy: ExtHostChatAgentsShape;
+	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService
 	) {
-		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents);
+		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
 	}
 
 	$unregisterAgent(handle: number): void {
@@ -44,26 +43,30 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 			});
 		}
 
-		const d = this._chatAgentService.registerAgentCallback(name, async (prompt, _command, progress, history, token) => {
-			const requestId = Math.random();
+		const d = this._chatAgentService.registerAgentCallback(name, async (prompt, command, progress, history, token) => {
+			const requestId = Math.random(); // Make this a guid
 			this._pendingProgress.set(requestId, progress);
 			try {
-				return await this._proxy.$invokeAgent(handle, requestId, prompt, { history }, token);
+				return await this._proxy.$invokeAgent(handle, requestId, command, prompt, { history }, token);
 			} finally {
 				this._pendingProgress.delete(requestId);
 			}
 		});
-		this._agents.set(handle, d);
+		this._agents.set(handle, { name, dispose: d.dispose });
 	}
 
-	async $handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void> {
-		// An extra step because TS really struggles with type inference in the Revived generic parameter?
-		const revived = revive<IChatSlashFragment>(chunk);
-		if (typeof revived.content === 'string') {
-			this._pendingProgress.get(requestId)?.report({ content: revived.content });
-		} else {
-			this._pendingProgress.get(requestId)?.report(revived.content);
+	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void {
+		const data = this._agents.get(handle);
+		if (!data) {
+			throw new Error(`No agent with handle ${handle} registered`);
 		}
+
+		this._chatAgentService.updateAgent(data.name, metadataUpdate);
+	}
+
+	async $handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void> {
+		// TODO copy/move $acceptResponseProgress from MainThreadChat
+		this._pendingProgress.get(requestId)?.report(revive(chunk) as any);
 	}
 
 	$unregisterCommand(handle: number): void {

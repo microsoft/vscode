@@ -15,7 +15,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatFollowup, IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -66,6 +66,10 @@ function isAgentData(data: any): data is IChatAgentData {
 		typeof data.detail === 'string';
 	// (typeof data.sortText === 'undefined' || typeof data.sortText === 'string') &&
 	// (typeof data.executeImmediately === 'undefined' || typeof data.executeImmediately === 'boolean');
+}
+
+export interface IChatAgentFragment {
+	content: string | { treeData: IChatResponseProgressFileTreeData };
 }
 
 export interface IChatAgentCommand {

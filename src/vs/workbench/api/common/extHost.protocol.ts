@@ -53,6 +53,7 @@ import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/cal
 import { IChatAgentCommand, IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -1147,12 +1148,22 @@ export interface ExtHostChatProviderShape {
 
 export interface MainThreadChatAgentsShape extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
+	$unregisterAgent(handle: number): void;
+	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
+}
+
+export interface MainThreadChatAgentsShape2 extends IDisposable {
+	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
 	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void>;
 }
 
 export interface ExtHostChatAgentsShape {
+	$invokeAgent(handle: number, requestId: number, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
+}
+
+export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, requestId: number, command: string, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 }
@@ -2661,6 +2672,7 @@ export const MainContext = {
 	MainThreadBulkEdits: createProxyIdentifier<MainThreadBulkEditsShape>('MainThreadBulkEdits'),
 	MainThreadChatProvider: createProxyIdentifier<MainThreadChatProviderShape>('MainThreadChatProvider'),
 	MainThreadChatAgents: createProxyIdentifier<MainThreadChatAgentsShape>('MainThreadChatAgents'),
+	MainThreadChatAgents2: createProxyIdentifier<MainThreadChatAgentsShape2>('MainThreadChatAgents2'),
 	MainThreadChatVariables: createProxyIdentifier<MainThreadChatVariablesShape>('MainThreadChatVariables'),
 	MainThreadClipboard: createProxyIdentifier<MainThreadClipboardShape>('MainThreadClipboard'),
 	MainThreadCommands: createProxyIdentifier<MainThreadCommandsShape>('MainThreadCommands'),
@@ -2781,6 +2793,7 @@ export const ExtHostContext = {
 	ExtHostInlineChat: createProxyIdentifier<ExtHostInlineChatShape>('ExtHostInlineChatShape'),
 	ExtHostChat: createProxyIdentifier<ExtHostChatShape>('ExtHostChat'),
 	ExtHostChatAgents: createProxyIdentifier<ExtHostChatAgentsShape>('ExtHostChatAgents'),
+	ExtHostChatAgents2: createProxyIdentifier<ExtHostChatAgentsShape2>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
