@@ -1792,6 +1792,7 @@ export interface PendingCommentThread {
 	range: IRange;
 	uri: URI;
 	owner: string;
+	isReply: boolean;
 }
 
 /**
