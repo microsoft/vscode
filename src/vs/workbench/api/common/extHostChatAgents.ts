@@ -32,7 +32,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 
 	createChatAgent(extension: ExtensionIdentifier, id: string, description: string, handler?: vscode.ChatAgentHandler): vscode.ChatAgent {
 		const handle = ExtHostChatAgents._idPool++;
-		const agent = new ExtHostChatAgent(extension, this._proxy, handle, handler);
+		const agent = new ExtHostChatAgent(extension, this._proxy, handle, description, undefined, undefined, handler);
 		this._agents.set(handle, agent);
 
 		this._proxy.$registerAgent(handle, id, { description, subCommands: [] });
@@ -103,6 +103,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 // }
 
 class ExtHostChatAgent {
+
 	private _slashCommands: vscode.SlashCommand[] = [];
 	private _slashCommandProvider: vscode.SlashCommandProvider | undefined;
 
@@ -110,7 +111,10 @@ class ExtHostChatAgent {
 		public readonly extension: ExtensionIdentifier,
 		private readonly _proxy: MainThreadChatAgentsShape,
 		private readonly _handle: number,
-		private readonly _callback?: vscode.ChatAgentHandler
+		private _description: string | undefined,
+		private _fullName: string | undefined,
+		private _iconPath: vscode.ThemeIcon | undefined,
+		private readonly _callback?: vscode.ChatAgentHandler,
 	) { }
 
 	get slashCommands(): ReadonlyArray<vscode.SlashCommand> {
@@ -131,8 +135,16 @@ class ExtHostChatAgent {
 	get apiAgent(): vscode.ChatAgent {
 		const that = this;
 
-
 		return {
+			get description() {
+				return that._description ?? '';
+			},
+			get fullName() {
+				return that._fullName;
+			},
+			get iconPath() {
+				return that._iconPath;
+			},
 			// onDidPerformAction
 			get slashCommandProvider() {
 				return that._slashCommandProvider;
@@ -148,7 +160,7 @@ class ExtHostChatAgent {
 			dispose() {
 				that._proxy.$unregisterAgent(that._handle);
 			},
-		};
+		} satisfies vscode.ChatAgent;
 	}
 
 	invoke(request: vscode.InteractiveRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken) {

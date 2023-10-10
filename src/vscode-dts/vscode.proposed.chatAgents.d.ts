@@ -31,7 +31,13 @@ declare module 'vscode' {
 
 	// All agent and slashCommand details must be fully dynamic because they can be loaded from a remote server (github copilot extensibility).
 	// But could be declared in package.json a well.
-	interface ChatAgent {
+	export interface ChatAgent {
+
+		description: string;
+
+		fullName?: string;
+
+		iconPath?: ThemeIcon;
 
 		slashCommandProvider?: SlashCommandProvider;
 
@@ -47,6 +53,7 @@ declare module 'vscode' {
 		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}
 
+	// TODO@API move this into the ChatAgent interface
 	export interface ChatAgentMetadata {
 		description: string;
 		fullName?: string;
@@ -61,6 +68,7 @@ declare module 'vscode' {
 	export namespace chat {
 		// Invoking slash commands vs the agent with no slash command?
 		// Could be a separate handler or a slash command with a '' id
+		// TODO@API what is id for? can we use extension identifier?
 		export function createChatAgent(id: string, description: string, fullName?: string, icon?: Uri, handler?: ChatAgentHandler): ChatAgent;
 	}
 }
