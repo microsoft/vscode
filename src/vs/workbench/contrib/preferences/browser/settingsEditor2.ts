@@ -1299,7 +1299,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		const additionalGroups: ISettingsGroup[] = [];
 		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
-		if (toggleData && groups.filter(g => g.extensionInfo).length) {
+		if (this.extensionGalleryService.isEnabled() && toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extensionId = key;
 				// Recommend prerelease if not on Stable.

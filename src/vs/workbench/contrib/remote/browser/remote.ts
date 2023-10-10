@@ -440,7 +440,7 @@ class IssueReporterItem extends HelpItemBase {
 
 class HelpPanel extends ViewPane {
 	static readonly ID = '~remote.helpPanel';
-	static readonly TITLE = nls.localize('remote.help', "Help and feedback");
+	static readonly TITLE = nls.localize2('remote.help', "Help and feedback");
 	private tree!: WorkbenchAsyncDataTree<HelpModel, IHelpItem, IHelpItem>;
 
 	constructor(

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as assert from 'assert';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, ViewContainer, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -21,8 +22,8 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 const ViewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 const ViewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 const viewContainerIdPrefix = 'testViewContainer';
-const sidebarContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
-const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
+const sidebarContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+const panelContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Panel);
 
 suite('ViewDescriptorService', () => {
 
@@ -60,19 +61,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -102,19 +103,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -131,9 +132,9 @@ suite('ViewDescriptorService', () => {
 		assert.strictEqual(sidebarViews.activeViewDescriptors.length, 1, 'Sidebar should have 2 views');
 		assert.strictEqual(panelViews.activeViewDescriptors.length, 2, 'Panel should have 1 view');
 
-		assert.notStrictEqual(sidebarViews.activeViewDescriptors.indexOf(viewDescriptors[2]), -1, `Sidebar should have ${viewDescriptors[2].name}`);
-		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[0]), -1, `Panel should have ${viewDescriptors[0].name}`);
-		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[1]), -1, `Panel should have ${viewDescriptors[1].name}`);
+		assert.notStrictEqual(sidebarViews.activeViewDescriptors.indexOf(viewDescriptors[2]), -1, `Sidebar should have ${viewDescriptors[2].name.value}`);
+		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[0]), -1, `Panel should have ${viewDescriptors[0].name.value}`);
+		assert.notStrictEqual(panelViews.activeViewDescriptors.indexOf(viewDescriptors[1]), -1, `Panel should have ${viewDescriptors[1].name.value}`);
 	});
 
 	test('move views to generated containers', async function () {
@@ -142,19 +143,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -180,8 +181,8 @@ suite('ViewDescriptorService', () => {
 		assert.strictEqual(testObject.getViewContainerLocation(generatedPanel), testObject.getViewLocationById(viewDescriptors[0].id), 'Panel view location and container location should match');
 		assert.strictEqual(testObject.getViewContainerLocation(generatedSidebar), testObject.getViewLocationById(viewDescriptors[2].id), 'Sidebar view location and container location should match');
 
-		assert.strictEqual(testObject.getDefaultContainerById(viewDescriptors[2].id), panelContainer, `${viewDescriptors[2].name} has wrong default container`);
-		assert.strictEqual(testObject.getDefaultContainerById(viewDescriptors[0].id), sidebarContainer, `${viewDescriptors[0].name} has wrong default container`);
+		assert.strictEqual(testObject.getDefaultContainerById(viewDescriptors[2].id), panelContainer, `${viewDescriptors[2].name.value} has wrong default container`);
+		assert.strictEqual(testObject.getDefaultContainerById(viewDescriptors[0].id), sidebarContainer, `${viewDescriptors[0].name.value} has wrong default container`);
 
 		testObject.moveViewToLocation(viewDescriptors[0], ViewContainerLocation.Sidebar);
 		testObject.moveViewToLocation(viewDescriptors[2], ViewContainerLocation.Panel);
@@ -202,19 +203,19 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			}
 		];
@@ -283,21 +284,21 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true,
 				order: 3
 			}
@@ -329,7 +330,7 @@ suite('ViewDescriptorService', () => {
 
 	test('initialize with custom locations', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -346,25 +347,25 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -388,32 +389,32 @@ suite('ViewDescriptorService', () => {
 	test('storage change', async function () {
 		const testObject = aViewDescriptorService();
 
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 
 		const viewDescriptors: IViewDescriptor[] = [
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -457,21 +458,21 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true,
 				order: 2
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true,
 				order: 3
 			}
@@ -503,7 +504,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				order: 1
 			}
@@ -523,7 +524,7 @@ suite('ViewDescriptorService', () => {
 
 	test('custom locations take precedence when default view container of views change', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -540,25 +541,25 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			},
 			{
 				id: 'view3',
 				ctorDescriptor: null!,
-				name: 'Test View 3',
+				name: nls.localize2('Test View 3', 'Test View 3'),
 				canMoveView: true
 			},
 			{
 				id: 'view4',
 				ctorDescriptor: null!,
-				name: 'Test View 4',
+				name: nls.localize2('Test View 4', 'Test View 4'),
 				canMoveView: true
 			}
 		];
@@ -585,7 +586,7 @@ suite('ViewDescriptorService', () => {
 
 	test('view containers with not existing views are not removed from customizations', async function () {
 		const storageService = instantiationService.get(IStorageService);
-		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer1 = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const generateViewContainer1 = `workbench.views.service.${ViewContainerLocationToString(ViewContainerLocation.Sidebar)}.${generateUuid()}`;
 		const viewsCustomizations = {
 			viewContainerLocations: {
@@ -602,7 +603,7 @@ suite('ViewDescriptorService', () => {
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			}
 		];
@@ -635,18 +636,18 @@ suite('ViewDescriptorService', () => {
 		};
 		storageService.store('views.customizations', JSON.stringify(viewsCustomizations), StorageScope.PROFILE, StorageTarget.USER);
 
-		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			}
 		];
@@ -667,19 +668,19 @@ suite('ViewDescriptorService', () => {
 		const storageService = instantiationService.get(IStorageService);
 		const testObject = aViewDescriptorService();
 
-		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		const viewContainer = ViewContainersRegistry.registerViewContainer({ id: `${viewContainerIdPrefix}-${generateUuid()}`, title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptors: IViewDescriptor[] = [
 			{
 				id: 'view1',
 				ctorDescriptor: null!,
-				name: 'Test View 1',
+				name: nls.localize2('Test View 1', 'Test View 1'),
 				canMoveView: true,
 				canToggleVisibility: true
 			},
 			{
 				id: 'view2',
 				ctorDescriptor: null!,
-				name: 'Test View 2',
+				name: nls.localize2('Test View 2', 'Test View 2'),
 				canMoveView: true
 			}
 		];

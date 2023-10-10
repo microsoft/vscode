@@ -20,8 +20,8 @@ import { dirname, normalize } from 'vs/base/common/path';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { realcaseSync, realpathSync } from 'vs/base/node/extpath';
 import { NodeJSFileWatcherLibrary } from 'vs/platform/files/node/watcher/nodejs/nodejsWatcherLib';
-import { FileChangeType } from 'vs/platform/files/common/files';
-import { IDiskFileChange, ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
+import { FileChangeType, IFileChange } from 'vs/platform/files/common/files';
+import { ILogMessage, coalesceEvents, IRecursiveWatchRequest, IRecursiveWatcher, parseWatcherPatterns } from 'vs/platform/files/common/watcher';
 
 export interface IParcelWatcherInstance {
 
@@ -49,7 +49,7 @@ export interface IParcelWatcherInstance {
 	/**
 	 * An event aggregator to coalesce events and reduce duplicates.
 	 */
-	readonly worker: RunOnceWorker<IDiskFileChange>;
+	readonly worker: RunOnceWorker<IFileChange>;
 
 	/**
 	 * Stops and disposes the watcher. This operation is async to await
@@ -70,7 +70,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	private static readonly PARCEL_WATCHER_BACKEND = isWindows ? 'windows' : isLinux ? 'inotify' : 'fs-events';
 
-	private readonly _onDidChangeFile = this._register(new Emitter<IDiskFileChange[]>());
+	private readonly _onDidChangeFile = this._register(new Emitter<IFileChange[]>());
 	readonly onDidChangeFile = this._onDidChangeFile.event;
 
 	private readonly _onDidLogMessage = this._register(new Emitter<ILogMessage>());
@@ -95,7 +95,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 	// Reduce likelyhood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
-	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IDiskFileChange>(
+	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{
 			maxWorkChunkSize: 500,	// only process up to 500 changes at once before...
 			throttleDelay: 200,	  	// ...resting for 200ms until we process events again...
@@ -150,7 +150,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 
 		if (requestsToStartWatching.length) {
-			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'})`).join(',')}`);
+			this.trace(`Request to start watching: ${requestsToStartWatching.map(request => `${request.path} (excludes: ${request.excludes.length > 0 ? request.excludes : '<none>'}, includes: ${request.includes && request.includes.length > 0 ? JSON.stringify(request.includes) : '<all>'}, correlationId: ${typeof request.correlationId === 'number' ? request.correlationId : '<none>'})`).join(',')}`);
 		}
 
 		if (pathsToStopWatching.length) {
@@ -185,7 +185,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
-			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			worker: new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
 
@@ -256,7 +256,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 			ready: instance.p,
 			restarts,
 			token: cts.token,
-			worker: new RunOnceWorker<IDiskFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
+			worker: new RunOnceWorker<IFileChange>(events => this.handleParcelEvents(events, watcher), ParcelWatcher.FILE_CHANGES_HANDLER_DELAY),
 			stop: async () => {
 				cts.dispose(true);
 
@@ -315,7 +315,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		this.normalizeEvents(parcelEvents, watcher.request, realPathDiffers, realPathLength);
 
 		// Check for includes
-		const includedEvents = this.handleIncludes(parcelEvents, includes);
+		const includedEvents = this.handleIncludes(watcher, parcelEvents, includes);
 
 		// Add to event aggregator for later processing
 		for (const includedEvent of includedEvents) {
@@ -323,8 +323,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private handleIncludes(parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IDiskFileChange[] {
-		const events: IDiskFileChange[] = [];
+	private handleIncludes(watcher: IParcelWatcherInstance, parcelEvents: parcelWatcher.Event[], includes: ParsedPattern[] | undefined): IFileChange[] {
+		const events: IFileChange[] = [];
 
 		for (const { path, type: parcelEventType } of parcelEvents) {
 			const type = ParcelWatcher.MAP_PARCEL_WATCHER_ACTION_TO_FILE_CHANGE.get(parcelEventType)!;
@@ -338,14 +338,14 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 					this.trace(` >> ignored (not included) ${path}`);
 				}
 			} else {
-				events.push({ type, resource: URI.file(path) });
+				events.push({ type, resource: URI.file(path), cId: watcher.request.correlationId });
 			}
 		}
 
 		return events;
 	}
 
-	private handleParcelEvents(parcelEvents: IDiskFileChange[], watcher: IParcelWatcherInstance): void {
+	private handleParcelEvents(parcelEvents: IFileChange[], watcher: IParcelWatcherInstance): void {
 
 		// Coalesce events: merge events of same kind
 		const coalescedEvents = coalesceEvents(parcelEvents);
@@ -354,7 +354,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		const { events: filteredEvents, rootDeleted } = this.filterEvents(coalescedEvents, watcher);
 
 		// Broadcast to clients
-		this.emitEvents(filteredEvents);
+		this.emitEvents(filteredEvents, watcher);
 
 		// Handle root path deletes
 		if (rootDeleted) {
@@ -362,7 +362,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private emitEvents(events: IDiskFileChange[]): void {
+	private emitEvents(events: IFileChange[], watcher: IParcelWatcherInstance): void {
 		if (events.length === 0) {
 			return;
 		}
@@ -370,7 +370,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		// Logging
 		if (this.verboseLogging) {
 			for (const event of events) {
-				this.trace(` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`);
+				const traceMsg = ` >> normalized ${event.type === FileChangeType.ADDED ? '[ADDED]' : event.type === FileChangeType.DELETED ? '[DELETED]' : '[CHANGED]'} ${event.resource.fsPath}`;
+				this.trace(typeof watcher.request.correlationId === 'number' ? `${traceMsg} (correlationId: ${watcher.request.correlationId})` : traceMsg);
 			}
 		}
 
@@ -440,8 +441,8 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 		}
 	}
 
-	private filterEvents(events: IDiskFileChange[], watcher: IParcelWatcherInstance): { events: IDiskFileChange[]; rootDeleted?: boolean } {
-		const filteredEvents: IDiskFileChange[] = [];
+	private filterEvents(events: IFileChange[], watcher: IParcelWatcherInstance): { events: IFileChange[]; rootDeleted?: boolean } {
+		const filteredEvents: IFileChange[] = [];
 		let rootDeleted = false;
 
 		for (const event of events) {
@@ -467,7 +468,7 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 
 		const parentPath = dirname(watcher.request.path);
 		if (existsSync(parentPath)) {
-			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false }, changes => {
+			const nodeWatcher = new NodeJSFileWatcherLibrary({ path: parentPath, excludes: [], recursive: false, correlationId: watcher.request.correlationId }, changes => {
 				if (watcher.token.isCancellationRequested) {
 					return; // return early when disposed
 				}
@@ -569,62 +570,86 @@ export class ParcelWatcher extends Disposable implements IRecursiveWatcher {
 	}
 
 	protected normalizeRequests(requests: IRecursiveWatchRequest[], validatePaths = true): IRecursiveWatchRequest[] {
-		const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
 
 		// Sort requests by path length to have shortest first
 		// to have a way to prevent children to be watched if
 		// parents exist.
 		requests.sort((requestA, requestB) => requestA.path.length - requestB.path.length);
 
-		// Only consider requests for watching that are not
-		// a child of an existing request path to prevent
-		// duplication. In addition, drop any request where
-		// everything is excluded (via `**` glob).
-		//
-		// However, allow explicit requests to watch folders
-		// that are symbolic links because the Parcel watcher
-		// does not allow to recursively watch symbolic links.
+		// Map request paths to correlation and ignore identical paths
+		const mapCorrelationtoRequests = new Map<number | undefined /* correlation */, Map<string, IRecursiveWatchRequest>>();
 		for (const request of requests) {
 			if (request.excludes.includes(GLOBSTAR)) {
 				continue; // path is ignored entirely (via `**` glob exclude)
 			}
 
-			// Check for overlapping requests
-			if (requestTrie.findSubstr(request.path)) {
-				try {
-					const realpath = realpathSync(request.path);
-					if (realpath === request.path) {
-						this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+			const path = isLinux ? request.path : request.path.toLowerCase(); // adjust for case sensitivity
 
-						continue;
-					}
-				} catch (error) {
-					this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
-
-					continue;
-				}
+			let requestsForCorrelation = mapCorrelationtoRequests.get(request.correlationId);
+			if (!requestsForCorrelation) {
+				requestsForCorrelation = new Map<string, IRecursiveWatchRequest>();
+				mapCorrelationtoRequests.set(request.correlationId, requestsForCorrelation);
 			}
 
-			// Check for invalid paths
-			if (validatePaths) {
-				try {
-					const stat = statSync(request.path);
-					if (!stat.isDirectory()) {
-						this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
-
-						continue;
-					}
-				} catch (error) {
-					this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
-
-					continue;
-				}
-			}
-
-			requestTrie.set(request.path, request);
+			requestsForCorrelation.set(path, request);
 		}
 
-		return Array.from(requestTrie).map(([, request]) => request);
+		const normalizedRequests: IRecursiveWatchRequest[] = [];
+
+		for (const requestsForCorrelation of mapCorrelationtoRequests.values()) {
+
+			// Only consider requests for watching that are not
+			// a child of an existing request path to prevent
+			// duplication. In addition, drop any request where
+			// everything is excluded (via `**` glob).
+			//
+			// However, allow explicit requests to watch folders
+			// that are symbolic links because the Parcel watcher
+			// does not allow to recursively watch symbolic links.
+
+			const requestTrie = TernarySearchTree.forPaths<IRecursiveWatchRequest>(!isLinux);
+
+			for (const request of requestsForCorrelation.values()) {
+
+				// Check for overlapping requests
+				if (requestTrie.findSubstr(request.path)) {
+					try {
+						const realpath = realpathSync(request.path);
+						if (realpath === request.path) {
+							this.trace(`ignoring a path for watching who's parent is already watched: ${request.path}`);
+
+							continue;
+						}
+					} catch (error) {
+						this.trace(`ignoring a path for watching who's realpath failed to resolve: ${request.path} (error: ${error})`);
+
+						continue;
+					}
+				}
+
+				// Check for invalid paths
+				if (validatePaths) {
+					try {
+						const stat = statSync(request.path);
+						if (!stat.isDirectory()) {
+							this.trace(`ignoring a path for watching that is a file and not a folder: ${request.path}`);
+
+							continue;
+						}
+					} catch (error) {
+						this.trace(`ignoring a path for watching who's stat info failed to resolve: ${request.path} (error: ${error})`);
+
+						continue;
+					}
+				}
+
+				requestTrie.set(request.path, request);
+			}
+
+			normalizedRequests.push(...Array.from(requestTrie).map(([, request]) => request));
+		}
+
+		return normalizedRequests;
 	}
 
 	async setVerboseLogging(enabled: boolean): Promise<void> {
