@@ -122,7 +122,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		container.style.borderRightWidth = borderColor && isPositionLeft ? '1px' : '0px';
 	}
 
-	protected getCompoisteBarOptions(): IPaneCompositeBarOptions {
+	protected getCompositeBarOptions(): IPaneCompositeBarOptions {
 		return {
 			partContainerClass: 'auxiliarybar',
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
@@ -135,6 +135,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			},
 			fillExtraContextMenuActions: actions => this.fillExtraContextMenuActions(actions),
 			compositeSize: 0,
+			iconSize: 16,
 			overflowActionSize: 44,
 			colors: theme => ({
 				activeBackgroundColor: theme.getColor(SIDE_BAR_BACKGROUND),

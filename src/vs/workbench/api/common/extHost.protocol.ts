@@ -27,6 +27,7 @@ import { CharacterPair, CommentRule, EnterAction } from 'vs/editor/common/langua
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IModelChangedEvent } from 'vs/editor/common/model/mirrorTextModel';
 import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ConfigurationTarget, IConfigurationChange, IConfigurationData, IConfigurationOverrides } from 'vs/platform/configuration/common/configuration';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
@@ -55,7 +56,7 @@ import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseEr
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
-import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import * as notebookCommon from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
 import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -1166,7 +1167,7 @@ export interface ExtHostChatVariablesShape {
 
 export interface MainThreadInlineChatShape extends IDisposable {
 	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
-	$handleProgressChunk(requestId: string, chunk: { message?: string; edits?: languages.TextEdit[] }): Promise<void>;
+	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
 
@@ -1224,12 +1225,12 @@ export type IChatResponseProgressDto =
 	| { requestId: string }
 	| { placeholder: string }
 	| { treeData: IChatResponseProgressFileTreeData }
-	| { documents: IDocumentContextDto[] };
+	| { documents: IDocumentContextDto[] }
+	| { reference: UriComponents | ILocationDto };
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
 	$acceptChatState(sessionId: number, state: any): Promise<void>;
-	$addRequest(context: any): void;
 	$sendRequestToProvider(providerId: string, message: IChatDynamicRequest): void;
 	$unregisterChatProvider(handle: number): Promise<void>;
 	$acceptResponseProgress(handle: number, sessionId: number, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
@@ -1238,7 +1239,6 @@ export interface MainThreadChatShape extends IDisposable {
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined>;
-	$resolveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IChatRequestDto, 'id'> | undefined>;
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
@@ -1310,10 +1310,12 @@ export interface MainThreadFileSystemShape extends IDisposable {
 	$mkdir(resource: UriComponents): Promise<void>;
 	$delete(resource: UriComponents, opts: files.IFileDeleteOptions): Promise<void>;
 
+	$ensureActivation(scheme: string): Promise<void>;
+}
+
+export interface MainThreadFileSystemEventServiceShape extends IDisposable {
 	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
 	$unwatch(session: number): void;
-
-	$ensureActivation(scheme: string): Promise<void>;
 }
 
 export interface MainThreadLabelServiceShape extends IDisposable {
@@ -1542,9 +1544,16 @@ export interface MainThreadTimelineShape extends IDisposable {
 
 // -- extension host
 
-export interface ICommandHandlerDescriptionDto {
-	readonly description: string;
-	readonly args: ReadonlyArray<{
+export interface ICommandMetadataDto {
+	/**
+	 * NOTE: Please use an ILocalizedString. string is in the type for backcompat for now.
+	 * A short summary of what the command does. This will be used in:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	readonly description: ILocalizedString | string;
+	readonly args?: ReadonlyArray<{
 		readonly name: string;
 		readonly isOptional?: boolean;
 		readonly description?: string;
@@ -1554,7 +1563,7 @@ export interface ICommandHandlerDescriptionDto {
 
 export interface ExtHostCommandsShape {
 	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown>;
-	$getContributedCommandHandlerDescriptions(): Promise<{ [id: string]: string | ICommandHandlerDescriptionDto }>;
+	$getContributedCommandMetadata(): Promise<{ [id: string]: string | ICommandMetadataDto }>;
 }
 
 export interface ExtHostConfigurationShape {
@@ -1755,6 +1764,7 @@ export interface ExtHostExtensionServiceShape {
 }
 
 export interface FileSystemEvents {
+	session?: number;
 	created: UriComponents[];
 	changed: UriComponents[];
 	deleted: UriComponents[];
@@ -2319,7 +2329,7 @@ export interface ExtHostProgressShape {
 }
 
 export interface ExtHostCommentsShape {
-	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): void;
+	$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): Promise<void>;
 	$updateCommentThreadTemplate(commentControllerHandle: number, threadHandle: number, range: IRange): Promise<void>;
 	$deleteCommentThread(commentControllerHandle: number, commentThreadHandle: number): void;
 	$provideCommentingRanges(commentControllerHandle: number, uriComponents: UriComponents, token: CancellationToken): Promise<{ ranges: IRange[]; fileComments: boolean } | undefined>;
@@ -2693,6 +2703,7 @@ export const MainContext = {
 	MainThreadProfileContentHandlers: createProxyIdentifier<MainThreadProfileContentHandlersShape>('MainThreadProfileContentHandlers'),
 	MainThreadWorkspace: createProxyIdentifier<MainThreadWorkspaceShape>('MainThreadWorkspace'),
 	MainThreadFileSystem: createProxyIdentifier<MainThreadFileSystemShape>('MainThreadFileSystem'),
+	MainThreadFileSystemEventService: createProxyIdentifier<MainThreadFileSystemEventServiceShape>('MainThreadFileSystemEventService'),
 	MainThreadExtensionService: createProxyIdentifier<MainThreadExtensionServiceShape>('MainThreadExtensionService'),
 	MainThreadSCM: createProxyIdentifier<MainThreadSCMShape>('MainThreadSCM'),
 	MainThreadSearch: createProxyIdentifier<MainThreadSearchShape>('MainThreadSearch'),

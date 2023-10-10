@@ -13,7 +13,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -26,50 +25,51 @@ export interface IAuxiliaryWindowService {
 
 export interface IAuxiliaryWindow extends IDisposable {
 
-	readonly onDidResize: Event<Dimension>;
+	readonly onWillLayout: Event<Dimension>;
 	readonly onDidClose: Event<void>;
 
 	readonly container: HTMLElement;
+
+	layout(): void;
 }
 
-export class AuxiliaryWindowService implements IAuxiliaryWindowService {
+export type AuxiliaryWindow = Window & typeof globalThis;
+
+export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	open(): IAuxiliaryWindow {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = assertIsDefined(window.open('about:blank')?.window);
+		const auxiliaryWindow = assertIsDefined(window.open('about:blank')?.window) as AuxiliaryWindow;
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
-		this.blockMethods(auxiliaryWindow);
+		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
 		this.applyCSS(auxiliaryWindow, disposables);
 
 		const container = this.applyHTML(auxiliaryWindow, disposables);
 
-		const { onDidResize, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
-
-		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
-		disposables.add(Event.once(onDidClose.event)(() => disposables.dispose()));
+		const { onWillLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
 
 		return {
 			container,
-			onDidResize: onDidResize.event,
+			onWillLayout: onWillLayout.event,
 			onDidClose: onDidClose.event,
+			layout: () => onWillLayout.fire(getClientArea(container)),
 			dispose: () => disposables.dispose()
 		};
 	}
 
-	private applyMeta(auxiliaryWindow: Window): void {
+	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
 		const metaCharset = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
 		metaCharset.setAttribute('charset', 'utf-8');
 
@@ -77,10 +77,15 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		if (originalCSPMetaTag) {
 			const csp = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
 			copyAttributes(originalCSPMetaTag, csp);
+
+			const content = csp.getAttribute('content');
+			if (content) {
+				csp.setAttribute('content', content.replace(/(script-src[^\;]*)/, `script-src 'none'`));
+			}
 		}
 	}
 
-	private applyCSS(auxiliaryWindow: Window, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
 
 		// Clone all style elements and stylesheet links from the window to the child window
 		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
@@ -107,7 +112,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		}
 	}
 
-	private applyHTML(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): HTMLElement {
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
@@ -121,7 +126,7 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: Window & typeof globalThis, container: HTMLElement, disposables: DisposableStore) {
+	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore): { onWillLayout: Emitter<Dimension>; onDidClose: Emitter<void> } {
 		const onDidClose = disposables.add(new Emitter<void>());
 		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
 			onDidClose.fire();
@@ -132,13 +137,13 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 			e.preventDefault();
 		}));
 
-		const onDidResize = disposables.add(new Emitter<Dimension>());
+		const onWillLayout = disposables.add(new Emitter<Dimension>());
 		disposables.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, () => {
 			const dimension = getClientArea(auxiliaryWindow.document.body);
 			position(container, 0, 0, 0, 0, 'relative');
 			size(container, dimension.width, dimension.height);
 
-			onDidResize.fire(dimension);
+			onWillLayout.fire(dimension);
 		}));
 
 		if (isWeb) {
@@ -150,14 +155,18 @@ export class AuxiliaryWindowService implements IAuxiliaryWindowService {
 			disposables.add(addDisposableListener(auxiliaryWindow.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
 		}
 
-		return { onDidResize, onDidClose };
+		return { onWillLayout, onDidClose };
 	}
 
-	private blockMethods(auxiliaryWindow: Window): void {
+	protected patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
+
+		// Disallow `createElement` because it would create
+		// HTML Elements in the "wrong" context and break
+		// code that does "instanceof HTMLElement" etc.
 		auxiliaryWindow.document.createElement = function () {
 			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
 		};
 	}
 }
 
-registerSingleton(IAuxiliaryWindowService, AuxiliaryWindowService, InstantiationType.Delayed);
+registerSingleton(IAuxiliaryWindowService, BrowserAuxiliaryWindowService, InstantiationType.Delayed);

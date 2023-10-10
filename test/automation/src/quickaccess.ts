@@ -170,11 +170,11 @@ export class QuickAccess {
 		}
 	}
 
-	async runCommand(commandId: string, keepOpen?: boolean): Promise<void> {
-		let retries = 0;
+	async runCommand(commandId: string, options?: { keepOpen?: boolean; exactLabelMatch?: boolean }): Promise<void> {
+		const keepOpen = options?.keepOpen;
+		const exactLabelMatch = options?.exactLabelMatch;
 
-		while (++retries < 5) {
-
+		const openCommandPalletteAndTypeCommand = async (): Promise<string> => {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
@@ -182,22 +182,27 @@ export class QuickAccess {
 			await this.quickInput.waitForQuickInputElementFocused();
 
 			// Retry for as long as the command not found
-			const text = await this.quickInput.waitForQuickInputElementText();
-			if (text === 'No matching commands') {
-				this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
-				await this.quickInput.closeQuickInput();
-				await this.code.wait(1000);
-				continue;
+			return await this.quickInput.waitForQuickInputElementText();
+		};
+
+		let text = await openCommandPalletteAndTypeCommand();
+
+		if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+			await this.quickInput.closeQuickInput();
+
+			// Wait for workbench to be restored
+			await this.code.whenWorkbenchRestored();
+
+			// Retry after workbench is restored
+			text = await openCommandPalletteAndTypeCommand();
+			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+				throw new Error(`Command: ${commandId} Not found`);
 			}
-
-			// wait and click on best choice
-			await this.quickInput.selectQuickInputElement(0, keepOpen);
-
-			return;
 		}
 
-		throw new Error(`Command: ${commandId} Not found`);
-
+		// wait and click on best choice
+		await this.quickInput.selectQuickInputElement(0, keepOpen);
 	}
 
 	async openQuickOutline(): Promise<void> {

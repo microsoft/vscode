@@ -722,7 +722,7 @@ export function getActiveElement(): Element | null {
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
 export function getActiveDocument(): Document {
-	const documents = Array.from(getWindows()).map(w => w.document);
+	const documents = Array.from(getWindows()).map(window => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
@@ -731,7 +731,10 @@ export function getActiveWindow(): Window & typeof globalThis {
 	return document.defaultView?.window ?? window;
 }
 
-function getWindow(e: unknown): Window & typeof globalThis {
+export function getWindow(element: Node): Window & typeof globalThis;
+export function getWindow(event: UIEvent): Window & typeof globalThis;
+export function getWindow(obj: unknown): Window & typeof globalThis;
+export function getWindow(e: unknown): Window & typeof globalThis {
 	const candidateNode = e as Node | undefined;
 	if (candidateNode?.ownerDocument?.defaultView) {
 		return candidateNode.ownerDocument.defaultView.window;
@@ -743,6 +746,13 @@ function getWindow(e: unknown): Window & typeof globalThis {
 	}
 
 	return window;
+}
+
+export function focusWindow(element: Node): void {
+	const window = getWindow(element);
+	if (window !== getActiveWindow()) {
+		window.focus();
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {

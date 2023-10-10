@@ -747,6 +747,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 	override focus() {
 		this.rootElement.focus();
+
+		super.focus();
 	}
 
 	override async setInput(input: WorkspaceTrustEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {

@@ -7628,6 +7628,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		uri: Uri;
 		owner: string;
+		isReply: boolean;
 	}
 
 	export interface CodeLens {

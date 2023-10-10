@@ -7,6 +7,7 @@ import { URI, UriDto } from 'vs/base/common/uri';
 import { ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { Categories } from './actionCommonCategories';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 
 export interface ILocalizedString {
 
@@ -19,6 +20,13 @@ export interface ILocalizedString {
 	 * The original (non localized value of the string)
 	 */
 	original: string;
+}
+
+export function isLocalizedString(thing: any): thing is ILocalizedString {
+	return thing
+		&& typeof thing === 'object'
+		&& typeof thing.original === 'string'
+		&& typeof thing.value === 'string';
 }
 
 export interface ICommandActionTitle extends ILocalizedString {
@@ -66,6 +74,13 @@ export interface ICommandAction {
 	id: string;
 	title: string | ICommandActionTitle;
 	shortTitle?: string | ICommandActionTitle;
+	/**
+	 * Metadata about this command, used for:
+	 * - API commands
+	 * - when showing keybindings that have no other UX
+	 * - when searching for commands in the Command Palette
+	 */
+	metadata?: ICommandMetadata;
 	category?: keyof typeof Categories | ILocalizedString | string;
 	tooltip?: string | ILocalizedString;
 	icon?: Icon;

@@ -30,11 +30,11 @@ import { basename } from 'vs/base/common/resources';
 import { openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IStyleOverride } from 'vs/platform/theme/browser/defaultStyles';
 import { IListStyles } from 'vs/base/browser/ui/list/listWidget';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export const COMMENTS_VIEW_ID = 'workbench.panel.comments';
 export const COMMENTS_VIEW_STORAGE_ID = 'Comments';
-export const COMMENTS_VIEW_ORIGINAL_TITLE = 'Comments';
-export const COMMENTS_VIEW_TITLE = nls.localize('comments.view.title', "Comments");
+export const COMMENTS_VIEW_TITLE: ILocalizedString = nls.localize2('comments.view.title', "Comments");
 
 interface IResourceTemplateData {
 	resourceLabel: IResourceLabel;
