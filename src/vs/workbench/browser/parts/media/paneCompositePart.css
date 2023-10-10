@@ -20,6 +20,10 @@
 	display: none;
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container {
+	display: flex;
+}
+
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
 	display: flex;
 	align-items: center;
