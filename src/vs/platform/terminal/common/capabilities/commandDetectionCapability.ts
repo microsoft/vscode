@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -69,8 +69,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-	private _commandStartedWindowsBarrier?: AutoOpenBarrier;
-	private _commandExecutedWindowsBarrier?: AutoOpenBarrier;
+	private _commandStartedWindowsBarrier?: Barrier;
+	private _commandExecutedWindowsBarrier?: Barrier;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -364,7 +364,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandStartWindows(): Promise<void> {
-		this._commandStartedWindowsBarrier = new AutoOpenBarrier(200);
+		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -481,7 +481,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	private async _handleCommandExecutedWindows(): Promise<void> {
 		await this._commandStartedWindowsBarrier?.wait();
-		this._commandExecutedWindowsBarrier = new AutoOpenBarrier(200);
+		this._commandExecutedWindowsBarrier = new Barrier();
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
