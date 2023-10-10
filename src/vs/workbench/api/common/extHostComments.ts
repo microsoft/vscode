@@ -158,7 +158,7 @@ export function createExtHostComments(mainContext: IMainContext, commands: ExtHo
 			return commentController.value;
 		}
 
-		$createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): void {
+		async $createCommentThreadTemplate(commentControllerHandle: number, uriComponents: UriComponents, range: IRange | undefined): Promise<void> {
 			const commentController = this._commentControllers.get(commentControllerHandle);
 
 			if (!commentController) {
