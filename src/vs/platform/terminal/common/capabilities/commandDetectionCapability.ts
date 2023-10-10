@@ -374,20 +374,20 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			// Poll for 200ms until the cursor position is correct.
 			await Promise.race(
 				[
-					new Promise((resolve) => {
+					Promise.resolve(async () => {
 						let i = 0;
 						for (; i < 20; i++) {
-							timeout(10).then(() => {
-								if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
-									resolve(undefined);
-								}
-							});
+							await timeout(10);
+							if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+								break;
+							}
 						}
 						this._commandExecutedWindowsBarrier?.open();
 						if (i === 20) {
 							this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
 						}
-					}), this._commandExecutedWindowsBarrier?.wait()
+					})
+					, this._commandExecutedWindowsBarrier?.wait()
 				]
 			);
 		} else {
