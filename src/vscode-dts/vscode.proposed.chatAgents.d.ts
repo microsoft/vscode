@@ -18,9 +18,23 @@ declare module 'vscode' {
 		invoke: ChatAgentHandler;
 	}
 
+	// TODO@API will this be called slash commands or is the prefix configurable
+	export interface SlashCommandProvider {
+
+		// is this needed? would allow us to do the caching more nicely?
+		// onDidChangeSlashCommands?: Event<void>;
+
+		// - called when suggest is triggered
+		// - called when focus moves to input box?
+		provideSlashCommands(token: CancellationToken): ProviderResult<SlashCommand[]>;
+	}
+
 	// All agent and slashCommand details must be fully dynamic because they can be loaded from a remote server (github copilot extensibility).
 	// But could be declared in package.json a well.
 	interface ChatAgent {
+
+		slashCommandProvider?: SlashCommandProvider;
+
 		slashCommands: ReadonlyArray<SlashCommand>;
 		// Extensions can assign this to provide followups.
 		// Maybe context.history is the only thing needed here, but if the extension relies on some other internal info, they could store that on SlashResult

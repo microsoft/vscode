@@ -11,6 +11,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape, IMainContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
+import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import type * as vscode from 'vscode';
 
@@ -86,6 +87,15 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 			commandExecution.complete();
 		}
 	}
+
+	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			// this is OK, the agent might have disposed while the request was in flight
+			return [];
+		}
+		return agent.provideSlashCommand(token);
+	}
 }
 
 // function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
@@ -94,6 +104,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 
 class ExtHostChatAgent {
 	private _slashCommands: vscode.SlashCommand[] = [];
+	private _slashCommandProvider: vscode.SlashCommandProvider | undefined;
 
 	constructor(
 		public readonly extension: ExtensionIdentifier,
@@ -106,10 +117,29 @@ class ExtHostChatAgent {
 		return this._slashCommands;
 	}
 
+	async provideSlashCommand(token: CancellationToken): Promise<IChatAgentCommand[]> {
+		if (!this._slashCommandProvider) {
+			return [];
+		}
+		const result = await this._slashCommandProvider.provideSlashCommands(token);
+		if (!result) {
+			return [];
+		}
+		return result.map(c => ({ name: c.name, description: c.description }));
+	}
+
 	get apiAgent(): vscode.ChatAgent {
 		const that = this;
+
+
 		return {
 			// onDidPerformAction
+			get slashCommandProvider() {
+				return that._slashCommandProvider;
+			},
+			set slashCommandProvider(v) {
+				that._slashCommandProvider = v;
+			},
 			get slashCommands() { return that._slashCommands; },
 			set slashCommands(v) {
 				that._slashCommands = v;
