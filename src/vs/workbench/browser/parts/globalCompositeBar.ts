@@ -42,6 +42,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userDataProfileIcons';
 import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -624,7 +625,10 @@ export class SimpleAccountActivityActionViewItem extends AccountsActivityActionV
 		@IActivityService activityService: IActivityService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(() => [], () => ({}), hoverOptions, undefined, undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
+		super(() => [], theme => ({
+			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+		}), hoverOptions, undefined, undefined, actions => actions, themeService, lifecycleService, hoverService, contextMenuService, menuService, contextKeyService, authenticationService, environmentService, productService, configurationService, keybindingService, secretStorageService, logService, activityService, instantiationService);
 	}
 }
 
@@ -644,6 +648,9 @@ export class SimpleGlobalActivityActionViewItem extends GlobalActivityActionView
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IActivityService activityService: IActivityService,
 	) {
-		super(() => [], () => ({}), hoverOptions, undefined, undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
+		super(() => [], theme => ({
+			badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
+			badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+		}), hoverOptions, undefined, undefined, userDataProfileService, themeService, hoverService, menuService, contextMenuService, contextKeyService, configurationService, environmentService, keybindingService, instantiationService, activityService);
 	}
 }

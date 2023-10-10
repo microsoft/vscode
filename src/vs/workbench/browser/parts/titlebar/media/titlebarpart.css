@@ -413,15 +413,48 @@
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .badge .badge-content {
 	padding: 3px 5px;
 	border-radius: 11px;
-	font-size: 11px;
-	min-width: 18px;
-	height: 18px;
+	font-size: 9px;
+	min-width: 11px;
+	height: 16px;
 	line-height: 11px;
 	font-weight: normal;
 	text-align: center;
 	display: inline-block;
 	box-sizing: border-box;
 	position: relative;
+
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	left: 0;
+	overflow: hidden;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content::before {
+	mask-size: 10px;
+	-webkit-mask-size: 10px;
+	top: 4px;
+}
+
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content {
+	position: absolute;
+	top: 12px;
+	right: 0px;
+	font-size: 9px;
+	font-weight: 600;
+	min-width: 10px;
+	height: 10px;
+	line-height: 10px;
+	padding: 0 4px;
+	border-radius: 16px;
+	text-align: center;
 }
 
 .monaco-workbench .part.titlebar .window-controls-container .window-icon {
