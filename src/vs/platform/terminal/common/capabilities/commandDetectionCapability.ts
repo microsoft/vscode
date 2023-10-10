@@ -70,7 +70,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _commandStartedWindowsBarrier?: Barrier;
-	private _commandExecutedWindowsBarrier?: Barrier;
+	private _pollingInProcess: any;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -364,6 +364,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandStartWindows(): Promise<void> {
+		if (this._pollingInProcess) {
+			this._pollingInProcess = false;
+		}
 		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
@@ -372,14 +375,19 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
+			this._pollingInProcess = true;
 			// Poll for 200ms until the cursor position is correct.
 			let i = 0;
 			for (; i < 20; i++) {
 				await timeout(10);
-				if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+				if (!this._pollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+					if (!this._pollingInProcess) {
+						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
+					}
 					break;
 				}
 			}
+			this._pollingInProcess = false;
 			if (i === 20) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
 			}
@@ -481,7 +489,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	private async _handleCommandExecutedWindows(): Promise<void> {
 		await this._commandStartedWindowsBarrier?.wait();
-		this._commandExecutedWindowsBarrier = new Barrier();
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
@@ -490,7 +497,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._onCommandExecuted.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-		this._commandExecutedWindowsBarrier.open();
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -558,7 +564,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _preHandleCommandFinishedWindows(): Promise<void> {
-		await this._commandExecutedWindowsBarrier?.wait();
 		if (this._currentCommand.commandExecutedMarker) {
 			return;
 		}
