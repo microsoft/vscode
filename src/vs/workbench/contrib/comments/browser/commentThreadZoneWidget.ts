@@ -215,6 +215,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		};
 	}
 
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expand();
+		this._commentThreadWidget.setPendingComment(comment);
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(

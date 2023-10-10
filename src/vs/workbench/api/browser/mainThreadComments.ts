@@ -451,8 +451,8 @@ export class MainThreadCommentController implements ICommentController {
 		return ret;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): void {
-		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
+		return this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
 	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {

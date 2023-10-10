@@ -152,6 +152,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		return undefined;
 	}
 
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expandReplyArea();
+		this.commentEditor.setValue(comment);
+	}
+
 	public layout(widthInPixel: number) {
 		this.commentEditor.layout({ height: this._editorHeight, width: widthInPixel - 54 /* margin 20px * 10 + scrollbar 14px*/ });
 	}
