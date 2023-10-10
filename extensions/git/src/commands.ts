@@ -802,7 +802,8 @@ export class CommandCenter {
 			} else {
 				window.showErrorMessage('Path for git initialization not found. \n' + forcePath);
 			}
-		} else if (workspace.workspaceFolders) {
+		}
+		if ((!repositoryPath) && (workspace.workspaceFolders)) {
 			if (skipFolderPrompt && workspace.workspaceFolders.length === 1) {
 				repositoryPath = workspace.workspaceFolders[0].uri.fsPath;
 				askToOpen = false;
