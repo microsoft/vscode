@@ -134,10 +134,6 @@ export class IconSelectBox extends Disposable {
 					this.setSelection(index);
 				}));
 
-				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.MOUSE_OVER, (e: MouseEvent) => {
-					this.focusIcon(index);
-				}));
-
 				if (icon === focusedIcon) {
 					focusedIconIndex = index;
 				}
