@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
+import { AutoOpenBarrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -69,7 +69,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-	private _commandStartWindowsPromise?: Promise<void>;
+	private _commandStartedWindowsBarrier?: AutoOpenBarrier;
+	private _commandExecutedWindowsBarrier?: AutoOpenBarrier;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -343,7 +344,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		if (this._isWindowsPty) {
-			this._commandStartWindowsPromise = this._handleCommandStartWindows();
+			this._handleCommandStartWindows();
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -363,6 +364,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandStartWindows(): Promise<void> {
+		this._commandStartedWindowsBarrier = new AutoOpenBarrier(200);
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -407,6 +409,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+		this._commandStartedWindowsBarrier.open();
 	}
 
 	private _cursorOnNextLine(): boolean {
@@ -442,7 +445,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		if (this._isWindowsPty) {
-			this._commandStartWindowsPromise?.then(() => this._handleCommandExecutedWindows());
+			this._handleCommandExecutedWindows();
 			return;
 		}
 
@@ -476,7 +479,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onCommandExecuted.fire();
 	}
 
-	private _handleCommandExecutedWindows(): void {
+	private async _handleCommandExecutedWindows(): Promise<void> {
+		await this._commandStartedWindowsBarrier?.wait();
+		this._commandExecutedWindowsBarrier = new AutoOpenBarrier(200);
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
@@ -485,6 +490,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._onCommandExecuted.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
+		this._commandExecutedWindowsBarrier.open();
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -552,7 +558,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _preHandleCommandFinishedWindows(): Promise<void> {
-		await this._commandStartWindowsPromise;
+		await this._commandExecutedWindowsBarrier?.wait();
 		if (this._currentCommand.commandExecutedMarker) {
 			return;
 		}
