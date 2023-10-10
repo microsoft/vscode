@@ -8,6 +8,7 @@
     "authSession",
     "contribViewsRemote",
     "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
