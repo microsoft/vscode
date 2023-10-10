@@ -770,7 +770,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			const pane = this.createView(viewDescriptor,
 				{
 					id: viewDescriptor.id,
-					title: viewDescriptor.name,
+					title: viewDescriptor.name.value,
 					fromExtensionId: (viewDescriptor as Partial<ICustomViewDescriptor>).extensionId,
 					expanded: !collapsed
 				});

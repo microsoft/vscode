@@ -239,7 +239,7 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getFocusedViewName(): string {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name ?? '';
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {
@@ -484,10 +484,10 @@ export class ViewsService extends Disposable implements IViewsService {
 	private registerFocusViewAction(viewDescriptor: IViewDescriptor, category?: string | ILocalizedString): IDisposable {
 		return registerAction2(class FocusViewAction extends Action2 {
 			constructor() {
-				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name);
+				const title = localize({ key: 'focus view', comment: ['{0} indicates the name of the view to be focused.'] }, "Focus on {0} View", viewDescriptor.name.value);
 				super({
 					id: viewDescriptor.focusCommand ? viewDescriptor.focusCommand.id : `${viewDescriptor.id}.focus`,
-					title: { original: `Focus on ${viewDescriptor.name} View`, value: title },
+					title: { original: `Focus on ${viewDescriptor.name.original} View`, value: title },
 					category,
 					menu: [{
 						id: MenuId.CommandPalette,

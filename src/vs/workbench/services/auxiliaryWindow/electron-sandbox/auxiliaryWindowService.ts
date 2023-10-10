@@ -6,7 +6,6 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 type AuxiliaryWindow = Window & typeof globalThis & {
@@ -26,10 +25,9 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService
 	) {
-		super(layoutService, environmentService, lifecycleService);
+		super(layoutService, environmentService);
 	}
 
 	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {

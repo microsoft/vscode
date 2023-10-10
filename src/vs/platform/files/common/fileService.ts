@@ -18,7 +18,7 @@ import { extUri, extUriIgnorePathCase, IExtUri, isAbsolutePath } from 'vs/base/c
 import { consumeStream, isReadableBufferedStream, isReadableStream, listenStream, newWriteableStream, peekReadable, peekStream, transform } from 'vs/base/common/stream';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability } from 'vs/platform/files/common/files';
+import { ensureFileSystemProviderError, etag, ETAG_DISABLED, FileChangesEvent, IFileDeleteOptions, FileOperation, FileOperationError, FileOperationEvent, FileOperationResult, FilePermission, FileSystemProviderCapabilities, FileSystemProviderErrorCode, FileType, hasFileAtomicReadCapability, hasFileFolderCopyCapability, hasFileReadStreamCapability, hasOpenReadWriteCloseCapability, hasReadWriteCapability, ICreateFileOptions, IFileContent, IFileService, IFileStat, IFileStatWithMetadata, IFileStreamContent, IFileSystemProvider, IFileSystemProviderActivationEvent, IFileSystemProviderCapabilitiesChangeEvent, IFileSystemProviderRegistrationEvent, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IReadFileOptions, IReadFileStreamOptions, IResolveFileOptions, IFileStatResult, IFileStatResultWithMetadata, IResolveMetadataFileOptions, IStat, IFileStatWithPartialMetadata, IWatchOptions, IWriteFileOptions, NotModifiedSinceFileOperationError, toFileOperationResult, toFileSystemProviderErrorCode, hasFileCloneCapability, TooLargeFileOperationError, hasFileAtomicDeleteCapability, hasFileAtomicWriteCapability, IWatchOptionsWithCorrelation, IFileSystemWatcher, IWatchOptionsWithoutCorrelation } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ErrorNoTelemetry } from 'vs/base/common/errors';
@@ -63,7 +63,17 @@ export class FileService extends Disposable implements IFileService {
 		this._onDidChangeFileSystemProviderRegistrations.fire({ added: true, scheme, provider });
 
 		// Forward events from provider
-		providerDisposables.add(provider.onDidChangeFile(changes => this._onDidFilesChange.fire(new FileChangesEvent(changes, !this.isPathCaseSensitive(provider)))));
+		providerDisposables.add(provider.onDidChangeFile(changes => {
+			const event = new FileChangesEvent(changes, !this.isPathCaseSensitive(provider));
+
+			// Always emit any event internally
+			this.internalOnDidFilesChange.fire(event);
+
+			// Only emit uncorrelated events in the global `onDidFilesChange` event
+			if (!event.hasCorrelation()) {
+				this._onDidUncorrelatedFilesChange.fire(event);
+			}
+		}));
 		if (typeof provider.onDidWatchError === 'function') {
 			providerDisposables.add(provider.onDidWatchError(error => this._onDidWatchError.fire(new Error(error))));
 		}
@@ -1094,15 +1104,31 @@ export class FileService extends Disposable implements IFileService {
 
 	//#region File Watching
 
-	private readonly _onDidFilesChange = this._register(new Emitter<FileChangesEvent>());
-	readonly onDidFilesChange = this._onDidFilesChange.event;
+	private readonly internalOnDidFilesChange = this._register(new Emitter<FileChangesEvent>());
+
+	private readonly _onDidUncorrelatedFilesChange = this._register(new Emitter<FileChangesEvent>());
+	readonly onDidFilesChange = this._onDidUncorrelatedFilesChange.event; // global `onDidFilesChange` skips correlated events
 
 	private readonly _onDidWatchError = this._register(new Emitter<Error>());
 	readonly onDidWatchError = this._onDidWatchError.event;
 
 	private readonly activeWatchers = new Map<number /* watch request hash */, { disposable: IDisposable; count: number }>();
 
-	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IDisposable {
+	private static WATCHER_CORRELATION_IDS = 0;
+
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher {
+		return this.watch(resource, {
+			...options,
+			// Explicitly set a correlation id so that file events that originate
+			// from requests from extensions are exclusively routed back to the
+			// extension host and not into the workbench.
+			correlationId: FileService.WATCHER_CORRELATION_IDS++
+		});
+	}
+
+	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
+	watch(resource: URI, options?: IWatchOptionsWithoutCorrelation): IDisposable;
+	watch(resource: URI, options: IWatchOptions = { recursive: false, excludes: [] }): IFileSystemWatcher | IDisposable {
 		const disposables = new DisposableStore();
 
 		// Forward watch request to provider and wire in disposables
@@ -1124,6 +1150,25 @@ export class FileService extends Disposable implements IFileService {
 				this.logService.error(error);
 			}
 		})();
+
+		// When a correlation identifier is set, return a specific
+		// watcher that only emits events matching that correalation.
+		const correlationId = options.correlationId;
+		if (typeof correlationId === 'number') {
+			const fileChangeEmitter = disposables.add(new Emitter<FileChangesEvent>());
+			disposables.add(this.internalOnDidFilesChange.event(e => {
+				if (e.correlates(correlationId)) {
+					fileChangeEmitter.fire(e);
+				}
+			}));
+
+			const watcher: IFileSystemWatcher = {
+				onDidChange: fileChangeEmitter.event,
+				dispose: () => disposables.dispose()
+			};
+
+			return watcher;
+		}
 
 		return disposables;
 	}
