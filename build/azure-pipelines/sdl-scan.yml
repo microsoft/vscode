@@ -164,6 +164,13 @@ stages:
               SignatureFreshness: 'OneDay'
               TreatStaleSignatureAs: 'Error'
 
+          - task: PublishSecurityAnalysisLogs@3
+            inputs:
+              ArtifactName: CodeAnalysisLogs
+              ArtifactType: Container
+              PublishProcessedResults: false
+              AllTools: true
+
           - task: TSAUpload@2
             inputs:
               GdnPublishTsaOnboard: true
