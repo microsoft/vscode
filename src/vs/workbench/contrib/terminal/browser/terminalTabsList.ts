@@ -5,6 +5,7 @@
 
 import { IListService, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -15,12 +16,12 @@ import { localize } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { MenuItemAction } from 'vs/platform/actions/common/actions';
+import { MenuItemAction, IMenuService } from 'vs/platform/actions/common/actions';
 import { MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ITerminalBackend, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { Codicon } from 'vs/base/common/codicons';
-import { Action } from 'vs/base/common/actions';
+import { Action, Separator, toAction, IAction } from 'vs/base/common/actions';
 import { DEFAULT_LABELS_CONTAINER, IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { IDecorationData, IDecorationsProvider, IDecorationsService } from 'vs/workbench/services/decorations/common/decorations';
 import { IHoverAction, IHoverService } from 'vs/workbench/services/hover/browser/hover';
@@ -33,7 +34,7 @@ import { ElementsDragAndDropData, NativeDragAndDropData } from 'vs/base/browser/
 import { URI } from 'vs/base/common/uri';
 import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { IEditableData } from 'vs/workbench/common/views';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -249,6 +250,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IListService private readonly _listService: IListService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IMenuService private readonly _menuService: IMenuService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IContextViewService private readonly _contextViewService: IContextViewService
 	) {
 	}
@@ -278,7 +282,8 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
-					: undefined
+					: undefined,
+					allowContextMenu:true
 		});
 
 		return {
@@ -479,7 +484,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 
 	fillActionBar(instance: ITerminalInstance, template: ITerminalTabEntryTemplate): void {
 		// If the instance is within the selection, split all selected
-		const actions = [
+		const actions: IAction[] = [
 			new Action(TerminalCommandId.SplitActiveTab, terminalStrings.split.short, ThemeIcon.asClassName(Codicon.splitHorizontal), true, async () => {
 				this._runForSelectionOrInstance(instance, async e => {
 					this._terminalService.createTerminal({ location: { parentTerminal: e } });
@@ -494,6 +499,27 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		for (const action of actions) {
 			template.actionBar.push(action, { icon: true, label: false, keybinding: this._keybindingService.lookupKeybinding(action.id)?.getLabel() });
 		}
+
+		actions.push(new Separator());
+		//TODO: should abstract reset action
+		actions.push(toAction({
+			id: 'resetThisMenu',
+			label: localize('resetThisMenu', "Reset Menu"),
+			run: () => console.log('TODO: should run this._menuService.resetHiddenStates(menuIds)')
+		}));
+
+		template.elementDisposables.add(DOM.addDisposableListener(template.element, 'contextmenu', e => {
+			const event = new StandardMouseEvent(e);
+
+			this._contextMenuService.showContextMenu({
+				getAnchor: () => event,
+				getActions: () => actions,
+				menuId: undefined,
+				menuActionOptions: { renderShortTitle: true },
+				skipTelemetry: true,
+				contextKeyService: this._contextKeyService,
+			});
+		}));
 	}
 
 	private _runForSelectionOrInstance(instance: ITerminalInstance, callback: (instance: ITerminalInstance) => void) {
