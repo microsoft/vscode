@@ -1526,6 +1526,9 @@ export class SettingsEditor2 extends EditorPane {
 			});
 		} else {
 			this.splitView.setViewVisible(0, true);
+			this.splitView.style({
+				separatorBorder: this.theme.getColor(settingsSashBorder)!
+			});
 		}
 	}
 
