@@ -18,7 +18,6 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
@@ -119,7 +118,5 @@ export function getClearAction(viewId: string, providerId: string) {
 }
 
 function announceChatCleared(accessor: ServicesAccessor): void {
-	if (accessor.get(IAccessibilityService).isScreenReaderOptimized()) {
-		alert(localize('chatCleared', "Cleared"));
-	}
+	accessor.get(IAccessibilityService).alertCleared();
 }

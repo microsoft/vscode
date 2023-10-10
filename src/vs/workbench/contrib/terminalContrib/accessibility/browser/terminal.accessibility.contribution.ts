@@ -69,7 +69,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
@@ -80,7 +80,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return true;
 		}, TerminalContextKeys.focus));
 		this._register(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
@@ -123,10 +123,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
 			}));
 		}
-		this._accessibleViewService.show(this._bufferProvider);
+		const position = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
+		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
-		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
+		const currentLine = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal)?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;

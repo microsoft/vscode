@@ -75,6 +75,8 @@ export class ChatEditor extends EditorPane {
 		if (this.widget) {
 			this.widget.focusInput();
 		}
+
+		super.focus();
 	}
 
 	override clearInput(): void {

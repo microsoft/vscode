@@ -175,13 +175,13 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 
 	// For every word in every line, map its ranges for fast lookup
 	for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-		const lineContent = model.getLineContent(lineNumber);
-
+		const lineLength = model.getLineLength(lineNumber);
 		// If line is too long then skip the line
-		if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+		if (lineLength > MAX_TOKENIZATION_LINE_LEN) {
 			continue;
 		}
 
+		const lineContent = model.getLineContent(lineNumber);
 		model.tokenization.forceTokenization(lineNumber);
 		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {

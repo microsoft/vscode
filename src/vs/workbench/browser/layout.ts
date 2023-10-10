@@ -5,14 +5,14 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
 import { EditorInputCapabilities, GroupIdentifier, isResourceEditorInput, IUntypedEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
-import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment } from 'vs/workbench/services/layout/browser/layoutService';
+import { Position, Parts, PanelOpensMaximizedOptions, IWorkbenchLayoutService, positionFromString, positionToString, panelOpensMaximizedFromString, PanelAlignment, ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { isTemporaryWorkspace, IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -45,7 +45,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
@@ -154,12 +153,21 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	readonly hasContainer = true;
 	readonly container = document.createElement('div');
-	get activeContainer() {
-		const activeDocument = getActiveDocument();
-		if (document === activeDocument) {
+	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
+	get containers(): Iterable<HTMLElement> {
+		const containers: HTMLElement[] = [];
+		for (const window of getWindows()) {
+			containers.push(this.getContainerFromDocument(window.document));
+		}
+
+		return containers;
+	}
+
+	private getContainerFromDocument(document: Document): HTMLElement {
+		if (document === this.container.ownerDocument) {
 			return this.container;
 		} else {
-			return activeDocument.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
+			return document.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
 		}
 	}
 
@@ -284,7 +292,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Configuration changes
 		this._register(this.configurationService.onDidChangeConfiguration((e) => {
 			if ([
-				LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE,
+				LayoutSettings.ACTIVITY_BAR_LOCATION,
 				LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION,
 				LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE,
 				'window.menuBarVisibility',
@@ -479,6 +487,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Both editor and panel should not be hidden on startup
 		if (this.stateModel.getRuntimeValue(LayoutStateKeys.PANEL_HIDDEN) && this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN)) {
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
+		}
+
+		// Activity bar cannot be hidden
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
 		}
 
 		this.stateModel.onDidChangeState(change => {
@@ -1010,7 +1023,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				break;
 			}
 			case Parts.ACTIVITYBAR_PART:
-				(this.getPart(Parts.ACTIVITYBAR_PART) as ActivitybarPart).focus();
+				(this.getPart(Parts.SIDEBAR_PART) as SidebarPart).focusActivityBar();
 				break;
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
@@ -1512,9 +1525,16 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private setActivityBarHidden(hidden: boolean, skipLayout?: boolean): void {
-		// Propagate to grid
+		if (hidden && !this.canActivityBarBeHidden()) {
+			return;
+		}
 		this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, hidden);
+		// Propagate to grid
 		this.workbenchGrid.setViewVisible(this.activityBarPartView, !hidden);
+	}
+
+	private canActivityBarBeHidden(): boolean {
+		return !(this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP && !this.isVisible(Parts.TITLEBAR_PART));
 	}
 
 	private setBannerHidden(hidden: boolean): void {
@@ -2385,7 +2405,6 @@ enum WorkbenchLayoutSettings {
 }
 
 enum LegacyWorkbenchLayoutSettings {
-	ACTIVITYBAR_VISIBLE = 'workbench.activityBar.visible', // Deprecated to UI State
 	STATUSBAR_VISIBLE = 'workbench.statusBar.visible', // Deprecated to UI State
 	SIDEBAR_POSITION = 'workbench.sideBar.location', // Deprecated to UI State
 }
@@ -2413,8 +2432,8 @@ class LayoutStateModel extends Disposable {
 	private updateStateFromLegacySettings(configurationChangeEvent: IConfigurationChangeEvent): void {
 		const isZenMode = this.getRuntimeValue(LayoutStateKeys.ZEN_MODE_ACTIVE);
 
-		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE) && !isZenMode) {
-			this.setRuntimeValueAndFire(LayoutStateKeys.ACTIVITYBAR_HIDDEN, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
+		if (configurationChangeEvent.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION) && !isZenMode) {
+			this.setRuntimeValueAndFire(LayoutStateKeys.ACTIVITYBAR_HIDDEN, this.isActivityBarHidden());
 		}
 
 		if (configurationChangeEvent.affectsConfiguration(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE) && !isZenMode) {
@@ -2433,7 +2452,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		if (key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
-			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE, !value);
+			this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value ? ActivityBarPosition.HIDDEN : undefined);
 		} else if (key === LayoutStateKeys.STATUSBAR_HIDDEN) {
 			this.configurationService.updateValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE, !value);
 		} else if (key === LayoutStateKeys.SIDEBAR_POSITON) {
@@ -2455,7 +2474,7 @@ class LayoutStateModel extends Disposable {
 		}
 
 		// Apply legacy settings
-		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
+		this.stateCache.set(LayoutStateKeys.ACTIVITYBAR_HIDDEN.name, this.isActivityBarHidden());
 		this.stateCache.set(LayoutStateKeys.STATUSBAR_HIDDEN.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
 		this.stateCache.set(LayoutStateKeys.SIDEBAR_POSITON.name, positionFromString(this.configurationService.getValue(LegacyWorkbenchLayoutSettings.SIDEBAR_POSITION) ?? 'left'));
 
@@ -2524,7 +2543,7 @@ class LayoutStateModel extends Disposable {
 		if (fallbackToSetting) {
 			switch (key) {
 				case LayoutStateKeys.ACTIVITYBAR_HIDDEN:
-					this.stateCache.set(key.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.ACTIVITYBAR_VISIBLE));
+					this.stateCache.set(key.name, this.isActivityBarHidden());
 					break;
 				case LayoutStateKeys.STATUSBAR_HIDDEN:
 					this.stateCache.set(key.name, !this.configurationService.getValue(LegacyWorkbenchLayoutSettings.STATUSBAR_VISIBLE));
@@ -2548,6 +2567,14 @@ class LayoutStateModel extends Disposable {
 				this.updateLegacySettingsFromState(key, value);
 			}
 		}
+	}
+
+	private isActivityBarHidden(): boolean {
+		const oldValue = this.configurationService.getValue<boolean | undefined>('workbench.activityBar.visible');
+		if (oldValue !== undefined) {
+			return !oldValue;
+		}
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.SIDE;
 	}
 
 	private setRuntimeValueAndFire<T extends StorageKeyType>(key: RuntimeStateKey<T>, value: T): void {

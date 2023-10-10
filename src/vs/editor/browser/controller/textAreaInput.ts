@@ -730,7 +730,7 @@ export class TextAreaWrapper extends Disposable implements ICompleteTextAreaWrap
 		const shadowRoot = dom.getShadowRoot(this._actual);
 		if (shadowRoot) {
 			return shadowRoot.activeElement === this._actual;
-		} else if (dom.isInDOM(this._actual)) {
+		} else if (this._actual.isConnected) {
 			return this._actual.ownerDocument.activeElement === this._actual;
 		} else {
 			return false;
