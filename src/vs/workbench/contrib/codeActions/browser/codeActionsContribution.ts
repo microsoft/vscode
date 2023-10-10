@@ -52,7 +52,7 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 		}
 	],
 	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run CodeActions for the editor on save. CodeActions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
-	type: 'object',
+	type: ['object', 'array'],
 	additionalProperties: {
 		type: ['string', 'boolean'],
 		enum: ['always', 'explicit', 'never', true, false],
