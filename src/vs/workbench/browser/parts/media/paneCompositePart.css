@@ -154,6 +154,38 @@
 	position: relative;
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	left: 0;
+	overflow: hidden;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content {
+	position: absolute;
+	top: 13px;
+	right: 2px;
+	font-size: 9px;
+	font-weight: 600;
+	min-width: 10px;
+	height: 10px;
+	line-height: 10px;
+	padding: 0 4px;
+	border-radius: 16px;
+	text-align: center;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content::before {
+	mask-size: 10px;
+	-webkit-mask-size: 10px;
+	top: 4px;
+}
+
 /* active item indicator */
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item .active-item-indicator {
 	position: absolute;
