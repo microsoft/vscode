@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
@@ -502,8 +503,8 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	get title(): string {
-		const firstRequestMessage = this._requests[0]?.message;
-		const message = 'text' in firstRequestMessage ? firstRequestMessage.text : firstRequestMessage?.message ?? '';
+		const firstRequestMessage = firstOrDefault(this._requests)?.message;
+		const message = (firstRequestMessage && 'text' in firstRequestMessage) ? firstRequestMessage.text : firstRequestMessage?.message ?? '';
 		return message.split('\n')[0].substring(0, 50);
 	}
 
