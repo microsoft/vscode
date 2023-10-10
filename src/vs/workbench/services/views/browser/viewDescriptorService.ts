@@ -811,7 +811,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 						super({
 							id: `${viewDescriptor.id}.removeView`,
 							viewPaneContainerId: viewContainerModel.viewContainer.id,
-							title: localize('hideView', "Hide '{0}'", viewDescriptor.name),
+							title: localize('hideView', "Hide '{0}'", viewDescriptor.name.value),
 							precondition: viewDescriptor.canToggleVisibility && (!viewContainerModel.isVisible(viewDescriptor.id) || viewContainerModel.visibleViewDescriptors.length > 1) ? ContextKeyExpr.true() : ContextKeyExpr.false(),
 							menu: [{
 								id: MenuId.ViewTitleContext,
