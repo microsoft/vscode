@@ -13,7 +13,6 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -40,8 +39,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
 	) { }
 
 	open(): IAuxiliaryWindow {
@@ -59,9 +57,6 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		const container = this.applyHTML(auxiliaryWindow, disposables);
 
 		const { onDidResize, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
-
-		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
-		disposables.add(Event.once(onDidClose.event)(() => disposables.dispose()));
 
 		return {
 			container,
