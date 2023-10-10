@@ -25,7 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -56,8 +56,7 @@ export class WindowTitle extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
-		@IViewsService private readonly viewsService: IViewsService,
-		@ICodeEditorService private readonly codeEditorService: ICodeEditorService
+		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
 		this.registerListeners();
@@ -102,8 +101,8 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-		const editor = this.codeEditorService.getActiveCodeEditor() || this.codeEditorService.getFocusedCodeEditor();
-		if (editor) {
+		const editor = this.editorService.activeTextEditorControl;
+		if (isCodeEditor(editor)) {
 			this.activeEditorListeners.add(editor.onDidBlurEditorText(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(editor.onDidFocusEditorText(() => this.titleUpdater.schedule()));
 		}
