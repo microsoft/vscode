@@ -55,8 +55,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		editorPart.create(partContainer, { restorePreviousState: false });
-		disposables.add(auxiliaryWindow.onWillLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 
+		disposables.add(auxiliaryWindow.onWillLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 		auxiliaryWindow.layout();
 
 		this._onDidAddGroup.fire(editorPart.activeGroup);
