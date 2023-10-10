@@ -69,7 +69,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-	private _commandStartedWindowsBarrier?: Barrier;
 	private _commandExecutedWindowsBarrier?: Barrier;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
@@ -364,7 +363,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandStartWindows(): Promise<void> {
-		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -372,17 +370,26 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
+			this._commandExecutedWindowsBarrier = new Barrier();
 			// Poll for 200ms until the cursor position is correct.
-			let i = 0;
-			for (; i < 20; i++) {
-				await timeout(10);
-				if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
-					break;
-				}
-			}
-			if (i === 20) {
-				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
-			}
+			await Promise.race(
+				[
+					Promise.resolve(async () => {
+						let i = 0;
+						for (; i < 20; i++) {
+							await timeout(10);
+							if (this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+								break;
+							}
+						}
+						this._commandExecutedWindowsBarrier?.open();
+						if (i === 20) {
+							this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
+						}
+					})
+					, this._commandExecutedWindowsBarrier?.wait()
+				]
+			);
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
 			// position to update as conpty often prints the sequence on a different line to the
@@ -409,7 +416,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
 		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
-		this._commandStartedWindowsBarrier.open();
 	}
 
 	private _cursorOnNextLine(): boolean {
@@ -480,8 +486,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private async _handleCommandExecutedWindows(): Promise<void> {
-		await this._commandStartedWindowsBarrier?.wait();
-		this._commandExecutedWindowsBarrier = new Barrier();
+		this._commandExecutedWindowsBarrier?.open();
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
@@ -490,7 +495,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._onCommandExecuted.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-		this._commandExecutedWindowsBarrier.open();
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
