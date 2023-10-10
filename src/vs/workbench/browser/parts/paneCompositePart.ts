@@ -35,7 +35,7 @@ import { MenuId, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { ActionsOrientation, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Gesture, EventType as GestureEventType } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Composite } from 'vs/workbench/browser/composite';
 import { ViewsSubMenu } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
@@ -481,25 +481,8 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 	}
 
 	private onTitleAreaContextMenu(event: StandardMouseEvent): void {
-
 		if (this.shouldShowCompositeBar() && this.paneCompositeBar.value) {
 			const actions: IAction[] = [...this.paneCompositeBar.value.getContextMenuActions()];
-
-			const viewsActions: IAction[] = [];
-			const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
-			const activePaneCompositeActions = activePaneComposite ? activePaneComposite.getSecondaryActions() : [];
-			const viewsSubmenuAction = activePaneCompositeActions.find(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu) as SubmenuItemAction | undefined;
-			if (viewsSubmenuAction) {
-				viewsActions.push(...viewsSubmenuAction.actions);
-			} else {
-				viewsActions.push(...activePaneCompositeActions);
-			}
-
-			if (viewsActions.length > 1) {
-				actions.push(new Separator());
-				actions.push(new SubmenuAction('views', localize('views', "Views"), viewsActions));
-			}
-
 			if (actions.length) {
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => event,
@@ -519,8 +502,20 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 					skipTelemetry: true
 				});
 			}
-
 		}
+	}
+
+	protected getViewsSubmenuAction(): SubmenuAction | undefined {
+		const viewsActions: IAction[] = [];
+		const activePaneComposite = this.getActivePaneComposite() as PaneComposite;
+		const activePaneCompositeActions = activePaneComposite ? activePaneComposite.getSecondaryActions() : [];
+		const viewsSubmenuAction = activePaneCompositeActions.find(action => action instanceof SubmenuItemAction && action.item.submenu === ViewsSubMenu) as SubmenuItemAction | undefined;
+		if (viewsSubmenuAction) {
+			viewsActions.push(...viewsSubmenuAction.actions);
+		} else {
+			viewsActions.push(...activePaneCompositeActions);
+		}
+		return viewsActions.length > 1 ? new SubmenuAction('views', localize('views', "Views"), viewsActions) : undefined;
 	}
 
 	protected abstract shouldShowCompositeBar(): boolean;
