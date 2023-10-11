@@ -9,17 +9,12 @@ import { ExtHostSpeechProviderShape, IMainContext, MainContext, MainThreadSpeech
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 
-type SpeechProviderData = {
-	readonly extension: ExtensionIdentifier;
-	readonly provider: vscode.SpeechProvider;
-};
-
 export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 
 	private static ID_POOL = 1;
 
 	private readonly proxy: MainThreadSpeechProviderShape;
-	private readonly providers = new Map<number, SpeechProviderData>();
+	private readonly providers = new Map<number, vscode.SpeechProvider>();
 
 	constructor(
 		mainContext: IMainContext,
@@ -33,12 +28,13 @@ export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 			return;
 		}
 
-		return provider.provider.provideSpeechToText(token);
+		return provider.provideSpeechToText(token);
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {
 		const handle = ExtHostSpeechProvider.ID_POOL++;
-		this.providers.set(handle, { extension, provider });
+
+		this.providers.set(handle, provider);
 		this.proxy.$registerProvider(handle, identifier, { extension, displayName: extension.value });
 
 		return toDisposable(() => {

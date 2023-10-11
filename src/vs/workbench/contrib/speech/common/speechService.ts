@@ -13,11 +13,11 @@ export const ISpeechService = createDecorator<ISpeechService>('speechService');
 export interface ISpeechProviderMetadata {
 	readonly extension: ExtensionIdentifier;
 	readonly displayName: string;
-	readonly description?: string;
 }
 
 export interface ISpeechProvider {
-	metadata: ISpeechProviderMetadata;
+	readonly metadata: ISpeechProviderMetadata;
+
 	speechToText(token: CancellationToken): Promise<unknown>;
 }
 

@@ -18,7 +18,7 @@ export class MainThreadSpeechProvider extends Disposable implements MainThreadSp
 	constructor(
 		extHostContext: IExtHostContext,
 		@ISpeechService private readonly speechService: ISpeechService,
-		@ILogService private readonly logService: ILogService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -26,7 +26,7 @@ export class MainThreadSpeechProvider extends Disposable implements MainThreadSp
 	}
 
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
-		this.logService.debug('[Speech] extension registered provider', metadata.extension.value);
+		this.logService.trace('[Speech] extension registered provider', metadata.extension.value);
 
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
