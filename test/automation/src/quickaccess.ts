@@ -174,7 +174,7 @@ export class QuickAccess {
 		const keepOpen = options?.keepOpen;
 		const exactLabelMatch = options?.exactLabelMatch;
 
-		const openCommandPalletteAndTypeCommand = async (): Promise<string> => {
+		const openCommandPalletteAndTypeCommand = async (): Promise<boolean> => {
 			// open commands picker
 			await this.openQuickAccessWithRetry(QuickAccessKind.Commands, `>${commandId}`);
 
@@ -182,24 +182,42 @@ export class QuickAccess {
 			await this.quickInput.waitForQuickInputElementFocused();
 
 			// Retry for as long as the command not found
-			return await this.quickInput.waitForQuickInputElementText();
+			const text = await this.quickInput.waitForQuickInputElementText();
+
+			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+				return false;
+			}
+
+			return true;
 		};
 
-		let text = await openCommandPalletteAndTypeCommand();
+		let hasCommandFound = await openCommandPalletteAndTypeCommand();
 
-		if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
+		if (!hasCommandFound) {
+
 			this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
 			await this.quickInput.closeQuickInput();
 
 			// Wait for workbench to be restored
 			await this.code.whenWorkbenchRestored();
 
-			// Retry after workbench is restored
-			text = await openCommandPalletteAndTypeCommand();
-			if (text === 'No matching commands' || (exactLabelMatch && text !== commandId)) {
-				throw new Error(`Command: ${commandId} Not found`);
+			let retries = 0;
+			while (++retries < 5) {
+				hasCommandFound = await openCommandPalletteAndTypeCommand();
+				if (hasCommandFound) {
+					break;
+				} else {
+					this.code.logger.log(`QuickAccess: No matching commands, will retry...`);
+					await this.quickInput.closeQuickInput();
+					await this.code.wait(1000);
+				}
+			}
+
+			if (!hasCommandFound) {
+				throw new Error(`QuickAccess.runCommand(commandId: ${commandId}) failed to find command.`);
 			}
 		}
+
 
 		// wait and click on best choice
 		await this.quickInput.selectQuickInputElement(0, keepOpen);

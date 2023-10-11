@@ -81,9 +81,10 @@ async function runCell(editorGroupsService: IEditorGroupsService, context: INote
 			const cellIndex = context.notebookEditor.getCellIndex(context.cell);
 			context.notebookEditor.revealCellRangeInView({ start: cellIndex, end: cellIndex + 1 });
 		}
-	} else if (context.selectedCells) {
-		await context.notebookEditor.executeNotebookCells(context.selectedCells);
-		const firstCell = context.selectedCells[0];
+	} else if (context.selectedCells?.length || context.cell) {
+		const selectedCells = context.selectedCells?.length ? context.selectedCells : [context.cell!];
+		await context.notebookEditor.executeNotebookCells(selectedCells);
+		const firstCell = selectedCells[0];
 
 		if (firstCell && context.autoReveal) {
 			const cellIndex = context.notebookEditor.getCellIndex(firstCell);
