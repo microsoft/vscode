@@ -5,6 +5,7 @@
 
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { assertType } from 'vs/base/common/types';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
@@ -34,7 +35,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, description, fullName, icon, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, name, { description, fullName, icon, subCommands: [] });
+		this._proxy.$registerAgent(handle, name, { description, fullName, icon });
 		return agent.apiAgent;
 	}
 
@@ -56,10 +57,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
 
-		const slashCommand = request.command ? agent.slashCommands.find(s => s.name === request.command) : undefined;
-		if (request.command && !slashCommand) {
-			throw new Error(`Unknown slashCommand: ${request.command}`);
-		}
+		const slashCommand = request.command
+			? await agent.validateSlashCommand(request.command)
+			: undefined;
 
 		const task = agent.invoke(
 			{ message: request.message, variables: {}, slashCommand },
@@ -112,8 +112,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent {
 
-	private _slashCommands: vscode.SlashCommand[] = [];
 	private _slashCommandProvider: vscode.SlashCommandProvider | undefined;
+	private _lastSlashCommands: vscode.SlashCommand[] | undefined;
 
 	private _followupProvider: vscode.FollowupProvider | undefined;
 
@@ -128,8 +128,18 @@ class ExtHostChatAgent {
 		private readonly _callback?: vscode.ChatAgentHandler,
 	) { }
 
-	get slashCommands(): ReadonlyArray<vscode.SlashCommand> {
-		return this._slashCommands;
+
+	async validateSlashCommand(command: string) {
+		if (!this._lastSlashCommands) {
+			await this.provideSlashCommand(CancellationToken.None);
+			assertType(this._lastSlashCommands);
+		}
+		const result = this._lastSlashCommands.find(candidate => candidate.name === command);
+		if (!result) {
+			throw new Error(`Unknown slashCommand: ${command}`);
+
+		}
+		return result;
 	}
 
 	async provideSlashCommand(token: CancellationToken): Promise<IChatAgentCommand[]> {
@@ -140,6 +150,7 @@ class ExtHostChatAgent {
 		if (!result) {
 			return [];
 		}
+		this._lastSlashCommands = result;
 		return result.map(c => ({ name: c.name, description: c.description }));
 	}
 
@@ -154,6 +165,14 @@ class ExtHostChatAgent {
 		return followups.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
+	private _updateMetadata() {
+		this._proxy.$updateAgent(this._handle, {
+			description: this._description ?? '',
+			fullName: this._fullName,
+			icon: this._icon,
+		});
+	}
+
 	get apiAgent(): vscode.ChatAgent2 {
 		const that = this;
 
@@ -164,11 +183,23 @@ class ExtHostChatAgent {
 			get description() {
 				return that._description ?? '';
 			},
+			set description(v) {
+				that._description = v;
+				that._updateMetadata();
+			},
 			get fullName() {
 				return that._fullName;
 			},
+			set fullName(v) {
+				that._fullName = v;
+				that._updateMetadata();
+			},
 			get icon() {
 				return that._icon;
+			},
+			set icon(v) {
+				that._icon = v;
+				that._updateMetadata();
 			},
 			// onDidPerformAction
 			get slashCommandProvider() {
@@ -182,11 +213,6 @@ class ExtHostChatAgent {
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
-			},
-			get slashCommands() { return that._slashCommands; },
-			set slashCommands(v) {
-				that._slashCommands = v;
-				that._proxy.$updateAgent(that._handle, { subCommands: v.map(c => ({ name: c.name, description: c.description })) });
 			},
 			dispose() {
 				that._proxy.$unregisterAgent(that._handle);

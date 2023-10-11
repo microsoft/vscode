@@ -40,9 +40,6 @@ declare module 'vscode' {
 		slashCommandProvider?: SlashCommandProvider;
 		followupProvider?: FollowupProvider;
 
-		// remove
-		slashCommands: ReadonlyArray<SlashCommand>;
-
 		// We need this- can't handle telemetry on the vscode side yet
 		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
 		dispose(): void;

@@ -7,7 +7,7 @@ import { DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { IProgress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape, ExtHostContext, MainContext, MainThreadChatAgentsShape } from 'vs/workbench/api/common/extHost.protocol';
-import { IChatAgentMetadata, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentMetadata, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatProgress } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -35,7 +35,7 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 		this._agents.clearAndDisposeAll();
 	}
 
-	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void {
+	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata & { subCommands: IChatAgentCommand[] }): void {
 		const d = this._chatAgentService.registerAgent({
 			id: name,
 			metadata: revive(metadata),
@@ -50,7 +50,10 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
-			}
+			},
+			async provideSlashCommands() {
+				return metadata.subCommands;
+			},
 		});
 		this._agents.set(handle, d);
 	}

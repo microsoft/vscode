@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -346,7 +347,7 @@ class AgentCompletions extends Disposable {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentSubcommand',
 			triggerCharacters: ['/'],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget || !widget.viewModel) {
 					return;
@@ -364,8 +365,10 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				const commands = await usedAgent.agent.provideSlashCommands(token);
+
 				return <CompletionList>{
-					suggestions: usedAgent.agent.metadata.subCommands.map((c, i) => {
+					suggestions: commands.map((c, i) => {
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
 							label: withSlash,
@@ -383,7 +386,7 @@ class AgentCompletions extends Disposable {
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatAgentAndSubcommand',
 			triggerCharacters: ['/'],
-			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
+			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
 				if (!widget) {
 					return;
@@ -395,8 +398,15 @@ class AgentCompletions extends Disposable {
 				}
 
 				const agents = this.chatAgentService.getAgents();
+				const all = agents.map(agent => agent.provideSlashCommands(token));
+				const commands = await raceCancellation(Promise.all(all), token);
+
+				if (!commands) {
+					return;
+				}
+
 				return <CompletionList>{
-					suggestions: agents.flatMap(a => a.metadata.subCommands.map((c, i) => {
+					suggestions: agents.flatMap(a => commands.flat().map((c, i) => {
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
 							label: withSlash,

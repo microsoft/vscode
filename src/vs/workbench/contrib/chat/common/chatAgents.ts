@@ -20,7 +20,7 @@ export interface IChatAgent {
 	metadata: IChatAgentMetadata;
 	invoke(request: IChatAgentRequest, progress: IProgress<IChatProgress>, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
 	// provideFollowups?: IChatAgentFollowupProvider;
-	// provideSlashCommands?:
+	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
 }
 
 export interface IChatAgentFragment {
@@ -34,7 +34,7 @@ export interface IChatAgentCommand {
 
 export interface IChatAgentMetadata {
 	description: string;
-	subCommands: IChatAgentCommand[];
+	// subCommands: IChatAgentCommand[];
 	requireCommand?: boolean; // Do some agents not have a default action?
 	isImplicit?: boolean; // Only @workspace. slash commands get promoted to the top-level and this agent is invoked when those are used
 	fullName?: string;
@@ -69,7 +69,7 @@ export interface IChatAgentService {
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
 	hasAgent(id: string): boolean;
-	updateAgent(id: string, updateMetadata: { subCommands: IChatAgentMetadata['subCommands'] }): void;
+	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
 
 export class ChatAgentService extends Disposable implements IChatAgentService {
@@ -102,13 +102,12 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		});
 	}
 
-	updateAgent(id: string, updateMetadata: { subCommands: IChatAgentMetadata['subCommands'] }): void {
+	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void {
 		const data = this._agents.get(id);
 		if (!data) {
 			throw new Error(`No agent with id ${id} registered`);
 		}
-
-		data.agent.metadata.subCommands = updateMetadata.subCommands;
+		data.agent.metadata = { ...data.agent.metadata, ...updateMetadata };
 		this._onDidChangeAgents.fire();
 	}
 

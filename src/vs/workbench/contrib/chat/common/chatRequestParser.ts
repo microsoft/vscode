@@ -143,7 +143,8 @@ export class ChatRequestParser {
 
 		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		if (usedAgent) {
-			const subCommand = usedAgent.agent.metadata.subCommands.find(c => c.name === command);
+			const subCommands = await usedAgent.agent.provideSlashCommands(CancellationToken.None);
+			const subCommand = subCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

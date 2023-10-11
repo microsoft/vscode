@@ -1147,14 +1147,14 @@ export interface ExtHostChatProviderShape {
 }
 
 export interface MainThreadChatAgentsShape extends IDisposable {
-	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
+	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata & { subCommands: IChatAgentCommand[] }): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
-	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void;
+	$updateAgent(handle: number, metadataUpdate: IChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void>;
 }

@@ -111,7 +111,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<IChatAgent>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -121,7 +121,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent with question mark', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<IChatAgent>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -131,7 +131,7 @@ suite('ChatRequestParser', () => {
 
 	test('agent not first', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<IChatAgent>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
@@ -141,7 +141,7 @@ suite('ChatRequestParser', () => {
 
 	test('agents and variables and multiline', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
-		agentsService.getAgent.returns(<IChatAgent>{ id: 'agent', metadata: { description: '', subCommands: [{ name: 'subCommand' }] } });
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		const variablesService = mockObject<IChatVariablesService>()({});

@@ -27,10 +27,8 @@
       },
       agent: {
         id: "agent",
-        metadata: {
-          description: "",
-          subCommands: [ { name: "subCommand" } ]
-        }
+        metadata: { description: "" },
+        provideSlashCommands: [Function provideSlashCommands]
       },
       kind: "agent"
     },
@@ -59,7 +57,10 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: { name: "subCommand" },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
       kind: "subcommand"
     },
     {

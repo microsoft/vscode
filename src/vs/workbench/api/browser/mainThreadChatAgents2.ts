@@ -46,12 +46,15 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape2, IDispos
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}
+			},
+			provideSlashCommands: async (token) => {
+				return this._proxy.$provideSlashCommands(handle, token);
 			}
 		});
 		this._agents.set(handle, { name, dispose: d.dispose });
 	}
 
-	$updateAgent(handle: number, metadataUpdate: { subCommands: IChatAgentMetadata['subCommands'] }): void {
+	$updateAgent(handle: number, metadataUpdate: IChatAgentMetadata): void {
 		const data = this._agents.get(handle);
 		if (!data) {
 			throw new Error(`No agent with handle ${handle} registered`);
