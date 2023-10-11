@@ -25,7 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/common/views';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -81,7 +81,11 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
-		this._register(this.viewsService.onDidChangeFocusedView(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => {
+			if (this._titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
@@ -110,6 +114,17 @@ export class WindowTitle extends Disposable {
 			if (isCodeEditor(activeTextEditorControl)) {
 				this.activeEditorListeners.add(activeTextEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
 				this.activeEditorListeners.add(activeTextEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+			} else if (isDiffEditor(activeTextEditorControl)) {
+				const diffEditorModified = isDiffEditor(activeTextEditorControl) ? activeTextEditorControl.getModifiedEditor() : undefined;
+				const diffEditorOriginal = isDiffEditor(activeTextEditorControl) ? activeTextEditorControl.getOriginalEditor() : undefined;
+				if (diffEditorModified) {
+					this.activeEditorListeners.add(diffEditorModified.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+					this.activeEditorListeners.add(diffEditorModified.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+				}
+				if (diffEditorOriginal) {
+					this.activeEditorListeners.add(diffEditorOriginal.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+					this.activeEditorListeners.add(diffEditorOriginal.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+				}
 			}
 		}
 	}
