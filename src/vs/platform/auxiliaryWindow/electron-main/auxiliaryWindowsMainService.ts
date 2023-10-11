@@ -36,10 +36,14 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		Event.once(auxiliaryWindow.onDidClose)(() => this.windows.delete(auxiliaryWindow.id));
 	}
 
+	getWindowById(windowId: number): IAuxiliaryWindow | undefined {
+		return this.windows.get(windowId);
+	}
+
 	getFocusedWindow(): IAuxiliaryWindow | undefined {
 		const window = BrowserWindow.getFocusedWindow();
 		if (window) {
-			return this.windows.get(window.id);
+			return this.getWindowById(window.id);
 		}
 
 		return undefined;

@@ -27,7 +27,7 @@
 		 * A minimal set of methods exposed from Electron's `ipcRenderer`
 		 * to support communication to main process.
 		 *
-		 * @typedef {Pick<import('./electronTypes').IpcRenderer, 'send'>} IpcRenderer
+		 * @typedef {Pick<import('./electronTypes').IpcRenderer, 'send' | 'invoke'>} IpcRenderer
 		 *
 		 * @type {IpcRenderer}
 		 */
@@ -40,6 +40,17 @@
 			send(channel, ...args) {
 				if (validateIPC(channel)) {
 					ipcRenderer.send(channel, ...args);
+				}
+			},
+
+			/**
+			 * @param {string} channel
+			 * @param {any[]} args
+			 * @returns {Promise<any> | never}
+			 */
+			invoke(channel, ...args) {
+				if (validateIPC(channel)) {
+					return ipcRenderer.invoke(channel, ...args);
 				}
 			}
 		},

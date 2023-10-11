@@ -42,6 +42,7 @@ import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -229,12 +230,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { windowId?: number; force?: boolean }): Promise<void> {
-		if (options && typeof options.windowId === 'number') {
-			windowId = options.windowId;
+	async focusWindow(windowId: number | undefined, options?: { targetWindowId?: number; force?: boolean }): Promise<void> {
+		let window: ICodeWindow | IAuxiliaryWindow | undefined;
+		if (typeof options?.targetWindowId === 'number') {
+			window = this.windowsMainService.getWindowById(options.targetWindowId) ?? this.auxiliaryWindowsMainService.getWindowById(options.targetWindowId);
+		} else {
+			window = this.windowById(windowId).main;
 		}
 
-		const { main: window } = this.windowById(windowId);
 		window?.focus({ force: options?.force ?? false });
 	}
 
@@ -688,7 +691,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.closeWindowById(windowId, windowId);
 	}
 
-	async closeWindowById(currentWindowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
+	async closeWindowById(windowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
 		const { main: window } = this.windowById(targetWindowId);
 		if (window?.win) {
 			return window.win.close();
