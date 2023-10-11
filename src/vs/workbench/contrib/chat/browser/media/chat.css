@@ -110,6 +110,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
 }
