@@ -21,12 +21,17 @@ export interface IParsedChatRequestPart {
 	readonly range: IOffsetRange;
 	readonly editorRange: IRange;
 	readonly text: string;
+	readonly promptText: string;
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
 	static readonly Kind = 'text';
 	readonly kind = ChatRequestTextPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
+
+	get promptText(): string {
+		return this.text;
+	}
 }
 
 export const chatVariableLeader = '#'; // warning, this also shows up in a regex in the parser
@@ -43,6 +48,10 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
 		return `${chatVariableLeader}${this.variableName}${argPart}`;
 	}
+
+	get promptText(): string {
+		return this.text;
+	}
 }
 
 /**
@@ -55,6 +64,10 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 
 	get text(): string {
 		return `@${this.agent.id}`;
+	}
+
+	get promptText(): string {
+		return '';
 	}
 }
 
@@ -69,6 +82,10 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 	get text(): string {
 		return `/${this.command.name}`;
 	}
+
+	get promptText(): string {
+		return '';
+	}
 }
 
 /**
@@ -81,6 +98,10 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 
 	get text(): string {
 		return `/${this.slashCommand.command}`;
+	}
+
+	get promptText(): string {
+		return '';
 	}
 }
 
@@ -98,6 +119,10 @@ export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 
 	get text(): string {
 		return `$${this.referenceText}`;
+	}
+
+	get promptText(): string {
+		return `[${this.text}](values:${this.referenceText})`;
 	}
 }
 
