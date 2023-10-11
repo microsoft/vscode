@@ -42,7 +42,7 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape2, IDispos
 				const requestId = Math.random(); // Make this a guid
 				this._pendingProgress.set(requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, requestId, request, { history }, token);
+					return await this._proxy.$invokeAgent(handle, requestId, request, { history }, token) ?? {};
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}

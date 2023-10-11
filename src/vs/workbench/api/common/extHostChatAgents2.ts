@@ -6,13 +6,13 @@
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatAgentCommand, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
+import { IChatFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
@@ -25,7 +25,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
-		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
@@ -39,11 +38,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any> {
+	async $invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
-			this._logService.warn(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
-			return;
+			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
 		}
 
 		let done = false;
@@ -75,7 +73,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		);
 
 		try {
-			return await raceCancellation(Promise.resolve(task), token);
+			return await raceCancellation(Promise.resolve(task).then((result) => {
+				if (result) {
+					return { errorDetails: result.errorDetails }; // TODO timings here
+				}
+
+				return undefined;
+			}), token);
 		} finally {
 			done = true;
 			commandExecution.complete();
@@ -90,12 +94,25 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 		return agent.provideSlashCommand(token);
 	}
+
+	async $provideFollowups(handle: number, requestId: number, token: CancellationToken): Promise<IChatFollowup[]> {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			// this is OK, the agent might have disposed while the request was in flight
+			return [];
+		}
+
+		// TODO look up result object based on requestId
+		return agent.provideFollowups(null!, token);
+	}
 }
 
 class ExtHostChatAgent {
 
 	private _slashCommands: vscode.SlashCommand[] = [];
 	private _slashCommandProvider: vscode.SlashCommandProvider | undefined;
+
+	private _followupProvider: vscode.FollowupProvider | undefined;
 
 	constructor(
 		public readonly extension: ExtensionIdentifier,
@@ -123,6 +140,17 @@ class ExtHostChatAgent {
 		return result.map(c => ({ name: c.name, description: c.description }));
 	}
 
+	async provideFollowups(result: vscode.AgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+		if (!this._followupProvider) {
+			return [];
+		}
+		const followups = await this._followupProvider.provideFollowups(result, token);
+		if (!followups) {
+			return [];
+		}
+		return followups.map(f => typeConvert.ChatFollowup.from(f));
+	}
+
 	get apiAgent(): vscode.ChatAgent2 {
 		const that = this;
 
@@ -145,6 +173,12 @@ class ExtHostChatAgent {
 			},
 			set slashCommandProvider(v) {
 				that._slashCommandProvider = v;
+			},
+			get followupProvider() {
+				return that._followupProvider;
+			},
+			set followupProvider(v) {
+				that._followupProvider = v;
 			},
 			get slashCommands() { return that._slashCommands; },
 			set slashCommands(v) {

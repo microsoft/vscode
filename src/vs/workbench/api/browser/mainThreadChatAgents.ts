@@ -43,7 +43,10 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 				const requestId = Math.random();
 				this._pendingProgress.set(requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, requestId, request.message, { history }, token);
+					const result = await this._proxy.$invokeAgent(handle, requestId, request.message, { history }, token);
+					return {
+						followUp: result?.followUp ?? [],
+					};
 				} finally {
 					this._pendingProgress.delete(requestId);
 				}

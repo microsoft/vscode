@@ -50,7 +50,7 @@ import * as tasks from 'vs/workbench/api/common/shared/tasks';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views';
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
-import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
@@ -1164,8 +1164,9 @@ export interface ExtHostChatAgentsShape {
 }
 
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any>;
+	$invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
+	$provideFollowups(handle: number, requestId: number, token: CancellationToken): Promise<IChatFollowup[]>;
 }
 
 export interface MainThreadChatVariablesShape extends IDisposable {

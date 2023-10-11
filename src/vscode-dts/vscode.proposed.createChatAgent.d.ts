@@ -28,17 +28,20 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<SlashCommand[]>;
 	}
 
+	export interface FollowupProvider {
+		provideFollowups(result: AgentResult, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
+	}
+
 	export interface ChatAgent2 {
 		readonly name: string;
 		description: string;
 		fullName?: string;
 		icon?: Uri;
 		slashCommandProvider?: SlashCommandProvider;
+		followupProvider?: FollowupProvider;
 
 		// remove
 		slashCommands: ReadonlyArray<SlashCommand>;
-
-		provideFollowups?: (result: AgentResult, token: CancellationToken) => ProviderResult<InteractiveSessionFollowup[]>;
 
 		// We need this- can't handle telemetry on the vscode side yet
 		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
