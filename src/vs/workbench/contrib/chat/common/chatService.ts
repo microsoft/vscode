@@ -87,13 +87,19 @@ export interface IChatContentReference {
 	reference: URI | Location;
 }
 
+export interface IChatContentInlineReference {
+	inlineReference: URI | Location;
+	name?: string;
+}
+
 export type IChatProgress =
 	| { content: string | IMarkdownString }
 	| { requestId: string }
 	| { treeData: IChatResponseProgressFileTreeData }
 	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
 	| IUsedContext
-	| IChatContentReference;
+	| IChatContentReference
+	| IChatContentInlineReference;
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -223,7 +229,7 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>;
+	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
 	errorDetails?: IChatResponseErrorDetails;
 	followups?: IChatFollowup[];
 }

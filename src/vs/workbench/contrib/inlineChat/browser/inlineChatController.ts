@@ -520,14 +520,7 @@ export class InlineChatController implements IEditorContribution {
 			requestCts.cancel();
 		});
 
-		let ignoreInputChange = false;
-
-		const typeListener = this._zone.value.widget.onDidChangeInput(() => {
-			if (!ignoreInputChange) {
-				requestCts.cancel();
-
-			}
-		});
+		const typeListener = this._zone.value.widget.onDidChangeInput(() => requestCts.cancel());
 
 		const sw = StopWatch.create();
 		const request: IInlineChatRequest = {
@@ -550,10 +543,7 @@ export class InlineChatController implements IEditorContribution {
 			if (data.slashCommand) {
 				const valueNow = this._zone.value.widget.value;
 				if (!valueNow.startsWith('/')) {
-					const valueNew = `/${data.slashCommand} ${valueNow}`;
-					ignoreInputChange = true;
-					this._zone.value.widget.value = valueNew;
-					ignoreInputChange = false;
+					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
 				}
 			}
 			if (data.edits) {
