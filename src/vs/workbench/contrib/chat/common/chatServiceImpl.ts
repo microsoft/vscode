@@ -21,7 +21,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -509,7 +509,19 @@ export class ChatService extends Disposable implements IChatService {
 							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
 						}
 					}
-					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, agentSlashCommandPart?.command.name ?? '', message, new Progress<IChatProgress>(p => {
+
+					const requestProps: IChatAgentRequest = {
+						message: message,
+						variables: {},
+						command: agentSlashCommandPart?.command.name ?? '',
+					};
+					if ('parts' in parsedRequest) {
+						const varResult = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+						requestProps.variables = varResult.variables;
+						requestProps.message = varResult.prompt;
+					}
+
+					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, requestProps, new Progress<IChatProgress>(p => {
 						progressCallback(p);
 					}), history, token);
 					slashCommandFollowups = agentResult?.followUp;

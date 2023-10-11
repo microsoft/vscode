@@ -44,11 +44,11 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 			});
 		}
 
-		const d = this._chatAgentService.registerAgentCallback(name, async (prompt, _command, progress, history, token) => {
+		const d = this._chatAgentService.registerAgentCallback(name, async (request, progress, history, token) => {
 			const requestId = Math.random();
 			this._pendingProgress.set(requestId, progress);
 			try {
-				return await this._proxy.$invokeAgent(handle, requestId, prompt, { history }, token);
+				return await this._proxy.$invokeAgent(handle, requestId, request.message, { history }, token);
 			} finally {
 				this._pendingProgress.delete(requestId);
 			}

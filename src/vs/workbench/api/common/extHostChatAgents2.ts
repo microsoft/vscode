@@ -11,7 +11,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentRequest } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import type * as vscode from 'vscode';
 
@@ -39,7 +39,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, requestId: number, command: string, prompt: string, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any> {
+	async $invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<any> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			this._logService.warn(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -58,13 +58,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
 
-		const slashCommand = command ? agent.slashCommands.find(s => s.name === command) : undefined;
-		if (command && !slashCommand) {
-			throw new Error(`Unknown slashCommand: ${command}`);
+		const slashCommand = request.command ? agent.slashCommands.find(s => s.name === request.command) : undefined;
+		if (request.command && !slashCommand) {
+			throw new Error(`Unknown slashCommand: ${request.command}`);
 		}
 
 		const task = agent.invoke(
-			{ message: prompt, variables: {}, slashCommand },
+			{ message: request.message, variables: {}, slashCommand },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.InteractiveProgress>(p => {
 				throwIfDone();
@@ -157,7 +157,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatAgent2;
 	}
 
-	invoke(request: vscode.SlashRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.SlashResult> {
+	invoke(request: vscode.AgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.AgentResult> {
 		return this._callback?.(request, context, progress, token);
 	}
 }
