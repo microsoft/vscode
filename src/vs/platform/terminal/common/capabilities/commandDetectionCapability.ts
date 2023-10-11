@@ -71,6 +71,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _commandStartedWindowsBarrier?: Barrier;
 	private _windowsPromptPollingInProcess: boolean = false;
+	private _isDisposed: boolean = false;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -363,6 +364,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
+	override dispose() {
+		super.dispose();
+		this._isDisposed = true;
+	}
+
 	private async _handleCommandStartWindows(): Promise<void> {
 		if (this._windowsPromptPollingInProcess) {
 			this._windowsPromptPollingInProcess = false;
@@ -380,7 +386,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			let i = 0;
 			for (; i < 20; i++) {
 				await timeout(10);
-				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+				if (this._isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
 					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
