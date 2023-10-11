@@ -528,7 +528,7 @@ export class ChatService extends Disposable implements IChatService {
 						progressCallback(p);
 					}), history, token);
 					slashCommandFollowups = agentResult?.followUp;
-					rawResponse = { session: model.session! };
+					rawResponse = { session: model.session!, errorDetails: agentResult.errorDetails, timings: agentResult.timings };
 				} else if (commandPart && typeof message === 'string' && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest);
 					// contributed slash commands
