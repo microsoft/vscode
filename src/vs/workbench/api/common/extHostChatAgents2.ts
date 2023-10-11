@@ -75,6 +75,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		try {
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
+					// An option would be to call provideFollowups here and send the result back to the renderer, rather than store the result
+					// and wait for the renderer to ask for followups
+					// agent.provideFollowups(result, token);
 					return { errorDetails: result.errorDetails }; // TODO timings here
 				}
 
