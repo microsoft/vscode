@@ -411,12 +411,13 @@ class AgentCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: agents.flatMap(a => commands.flat().map((c, i) => {
+					suggestions: agents.flatMap(agent => commands.flat().map((c, i) => {
+						const agentLabel = `@${agent.id}`;
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
-							label: withSlash,
-							insertText: `@${a.id} ${withSlash} `,
-							detail: `(@${a.id}) ${c.description}`,
+							label: { label: withSlash, description: agentLabel },
+							insertText: `${agentLabel} ${withSlash} `,
+							detail: `(${agentLabel}) ${c.description}`,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
