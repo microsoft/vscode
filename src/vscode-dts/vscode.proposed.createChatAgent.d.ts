@@ -32,19 +32,15 @@ declare module 'vscode' {
 	// All agent and slashCommand details must be fully dynamic because they can be loaded from a remote server (github copilot extensibility).
 	// But could be declared in package.json a well.
 	export interface ChatAgent2 {
-
-		// TODO@API naming: name, shortName, alias,
-		readonly id: string;
-
+		readonly name: string;
 		description: string;
-
 		fullName?: string;
-
-		iconPath?: ThemeIcon;
-
+		icon?: Uri;
 		slashCommandProvider?: SlashCommandProvider;
 
+		// remove
 		slashCommands: ReadonlyArray<SlashCommand>;
+
 		// Extensions can assign this to provide followups.
 		// Maybe context.history is the only thing needed here, but if the extension relies on some other internal info, they could store that on SlashResult
 		// copilot chat tries to save a little time by starting to compute followups before they are requested.
@@ -62,9 +58,6 @@ declare module 'vscode' {
 	export type ChatAgentHandler = (request: SlashRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<SlashResult>;
 
 	export namespace chat {
-		// Invoking slash commands vs the agent with no slash command?
-		// Could be a separate handler or a slash command with a '' id
-		// TODO@API what is id for? can we use extension identifier?
-		export function createChatAgent(id: string, description: string, fullName: string | undefined, icon: Uri | undefined, handler: ChatAgentHandler): ChatAgent2;
+		export function createChatAgent(name: string, description: string, fullName: string | undefined, icon: Uri | undefined, handler: ChatAgentHandler): ChatAgent2;
 	}
 }

@@ -30,12 +30,12 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: ExtensionIdentifier, id: string, description: string, handler?: vscode.ChatAgentHandler): vscode.ChatAgent2 {
+	createChatAgent(extension: ExtensionIdentifier, name: string, description: string, fullName: string | undefined, icon: vscode.Uri | undefined, handler?: vscode.ChatAgentHandler): vscode.ChatAgent2 {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, id, this._proxy, handle, description, undefined, undefined, handler);
+		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, description, fullName, icon, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, id, { description, subCommands: [] });
+		this._proxy.$registerAgent(handle, name, { description, fullName, icon, subCommands: [] });
 		return agent.apiAgent;
 	}
 
@@ -114,7 +114,7 @@ class ExtHostChatAgent {
 		private readonly _handle: number,
 		private _description: string | undefined,
 		private _fullName: string | undefined,
-		private _iconPath: vscode.ThemeIcon | undefined,
+		private _icon: vscode.Uri | undefined,
 		private readonly _callback?: vscode.ChatAgentHandler,
 	) { }
 
@@ -137,7 +137,7 @@ class ExtHostChatAgent {
 		const that = this;
 
 		return {
-			get id() {
+			get name() {
 				return that._id;
 			},
 			get description() {
@@ -146,8 +146,8 @@ class ExtHostChatAgent {
 			get fullName() {
 				return that._fullName;
 			},
-			get iconPath() {
-				return that._iconPath;
+			get icon() {
+				return that._icon;
 			},
 			// onDidPerformAction
 			get slashCommandProvider() {
