@@ -716,9 +716,6 @@ export class CellOutputContainer extends CellContentPart {
 			DOM.hide(this.templateData.outputShowMoreContainer.domNode);
 		}
 
-		const editorHeight = this.templateData.editor.getContentHeight();
-		this.viewCell.editorHeight = editorHeight;
-
 		this._relayoutCell();
 		// if it's clearing all outputs, or outputs are all rendered synchronously
 		// shrink immediately as the final output height will be zero.
