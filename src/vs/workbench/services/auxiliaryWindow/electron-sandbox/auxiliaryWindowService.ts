@@ -30,7 +30,6 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService);
 	}
 
-
 	protected override applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
 		super.applyCSS(auxiliaryWindow, disposables);
 
