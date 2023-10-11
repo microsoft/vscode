@@ -63,7 +63,7 @@ import { ICellExecutionComplete, ICellExecutionStateUpdate } from 'vs/workbench/
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { InputValidationType } from 'vs/workbench/contrib/scm/common/scm';
 import { IWorkspaceSymbol } from 'vs/workbench/contrib/search/common/search';
-import { ISpeechProviderMetadata } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechProviderMetadata, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { CoverageDetails, ExtensionRunTestsRequest, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { Timeline, TimelineChangeEvent, TimelineOptions, TimelineProviderDescriptor } from 'vs/workbench/contrib/timeline/common/timeline';
 import { TypeHierarchyItem } from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
@@ -1137,10 +1137,12 @@ export interface MainThreadInteractiveShape extends IDisposable {
 export interface MainThreadSpeechProviderShape extends IDisposable {
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
+
+	$emitSpeechToTextEvent(handle: number, event: ISpeechToTextEvent): void;
 }
 
 export interface ExtHostSpeechProviderShape {
-	$provideSpeechToText(handle: number, token: CancellationToken): Promise<any>;
+	$provideSpeechToText(handle: number, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {

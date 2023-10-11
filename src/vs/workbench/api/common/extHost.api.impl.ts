@@ -1379,7 +1379,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerSpeechProvider(id: string, provider: vscode.SpeechProvider) {
 				checkProposedApiEnabled(extension, 'speechProvider');
 				return extHostSpeechProvider.registerProvider(extension.identifier, id, provider);
-			},
+			}
 		};
 
 		return <typeof vscode>{
@@ -1598,7 +1598,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
-			RelatedInformationType: extHostTypes.RelatedInformationType
+			RelatedInformationType: extHostTypes.RelatedInformationType,
+			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
+			SpeechToTextEvent: extHostTypes.SpeechToTextEvent
 		};
 	};
 }

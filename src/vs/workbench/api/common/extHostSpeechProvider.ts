@@ -8,6 +8,7 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostSpeechProviderShape, IMainContext, MainContext, MainThreadSpeechProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { SpeechToText } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 
@@ -22,13 +23,26 @@ export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 		this.proxy = mainContext.getProxy(MainContext.MainThreadSpeechProvider);
 	}
 
-	async $provideSpeechToText(handle: number, token: CancellationToken): Promise<any> {
+	async $provideSpeechToText(handle: number, token: CancellationToken): Promise<void> {
 		const provider = this.providers.get(handle);
 		if (!provider) {
 			return;
 		}
 
-		return provider.provideSpeechToText(token);
+		const event = provider.provideSpeechToText(token);
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const subscription = event(e => {
+			if (token.isCancellationRequested) {
+				return;
+			}
+
+			this.proxy.$emitSpeechToTextEvent(handle, SpeechToText.from(e));
+		});
+
+		token.onCancellationRequested(() => subscription.dispose());
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {

@@ -5,12 +5,28 @@
 
 declare module 'vscode' {
 
+	export enum SpeechToTextStatus {
+		Started = 1,
+		Recognizing = 2,
+		Recognized = 3,
+		Stopped = 4
+	}
+
+	export interface SpeechToTextEvent {
+		readonly status: SpeechToTextStatus;
+		readonly text?: string;
+	}
+
 	export interface SpeechProvider {
-		provideSpeechToText(token: CancellationToken): Thenable<any>;
+		// eslint-disable-next-line local/vscode-dts-event-naming
+		provideSpeechToText(token: CancellationToken): Event<SpeechToTextEvent>;
 	}
 
 	export namespace speech {
 
+		/**
+		 * TODO@bpasero work in progress speech provider API
+		 */
 		export function registerSpeechProvider(id: string, provider: SpeechProvider): Disposable;
 	}
 }

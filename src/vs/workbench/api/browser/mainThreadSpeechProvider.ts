@@ -3,17 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostContext, ExtHostSpeechProviderShape, MainContext, MainThreadSpeechProviderShape } from 'vs/workbench/api/common/extHost.protocol';
-import { ISpeechProviderMetadata, ISpeechService } from 'vs/workbench/contrib/speech/common/speechService';
+import { ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
+
+interface SpeechProviderRegistration extends IDisposable {
+	readonly emitter: Emitter<ISpeechToTextEvent>;
+}
 
 @extHostNamedCustomer(MainContext.MainThreadSpeechProvider)
 export class MainThreadSpeechProvider extends Disposable implements MainThreadSpeechProviderShape {
 
 	private readonly proxy: ExtHostSpeechProviderShape;
-	private readonly providerRegistrations = this._register(new DisposableMap<number>());
+	private readonly providerRegistrations = new Map<number, SpeechProviderRegistration>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -28,16 +33,37 @@ export class MainThreadSpeechProvider extends Disposable implements MainThreadSp
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
 		this.logService.trace('[Speech] extension registered provider', metadata.extension.value);
 
+		const emitter = new Emitter<ISpeechToTextEvent>();
+
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
 			speechToText: (token) => {
-				return this.proxy.$provideSpeechToText(handle, token);
+				this.proxy.$provideSpeechToText(handle, token);
+
+				return emitter.event;
 			}
 		});
-		this.providerRegistrations.set(handle, registration);
+		this.providerRegistrations.set(handle, {
+			emitter,
+			dispose: () => {
+				registration.dispose();
+				emitter.dispose();
+			}
+		});
 	}
 
 	$unregisterProvider(handle: number): void {
-		this.providerRegistrations.deleteAndDispose(handle);
+		const registration = this.providerRegistrations.get(handle);
+		if (registration) {
+			registration.dispose();
+			this.providerRegistrations.delete(handle);
+		}
+	}
+
+	$emitSpeechToTextEvent(handle: number, event: ISpeechToTextEvent): void {
+		const registration = this.providerRegistrations.get(handle);
+		if (registration) {
+			registration.emitter.fire(event);
+		}
 	}
 }

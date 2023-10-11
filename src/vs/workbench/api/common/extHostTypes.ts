@@ -4140,3 +4140,24 @@ export enum RelatedInformationType {
 }
 
 //#endregion
+
+//#region Speech
+
+export enum SpeechToTextStatus {
+	Started = 1,
+	Recognizing = 2,
+	Recognized = 3,
+	Stopped = 4
+}
+
+export class SpeechToTextEvent implements vscode.SpeechToTextEvent {
+	readonly status: SpeechToTextStatus;
+	readonly text?: string;
+
+	constructor(status: SpeechToTextStatus, text?: string) {
+		this.status = status;
+		this.text = text;
+	}
+}
+
+//#endregion

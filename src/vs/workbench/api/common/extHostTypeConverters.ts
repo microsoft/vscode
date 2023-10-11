@@ -2343,3 +2343,11 @@ export namespace TerminalQuickFix {
 		return converter.toInternal(quickFix, disposables);
 	}
 }
+
+
+export namespace SpeechToText {
+
+	export function from(speechToTextEvent: vscode.SpeechToTextEvent): types.SpeechToTextEvent {
+		return new types.SpeechToTextEvent(speechToTextEvent.status, speechToTextEvent.text);
+	}
+}

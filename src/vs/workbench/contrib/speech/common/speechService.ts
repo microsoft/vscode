@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -15,10 +16,22 @@ export interface ISpeechProviderMetadata {
 	readonly displayName: string;
 }
 
+export enum SpeechToTextStatus {
+	Started = 1,
+	Recognizing = 2,
+	Recognized = 3,
+	Stopped = 4
+}
+
+export interface ISpeechToTextEvent {
+	readonly status: SpeechToTextStatus;
+	readonly text?: string;
+}
+
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
-	speechToText(token: CancellationToken): Promise<unknown>;
+	speechToText(token: CancellationToken): Event<ISpeechToTextEvent>;
 }
 
 export interface ISpeechService {
@@ -27,7 +40,7 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
-	speechToText(identifier: string, token: CancellationToken): Promise<unknown>;
+	speechToText(identifier: string, token: CancellationToken): Event<ISpeechToTextEvent>;
 }
 
 export class SpeechService implements ISpeechService {
@@ -46,7 +59,7 @@ export class SpeechService implements ISpeechService {
 		return toDisposable(() => this.providers.delete(identifier));
 	}
 
-	speechToText(identifier: string, token: CancellationToken): Promise<unknown> {
+	speechToText(identifier: string, token: CancellationToken): Event<ISpeechToTextEvent> {
 		const provider = this.providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Speech provider with identifier ${identifier} is not registered.`);

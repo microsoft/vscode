@@ -26,8 +26,10 @@ registerAction2(class extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const speechService = accessor.get(ISpeechService);
-		const result = await speechService.speechToText('embedded-azure-sdk', CancellationToken.None);
+		const result = speechService.speechToText('embedded-azure-sdk', CancellationToken.None);
 
-		console.log(result);
+		result(e => {
+			console.log(e);
+		});
 	}
 });
