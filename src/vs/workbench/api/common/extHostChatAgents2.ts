@@ -5,9 +5,11 @@
 
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
@@ -27,6 +29,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	constructor(
 		mainContext: IMainContext,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
+		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
@@ -62,18 +65,20 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			? await agent.validateSlashCommand(request.command)
 			: undefined;
 
-		const task = agent.invoke(
-			{ prompt: request.message, variables: {}, slashCommand },
-			{ history: context.history.map(typeConvert.ChatMessage.to) },
-			new Progress<vscode.InteractiveProgress>(p => {
-				throwIfDone();
-				const convertedProgress = typeConvert.ChatResponseProgress.from(p);
-				this._proxy.$handleProgressChunk(requestId, convertedProgress);
-			}),
-			token
-		);
 
 		try {
+
+			const task = agent.invoke(
+				{ prompt: request.message, variables: {}, slashCommand },
+				{ history: context.history.map(typeConvert.ChatMessage.to) },
+				new Progress<vscode.InteractiveProgress>(p => {
+					throwIfDone();
+					const convertedProgress = typeConvert.ChatResponseProgress.from(p);
+					this._proxy.$handleProgressChunk(requestId, convertedProgress);
+				}),
+				token
+			);
+
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
 					// An option would be to call provideFollowups here and send the result back to the renderer, rather than store the result
@@ -84,6 +89,15 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 				return undefined;
 			}), token);
+
+		} catch (e) {
+			this._logService.error(e, agent.extension);
+			return {
+				errorDetails: {
+					message: toErrorMessage(e)
+				}
+			};
+
 		} finally {
 			done = true;
 			commandExecution.complete();
