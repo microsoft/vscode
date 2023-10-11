@@ -6217,6 +6217,46 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Enumeration of commonly encountered syntax token types.
+	 */
+	export enum SyntaxTokenType {
+		/**
+		 * Everything except tokens that are part of comments, string literals and regular expressions.
+		 */
+		Other = 0,
+		/**
+		 * A comment.
+		 */
+		Comment = 1,
+		/**
+		 * A string literal.
+		 */
+		String = 2,
+		/**
+		 * A regular expression.
+		 */
+		RegEx = 3
+	}
+
+	/**
+	 * Describes pairs of strings where the close string will be automatically inserted when typing the opening string.
+	 */
+	export interface AutoClosingPair {
+		/**
+		 * The string that will trigger the automatic insertion of the closing string.
+		 */
+		open: string;
+		/**
+		 * The closing string that will be automatically inserted when typing the opening string.
+		 */
+		close: string;
+		/**
+		 * A set of tokens where the pair should not be auto closed.
+		 */
+		notIn?: SyntaxTokenType[];
+	}
+
+	/**
 	 * The language configuration interfaces defines the contract between extensions
 	 * and various editor features, like automatic bracket insertion, automatic indentation etc.
 	 */
@@ -6246,6 +6286,10 @@ declare module 'vscode' {
 		 * The language's rules to be evaluated when pressing Enter.
 		 */
 		onEnterRules?: OnEnterRule[];
+		/**
+		 * The language's auto closing pairs.
+		 */
+		autoClosingPairs?: AutoClosingPair[];
 
 		/**
 		 * **Deprecated** Do not use.
@@ -10028,7 +10072,8 @@ declare module 'vscode' {
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
-		 * An {@link Event} which fires when the default shell changes.
+		 * An {@link Event} which fires when the default shell changes. This fires with the new
+		 * shell path.
 		 */
 		export const onDidChangeShell: Event<string>;
 
@@ -11275,7 +11320,7 @@ declare module 'vscode' {
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
-		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.

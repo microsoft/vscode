@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { CommentThreadChangedEvent, CommentInfo, Comment, CommentReaction, CommentingRanges, CommentThread, CommentOptions, PendingCommentThread } from 'vs/editor/common/languages';
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -17,15 +16,12 @@ import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
-
-export const WorkspaceHasCommenting = new RawContextKey<boolean>('workspaceHasCommenting', false, {
-	description: nls.localize('hasCommentingProvider', "Whether the open workspace has either comments or commenting ranges."),
-	type: 'boolean'
-});
 
 interface IResourceCommentThreadEvent {
 	resource: URI;
@@ -62,7 +58,7 @@ export interface ICommentController {
 	};
 	options?: CommentOptions;
 	contextValue?: string;
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): void;
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void>;
 	updateCommentThreadTemplate(threadHandle: number, range: IRange): Promise<void>;
 	deleteCommentThreadMain(commentThreadId: string): void;
 	toggleReaction(uri: URI, thread: CommentThread, comment: Comment, reaction: CommentReaction, token: CancellationToken): Promise<void>;
@@ -94,7 +90,7 @@ export interface ICommentService {
 	registerCommentController(owner: string, commentControl: ICommentController): void;
 	unregisterCommentController(owner?: string): void;
 	getCommentController(owner: string): ICommentController | undefined;
-	createCommentThreadTemplate(owner: string, resource: URI, range: Range | undefined): void;
+	createCommentThreadTemplate(owner: string, resource: URI, range: Range | undefined): Promise<void>;
 	updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range): Promise<void>;
 	getCommentMenus(owner: string): CommentMenus;
 	updateComments(ownerId: string, event: CommentThreadChangedEvent<IRange>): void;
@@ -109,7 +105,7 @@ export interface ICommentService {
 	setCurrentCommentThread(commentThread: CommentThread<IRange | ICellRange> | undefined): void;
 	enableCommenting(enable: boolean): void;
 	registerContinueOnCommentProvider(provider: IContinueOnCommentProvider): IDisposable;
-	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined;
+	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined;
 }
 
 const CONTINUE_ON_COMMENTS = 'comments.continueOnComments';
@@ -169,15 +165,20 @@ export class CommentService extends Disposable implements ICommentService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 		this._handleConfiguration();
 		this._handleZenMode();
-		this._workspaceHasCommenting = WorkspaceHasCommenting.bindTo(contextKeyService);
+		this._workspaceHasCommenting = CommentContextKeys.WorkspaceHasCommenting.bindTo(contextKeyService);
 		const storageListener = this._register(new DisposableStore());
 
-		storageListener.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener)((v) => {
+		const storageEvent = Event.debounce(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener), (last, event) => last?.external ? last : event, 500);
+		storageListener.add(storageEvent(v => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
 			if (!v.external) {
 				return;
 			}
@@ -185,7 +186,8 @@ export class CommentService extends Disposable implements ICommentService {
 			if (!commentsToRestore) {
 				return;
 			}
-			const changedOwners = this._addContinueOnComments(commentsToRestore);
+			this.logService.debug(`Comments: URIs of continue on comments from storage ${commentsToRestore.map(thread => thread.uri.toString()).join(', ')}.`);
+			const changedOwners = this._addContinueOnComments(commentsToRestore, this._continueOnComments);
 			for (const owner of changedOwners) {
 				const evt: ICommentThreadChangedEvent = {
 					owner,
@@ -198,11 +200,15 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
+			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
+				return;
+			}
+			const map: Map<string, PendingCommentThread[]> = new Map();
 			for (const provider of this._continueOnCommentProviders) {
 				const pendingComments = provider.provideContinueOnComments();
-				this._addContinueOnComments(pendingComments);
+				this._addContinueOnComments(pendingComments, map);
 			}
-			this._saveContinueOnComments();
+			this._saveContinueOnComments(map);
 		}));
 	}
 
@@ -294,14 +300,14 @@ export class CommentService extends Disposable implements ICommentService {
 		return this._commentControls.get(owner);
 	}
 
-	createCommentThreadTemplate(owner: string, resource: URI, range: Range | undefined): void {
+	async createCommentThreadTemplate(owner: string, resource: URI, range: Range | undefined): Promise<void> {
 		const commentController = this._commentControls.get(owner);
 
 		if (!commentController) {
 			return;
 		}
 
-		commentController.createCommentThreadTemplate(resource, range);
+		return commentController.createCommentThreadTemplate(resource, range);
 	}
 
 	async updateCommentThreadTemplate(owner: string, threadHandle: number, range: Range) {
@@ -370,6 +376,13 @@ export class CommentService extends Disposable implements ICommentService {
 		for (const control of this._commentControls.values()) {
 			commentControlResult.push(control.getDocumentComments(resource, CancellationToken.None)
 				.then(documentComments => {
+					// Check that there aren't any continue on comments in the provided comments
+					// This can happen because continue on comments are stored separately from local un-submitted comments.
+					for (const documentCommentThread of documentComments.threads) {
+						if (documentCommentThread.comments?.length === 0 && documentCommentThread.range) {
+							this.removeContinueOnComment({ range: documentCommentThread.range, uri: resource, owner: documentComments.owner });
+						}
+					}
 					const pendingComments = this._continueOnComments.get(documentComments.owner);
 					documentComments.pendingCommentThreads = pendingComments?.filter(pendingComment => pendingComment.uri.toString() === resource.toString());
 					return documentComments;
@@ -404,31 +417,35 @@ export class CommentService extends Disposable implements ICommentService {
 		};
 	}
 
-	private _saveContinueOnComments() {
+	private _saveContinueOnComments(map: Map<string, PendingCommentThread[]>) {
 		const commentsToSave: PendingCommentThread[] = [];
-		for (const pendingComments of this._continueOnComments.values()) {
+		for (const pendingComments of map.values()) {
 			commentsToSave.push(...pendingComments);
 		}
+		this.logService.debug(`Comments: URIs of continue on comments to add to storage ${commentsToSave.map(thread => thread.uri.toString()).join(', ')}.`);
 		this.storageService.store(CONTINUE_ON_COMMENTS, commentsToSave, StorageScope.WORKSPACE, StorageTarget.USER);
 	}
 
-	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string }): PendingCommentThread | undefined {
+	removeContinueOnComment(pendingComment: { range: IRange; uri: URI; owner: string; isReply?: boolean }): PendingCommentThread | undefined {
 		const pendingComments = this._continueOnComments.get(pendingComment.owner);
 		if (pendingComments) {
-			return pendingComments.splice(pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range)), 1)[0];
+			const commentIndex = pendingComments.findIndex(comment => comment.uri.toString() === pendingComment.uri.toString() && Range.equalsRange(comment.range, pendingComment.range) && (pendingComment.isReply === undefined || comment.isReply === pendingComment.isReply));
+			if (commentIndex > -1) {
+				return pendingComments.splice(commentIndex, 1)[0];
+			}
 		}
 		return undefined;
 	}
 
-	private _addContinueOnComments(pendingComments: PendingCommentThread[]): Set<string> {
+	private _addContinueOnComments(pendingComments: PendingCommentThread[], map: Map<string, PendingCommentThread[]>): Set<string> {
 		const changedOwners = new Set<string>();
 		for (const pendingComment of pendingComments) {
-			if (!this._continueOnComments.has(pendingComment.owner)) {
-				this._continueOnComments.set(pendingComment.owner, [pendingComment]);
+			if (!map.has(pendingComment.owner)) {
+				map.set(pendingComment.owner, [pendingComment]);
 				changedOwners.add(pendingComment.owner);
 			} else {
-				const commentsForOwner = this._continueOnComments.get(pendingComment.owner)!;
-				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range) || (comment.body !== pendingComment.body))) {
+				const commentsForOwner = map.get(pendingComment.owner)!;
+				if (commentsForOwner.every(comment => (comment.uri.toString() !== pendingComment.uri.toString()) || !Range.equalsRange(comment.range, pendingComment.range))) {
 					commentsForOwner.push(pendingComment);
 					changedOwners.add(pendingComment.owner);
 				}

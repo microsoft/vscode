@@ -29,7 +29,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export class TerminalEditor extends EditorPane {
 
@@ -56,7 +55,6 @@ export class TerminalEditor extends EditorPane {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IMenuService menuService: IMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ICommandService private readonly _commandService: ICommandService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
@@ -100,6 +98,8 @@ export class TerminalEditor extends EditorPane {
 
 	override focus() {
 		this._editorInput?.terminalInstance?.focus();
+
+		super.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
@@ -140,7 +140,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._commandService, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -178,7 +178,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._commandService, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();

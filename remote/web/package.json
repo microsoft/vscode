@@ -11,11 +11,11 @@
 		"tas-client-umd": "0.1.8",
 		"vscode-oniguruma": "1.7.0",
 		"vscode-textmate": "9.0.0",
-		"xterm": "5.4.0-beta.19",
-		"xterm-addon-canvas": "0.6.0-beta.19",
+		"xterm": "5.4.0-beta.27",
+		"xterm-addon-canvas": "0.6.0-beta.27",
 		"xterm-addon-image": "0.6.0-beta.21",
-		"xterm-addon-search": "0.14.0-beta.18",
-		"xterm-addon-unicode11": "0.7.0-beta.18",
-		"xterm-addon-webgl": "0.17.0-beta.18"
+		"xterm-addon-search": "0.14.0-beta.27",
+		"xterm-addon-unicode11": "0.7.0-beta.26",
+		"xterm-addon-webgl": "0.17.0-beta.26"
 	}
 }

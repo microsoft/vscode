@@ -10,7 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
 import { SettingsTarget } from 'vs/workbench/contrib/preferences/browser/preferencesWidgets';
 import { ITOCEntry, knownAcronyms, knownTermMappings, tocData } from 'vs/workbench/contrib/preferences/browser/settingsLayout';
-import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG } from 'vs/workbench/contrib/preferences/common/preferences';
+import { ENABLE_EXTENSION_TOGGLE_SETTINGS, ENABLE_LANGUAGE_FILTER, MODIFIED_SETTING_TAG, POLICY_SETTING_TAG, REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG, compareTwoNullableNumbers } from 'vs/workbench/contrib/preferences/common/preferences';
 import { IExtensionSetting, ISearchResult, ISetting, ISettingMatch, SettingMatchType, SettingValueType } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { FOLDER_SCOPES, WORKSPACE_SCOPES, REMOTE_MACHINE_SCOPES, LOCAL_MACHINE_SCOPES, IWorkbenchConfigurationService, APPLICATION_SCOPES } from 'vs/workbench/services/configuration/common/configuration';
@@ -858,35 +858,44 @@ export class SearchResultModel extends SettingsTreeModel {
 	private cachedUniqueSearchResults: ISearchResult | null = null;
 	private newExtensionSearchResults: ISearchResult | null = null;
 	private searchResultCount: number | null = null;
+	private settingsOrderByTocIndex: Map<string, number> | null;
 
 	readonly id = 'searchResultModel';
 
 	constructor(
 		viewState: ISettingsEditorViewState,
+		settingsOrderByTocIndex: Map<string, number> | null,
 		isWorkspaceTrusted: boolean,
-		@IWorkbenchConfigurationService configurationService: IWorkbenchConfigurationService,
-		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchConfigurationService private readonly configurationService: IWorkbenchConfigurationService,
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@ILanguageService languageService: ILanguageService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IProductService productService: IProductService
 	) {
 		super(viewState, isWorkspaceTrusted, configurationService, languageService, userDataProfileService, productService);
+		this.settingsOrderByTocIndex = settingsOrderByTocIndex;
 		this.update({ id: 'searchResultModel', label: '' });
 	}
 
-	private compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
-		const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
-		const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
-		if (aOrMax < bOrMax) {
-			return -1;
-		} else if (aOrMax > bOrMax) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
 	private sortResults(filterMatches: ISettingMatch[]): ISettingMatch[] {
+		if (this.settingsOrderByTocIndex) {
+			for (const match of filterMatches) {
+				match.setting.internalOrder = this.settingsOrderByTocIndex.get(match.setting.key);
+			}
+		}
+
+		const tocHiddenDuringSearch = this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide';
+		if (!tocHiddenDuringSearch) {
+			// Sort the settings according to internal order if indexed.
+			if (this.settingsOrderByTocIndex) {
+				filterMatches.sort((a, b) => compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder));
+			}
+			return filterMatches;
+		}
+
+		// The table of contents is hidden during the search.
+		// The settings could appear in a more haphazard order.
+		// Sort the settings according to their score.
 		filterMatches.sort((a, b) => {
 			if (a.matchType !== b.matchType) {
 				// Sort by match type if the match types are not the same.
@@ -897,27 +906,15 @@ export class SearchResultModel extends SettingsTreeModel {
 				// Sort by score.
 				return b.score - a.score;
 			} else {
-				// The match types are the same.
-				if (a.setting.extensionInfo && b.setting.extensionInfo
-					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id) {
-					// These settings belong to the same extension.
-					if (a.setting.categoryLabel !== b.setting.categoryLabel
-						&& (a.setting.categoryOrder !== undefined || b.setting.categoryOrder !== undefined)
-						&& a.setting.categoryOrder !== b.setting.categoryOrder) {
-						// These two settings don't belong to the same category and have different category orders.
-						return this.compareTwoNullableNumbers(a.setting.categoryOrder, b.setting.categoryOrder);
-					} else if (a.setting.categoryLabel === b.setting.categoryLabel
-						&& (a.setting.order !== undefined || b.setting.order !== undefined)
-						&& a.setting.order !== b.setting.order) {
-						// These two settings belong to the same category, but have different orders.
-						return this.compareTwoNullableNumbers(a.setting.order, b.setting.order);
-					}
-				}
-				// In the worst case, go back to lexicographical order.
-				return b.score - a.score;
+				// The match types are the same but are not RemoteMatch.
+				// Sort by their order in the table of contents.
+				return compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
 			}
 		});
-		return filterMatches;
+
+		// Remove duplicates, which sometimes occur with settings
+		// such as the experimental toggle setting.
+		return arrays.distinct(filterMatches, (match) => match.setting.key);
 	}
 
 	getUniqueResults(): ISearchResult | null {
@@ -946,7 +943,6 @@ export class SearchResultModel extends SettingsTreeModel {
 			this.newExtensionSearchResults = this.rawSearchResults[SearchResultIdx.NewExtensions];
 		}
 
-		// Combine and sort results.
 		combinedFilterMatches = this.sortResults(combinedFilterMatches);
 
 		this.cachedUniqueSearchResults = {

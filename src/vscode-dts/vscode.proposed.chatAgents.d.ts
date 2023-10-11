@@ -27,8 +27,6 @@ declare module 'vscode' {
 		fullName?: string;
 		icon?: Uri;
 		subCommands: ChatAgentCommand[];
-		requireCommand?: boolean; // Do some agents not have a default action?
-		isImplicit?: boolean; // Only @workspace. slash commands get promoted to the top-level and this agent is invoked when those are used
 	}
 
 	export interface ChatAgent {

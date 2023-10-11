@@ -778,7 +778,7 @@ class LeafNode implements ISplitView<ILayoutContext>, IDisposable {
 	private _onDidViewChange: Event<number | undefined>;
 	readonly onDidChange: Event<number | undefined>;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		readonly view: IView,

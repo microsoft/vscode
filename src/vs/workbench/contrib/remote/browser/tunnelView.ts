@@ -28,7 +28,7 @@ import { IRemoteExplorerService, TunnelType, ITunnelItem, TUNNEL_VIEW_ID, Tunnel
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -518,7 +518,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 		inputBox.focus();
 		inputBox.select({ start: 0, end: editableData.startingValue ? editableData.startingValue.length : 0 });
 
-		const done = once(async (success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction(async (success: boolean, finishEditing: boolean) => {
 			dispose(toDispose);
 			if (this.inputDone) {
 				this.inputDone = undefined;
@@ -742,7 +742,7 @@ const PortChangableContextKey = new RawContextKey<boolean>('portChangable', fals
 export class TunnelPanel extends ViewPane {
 
 	static readonly ID = TUNNEL_VIEW_ID;
-	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
+	static readonly TITLE: ILocalizedString = nls.localize2('remote.tunnel', "Ports");
 
 	private panelContainer: HTMLElement | undefined;
 	private table!: WorkbenchTable<ITunnelItem>;
@@ -1083,7 +1083,7 @@ export class TunnelPanel extends ViewPane {
 
 export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly id = TunnelPanel.ID;
-	readonly name = TunnelPanel.TITLE;
+	readonly name: ILocalizedString = TunnelPanel.TITLE;
 	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

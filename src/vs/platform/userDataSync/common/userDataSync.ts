@@ -342,6 +342,7 @@ export interface ISyncUserDataProfile {
 	readonly collection: string;
 	readonly name: string;
 	readonly shortName?: string;
+	readonly icon?: string;
 	readonly useDefaultFlags?: UseDefaultProfileFlags;
 }
 

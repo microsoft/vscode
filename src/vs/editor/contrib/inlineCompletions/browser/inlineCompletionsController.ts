@@ -55,7 +55,7 @@ export class InlineCompletionsController extends Disposable {
 	private readonly _enabled = observableFromEvent(this.editor.onDidChangeConfiguration, () => this.editor.getOption(EditorOption.inlineSuggest).enabled);
 
 	private ghostTextWidget = this._register(this.instantiationService.createInstance(GhostTextWidget, this.editor, {
-		ghostText: this.model.map((v, reader) => v?.ghostText.read(reader)),
+		ghostText: this.model.map((v, reader) => /** ghostText */ v?.ghostText.read(reader)),
 		minReservedLineCount: constObservable(0),
 		targetTextModel: this.model.map(v => v?.textModel),
 	}));

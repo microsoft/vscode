@@ -12,6 +12,7 @@ use crate::state::LauncherPaths;
 use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
+use crate::util::command::new_tokio_command;
 use crate::util::errors::{
 	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAttachedServerError,
 };
@@ -777,6 +778,8 @@ async fn handle_update(
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
+	let _ = updater.cleanup_old_update();
+
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
 			up_to_date,
@@ -1017,7 +1020,7 @@ where
 		};
 	}
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 	p.envs(&params.env);
 	p.stdin(pipe_if!(stdin.is_some()));
@@ -1058,7 +1061,7 @@ async fn handle_spawn_cli(
 		"requested to spawn cli {} with args {:?}", params.command, params.args
 	);
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 
 	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.

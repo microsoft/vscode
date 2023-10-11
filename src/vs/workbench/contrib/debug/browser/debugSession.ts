@@ -52,7 +52,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threads = new Map<number, Thread>();
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
-	private rawListeners = new DisposableStore();
+	private readonly rawListeners = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
@@ -951,7 +951,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		this.rawListeners.add(this.raw.onDidInitialize(async () => {
-			aria.status(localize('debuggingStarted', "Debugging started."));
+			aria.status(
+				this.configuration.noDebug
+					? localize('debuggingStartedNoDebug', "Started running without debugging.")
+					: localize('debuggingStarted', "Debugging started.")
+			);
+
 			const sendConfigurationDone = async () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
 					try {

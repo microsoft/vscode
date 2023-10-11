@@ -43,11 +43,13 @@ export const enum AccessibilityVerbositySettingId {
 	Editor = 'accessibility.verbosity.editor',
 	Hover = 'accessibility.verbosity.hover',
 	Notification = 'accessibility.verbosity.notification',
-	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint'
+	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
+	Comments = 'accessibility.verbosity.comments'
 }
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
 	InlineChat = 'inlineChat',
@@ -57,7 +59,8 @@ export const enum AccessibleViewProviderId {
 	Editor = 'editor',
 	Hover = 'hover',
 	Notification = 'notification',
-	EmptyEditorHint = 'emptyEditorHint'
+	EmptyEditorHint = 'emptyEditorHint',
+	Comments = 'comments'
 }
 
 const baseProperty: object = {
@@ -72,27 +75,27 @@ const configuration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
-			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused'),
+			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.DiffEditor]: {
-			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused'),
+			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Chat]: {
-			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused'),
+			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
-			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view'),
+			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -109,6 +112,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.EmptyEditorHint]: {
 			description: localize('verbosity.emptyEditorHint', 'Provide information about relevant actions in an empty text editor.'),
+			...baseProperty
+		},
+		[AccessibilityVerbositySettingId.Comments]: {
+			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseProperty
 		}
 	}
