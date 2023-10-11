@@ -103,7 +103,8 @@ export class TextAreaSyncAddon extends Disposable implements ITerminalAddon {
 		}
 		if (currentCommand.commandStartX !== undefined) {
 			this._currentCommand = commandLine.substring(currentCommand.commandStartX);
-			this._cursorX = buffer.cursorX - currentCommand.commandStartX;
+			const cursorPosition = buffer.cursorX - currentCommand.commandStartX;
+			this._cursorX = cursorPosition >= 0 ? cursorPosition : 0;
 		} else {
 			this._currentCommand = undefined;
 			this._cursorX = undefined;

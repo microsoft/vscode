@@ -69,6 +69,11 @@ export interface IHostService {
 	 */
 	toggleFullScreen(): Promise<void>;
 
+	/**
+	 * Bring a window to the front and restore it if needed.
+	 */
+	moveTop(window: Window & typeof globalThis): Promise<void>;
+
 	//#endregion
 
 	//#region Lifecycle

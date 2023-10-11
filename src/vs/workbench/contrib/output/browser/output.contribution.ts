@@ -51,7 +51,7 @@ ModesRegistry.registerLanguage({
 const outputViewIcon = registerIcon('output-view-icon', Codicon.output, nls.localize('outputViewIcon', 'View icon of the output view.'));
 const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: OUTPUT_VIEW_ID,
-	title: { value: nls.localize('output', "Output"), original: 'Output' },
+	title: nls.localize2('output', "Output"),
 	icon: outputViewIcon,
 	order: 1,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [OUTPUT_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
@@ -61,7 +61,7 @@ const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewC
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: OUTPUT_VIEW_ID,
-	name: nls.localize('output', "Output"),
+	name: nls.localize2('output', "Output"),
 	containerIcon: outputViewIcon,
 	canMoveView: true,
 	canToggleVisibility: false,
@@ -164,8 +164,8 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.showOutputChannels',
-					title: { value: nls.localize('showOutputChannels', "Show Output Channels..."), original: 'Show Output Channels...' },
-					category: { value: nls.localize('output', "Output"), original: 'Output' },
+					title: nls.localize2('showOutputChannels', "Show Output Channels..."),
+					category: nls.localize2('output', "Output"),
 					f1: true
 				});
 			}
@@ -203,7 +203,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.output.action.clearOutput`,
-					title: { value: nls.localize('clearOutput.label', "Clear Output"), original: 'Clear Output' },
+					title: nls.localize2('clearOutput.label', "Clear Output"),
 					category: Categories.View,
 					menu: [{
 						id: MenuId.ViewTitle,
@@ -236,7 +236,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.output.action.toggleAutoScroll`,
-					title: { value: nls.localize('toggleAutoScroll', "Toggle Auto Scrolling"), original: 'Toggle Auto Scrolling' },
+					title: nls.localize2('toggleAutoScroll', "Toggle Auto Scrolling"),
 					tooltip: nls.localize('outputScrollOff', "Turn Auto Scrolling Off"),
 					menu: {
 						id: MenuId.ViewTitle,
@@ -264,7 +264,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: `workbench.action.openActiveLogOutputFile`,
-					title: { value: nls.localize('openActiveLogOutputFile', "Open Log Output File"), original: 'Open Log Output File' },
+					title: nls.localize2('openActiveLogOutputFile', "Open Log Output File"),
 					menu: [{
 						id: MenuId.ViewTitle,
 						when: ContextKeyExpr.equals('view', OUTPUT_VIEW_ID),
@@ -308,7 +308,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.showLogs',
-					title: { value: nls.localize('showLogs', "Show Logs..."), original: 'Show Logs...' },
+					title: nls.localize2('showLogs', "Show Logs..."),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
@@ -354,12 +354,12 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			constructor() {
 				super({
 					id: 'workbench.action.openLogFile',
-					title: { value: nls.localize('openLogFile', "Open Log File..."), original: 'Open Log File...' },
+					title: nls.localize2('openLogFile', "Open Log File..."),
 					category: Categories.Developer,
 					menu: {
 						id: MenuId.CommandPalette,
 					},
-					description: {
+					metadata: {
 						description: 'workbench.action.openLogFile',
 						args: [{
 							name: 'logFile',

@@ -189,6 +189,7 @@ export class WindowTitle extends Disposable {
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
+	 * {focusedView}L e.g. Terminal
 	 * {separator}: conditional separator
 	 */
 	getWindowTitle(): string {

@@ -8,6 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { coalesce } from 'vs/base/common/arrays';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -34,6 +35,10 @@ class StandaloneLayoutService implements ILayoutService {
 		// which implements `ILayoutService` but is not a part of the service collection because
 		// it is code editor instance specific.
 		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
+	}
+
+	get containers(): Iterable<HTMLElement> {
+		return coalesce(this._codeEditorService.listCodeEditors().map(codeEditor => codeEditor.getContainerDomNode()));
 	}
 
 	get activeContainer(): HTMLElement {

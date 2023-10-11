@@ -5,12 +5,10 @@
 
 import { localize } from 'vs/nls';
 import { IAction, toAction } from 'vs/base/common/actions';
-import { illegalArgument } from 'vs/base/common/errors';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
+import { IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CompositeActionViewItem, CompositeOverflowActivityAction, ICompositeActivity, CompositeOverflowActivityActionViewItem, ActivityAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
+import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
 import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -59,14 +57,14 @@ export class CompositeDragAndDrop implements ICompositeDragAndDrop {
 			}
 			// ... on a different composite bar
 			else {
-				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before));
+				this.viewDescriptorService.moveViewContainerToLocation(currentContainer, this.targetContainerLocation, this.getTargetIndex(targetCompositeId, before), 'dnd');
 			}
 		}
 
 		if (dragData.type === 'view') {
 			const viewToMove = this.viewDescriptorService.getViewDescriptorById(dragData.id)!;
 			if (viewToMove && viewToMove.canMoveView) {
-				this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation);
+				this.viewDescriptorService.moveViewToLocation(viewToMove, this.targetContainerLocation, 'dnd');
 
 				const newContainer = this.viewDescriptorService.getViewContainerByViewId(viewToMove.id)!;
 
@@ -141,7 +139,7 @@ export interface ICompositeBarOptions {
 	readonly activityHoverOptions: IActivityHoverOptions;
 	readonly preventLoopNavigation?: boolean;
 
-	readonly getActivityAction: (compositeId: string) => ActivityAction;
+	readonly getActivityAction: (compositeId: string) => CompositeBarAction;
 	readonly getCompositePinnedAction: (compositeId: string) => IAction;
 	readonly getCompositeBadgeAction: (compositeId: string) => IAction;
 	readonly getOnCompositeClickAction: (compositeId: string) => IAction;
@@ -150,8 +148,6 @@ export interface ICompositeBarOptions {
 
 	readonly openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
 	readonly getDefaultCompositeId: () => string | undefined;
-
-	readonly hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {
@@ -213,7 +209,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
 					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
-					action as ActivityAction,
+					action as CompositeBarAction,
 					item.pinnedAction,
 					item.toggleBadgeAction,
 					compositeId => this.options.getContextMenuActionsForComposite(compositeId),
@@ -303,6 +299,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	recomputeSizes(): void {
 		this.computeSizes(this.model.visibleItems);
+		this.updateCompositeSwitcher();
 	}
 
 	layout(dimension: Dimension): void {
@@ -369,21 +366,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	showActivity(compositeId: string, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		if (!badge) {
-			throw illegalArgument('badge');
-		}
-
-		if (typeof priority !== 'number') {
-			priority = 0;
-		}
-
-		const activity: ICompositeActivity = { badge, clazz, priority };
-		this.model.addActivity(compositeId, activity);
-
-		return toDisposable(() => this.model.removeActivity(compositeId, activity));
-	}
-
 	async pin(compositeId: string, open?: boolean): Promise<void> {
 		if (this.model.setPinned(compositeId, true)) {
 			this.updateCompositeSwitcher();
@@ -415,7 +397,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		if (item) {
 			// TODO @lramos15 how do we tell the activity to re-render the badge? This triggers an onDidChange but isn't the right way to do it.
 			// I could add another specific function like `activity.updateBadgeEnablement` would then the activity store the sate?
-			item.activityAction.setBadge(item.activityAction.getBadge(), item.activityAction.getClass());
+			item.activityAction.activity = item.activityAction.activity;
 		}
 	}
 
@@ -478,7 +460,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 	}
 
-	getAction(compositeId: string): ActivityAction {
+	getAction(compositeId: string): CompositeBarAction {
 		const item = this.model.findItem(compositeId);
 
 		return item?.activityAction;
@@ -675,10 +657,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 }
 
 interface ICompositeBarModelItem extends ICompositeBarItem {
-	readonly activityAction: ActivityAction;
+	readonly activityAction: CompositeBarAction;
 	readonly pinnedAction: IAction;
 	readonly toggleBadgeAction: IAction;
-	readonly activity: ICompositeActivity[];
+	readonly activity: IActivity[];
 }
 
 class CompositeBarModel {
@@ -850,51 +832,6 @@ class CompositeBarModel {
 			}
 		}
 		return false;
-	}
-
-	addActivity(id: string, activity: ICompositeActivity): boolean {
-		const item = this.findItem(id);
-		if (item) {
-			const stack = item.activity;
-			for (let i = 0; i <= stack.length; i++) {
-				if (i === stack.length) {
-					stack.push(activity);
-					break;
-				} else if (stack[i].priority <= activity.priority) {
-					stack.splice(i, 0, activity);
-					break;
-				}
-			}
-			this.updateActivity(id);
-			return true;
-		}
-		return false;
-	}
-
-	removeActivity(id: string, activity: ICompositeActivity): boolean {
-		const item = this.findItem(id);
-		if (item) {
-			const index = item.activity.indexOf(activity);
-			if (index !== -1) {
-				item.activity.splice(index, 1);
-				this.updateActivity(id);
-				return true;
-			}
-		}
-		return false;
-	}
-
-	updateActivity(id: string): void {
-		const item = this.findItem(id);
-		if (item) {
-			if (item.activity.length) {
-				const [{ badge, clazz }] = item.activity;
-				item.activityAction.setBadge(badge, clazz);
-			}
-			else {
-				item.activityAction.setBadge(undefined);
-			}
-		}
 	}
 
 	activate(id: string): boolean {

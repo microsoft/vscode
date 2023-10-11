@@ -5,9 +5,11 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.15"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - task: AzureCLI@2
+    displayName: Fetch secrets
     inputs:
       azureSubscription: "vscode-builds-subscription"
       scriptType: pscore
@@ -25,3 +27,4 @@ steps:
       AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
       AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
       node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
+    displayName: Release build

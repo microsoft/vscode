@@ -82,7 +82,29 @@ const enum ReadyState {
 	READY
 }
 
-export class CodeWindow extends Disposable implements ICodeWindow {
+export abstract class BaseWindow extends Disposable {
+
+	protected abstract getWin(): BrowserWindow | null;
+
+	focus(options?: { force: boolean }): void {
+		if (isMacintosh && options?.force) {
+			app.focus({ steal: true });
+		}
+
+		const win = this.getWin();
+		if (!win) {
+			return;
+		}
+
+		if (win.isMinimized()) {
+			win.restore();
+		}
+
+		win.focus();
+	}
+}
+
+export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
@@ -113,6 +135,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private _win: BrowserWindow;
 	get win(): BrowserWindow | null { return this._win; }
+
+	protected getWin(): BrowserWindow | null {
+		return this._win;
+	}
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
@@ -348,7 +374,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
+					this.logConditionally('WindowMode.Fullscreen');
 					this.setFullScreen(true);
+				} else {
+					this.logConditionally('WindowMode.Maximized');
 				}
 
 				// to reduce flicker from the default window size
@@ -374,6 +403,13 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
+	}
+
+	private logConditionally(msg: string): void {
+		// TODO@bpasero remove me eventually
+		if (this.configurationService.getValue('window.logFullScreenTransitions')) {
+			this.logService.info(`window-fullscreen-bug: ${msg})`);
+		}
 	}
 
 	setRepresentedFilename(filename: string): void {
@@ -406,29 +442,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return !!this.documentEdited;
-	}
-
-	focus(options?: { force: boolean }): void {
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground.
-		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
-		}
-
-		if (!this._win) {
-			return;
-		}
-
-		if (this._win.isMinimized()) {
-			this._win.restore();
-		}
-
-		this._win.focus();
 	}
 
 	private readyState = ReadyState.NONE;
@@ -537,6 +550,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.on('enter-full-screen', () => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
+			this.logConditionally(`enter-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		});
@@ -544,6 +558,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		this._win.on('leave-full-screen', () => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
+			this.logConditionally(`leave-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		});
@@ -1273,11 +1288,20 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	}
 
 	get isFullScreen(): boolean {
+		this.logConditionally(`isFullScreen(): begin at ${Date.now()}`);
+
 		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
+			this.logConditionally(`isFullScreen(): returning transientIsNativeFullScreen = ${this.transientIsNativeFullScreen}`);
+
 			return this.transientIsNativeFullScreen;
 		}
 
-		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+		const isFullScreen = this._win.isFullScreen();
+		const isSimpleFullScreen = this._win.isSimpleFullScreen();
+
+		this.logConditionally(`isFullScreen(): returning natively, isFullScreen = ${isFullScreen}, isSimpleFullScreen = ${isSimpleFullScreen}`);
+
+		return isFullScreen || isSimpleFullScreen;
 	}
 
 	private setNativeFullScreen(fullscreen: boolean): void {
@@ -1290,12 +1314,18 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private doSetNativeFullScreen(fullscreen: boolean): void {
 		if (isMacintosh) {
+			this.logConditionally(`doSetNativeFullScreen(${fullscreen}): begin at ${Date.now()}`);
+
 			this.transientIsNativeFullScreen = fullscreen;
 			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
 			Promise.race([
 				this.joinNativeFullScreenTransition.p,
 				timeout(1000) // still timeout after some time in case we miss the event
-			]).finally(() => this.transientIsNativeFullScreen = undefined);
+			]).finally(() => {
+				this.logConditionally(`doSetNativeFullScreen(${fullscreen}): finish at ${Date.now()}`);
+
+				this.transientIsNativeFullScreen = undefined;
+			});
 		}
 
 		this._win.setFullScreen(fullscreen);

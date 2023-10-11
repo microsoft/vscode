@@ -322,7 +322,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			this.environmentService.options.settingsSyncOptions.enablementHandler(true, this.currentAuthenticationProviderId);
 		}
 
-		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE));
+		this.notificationService.info(localize('sync turned on', "{0} is turned on", SYNC_TITLE.value));
 	}
 
 	async turnoff(everywhere: boolean): Promise<void> {
@@ -362,7 +362,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 		try {
 			await this.progressService.withProgress({
 				location: ProgressLocation.Window,
-				title: SYNC_TITLE,
+				title: SYNC_TITLE.value,
 				command: SHOW_SYNC_LOG_COMMAND_ID,
 				delay: 500,
 			}, async progress => {
@@ -585,7 +585,7 @@ export class UserDataSyncWorkbenchService extends Disposable implements IUserDat
 			}));
 		});
 
-		quickPick.title = SYNC_TITLE;
+		quickPick.title = SYNC_TITLE.value;
 		quickPick.ok = false;
 		quickPick.ignoreFocusOut = true;
 		quickPick.placeholder = localize('choose account placeholder', "Select an account to sign in");

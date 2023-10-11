@@ -434,7 +434,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					await this._runTaskCommand(arg);
 				}
 			},
-			description: {
+			metadata: {
 				description: 'Run Task',
 				args: [{
 					name: 'args',
@@ -2898,6 +2898,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
+					if (!this._taskRunningState.get()) {
+						// No task running, prompt to ask which to run
+						this._doRunTaskCommand();
+					}
 					return Promise.resolve(undefined);
 				}
 			});

@@ -237,7 +237,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		});
 
 		if (pick) {
-			nativeHostService.focusWindow({ windowId: pick.payload });
+			nativeHostService.focusWindow({ targetWindowId: pick.payload });
 		}
 	}
 }

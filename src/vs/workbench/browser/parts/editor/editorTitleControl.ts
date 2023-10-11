@@ -87,13 +87,13 @@ export class EditorTitleControl extends Themable {
 			showDecorationColors: false,
 			showPlaceholder: true
 		}));
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+
+		// Breadcrumbs enablement & visibility change have an impact on layout
+		// so we need to relayout the editor group when that happens.
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.groupView.relayout()));
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.groupView.relayout()));
 
 		return breadcrumbsControlFactory;
-	}
-
-	private handleBreadcrumbsEnablementChange(): void {
-		this.groupView.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {

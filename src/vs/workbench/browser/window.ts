@@ -17,7 +17,6 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
@@ -27,6 +26,7 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
 
 export class BrowserWindow extends Disposable {
 

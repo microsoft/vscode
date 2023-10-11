@@ -23,6 +23,16 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+export const enum LayoutSettings {
+	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
+}
+
+export const enum ActivityBarPosition {
+	SIDE = 'side',
+	TOP = 'top',
+	HIDDEN = 'hidden'
+}
+
 export const enum Position {
 	LEFT,
 	RIGHT,

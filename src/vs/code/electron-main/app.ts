@@ -84,8 +84,8 @@ import { NativeURLService } from 'vs/platform/url/common/urlService';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { IWebviewManagerService } from 'vs/platform/webview/common/webviewManagerService';
 import { WebviewMainService } from 'vs/platform/webview/electron-main/webviewMainService';
-import { IWindowOpenable, IWindowSettings, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IWindowOpenable } from 'vs/platform/window/common/window';
+import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { WindowsMainService } from 'vs/platform/windows/electron-main/windowsMainService';
 import { ActiveWindowManager } from 'vs/platform/windows/node/windowTracker';
@@ -118,6 +118,8 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -131,6 +133,7 @@ export class CodeApplication extends Disposable {
 	};
 
 	private windowsMainService: IWindowsMainService | undefined;
+	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
@@ -382,27 +385,18 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
+			// Child Window: delegate to `AuxiliaryWindow` class
+			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
+			if (isChildWindow) {
+				this.auxiliaryWindowsMainService?.registerWindow(contents);
+			}
+
 			// Block any in-page navigation
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault();
 			});
-
-			// Child Window: apply zoom after loading finished and handle --open-devtools
-			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
-			if (isChildWindow) {
-				contents.on('dom-ready', () => {
-					const windowZoomLevel = this.configurationService.getValue<IWindowSettings | undefined>('window')?.zoomLevel ?? 0;
-
-					contents.setZoomLevel(windowZoomLevel);
-					contents.setZoomFactor(zoomLevelToZoomFactor(windowZoomLevel));
-				});
-
-				if (this.environmentMainService.args['open-devtools'] === true) {
-					contents.openDevTools({ mode: 'bottom' });
-				}
-			}
 
 			// All Windows: only allow about:blank child windows to open
 			// For all other URLs, delegate to the OS.
@@ -414,7 +408,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.mainInstantiationService.invokeFunction(defaultBrowserWindowOptions)
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
 					};
 				}
 
@@ -466,6 +460,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#region Bootstrap IPC Handlers
+
+		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
@@ -1000,6 +996,7 @@ export class CodeApplication extends Disposable {
 
 		// Windows
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv], false));
+		services.set(IAuxiliaryWindowsMainService, new SyncDescriptor(AuxiliaryWindowsMainService, undefined, false));
 
 		// Dialogs
 		const dialogMainService = new DialogMainService(this.logService, this.productService);
@@ -1218,6 +1215,7 @@ export class CodeApplication extends Disposable {
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		this.auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;
