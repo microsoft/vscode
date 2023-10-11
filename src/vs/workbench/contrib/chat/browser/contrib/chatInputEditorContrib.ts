@@ -411,7 +411,7 @@ class AgentCompletions extends Disposable {
 				}
 
 				return <CompletionList>{
-					suggestions: agents.flatMap(agent => commands.flat().map((c, i) => {
+					suggestions: agents.flatMap((agent, i) => commands[i].map((c, i) => {
 						const agentLabel = `@${agent.id}`;
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
