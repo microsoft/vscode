@@ -180,7 +180,12 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-				}
+				},
+				keybinding: {
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			});
 		}
 
