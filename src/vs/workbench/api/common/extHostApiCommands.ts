@@ -504,6 +504,16 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.showMultiGhostTextMulti', '_showMultiGhostTextMulti', 'Show ghost text for multiple ranges',
+		[
+			new ApiCommandArgument<{ ghostTexts: { position: types.Position; text: string; removeRange: types.Range | undefined }[]; auto: boolean }, { ghostTexts: { position: IPosition; text: string; removeRange: IRange | undefined }[]; auto: boolean }>('ranges',
+				'The ranges to show ghost text for',
+				v => typeof (v.auto) === 'boolean' && Array.isArray(v.ghostTexts) && v.ghostTexts.every(v => typeof v === 'object' && types.Position.isPosition(v.position) && typeof v.text === 'string' && (v.removeRange === undefined || types.Range.isRange(v.removeRange))),
+				v => { return { auto: v.auto, ghostTexts: v.ghostTexts.map(({ position, text, removeRange }) => ({ position: typeConverters.Position.from(position), text, removeRange: typeConverters.Range.from(removeRange) })) }; },),
+		],
+		ApiCommandResult.Void
+	),
 	// --- mapped edits
 	new ApiCommand(
 		'vscode.executeMappedEditsProvider', '_executeMappedEditsProvider', 'Execute Mapped Edits Provider',
