@@ -6,7 +6,7 @@
 import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
@@ -71,7 +71,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 	private _commandStartedWindowsBarrier?: Barrier;
 	private _windowsPromptPollingInProcess: boolean = false;
-	private _isDisposed: boolean = false;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -364,11 +363,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
-	override dispose() {
-		super.dispose();
-		this._isDisposed = true;
-	}
-
 	private async _handleCommandStartWindows(): Promise<void> {
 		if (this._windowsPromptPollingInProcess) {
 			this._windowsPromptPollingInProcess = false;
@@ -383,20 +377,22 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
 			this._windowsPromptPollingInProcess = true;
 			// Poll for 200ms until the cursor position is correct.
-			let i = 0;
-			for (; i < 20; i++) {
-				await timeout(10);
-				if (this._isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
-					if (!this._windowsPromptPollingInProcess) {
-						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
+			this._register(toDisposable(async () => {
+				let i = 0;
+				for (; i < 20; i++) {
+					await timeout(10);
+					if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+						if (!this._windowsPromptPollingInProcess) {
+							this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
+						}
+						break;
 					}
-					break;
 				}
-			}
-			this._windowsPromptPollingInProcess = false;
-			if (i === 20) {
-				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
-			}
+				this._windowsPromptPollingInProcess = false;
+				if (i === 20) {
+					this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
+				}
+			}));
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
 			// position to update as conpty often prints the sequence on a different line to the
