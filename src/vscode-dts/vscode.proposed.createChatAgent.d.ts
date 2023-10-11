@@ -10,6 +10,7 @@ declare module 'vscode' {
 		history: ChatMessage[]; // Should be same type as request?
 	}
 
+	// TODO@API inline/copy InteractiveResponseForProgress into this type
 	export interface ChatAgentResult extends InteractiveResponseForProgress { }
 
 	export interface ChatAgentSlashCommand {
@@ -28,23 +29,41 @@ declare module 'vscode' {
 
 	export interface ChatAgentSlashCommandProvider {
 
-		// is this needed? would allow us to do the caching more nicely?
-		// onDidChangeSlashCommands?: Event<void>;
-
-		// - called when suggest is triggered
-		// - called when focus moves to input box?
+		/**
+		 * Returns a list of slash commands that its agent is capable of handling. A slash command
+		 * and be selected by the user and will then be passed to the {@link ChatAgentHandler handler}
+		 * via the {@link ChatAgentRequest.slashCommand slashCommand} property.
+		 *
+		 *
+		 * @param token A cancellation token.
+		 * @returns A list of slash commands. The lack of a result can be signaled by returning `undefined`, `null`, or
+		 * an empty array.
+		 */
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
 	export interface FollowupProvider {
+
+		// TODO@API inline/copy InteractiveSessionFollowup into this proposal
 		provideFollowups(result: ChatAgentResult, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
 	}
 
 	export interface ChatAgent2 {
+
+		/**
+		 * The short name by which this agent is referred to in the UI, e.g `workspace`
+		 */
 		readonly name: string;
 
-		description: string;
+		/**
+		 * The full name of this agent
+		 */
 		fullName: string;
+
+		/**
+		 * A human-readable description explaining what this agent does.
+		 */
+		description: string;
 
 		/**
 		 * Icon for the agent shown in UI.
@@ -52,12 +71,21 @@ declare module 'vscode' {
 		iconPath?: Uri;
 
 		slashCommandProvider?: ChatAgentSlashCommandProvider;
+
 		followupProvider?: FollowupProvider;
 
-		// We need this- can't handle telemetry on the vscode side yet
+		// TODO@API We need this- can't handle telemetry on the vscode side yet
 		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
+
+
+		// TODO@API Something like prepareSession from the interactive chat provider might be needed.Probably nobody needs it right now.
+		// prepareSession();
+
+		/**
+		 * TODO@API explain what happens wrt to history, in-flight requests etc...
+		 * Dispose this agent and free resources
+		 */
 		dispose(): void;
-		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}
 
 	export interface ChatAgentRequest {
@@ -71,7 +99,8 @@ declare module 'vscode' {
 		prompt: string;
 
 		/**
-		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request
+		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request. It is guaranteed that the passed slash
+		 * command is an instance that was previously returned from the {@link ChatAgentSlashCommandProvider.provideSlashCommands slash command provider}.
 		 */
 		slashCommand?: ChatAgentSlashCommand;
 
