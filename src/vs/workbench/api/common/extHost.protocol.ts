@@ -1241,6 +1241,7 @@ export interface MainThreadChatShape extends IDisposable {
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined>;
 	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
+	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
 	$removeRequest(handle: number, sessionId: number, requestId: string): void;
