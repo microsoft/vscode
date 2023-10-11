@@ -38,7 +38,7 @@ import { PANEL_SECTION_BORDER, PANEL_SECTION_DRAG_AND_DROP_BACKGROUND, PANEL_SEC
 import { IAddedViewDescriptorRef, ICustomViewDescriptor, IView, IViewContainerModel, IViewDescriptor, IViewDescriptorRef, IViewDescriptorService, IViewPaneContainer, IViewsService, ViewContainer, ViewContainerLocation, ViewContainerLocationToString, ViewVisibilityState } from 'vs/workbench/common/views';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
+import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position } from 'vs/workbench/services/layout/browser/layoutService';
 
 export const ViewsSubMenu = new MenuId('Views');
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
@@ -1069,6 +1069,15 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	isViewMergedWithContainer(): boolean {
+		const location = this.viewDescriptorService.getViewContainerLocation(this.viewContainer);
+		// Do not merge views in secondary side bar because the view title is not shown
+		if (location === ViewContainerLocation.AuxiliaryBar) {
+			return false;
+		}
+		// Do not merge views in side bar when activity bar is on top because the view title is not shown
+		if (location === ViewContainerLocation.Sidebar && !this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return false;
+		}
 		if (!(this.options.mergeViewWithContainerWhenSingleView && this.paneItems.length === 1)) {
 			return false;
 		}
