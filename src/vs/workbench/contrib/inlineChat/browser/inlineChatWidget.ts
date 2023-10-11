@@ -55,6 +55,7 @@ import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/brows
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { assertType } from 'vs/base/common/types';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -556,6 +557,20 @@ export class InlineChatWidget {
 
 	private _updateLineClamp(expansionState: ExpansionState) {
 		this._elements.message.setAttribute('state', expansionState);
+	}
+
+	updateSlashCommandUsed(command: string): void {
+		const details = this._slashCommandDetails.find(candidate => candidate.command === command);
+		if (!details) {
+			return;
+		}
+
+		this._elements.infoLabel.classList.toggle('hidden', false);
+		const label = localize('slashCommandUsed', "Using {0} to generate response...", `\`\`/${details.command}\`\``);
+
+		const e = renderFormattedText(label, { inline: true, renderCodeSegments: true, className: 'slash-command-pill' });
+		reset(this._elements.infoLabel, e);
+		this._onDidChangeHeight.fire();
 	}
 
 	updateInfo(message: string): void {
