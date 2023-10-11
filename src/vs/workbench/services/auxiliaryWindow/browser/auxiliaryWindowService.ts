@@ -12,7 +12,6 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -40,8 +39,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) { }
 
 	open(): IAuxiliaryWindow {
@@ -86,30 +84,59 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 	}
 
 	protected applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
+		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
 
-		// Clone all style elements and stylesheet links from the window to the child window
-		for (const element of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
-			auxiliaryWindow.document.head.appendChild(element.cloneNode(true));
+		function cloneNode(originalNode: Node): void {
+			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
+			mapOriginalToClone.set(originalNode, clonedNode);
 		}
 
-		// Running out of sources: listen to new stylesheets as they
-		// are being added to the main window and apply to child window
-		if (!this.environmentService.isBuilt) {
-			const observer = new MutationObserver(mutations => {
-				for (const mutation of mutations) {
-					if (mutation.type === 'childList') {
-						for (const node of mutation.addedNodes) {
-							if (node instanceof HTMLElement && node.tagName.toLowerCase() === 'style') {
-								auxiliaryWindow.document.head.appendChild(node.cloneNode(true));
-							}
+		// Clone all style elements and stylesheet links from the window to the child window
+		for (const originalNode of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+			cloneNode(originalNode);
+		}
+
+		// Listen to new stylesheets as they are being added or removed in the main window
+		// and apply to child window (including changes to existing stylesheets elements)
+		const observer = new MutationObserver(mutations => {
+			for (const mutation of mutations) {
+				if (
+					mutation.type !== 'childList' ||						// only interested in added/removed nodes
+					mutation.target.nodeName.toLowerCase() === 'title' || 	// skip over title changes that happen frequently
+					mutation.target.nodeName.toLowerCase() === 'script' || 	// block <script> changes that are unsupported anyway
+					mutation.target.nodeName.toLowerCase() === 'meta'		// do not observe <meta> elements for now
+				) {
+					continue;
+				}
+
+				for (const node of mutation.addedNodes) {
+
+					// <style>/<link> element was added
+					if (node instanceof HTMLElement && (node.tagName.toLowerCase() === 'style' || node.tagName.toLowerCase() === 'link')) {
+						cloneNode(node);
+					}
+
+					// text-node was changed, try to apply to our clones
+					else if (node.nodeType === Node.TEXT_NODE && node.parentNode) {
+						const clonedNode = mapOriginalToClone.get(node.parentNode);
+						if (clonedNode) {
+							clonedNode.textContent = node.textContent;
 						}
 					}
 				}
-			});
 
-			observer.observe(document.head, { childList: true });
-			disposables.add(toDisposable(() => observer.disconnect()));
-		}
+				for (const node of mutation.removedNodes) {
+					const clonedNode = mapOriginalToClone.get(node);
+					if (clonedNode) {
+						clonedNode.parentNode?.removeChild(clonedNode);
+						mapOriginalToClone.delete(node);
+					}
+				}
+			}
+		});
+
+		observer.observe(document.head, { childList: true, subtree: true });
+		disposables.add(toDisposable(() => observer.disconnect()));
 	}
 
 	private applyHTML(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): HTMLElement {
