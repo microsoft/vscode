@@ -1152,9 +1152,14 @@ export interface MainThreadChatAgentsShape extends IDisposable {
 	$handleProgressChunk(requestId: number, chunk: IChatSlashFragment): Promise<void>;
 }
 
+export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
+	hasSlashCommands?: boolean;
+	hasFollowup?: boolean;
+}
+
 export interface MainThreadChatAgentsShape2 extends IDisposable {
-	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void;
-	$updateAgent(handle: number, metadataUpdate: IChatAgentMetadata): void;
+	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
+	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
 	$handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void>;
 }

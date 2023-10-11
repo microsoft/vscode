@@ -164,17 +164,27 @@ class ExtHostChatAgent {
 		return followups.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
-	private _updateMetadata() {
-		this._proxy.$updateAgent(this._handle, {
-			description: this._description ?? '',
-			fullName: this._fullName,
-			icon: this._icon,
-		});
-	}
-
 	get apiAgent(): vscode.ChatAgent2 {
-		const that = this;
 
+		let updateScheduled = false;
+		const updateMetadataSoon = () => {
+			if (updateScheduled) {
+				return;
+			}
+			updateScheduled = true;
+			queueMicrotask(() => {
+				this._proxy.$updateAgent(this._handle, {
+					description: this._description ?? '',
+					fullName: this._fullName,
+					icon: this._icon,
+					hasSlashCommands: this._slashCommandProvider !== undefined,
+					hasFollowup: this._followupProvider !== undefined,
+				});
+				updateScheduled = false;
+			});
+		};
+
+		const that = this;
 		return {
 			get name() {
 				return that._id;
@@ -184,21 +194,21 @@ class ExtHostChatAgent {
 			},
 			set description(v) {
 				that._description = v;
-				that._updateMetadata();
+				updateMetadataSoon();
 			},
 			get fullName() {
 				return that._fullName ?? that.extension.value;
 			},
 			set fullName(v) {
 				that._fullName = v;
-				that._updateMetadata();
+				updateMetadataSoon();
 			},
 			get icon() {
 				return that._icon;
 			},
 			set icon(v) {
 				that._icon = v;
-				that._updateMetadata();
+				updateMetadataSoon();
 			},
 			// onDidPerformAction
 			get slashCommandProvider() {
@@ -206,12 +216,14 @@ class ExtHostChatAgent {
 			},
 			set slashCommandProvider(v) {
 				that._slashCommandProvider = v;
+				updateMetadataSoon();
 			},
 			get followupProvider() {
 				return that._followupProvider;
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
+				updateMetadataSoon();
 			},
 			dispose() {
 				that._proxy.$unregisterAgent(that._handle);
