@@ -211,14 +211,16 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined {
-		for (const part of this.parts) {
-			const group = part.getGroup(identifier);
-			if (group) {
-				return group;
+		if (this.parts.size > 1) {
+			for (const part of this.parts) {
+				const group = part.getGroup(identifier);
+				if (group) {
+					return group;
+				}
 			}
 		}
 
-		return undefined;
+		return this.mainEditorPart.getGroup(identifier);
 	}
 
 	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
@@ -232,6 +234,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
 		return this.getPart(group).setSize(group, size);
 	}
+
+	get contentDimension() { return this.activePart.contentDimension; }
 
 	arrangeGroups(arrangement: GroupsArrangement): void {
 		return this.activePart.arrangeGroups(arrangement);
@@ -303,26 +307,19 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#endregion
 
-	//#region TODO@bpasero TO BE INVESTIGATED
-
-	get onDidVisibilityChange() { return this.mainEditorPart.onDidVisibilityChange; }
-
-	get contentDimension() { return this.mainEditorPart.contentDimension; }
-	get partOptions() { return this.mainEditorPart.partOptions; }
-	get onDidChangeEditorPartOptions() { return this.mainEditorPart.onDidChangeEditorPartOptions; }
-
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		return this.mainEditorPart.enforcePartOptions(options);
-	}
-
-	//#endregion
-
 	//#region Main Editor Part Only
 
 	get isReady() { return this.mainEditorPart.isReady; }
 	get whenReady() { return this.mainEditorPart.whenReady; }
 	get whenRestored() { return this.mainEditorPart.whenRestored; }
 	get hasRestorableState() { return this.mainEditorPart.hasRestorableState; }
+
+	get partOptions() { return this.mainEditorPart.partOptions; }
+	get onDidChangeEditorPartOptions() { return this.mainEditorPart.onDidChangeEditorPartOptions; }
+
+	enforcePartOptions(options: IEditorPartOptions): IDisposable {
+		return this.mainEditorPart.enforcePartOptions(options);
+	}
 
 	//#endregion
 }
