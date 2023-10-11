@@ -45,7 +45,7 @@ export class WindowTitle extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
-	private _titleIncludesFocusedView: boolean;
+	private titleIncludesFocusedView: boolean;
 
 	private title: string | undefined;
 
