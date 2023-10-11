@@ -5,8 +5,8 @@
 
 import { BrowserWindow, WebContents } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
 export interface IAuxiliaryWindow {
 
@@ -14,9 +14,11 @@ export interface IAuxiliaryWindow {
 
 	readonly id: number;
 	readonly win: BrowserWindow | null;
+
+	focus(options?: { force: boolean }): void;
 }
 
-export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
+export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly id = this.contents.id;
 
@@ -34,6 +36,10 @@ export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 		}
 
 		return this._win;
+	}
+
+	protected getWin(): BrowserWindow | null {
+		return this.win;
 	}
 
 	constructor(
@@ -57,10 +63,6 @@ export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	private registerListeners(): void {
 
 		// Support a small set of IPC calls
-		this.contents.ipc.on('vscode:focusAuxiliaryWindow', () => {
-			this.withWindow(window => window.focus(), true /* restore */);
-		});
-
 		this.contents.ipc.on('vscode:moveAuxiliaryWindowTop', () => {
 			this.withWindow(window => window.moveTop(), true /* restore */);
 		});

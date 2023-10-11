@@ -49,6 +49,18 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
+		const { container, onWillLayout, onDidClose } = this.create(auxiliaryWindow, disposables);
+
+		return {
+			container,
+			onWillLayout: onWillLayout.event,
+			onDidClose: onDidClose.event,
+			layout: () => onWillLayout.fire(getClientArea(container)),
+			dispose: () => disposables.dispose()
+		};
+	}
+
+	protected create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
 		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
@@ -58,13 +70,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 		const { onWillLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
 
-		return {
-			container,
-			onWillLayout: onWillLayout.event,
-			onDidClose: onDidClose.event,
-			layout: () => onWillLayout.fire(getClientArea(container)),
-			dispose: () => disposables.dispose()
-		};
+		return { container, onWillLayout, onDidClose };
 	}
 
 	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
@@ -153,7 +159,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore): { onWillLayout: Emitter<Dimension>; onDidClose: Emitter<void> } {
+	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore) {
 		const onDidClose = disposables.add(new Emitter<void>());
 		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
 			onDidClose.fire();

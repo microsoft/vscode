@@ -16,5 +16,6 @@ export interface IAuxiliaryWindowsMainService {
 	createWindow(): BrowserWindowConstructorOptions;
 	registerWindow(webContents: WebContents): void;
 
+	getWindowById(windowId: number): IAuxiliaryWindow | undefined;
 	getFocusedWindow(): IAuxiliaryWindow | undefined;
 }
