@@ -93,7 +93,7 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async moveWindowTop(): Promise<void> { }
+	async moveWindowTop(options?: { targetWindowId?: number }): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }

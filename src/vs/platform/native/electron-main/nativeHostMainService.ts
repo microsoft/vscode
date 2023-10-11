@@ -177,17 +177,17 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async toggleFullScreen(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.toggleFullScreen();
 	}
 
 	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.handleTitleDoubleClick();
 	}
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			return window.win.isMaximized();
 		}
@@ -196,53 +196,47 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async maximizeWindow(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			window.win.maximize();
 		}
 	}
 
 	async unmaximizeWindow(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			window.win.unmaximize();
 		}
 	}
 
 	async minimizeWindow(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			window.win.minimize();
 		}
 	}
 
-	async moveWindowTop(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+	async moveWindowTop(windowId: number | undefined, options?: { targetWindowId?: number }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(windowId);
 		if (window?.win) {
 			window.win.moveTop();
 		}
 	}
 
 	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window) {
 			window.updateWindowControls(options);
 		}
 	}
 
 	async focusWindow(windowId: number | undefined, options?: { targetWindowId?: number; force?: boolean }): Promise<void> {
-		let window: ICodeWindow | IAuxiliaryWindow | undefined;
-		if (typeof options?.targetWindowId === 'number') {
-			window = this.windowsMainService.getWindowById(options.targetWindowId) ?? this.auxiliaryWindowsMainService.getWindowById(options.targetWindowId);
-		} else {
-			window = this.windowById(windowId).main;
-		}
-
+		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(windowId);
 		window?.focus({ force: options?.force ?? false });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win) {
 			const [windowWidth, windowHeight] = window.win.getSize();
 			const [minWindowWidth, minWindowHeight] = window.win.getMinimumSize();
@@ -366,21 +360,21 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		const { focussed } = this.windowById(windowId);
+		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
 
-		return this.dialogMainService.showMessageBox(options, focussed);
+		return this.dialogMainService.showMessageBox(options, window?.win ?? undefined);
 	}
 
 	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		const { focussed } = this.windowById(windowId);
+		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
 
-		return this.dialogMainService.showSaveDialog(options, focussed);
+		return this.dialogMainService.showSaveDialog(options, window?.win ?? undefined);
 	}
 
 	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		const { focussed } = this.windowById(windowId);
+		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
 
-		return this.dialogMainService.showOpenDialog(options, focussed);
+		return this.dialogMainService.showOpenDialog(options, window?.win ?? undefined);
 	}
 
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
@@ -432,12 +426,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.setRepresentedFilename(path);
 	}
 
 	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.setDocumentEdited(edited);
 	}
 
@@ -645,7 +639,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async updateTouchBar(windowId: number | undefined, items: ISerializableCommandAction[][]): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.updateTouchBar(items);
 	}
 
@@ -655,7 +649,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Lifecycle
 
 	async notifyReady(windowId: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		window?.setReady();
 	}
 
@@ -664,7 +658,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async reload(windowId: number | undefined, options?: { disableExtensions?: boolean }): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window) {
 
 			// Special case: support `transient` workspaces by preventing
@@ -692,10 +686,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async closeWindowById(windowId: number | undefined, targetWindowId?: number | undefined): Promise<void> {
-		const { main: window } = this.windowById(targetWindowId);
-		if (window?.win) {
-			return window.win.close();
-		}
+		const window = this.windowById(targetWindowId) ?? this.codeWindowById(targetWindowId);
+		return window?.win?.close();
 	}
 
 	async quit(windowId: number | undefined): Promise<void> {
@@ -723,7 +715,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Connectivity
 
 	async resolveProxy(windowId: number | undefined, url: string): Promise<string | undefined> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		const session = window?.win?.webContents?.session;
 
 		return session?.resolveProxy(url);
@@ -739,19 +731,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
-		const { focussed } = this.windowById(windowId);
+		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
 
-		focussed?.webContents.openDevTools(options);
+		window?.win?.webContents.openDevTools(options);
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
-		const { focussed } = this.windowById(windowId);
+		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
 
-		focussed?.webContents.toggleDevTools();
+		window?.win?.webContents.toggleDevTools();
 	}
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (window?.win && (event.type === 'mouseDown' || event.type === 'mouseUp')) {
 			window.win.webContents.sendInputEvent(event);
 		}
@@ -762,7 +754,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	// #region Performance
 
 	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
-		const { main: window } = this.windowById(windowId);
+		const window = this.codeWindowById(windowId);
 		if (!window || !window.win) {
 			throw new Error();
 		}
@@ -791,14 +783,27 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
-	private windowById(windowId: number | undefined): { main?: ICodeWindow; focussed?: BrowserWindow } {
+	private windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId);
+	}
+
+	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
 		if (typeof windowId !== 'number') {
-			return {};
+			return undefined;
 		}
 
-		const main = this.windowsMainService.getWindowById(windowId);
-		const focussed = this.windowsMainService.getFocusedWindow()?.win || this.auxiliaryWindowsMainService.getFocusedWindow()?.win || main?.win || undefined;
+		return this.windowsMainService.getWindowById(windowId);
+	}
 
-		return { main, focussed };
+	private auxiliaryWindowById(windowId: number | undefined): IAuxiliaryWindow | undefined {
+		if (typeof windowId !== 'number') {
+			return undefined;
+		}
+
+		return this.auxiliaryWindowsMainService.getWindowById(windowId);
+	}
+
+	private focussedWindow(): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.windowsMainService.getFocusedWindow() ?? this.auxiliaryWindowsMainService.getFocusedWindow();
 	}
 }

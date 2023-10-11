@@ -49,7 +49,6 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		super();
 
 		this.create();
-		this.registerListeners();
 	}
 
 	private create(): void {
@@ -57,27 +56,6 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// Handle devtools argument
 		if (this.environmentMainService.args['open-devtools'] === true) {
 			this.contents.openDevTools({ mode: 'bottom' });
-		}
-	}
-
-	private registerListeners(): void {
-
-		// Support a small set of IPC calls
-		this.contents.ipc.on('vscode:moveAuxiliaryWindowTop', () => {
-			this.withWindow(window => window.moveTop(), true /* restore */);
-		});
-	}
-
-	private withWindow(callback: (window: BrowserWindow) => void, restore?: boolean): void {
-		const window = BrowserWindow.fromWebContents(this.contents);
-		if (window) {
-			if (restore) {
-				if (window.isMinimized()) {
-					window.restore();
-				}
-			}
-
-			callback(window);
 		}
 	}
 

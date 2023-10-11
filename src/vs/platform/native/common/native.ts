@@ -75,7 +75,7 @@ export interface ICommonNativeHostService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
-	moveWindowTop(): Promise<void>;
+	moveWindowTop(options?: { targetWindowId?: number }): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
