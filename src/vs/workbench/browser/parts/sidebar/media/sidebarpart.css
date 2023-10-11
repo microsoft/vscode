@@ -74,6 +74,7 @@
 }
 
 .monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
+	padding-top: 2px;
 	font-size: 9px;
 	min-width: 11px;
 	height: 16px;
