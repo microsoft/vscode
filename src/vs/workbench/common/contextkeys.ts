@@ -97,6 +97,12 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 
 //#endregion
 
+//#region < --- Title Bar --- >
+
+export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
+
+//#endregion
+
 
 //#region < --- Banner --- >
 

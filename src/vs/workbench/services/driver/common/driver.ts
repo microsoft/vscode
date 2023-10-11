@@ -43,6 +43,7 @@ export interface IWindowDriver {
 	getLocaleInfo(): Promise<ILocaleInfo>;
 	getLocalizedStrings(): Promise<ILocalizedStrings>;
 	getLogs(): Promise<ILogFile[]>;
+	whenWorkbenchRestored(): Promise<void>;
 	exitApplication(): Promise<void>;
 }
 //*END
