@@ -474,7 +474,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Next Code Block'
 				},
 				keybinding: {
-					primary: KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
@@ -498,7 +499,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Previous Code Block'
 				},
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
