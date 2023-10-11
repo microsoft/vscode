@@ -67,8 +67,4 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape2, IDispos
 		// TODO copy/move $acceptResponseProgress from MainThreadChat
 		this._pendingProgress.get(requestId)?.report(revive(chunk) as any);
 	}
-
-	$unregisterCommand(handle: number): void {
-		this._agents.deleteAndDispose(handle);
-	}
 }
