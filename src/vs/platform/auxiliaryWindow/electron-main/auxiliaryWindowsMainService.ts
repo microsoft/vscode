@@ -32,6 +32,7 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 	registerWindow(webContents: WebContents): void {
 		const auxiliaryWindow = this.instantiationService.createInstance(AuxiliaryWindow, webContents);
 		this.windows.set(auxiliaryWindow.id, auxiliaryWindow);
+
 		Event.once(auxiliaryWindow.onDidClose)(() => this.windows.delete(auxiliaryWindow.id));
 	}
 

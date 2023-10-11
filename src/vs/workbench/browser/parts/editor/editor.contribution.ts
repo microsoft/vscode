@@ -389,7 +389,7 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 			title: primary.title,
 			icon: primary.icon,
 			toggled: primary.toggled,
-			precondition,
+			precondition
 		},
 		group: 'navigation',
 		when,
@@ -400,7 +400,7 @@ function appendEditorToolItem(primary: ICommandAction, when: ContextKeyExpressio
 		item.alt = {
 			id: alternative.id,
 			title: alternative.title,
-			icon: alternative.icon,
+			icon: alternative.icon
 		};
 	}
 

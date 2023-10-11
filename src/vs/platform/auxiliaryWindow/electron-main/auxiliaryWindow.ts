@@ -26,7 +26,11 @@ export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 	private _win: BrowserWindow | null = null;
 	get win() {
 		if (!this._win) {
-			this._win = BrowserWindow.fromWebContents(this.contents);
+			const window = BrowserWindow.fromWebContents(this.contents);
+			if (window) {
+				this._win = window;
+				this.registerWindowListeners(window);
+			}
 		}
 
 		return this._win;
@@ -52,13 +56,6 @@ export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 
 	private registerListeners(): void {
 
-		// Window close
-		this.win?.on('closed', () => {
-			this._onDidClose.fire();
-
-			this.dispose();
-		});
-
 		// Support a small set of IPC calls
 		this.contents.ipc.on('vscode:focusAuxiliaryWindow', () => {
 			this.withWindow(window => window.focus(), true /* restore */);
@@ -80,5 +77,15 @@ export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
 
 			callback(window);
 		}
+	}
+
+	private registerWindowListeners(window: BrowserWindow): void {
+
+		// Window close
+		window.on('closed', () => {
+			this._onDidClose.fire();
+
+			this.dispose();
+		});
 	}
 }
