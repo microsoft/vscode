@@ -25,8 +25,6 @@ export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
-	private readonly windowId = new DeferredPromise<number>();
-
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -36,12 +34,6 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
-
-		// Obtain window identifier
-		(async () => {
-			const windowId = await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId');
-			this.windowId.complete(windowId);
-		})();
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
@@ -54,21 +46,26 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
 		super.patchMethods(auxiliaryWindow);
 
-		const that = this;
+		// Obtain window identifier
+		const windowId = new DeferredPromise<number>();
+		(async () => {
+			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
+		})();
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = async function () {
 			originalWindowFocus();
 
-			await that.nativeHostService.focusWindow({ targetWindowId: await that.windowId.p });
+			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
 		};
 
 		// Add a method to move window to the top
 		Object.defineProperty(auxiliaryWindow, 'moveTop', {
 			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await that.windowId.p });
+				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
 			},
 			writable: false,
 			enumerable: false,
