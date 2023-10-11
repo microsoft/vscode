@@ -17,7 +17,6 @@ declare module 'vscode' {
 		readonly description: string;
 	}
 
-	// TODO@API will this be called slash commands or is the prefix configurable
 	export interface SlashCommandProvider {
 
 		// is this needed? would allow us to do the caching more nicely?
@@ -47,8 +46,14 @@ declare module 'vscode' {
 	}
 
 	export interface AgentRequest {
+
 		message: string;
+
 		variables: Record<string, ChatVariableValue[]>;
+
+		/**
+		 * The {@link SlashCommand slash command} that was selected for this request
+		 */
 		slashCommand?: SlashCommand;
 	}
 
