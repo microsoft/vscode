@@ -44,7 +44,7 @@ declare module 'vscode' {
 		readonly name: string;
 
 		description: string;
-		fullName?: string;
+		fullName: string;
 		icon?: Uri;
 		slashCommandProvider?: ChatAgentSlashCommandProvider;
 		followupProvider?: FollowupProvider;
@@ -70,13 +70,20 @@ declare module 'vscode' {
 		 */
 		slashCommand?: ChatAgentSlashCommand;
 
-
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
 	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult>;
 
 	export namespace chat {
-		export function createChatAgent(name: string, description: string, fullName: string | undefined, icon: Uri | undefined, handler: ChatAgentHandler): ChatAgent2;
+
+		/**
+		 * Create a new {@link ChatAgent2 chat agent} instance.
+		 *
+		 * @param name Short name by which this agent is referred to in the UI
+		 * @param handler The reply-handler of the agent.
+		 * @returns A new chat agent
+		 */
+		export function createChatAgent(name: string, handler: ChatAgentHandler): ChatAgent2;
 	}
 }

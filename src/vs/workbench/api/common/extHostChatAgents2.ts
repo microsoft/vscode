@@ -30,12 +30,12 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: ExtensionIdentifier, name: string, description: string, fullName: string | undefined, icon: vscode.Uri | undefined, handler?: vscode.ChatAgentHandler): vscode.ChatAgent2 {
+	createChatAgent(extension: ExtensionIdentifier, name: string, handler: vscode.ChatAgentHandler): vscode.ChatAgent2 {
 		const handle = ExtHostChatAgents2._idPool++;
-		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, description, fullName, icon, handler);
+		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
 
-		this._proxy.$registerAgent(handle, name, { description, fullName, icon });
+		this._proxy.$registerAgent(handle, name, {});
 		return agent.apiAgent;
 	}
 
@@ -114,18 +114,17 @@ class ExtHostChatAgent {
 
 	private _slashCommandProvider: vscode.ChatAgentSlashCommandProvider | undefined;
 	private _lastSlashCommands: vscode.ChatAgentSlashCommand[] | undefined;
-
 	private _followupProvider: vscode.FollowupProvider | undefined;
+	private _description: string | undefined;
+	private _fullName: string | undefined;
+	private _icon: vscode.Uri | undefined;
 
 	constructor(
 		public readonly extension: ExtensionIdentifier,
 		private readonly _id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
-		private _description: string | undefined,
-		private _fullName: string | undefined,
-		private _icon: vscode.Uri | undefined,
-		private readonly _callback?: vscode.ChatAgentHandler,
+		private readonly _callback: vscode.ChatAgentHandler,
 	) { }
 
 
@@ -188,7 +187,7 @@ class ExtHostChatAgent {
 				that._updateMetadata();
 			},
 			get fullName() {
-				return that._fullName;
+				return that._fullName ?? that.extension.value;
 			},
 			set fullName(v) {
 				that._fullName = v;
@@ -221,6 +220,6 @@ class ExtHostChatAgent {
 	}
 
 	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult> {
-		return this._callback?.(request, context, progress, token);
+		return this._callback(request, context, progress, token);
 	}
 }

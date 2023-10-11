@@ -362,7 +362,7 @@ export interface ISerializableChatsData {
 
 export interface ISerializableChatAgentData {
 	id: string;
-	description: string;
+	description?: string;
 	fullName?: string;
 	icon?: UriComponents;
 }
