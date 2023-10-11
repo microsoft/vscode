@@ -360,19 +360,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
+		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
 
 		return this.dialogMainService.showMessageBox(options, window?.win ?? undefined);
 	}
 
 	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
+		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
 
 		return this.dialogMainService.showSaveDialog(options, window?.win ?? undefined);
 	}
 
 	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
+		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
 
 		return this.dialogMainService.showOpenDialog(options, window?.win ?? undefined);
 	}
@@ -731,13 +731,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
-		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
+		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
 
 		window?.win?.webContents.openDevTools(options);
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
-		const window = this.focussedWindow() ?? this.codeWindowById(windowId);
+		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
 
 		window?.win?.webContents.toggleDevTools();
 	}
@@ -803,7 +803,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.auxiliaryWindowsMainService.getWindowById(windowId);
 	}
 
-	private focussedWindow(): ICodeWindow | IAuxiliaryWindow | undefined {
+	private focusedWindow(): ICodeWindow | IAuxiliaryWindow | undefined {
 		return this.windowsMainService.getFocusedWindow() ?? this.auxiliaryWindowsMainService.getFocusedWindow();
 	}
 }
