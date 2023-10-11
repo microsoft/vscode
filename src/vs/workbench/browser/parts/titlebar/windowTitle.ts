@@ -45,7 +45,7 @@ export class WindowTitle extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
-	private titleIncludesFocusedView: boolean;
+	private titleIncludesFocusedView: boolean = false;
 
 	private title: string | undefined;
 
@@ -61,7 +61,6 @@ export class WindowTitle extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
-		this._titleIncludesFocusedView = this.configurationService.getValue<string>(WindowSettingNames.title)?.match(/\${focusedView}/) !== null;
 		this.registerListeners();
 	}
 
@@ -82,15 +81,20 @@ export class WindowTitle extends Disposable {
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
 		this._register(this.viewsService.onDidChangeFocusedView(() => {
-			if (this._titleIncludesFocusedView) {
+			if (this.titleIncludesFocusedView) {
 				this.titleUpdater.schedule();
 			}
 		}));
+		this.updateTitleIncludesFocusedView();
+	}
+
+	private updateTitleIncludesFocusedView(): void {
+		this.titleIncludesFocusedView = this.configurationService.getValue<string>(WindowSettingNames.title)?.match(/\${focusedView}/) !== null;
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
 		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
-			this._titleIncludesFocusedView = this.configurationService.getValue<string>(WindowSettingNames.title)?.match(/\${focusedView}/) !== null;
+			this.updateTitleIncludesFocusedView();
 			this.titleUpdater.schedule();
 		}
 	}
@@ -109,7 +113,7 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
-		if (this._titleIncludesFocusedView) {
+		if (this.titleIncludesFocusedView) {
 			const activeTextEditorControl = this.editorService.activeTextEditorControl;
 			if (isCodeEditor(activeTextEditorControl)) {
 				this.activeEditorListeners.add(activeTextEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
