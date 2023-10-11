@@ -5,7 +5,7 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
@@ -13,7 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
 
-type AuxiliaryWindow = Window & typeof globalThis & {
+type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	moveTop: () => void;
 };
 
@@ -62,13 +62,13 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = async function () {
 			originalWindowFocus();
 
-			that.nativeHostService.focusWindow({ targetWindowId: await that.windowId.p });
+			await that.nativeHostService.focusWindow({ targetWindowId: await that.windowId.p });
 		};
 
-		// Add a method to move window to the top (TODO@bpasero better to go entirely through native host service)
+		// Add a method to move window to the top
 		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: () => {
-				getGlobals(auxiliaryWindow)?.ipcRenderer.send('vscode:moveAuxiliaryWindowTop');
+			value: async () => {
+				await that.nativeHostService.moveWindowTop({ targetWindowId: await that.windowId.p });
 			},
 			writable: false,
 			enumerable: false,
