@@ -830,7 +830,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 	private _revealInViewWithMinimalScrolling(viewIndex: number, firstLine?: boolean) {
 		const firstIndex = this.view.firstVisibleIndex;
-		if (viewIndex <= firstIndex) {
+		const elementHeight = this.view.elementHeight(viewIndex);
+
+		if (viewIndex <= firstIndex || elementHeight >= this.view.renderHeight) {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Top, firstLine);
 		} else {
 			this._revealInternal(viewIndex, true, CellRevealPosition.Bottom, firstLine);
@@ -1205,14 +1207,20 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focused = this.getFocus();
 		const focus = focused.length ? focused[0] : null;
 
-		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
-		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
-		const anchorToFocusedCell = anchorFocusedSetting === 'true' || (allowScrolling && anchorFocusedSetting !== 'false');
-		if (focused && anchorToFocusedCell) {
-			this.view.updateElementHeight(index, size, focus);
+		// If the cell is growing, we should favor anchoring to the focused cell
+		if (focus) {
+			const cellEditorIsFocused = this.view.element(focused[0]).focusMode === CellFocusMode.Editor;
+			const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
+			const growing = this.view.elementHeight(index) < size;
+			const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
+			const autoAnchor = allowScrolling && growing && anchorFocusedSetting !== 'off';
+
+			if (cellEditorIsFocused || autoAnchor || anchorFocusedSetting === 'on') {
+				return this.view.updateElementHeight(index, size, focus);
+			}
 		}
 
-		this.view.updateElementHeight(index, size, null);
+		return this.view.updateElementHeight(index, size, null);
 	}
 
 	// override

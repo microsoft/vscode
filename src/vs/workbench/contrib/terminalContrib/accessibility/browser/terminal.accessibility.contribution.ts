@@ -23,7 +23,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
+import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
@@ -69,7 +69,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
@@ -80,7 +80,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return true;
 		}, TerminalContextKeys.focus));
 		this._register(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
@@ -119,12 +119,15 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
 		if (!this._bufferProvider) {
-			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
+			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker, () => {
+				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
+			}));
 		}
-		this._accessibleViewService.show(this._bufferProvider);
+		const position = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
+		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
-		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
+		const currentLine = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal)?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;
@@ -199,7 +202,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 			if (!terminal) {
 				return;
 			}
-			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
+			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibilityHelpProvider, instance, terminal));
 		}, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal)))));
 	}
 }

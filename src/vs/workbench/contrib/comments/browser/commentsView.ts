@@ -353,7 +353,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					return '';
 				},
 				getWidgetAriaLabel(): string {
-					return COMMENTS_VIEW_TITLE;
+					return COMMENTS_VIEW_TITLE.value;
 				}
 			}
 		}));

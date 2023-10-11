@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, CheckboxUpdate } from 'vs/workbench/api/common/extHost.protocol';
 import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeView, IViewsRegistry, ITreeViewDescriptor, IRevealOptions, Extensions, ResolvableTreeItem, ITreeViewDragAndDropController, IViewBadge, NoTreeViewError } from 'vs/workbench/common/views';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -24,7 +24,7 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 export class MainThreadTreeViews extends Disposable implements MainThreadTreeViewsShape {
 
 	private readonly _proxy: ExtHostTreeViewsShape;
-	private readonly _dataProviders: Map<string, { dataProvider: TreeViewDataProvider; disposables: DisposableStore }> = new Map<string, { dataProvider: TreeViewDataProvider; disposables: DisposableStore }>();
+	private readonly _dataProviders: DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }> = this._register(new DisposableMap<string, { dataProvider: TreeViewDataProvider; dispose: () => void }>());
 	private readonly _dndControllers = new Map<string, TreeViewDragAndDropController>();
 
 	constructor(
@@ -44,8 +44,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
 			const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 			const disposables = new DisposableStore();
-			this._register(disposables);
-			this._dataProviders.set(treeViewId, { dataProvider, disposables });
+			this._dataProviders.set(treeViewId, { dataProvider, dispose: () => disposables.dispose() });
 			const dndController = (options.hasHandleDrag || options.hasHandleDrop)
 				? new TreeViewDragAndDropController(treeViewId, options.dropMimeTypes, options.dragMimeTypes, options.hasHandleDrag, this._proxy) : undefined;
 			const viewer = this.getTreeView(treeViewId);
@@ -134,11 +133,8 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		if (viewer) {
 			viewer.dataProvider = undefined;
 		}
-		const dataProvider = this._dataProviders.get(treeViewId);
-		if (dataProvider) {
-			dataProvider.disposables.dispose();
-			this._dataProviders.delete(treeViewId);
-		}
+
+		this._dataProviders.deleteAndDispose(treeViewId);
 	}
 
 	private async reveal(treeView: ITreeView, dataProvider: TreeViewDataProvider, itemIn: ITreeItem, parentChain: ITreeItem[], options: IRevealOptions): Promise<void> {
@@ -200,13 +196,13 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	override dispose(): void {
-		this._dataProviders.forEach((dataProvider, treeViewId) => {
-			const treeView = this.getTreeView(treeViewId);
+		for (const dataprovider of this._dataProviders) {
+			const treeView = this.getTreeView(dataprovider[0]);
 			if (treeView) {
 				treeView.dataProvider = undefined;
 			}
-		});
-		this._dataProviders.clear();
+		}
+		this._dataProviders.dispose();
 
 		this._dndControllers.clear();
 

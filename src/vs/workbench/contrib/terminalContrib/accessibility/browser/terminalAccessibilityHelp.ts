@@ -24,12 +24,11 @@ export const enum ClassName {
 	EditorTextArea = 'textarea'
 }
 
-export class TerminalAccessibleContentProvider extends Disposable implements IAccessibleContentProvider {
-
+export class TerminalAccessibilityHelpProvider extends Disposable implements IAccessibleContentProvider {
+	id = AccessibleViewProviderId.TerminalHelp;
 	private readonly _hasShellIntegration: boolean = false;
-
 	onClose() {
-		const expr = ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal));
+		const expr = ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.TerminalHelp));
 		if (expr?.evaluate(this._contextKeyService.getContext(null))) {
 			this._commandService.executeCommand(TerminalCommandId.FocusAccessibleBuffer);
 		} else {
@@ -83,8 +82,8 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		if (this._hasShellIntegration) {
 			const shellIntegrationCommandList = [];
 			shellIntegrationCommandList.push(localize('shellIntegration', "The terminal has a feature called shell integration that offers an enhanced experience and provides useful commands for screen readers such as:"));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToNextCommand, localize('goToNextCommand', 'Go to Next Command ({0})'), localize('goToNextCommandNoKb', 'Go to Next Command is currently not triggerable by a keybinding.')));
-			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToPreviousCommand, localize('goToPreviousCommand', 'Go to Previous Command ({0})'), localize('goToPreviousCommandNoKb', 'Go to Previous Command is currently not triggerable by a keybinding.')));
+			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToNextCommand, localize('goToNextCommand', 'Go to Next Command ({0}) in the accessible view'), localize('goToNextCommandNoKb', 'Go to Next Command in the accessible view is currently not triggerable by a keybinding.')));
+			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.AccessibleBufferGoToPreviousCommand, localize('goToPreviousCommand', 'Go to Previous Command ({0}) in the accessible view'), localize('goToPreviousCommandNoKb', 'Go to Previous Command in the accessible view is currently not triggerable by a keybinding.')));
 			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(AccessibilityCommandId.GoToSymbol, localize('goToSymbol', 'Go to Symbol ({0})'), localize('goToSymbolNoKb', 'Go to symbol is currently not triggerable by a keybinding.')));
 			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.RunRecentCommand, localize('runRecentCommand', 'Run Recent Command ({0})'), localize('runRecentCommandNoKb', 'Run Recent Command is currently not triggerable by a keybinding.')));
 			shellIntegrationCommandList.push('- ' + this._descriptionForCommand(TerminalCommandId.GoToRecentDirectory, localize('goToRecentDirectory', 'Go to Recent Directory ({0})'), localize('goToRecentDirectoryNoKb', 'Go to Recent Directory is currently not triggerable by a keybinding.')));
@@ -95,7 +94,6 @@ export class TerminalAccessibleContentProvider extends Disposable implements IAc
 		content.push(this._descriptionForCommand(TerminalCommandId.OpenDetectedLink, localize('openDetectedLink', 'The Open Detected Link ({0}) command enables screen readers to easily open links found in the terminal.'), localize('openDetectedLinkNoKb', 'The Open Detected Link command enables screen readers to easily open links found in the terminal and is currently not triggerable by a keybinding.')));
 		content.push(this._descriptionForCommand(TerminalCommandId.NewWithProfile, localize('newWithProfile', 'The Create New Terminal (With Profile) ({0}) command allows for easy terminal creation using a specific profile.'), localize('newWithProfileNoKb', 'The Create New Terminal (With Profile) command allows for easy terminal creation using a specific profile and is currently not triggerable by a keybinding.')));
 		content.push(localize('focusAfterRun', 'Configure what gets focused after running selected text in the terminal with `{0}`.', TerminalSettingId.FocusAfterRun));
-		content.push(localize('accessibilitySettings', 'Access accessibility settings such as `terminal.integrated.tabFocusMode` via the Preferences: Open Accessibility Settings command.'));
 		return content.join('\n\n');
 	}
 }

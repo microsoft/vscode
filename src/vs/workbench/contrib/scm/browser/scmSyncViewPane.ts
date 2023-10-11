@@ -14,7 +14,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -44,7 +44,7 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
@@ -458,6 +458,14 @@ export class SCMSyncViewPane extends ViewPane {
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
 
+		const updateProviderCountVisibility = () => {
+			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
+			this.treeContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			this.treeContainer.classList.toggle('auto-provider-counts', value === 'auto');
+		};
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
+		updateProviderCountVisibility();
+
 		this._tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Sync View',
@@ -476,6 +484,7 @@ export class SCMSyncViewPane extends ViewPane {
 				compressionEnabled: true,
 				horizontalScrolling: false,
 				autoExpandSingleChildren: true,
+				multipleSelectionSupport: false,
 				collapseByDefault: (e) => !ResourceTree.isResourceNode(e),
 				accessibilityProvider: this.instantiationService.createInstance(SCMSyncViewPaneAccessibilityProvider),
 				identityProvider: this.instantiationService.createInstance(SCMSyncViewPaneTreeIdentityProvider),
@@ -832,6 +841,7 @@ class RefreshAction extends ViewAction<SCMSyncViewPane> {
 			icon: Codicon.refresh,
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: 'navigation'
 			}
 		});
@@ -854,6 +864,7 @@ class SetListViewModeAction extends ViewAction<SCMSyncViewPane> {
 			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.List),
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: '1_viewmode'
 			}
 		});
@@ -876,6 +887,7 @@ class SetTreeViewModeAction extends ViewAction<SCMSyncViewPane>  {
 			toggled: ContextKeys.ViewMode.isEqualTo(ViewMode.Tree),
 			menu: {
 				id: MenuId.ViewTitle,
+				when: ContextKeyExpr.equals('view', SYNC_VIEW_PANE_ID),
 				group: '1_viewmode'
 			}
 		});

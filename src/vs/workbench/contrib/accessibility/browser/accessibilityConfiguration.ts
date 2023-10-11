@@ -49,6 +49,7 @@ export const enum AccessibilityVerbositySettingId {
 
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
+	TerminalHelp = 'terminal-help',
 	DiffEditor = 'diffEditor',
 	Chat = 'panelChat',
 	InlineChat = 'inlineChat',
@@ -74,27 +75,27 @@ const configuration: IConfigurationNode = {
 	type: 'object',
 	properties: {
 		[AccessibilityVerbositySettingId.Terminal]: {
-			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused'),
+			description: localize('verbosity.terminal.description', 'Provide information about how to access the terminal accessibility help menu when the terminal is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.DiffEditor]: {
-			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused'),
+			description: localize('verbosity.diffEditor.description', 'Provide information about how to navigate changes in the diff editor when it is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Chat]: {
-			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused'),
+			description: localize('verbosity.chat.description', 'Provide information about how to access the chat help menu when the chat input is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineChat]: {
-			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints which describe how to use the feature when the input is focused'),
+			description: localize('verbosity.interactiveEditor.description', 'Provide information about how to access the inline editor chat accessibility help menu and alert with hints that describe how to use the feature when the input is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.InlineCompletions]: {
-			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view'),
+			description: localize('verbosity.inlineCompletions.description', 'Provide information about how to access the inline completions hover and accessible view.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused.'),
 			...baseProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {

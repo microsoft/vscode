@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
@@ -207,12 +207,13 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
+				{ resource: true },
+				{ renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: quickInputBackground
+					resultEditorBackground: editorBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);

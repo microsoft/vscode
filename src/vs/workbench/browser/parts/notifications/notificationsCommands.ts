@@ -72,7 +72,7 @@ export function getNotificationFromContext(listService: IListService, context?: 
 		if (!isNotificationViewItem(element)) {
 			if (list.isDOMFocused()) {
 				// the notification list might have received focus
-				// via keyboard and might not have a focussed element.
+				// via keyboard and might not have a focused element.
 				// in that case just return the first element
 				// https://github.com/microsoft/vscode/issues/191705
 				element = list.element(0);
@@ -161,11 +161,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationsToastsVisibleContext),
+		when: ContextKeyExpr.and(NotificationFocusedContext),
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = firstOrDefault(model.notifications);
+			const notification = getNotificationFromContext(accessor.get(IListService));
 			if (!notification) {
 				return;
 			}

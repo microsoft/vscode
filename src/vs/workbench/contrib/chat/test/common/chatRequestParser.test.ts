@@ -82,7 +82,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = 'What does @selection mean?';
+		const text = 'What does #selection mean?';
 		const result = await parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
@@ -93,7 +93,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = 'What is @selection?';
+		const text = 'What is #selection?';
 		const result = await parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
@@ -104,7 +104,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const text = 'What does @selection mean?';
+		const text = 'What does #selection mean?';
 		const result = await parser.parseChatRequest('1', text);
 		await assertSnapshot(result);
 	});
@@ -149,7 +149,7 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(IChatVariablesService, variablesService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', '@agent Please \ndo /subCommand with @selection\nand @debugConsole');
+		const result = await parser.parseChatRequest('1', '@agent Please \ndo /subCommand with #selection\nand #debugConsole');
 		await assertSnapshot(result);
 	});
 });

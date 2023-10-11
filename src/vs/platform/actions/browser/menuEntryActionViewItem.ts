@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, asCSSUrl, EventType, ModifierKeyEmitter, prepend } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionViewItem, BaseActionViewItem, SelectActionViewItem } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { DropdownMenuActionViewItem, IDropdownMenuActionViewItemOptions } from 'vs/base/browser/ui/dropdown/dropdownActionViewItem';
@@ -263,25 +263,17 @@ export class MenuEntryActionViewItem extends ActionViewItem {
 			});
 
 		} else {
-			// icon path/url - add special element with SVG-mask and icon color background
-			const svgUrl = isDark(this._themeService.getColorTheme().type)
-				? asCSSUrl(icon.dark)
-				: asCSSUrl(icon.light);
-
-			const svgIcon = $('span');
-			svgIcon.style.webkitMask = svgIcon.style.mask = `${svgUrl} no-repeat 50% 50%`;
-			svgIcon.style.background = 'var(--vscode-icon-foreground)';
-			svgIcon.style.display = 'inline-block';
-			svgIcon.style.width = '100%';
-			svgIcon.style.height = '100%';
-
-			label.appendChild(svgIcon);
+			// icon path/url
+			label.style.backgroundImage = (
+				isDark(this._themeService.getColorTheme().type)
+					? asCSSUrl(icon.dark)
+					: asCSSUrl(icon.light)
+			);
 			label.classList.add('icon');
-
 			this._itemClassDispose.value = combinedDisposable(
 				toDisposable(() => {
+					label.style.backgroundImage = '';
 					label.classList.remove('icon');
-					reset(label);
 				}),
 				this._themeService.onDidColorThemeChange(() => {
 					// refresh when the theme changes in case we go between dark <-> light
