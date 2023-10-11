@@ -79,6 +79,29 @@ export class ChatRequestParser {
 				message.slice(lastPartEnd, message.length)));
 		}
 
+
+		// fix up parts:
+		// * only one agent at the beginning of the message
+		// * only one agent command after the agent or at the beginning of the message
+		let agentIndex = -1;
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			if (part instanceof ChatRequestAgentPart) {
+				if (i === 0) {
+					agentIndex = 0;
+				} else {
+					// agent not first -> make text part
+					parts[i] = new ChatRequestTextPart(part.range, part.editorRange, part.text);
+				}
+			}
+			if (part instanceof ChatRequestAgentSubcommandPart) {
+				if (!(i === 0 || agentIndex === 0 && i === 2 && /\s+/.test(parts[1].text))) {
+					// agent command not after agent nor first -> make text part
+					parts[i] = new ChatRequestTextPart(part.range, part.editorRange, part.text);
+				}
+			}
+		}
+
 		return {
 			parts,
 			text: message,

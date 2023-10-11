@@ -119,13 +119,23 @@ suite('ChatRequestParser', () => {
 		await assertSnapshot(result);
 	});
 
+	test('agents, subCommand', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = await parser.parseChatRequest('1', '@agent /subCommand Please do thanks');
+		await assertSnapshot(result);
+	});
+
 	test('agent with question mark', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
-		const result = await parser.parseChatRequest('1', 'Are you there @agent?');
+		const result = await parser.parseChatRequest('1', '@agent? Are you there');
 		await assertSnapshot(result);
 	});
 
@@ -140,6 +150,20 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agents and variables and multiline', async () => {
+		const agentsService = mockObject<IChatAgentService>()({});
+		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
+		instantiationService.stub(IChatAgentService, agentsService as any);
+
+		const variablesService = mockObject<IChatVariablesService>()({});
+		variablesService.hasVariable.returns(true);
+		instantiationService.stub(IChatVariablesService, variablesService as any);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = await parser.parseChatRequest('1', '@agent /subCommand \nPlease do with #selection\nand #debugConsole');
+		await assertSnapshot(result);
+	});
+
+	test('agents and variables and multiline, part2', async () => {
 		const agentsService = mockObject<IChatAgentService>()({});
 		agentsService.getAgent.returns(<Partial<IChatAgent>>{ id: 'agent', metadata: { description: '' }, provideSlashCommands: async () => { return [{ name: 'subCommand', description: '' }]; } });
 		instantiationService.stub(IChatAgentService, agentsService as any);

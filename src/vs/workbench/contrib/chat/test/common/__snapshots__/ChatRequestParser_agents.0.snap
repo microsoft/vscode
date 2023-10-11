@@ -43,11 +43,8 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: {
-        name: "subCommand",
-        description: ""
-      },
-      kind: "subcommand"
+      text: "/subCommand",
+      kind: "text"
     },
     {
       range: {

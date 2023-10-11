@@ -25,12 +25,8 @@
         endLineNumber: 1,
         endColumn: 17
       },
-      agent: {
-        id: "agent",
-        metadata: { description: "" },
-        provideSlashCommands: [Function provideSlashCommands]
-      },
-      kind: "agent"
+      text: "@agent",
+      kind: "text"
     },
     {
       range: {
@@ -57,11 +53,8 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: {
-        name: "subCommand",
-        description: ""
-      },
-      kind: "subcommand"
+      text: "/subCommand",
+      kind: "text"
     },
     {
       range: {
