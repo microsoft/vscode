@@ -62,14 +62,12 @@ declare module 'vscode' {
 		message: string;
 		tooltip?: string;
 		title?: string;
-
-		metadata?: any;
 	}
 
-	export interface FollowupProvider {
+	export type ChatAgentFollowup = ChatAgentCommandFollowup | ChatAgentReplyFollowup;
 
-		// TODO@API inline/copy InteractiveSessionFollowup into this proposal
-		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
+	export interface FollowupProvider {
+		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<ChatAgentFollowup[]>;
 	}
 
 	export interface ChatAgent2 {
@@ -131,6 +129,7 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
+	// TODO@API InteractiveProgress is a lot to inline...
 	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
