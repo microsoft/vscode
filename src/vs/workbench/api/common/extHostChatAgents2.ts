@@ -62,7 +62,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			: undefined;
 
 		const task = agent.invoke(
-			{ message: request.message, variables: {}, slashCommand },
+			{ prompt: request.message, variables: {}, slashCommand },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.InteractiveProgress>(p => {
 				throwIfDone();
@@ -112,8 +112,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 class ExtHostChatAgent {
 
-	private _slashCommandProvider: vscode.SlashCommandProvider | undefined;
-	private _lastSlashCommands: vscode.SlashCommand[] | undefined;
+	private _slashCommandProvider: vscode.ChatAgentSlashCommandProvider | undefined;
+	private _lastSlashCommands: vscode.ChatAgentSlashCommand[] | undefined;
 
 	private _followupProvider: vscode.FollowupProvider | undefined;
 
@@ -154,7 +154,7 @@ class ExtHostChatAgent {
 		return result.map(c => ({ name: c.name, description: c.description }));
 	}
 
-	async provideFollowups(result: vscode.AgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
+	async provideFollowups(result: vscode.ChatAgentResult, token: CancellationToken): Promise<IChatFollowup[]> {
 		if (!this._followupProvider) {
 			return [];
 		}
@@ -220,7 +220,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatAgent2;
 	}
 
-	invoke(request: vscode.AgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.AgentResult> {
+	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult> {
 		return this._callback?.(request, context, progress, token);
 	}
 }

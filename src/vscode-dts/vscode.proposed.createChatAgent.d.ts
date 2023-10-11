@@ -10,33 +10,43 @@ declare module 'vscode' {
 		history: ChatMessage[]; // Should be same type as request?
 	}
 
-	export interface AgentResult extends InteractiveResponseForProgress { }
+	export interface ChatAgentResult extends InteractiveResponseForProgress { }
 
-	export interface SlashCommand {
+	export interface ChatAgentSlashCommand {
+
+		/**
+		 * A short name by which this command is referred to in the UI, e.g. `fix` or
+		 * `explain` for commands that fix an issue or explain code.
+		 */
 		readonly name: string;
+
+		/**
+		 * Human-readable description explaining what this command does.
+		 */
 		readonly description: string;
 	}
 
-	export interface SlashCommandProvider {
+	export interface ChatAgentSlashCommandProvider {
 
 		// is this needed? would allow us to do the caching more nicely?
 		// onDidChangeSlashCommands?: Event<void>;
 
 		// - called when suggest is triggered
 		// - called when focus moves to input box?
-		provideSlashCommands(token: CancellationToken): ProviderResult<SlashCommand[]>;
+		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
 	export interface FollowupProvider {
-		provideFollowups(result: AgentResult, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
+		provideFollowups(result: ChatAgentResult, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
 	}
 
 	export interface ChatAgent2 {
 		readonly name: string;
+
 		description: string;
 		fullName?: string;
 		icon?: Uri;
-		slashCommandProvider?: SlashCommandProvider;
+		slashCommandProvider?: ChatAgentSlashCommandProvider;
 		followupProvider?: FollowupProvider;
 
 		// We need this- can't handle telemetry on the vscode side yet
@@ -45,19 +55,26 @@ declare module 'vscode' {
 		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}
 
-	export interface AgentRequest {
-
-		message: string;
-
-		variables: Record<string, ChatVariableValue[]>;
+	export interface ChatAgentRequest {
 
 		/**
-		 * The {@link SlashCommand slash command} that was selected for this request
+		 * The prompt entered by the user. The {@link ChatAgent2.name name} of the agent or the {@link ChatAgentSlashCommand.name slash command}
+		 * are not part of the prompt.
+		 *
+		 * @see {@link ChatAgentRequest.slashCommand}
 		 */
-		slashCommand?: SlashCommand;
+		prompt: string;
+
+		/**
+		 * The {@link ChatAgentSlashCommand slash command} that was selected for this request
+		 */
+		slashCommand?: ChatAgentSlashCommand;
+
+
+		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	export type ChatAgentHandler = (request: AgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<AgentResult>;
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult>;
 
 	export namespace chat {
 		export function createChatAgent(name: string, description: string, fullName: string | undefined, icon: Uri | undefined, handler: ChatAgentHandler): ChatAgent2;
