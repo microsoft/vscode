@@ -159,7 +159,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
 		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
-		description: {
+		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
@@ -178,7 +178,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
 		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
-		description: {
+		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
 				{
@@ -323,7 +323,7 @@ function registerEditorGroupsLayoutCommands(): void {
 	CommandsRegistry.registerCommand({
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
-		description: {
+		metadata: {
 			description: 'Set Editor Layout',
 			args: [{
 				name: 'args',
@@ -353,7 +353,7 @@ function registerEditorGroupsLayoutCommands(): void {
 
 			return editorGroupService.getLayout();
 		},
-		description: {
+		metadata: {
 			description: 'Get Editor Layout',
 			args: [],
 			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
@@ -526,7 +526,7 @@ function registerOpenEditorAPICommands(): void {
 		handler: (accessor, arg) => {
 			accessor.get(ICommandService).executeCommand(API_OPEN_EDITOR_COMMAND_ID, arg);
 		},
-		description: {
+		metadata: {
 			description: 'Opens the provided resource in the editor.',
 			args: [{ name: 'Uri' }]
 		}
@@ -584,7 +584,7 @@ function registerOpenEditorAPICommands(): void {
 		handler: (accessor, left, right, label) => {
 			accessor.get(ICommandService).executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
 		},
-		description: {
+		metadata: {
 			description: 'Opens the provided resources in the diff editor to compare their contents.',
 			args: [
 				{ name: 'left', description: 'Left-hand side resource of the diff editor' },

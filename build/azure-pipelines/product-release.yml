@@ -5,7 +5,8 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.15"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - task: AzureCLI@2
     inputs:

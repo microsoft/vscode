@@ -17,24 +17,28 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidCreateWindow } = (function () {
-	const windows: Window[] = [];
-	const onDidCreateWindow = new event.Emitter<{ window: Window; disposableStore: DisposableStore }>();
+export const { registerWindow, getWindows, onDidRegisterWindow } = (function () {
+	const windows = new Set([window]);
+	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposableStore: DisposableStore }>();
 	return {
-		onDidCreateWindow: onDidCreateWindow.event,
-		registerWindow(window: Window): IDisposable {
-			windows.push(window);
+		onDidRegisterWindow: onDidRegisterWindow.event,
+		registerWindow(window: Window & typeof globalThis): IDisposable {
+			if (windows.has(window)) {
+				return Disposable.None;
+			}
+
+			windows.add(window);
+
 			const disposableStore = new DisposableStore();
 			disposableStore.add(toDisposable(() => {
-				const index = windows.indexOf(window);
-				if (index !== -1) {
-					windows.splice(index, 1);
-				}
+				windows.delete(window);
 			}));
-			onDidCreateWindow.fire({ window, disposableStore });
+
+			onDidRegisterWindow.fire({ window, disposableStore });
+
 			return disposableStore;
 		},
-		getWindows(): Window[] {
+		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
 		}
 	};
@@ -718,7 +722,7 @@ export function getActiveElement(): Element | null {
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
 export function getActiveDocument(): Document {
-	const documents = [document, ...getWindows().map(w => w.document)];
+	const documents = Array.from(getWindows()).map(window => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
@@ -727,7 +731,10 @@ export function getActiveWindow(): Window & typeof globalThis {
 	return document.defaultView?.window ?? window;
 }
 
-function getWindow(e: unknown): Window & typeof globalThis {
+export function getWindow(element: Node): Window & typeof globalThis;
+export function getWindow(event: UIEvent): Window & typeof globalThis;
+export function getWindow(obj: unknown): Window & typeof globalThis;
+export function getWindow(e: unknown): Window & typeof globalThis {
 	const candidateNode = e as Node | undefined;
 	if (candidateNode?.ownerDocument?.defaultView) {
 		return candidateNode.ownerDocument.defaultView.window;
@@ -739,6 +746,13 @@ function getWindow(e: unknown): Window & typeof globalThis {
 	}
 
 	return window;
+}
+
+export function focusWindow(element: Node): void {
+	const window = getWindow(element);
+	if (window !== getActiveWindow()) {
+		window.focus();
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {

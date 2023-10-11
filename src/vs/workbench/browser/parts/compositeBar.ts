@@ -150,8 +150,6 @@ export interface ICompositeBarOptions {
 
 	readonly openComposite: (compositeId: string, preserveFocus?: boolean) => Promise<IComposite | null>;
 	readonly getDefaultCompositeId: () => string | undefined;
-
-	readonly hidePart: () => void;
 }
 
 export class CompositeBar extends Widget implements ICompositeBar {
@@ -303,6 +301,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 	recomputeSizes(): void {
 		this.computeSizes(this.model.visibleItems);
+		this.updateCompositeSwitcher();
 	}
 
 	layout(dimension: Dimension): void {

@@ -22,7 +22,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 18.15
+          node-version-file: .nvmrc
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -53,7 +53,9 @@ jobs:
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-        run: yarn --frozen-lockfile --network-timeout 180000
+        run: |
+          npm i -g node-gyp@9.4.0
+          yarn --frozen-lockfile --network-timeout 180000
 
       - name: Download Playwright
         run: yarn playwright-install

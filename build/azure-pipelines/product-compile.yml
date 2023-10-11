@@ -5,7 +5,8 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.15.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ./distro/download-distro.yml
@@ -58,6 +59,8 @@ steps:
 
   - script: |
       set -e
+      npm i -g node-gyp@9.4.0
+
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
         if [ $i -eq 3 ]; then

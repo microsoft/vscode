@@ -1,7 +1,8 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.15"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"

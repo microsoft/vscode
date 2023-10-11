@@ -95,6 +95,7 @@ export interface IChatResponseViewModel {
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
+	usedReferencesExpanded?: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -298,6 +299,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	renderData: IChatResponseRenderData | undefined = undefined;
 
 	currentRenderedHeight: number | undefined;
+
+	usedReferencesExpanded?: boolean | undefined;
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {

@@ -38,6 +38,7 @@ import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurrentProviderId, accessibleViewGoToSymbolSupported, accessibleViewIsShown, accessibleViewOnLastLine, accessibleViewSupportsNavigation, accessibleViewVerbosityEnabled } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
@@ -463,11 +464,17 @@ export class AccessibleView extends Disposable {
 			this._editorWidget.updateOptions({ ariaLabel });
 			this._editorWidget.focus();
 			if (this._currentProvider?.options.positionBottom) {
-				const lastLine = this.editorWidget.getModel()?.getLineCount();
-				const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
-				if (position) {
-					this._editorWidget.setPosition(position);
-					this._editorWidget.revealLine(position.lineNumber);
+				const currentPosition = this.editorWidget.getPosition();
+				const defaultPosition = currentPosition && currentPosition?.lineNumber === 1 && currentPosition?.column === 1;
+				if (currentPosition && this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) && !defaultPosition) {
+					this._editorWidget.setPosition(currentPosition);
+				} else {
+					const lastLine = this.editorWidget.getModel()?.getLineCount();
+					const position = lastLine !== undefined && lastLine > 0 ? new Position(lastLine, 1) : undefined;
+					if (position) {
+						this._editorWidget.setPosition(position);
+						this._editorWidget.revealLine(position.lineNumber);
+					}
 				}
 			}
 		});

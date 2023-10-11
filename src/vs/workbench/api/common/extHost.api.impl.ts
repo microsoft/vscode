@@ -1305,10 +1305,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.registerChatProvider(extension, id, provider);
 			},
-			addInteractiveRequest(context: vscode.InteractiveSessionRequestArgs) {
-				checkProposedApiEnabled(extension, 'interactive');
-				return extHostChat.addChatRequest(context);
-			},
 			sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest) {
 				checkProposedApiEnabled(extension, 'interactive');
 				return extHostChat.sendInteractiveRequestToProvider(providerId, message);

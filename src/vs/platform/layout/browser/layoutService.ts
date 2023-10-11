@@ -55,6 +55,11 @@ export interface ILayoutService {
 	readonly activeContainer: HTMLElement;
 
 	/**
+	 * All the containers of the application. There can be one container per window.
+	 */
+	readonly containers: Iterable<HTMLElement>;
+
+	/**
 	 * An offset to use for positioning elements inside the container.
 	 */
 	readonly offset: ILayoutOffsetInfo;
