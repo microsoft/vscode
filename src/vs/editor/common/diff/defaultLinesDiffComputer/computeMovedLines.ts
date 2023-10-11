@@ -7,7 +7,7 @@ import { ITimeout, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffCo
 import { DetailedLineRangeMapping, LineRangeMapping } from '../rangeMapping';
 import { pushMany, compareBy, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { MonotonousArray, findLastMonotonous } from 'vs/base/common/arraysFind';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { LineRange, LineRangeSet } from 'vs/editor/common/core/lineRange';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
@@ -33,12 +33,23 @@ export function computeMovedLines(
 	moves = joinCloseConsecutiveMoves(moves);
 	// Ignore too short moves
 	moves = moves.filter(current => {
-		const originalText = current.original.toOffsetRange().slice(originalLines).map(l => l.trim()).join('\n');
-		return originalText.length >= 10;
+		const lines = current.original.toOffsetRange().slice(originalLines).map(l => l.trim());
+		const originalText = lines.join('\n');
+		return originalText.length >= 15 && countWhere(lines, l => l.length >= 2) >= 2;
 	});
 	moves = removeMovesInSameDiff(changes, moves);
 
 	return moves;
+}
+
+function countWhere<T>(arr: T[], predicate: (t: T) => boolean): number {
+	let count = 0;
+	for (const t of arr) {
+		if (predicate(t)) {
+			count++;
+		}
+	}
+	return count;
 }
 
 function computeMovesFromSimpleDeletionsToSimpleInsertions(
@@ -196,6 +207,9 @@ function computeUnchangedMoves(
 		for (extendToTop = 0; extendToTop < linesAbove; extendToTop++) {
 			const origLine = move.original.startLineNumber - extendToTop - 1;
 			const modLine = move.modified.startLineNumber - extendToTop - 1;
+			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+				break;
+			}
 			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
 				break;
 			}
@@ -213,6 +227,9 @@ function computeUnchangedMoves(
 		for (extendToBottom = 0; extendToBottom < linesBelow; extendToBottom++) {
 			const origLine = move.original.endLineNumberExclusive + extendToBottom;
 			const modLine = move.modified.endLineNumberExclusive + extendToBottom;
+			if (origLine > originalLines.length || modLine > modifiedLines.length) {
+				break;
+			}
 			if (modifiedSet.contains(modLine) || originalSet.contains(origLine)) {
 				break;
 			}
@@ -301,14 +318,12 @@ function joinCloseConsecutiveMoves(moves: LineRangeMapping[]): LineRangeMapping[
 function removeMovesInSameDiff(changes: DetailedLineRangeMapping[], moves: LineRangeMapping[]) {
 	const changesMonotonous = new MonotonousArray(changes);
 	moves = moves.filter(m => {
-		const diffBeforeOriginalMove = changesMonotonous.findLastMonotonous(c => c.original.endLineNumberExclusive <= m.original.startLineNumber)
+		const diffBeforeEndOfMoveOriginal = changesMonotonous.findLastMonotonous(c => c.original.startLineNumber < m.original.endLineNumberExclusive)
 			|| new LineRangeMapping(new LineRange(1, 1), new LineRange(1, 1));
+		const diffBeforeEndOfMoveModified = findLastMonotonous(changes, c => c.modified.startLineNumber < m.modified.endLineNumberExclusive);
 
-		const modifiedDistToPrevDiff = m.modified.startLineNumber - diffBeforeOriginalMove.modified.endLineNumberExclusive;
-		const originalDistToPrevDiff = m.original.startLineNumber - diffBeforeOriginalMove.original.endLineNumberExclusive;
-
-		const differentDistances = modifiedDistToPrevDiff !== originalDistToPrevDiff;
-		return differentDistances;
+		const differentDiffs = diffBeforeEndOfMoveOriginal !== diffBeforeEndOfMoveModified;
+		return differentDiffs;
 	});
 	return moves;
 }

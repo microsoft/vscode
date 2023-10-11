@@ -173,7 +173,7 @@ interface IPointerEventFactory {
 
 class MouseEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {
@@ -192,7 +192,7 @@ class MouseEventFactory implements IPointerEventFactory {
 
 class GestureEventFactory implements IPointerEventFactory {
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	@memoize
 	get onPointerMove(): Event<PointerEvent> {

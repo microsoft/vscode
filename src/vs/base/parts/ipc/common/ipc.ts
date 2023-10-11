@@ -798,7 +798,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
 	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];
@@ -1129,7 +1129,11 @@ export namespace ProxyChannel {
 						}
 					}
 
-					return target.apply(handler, args);
+					let res = target.apply(handler, args);
+					if (!(res instanceof Promise)) {
+						res = Promise.resolve(res);
+					}
+					return res;
 				}
 
 				throw new ErrorNoTelemetry(`Method not found: ${command}`);
