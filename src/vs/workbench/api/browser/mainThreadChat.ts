@@ -158,6 +158,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			revivedProgress = { documents: revive(progress.documents) };
 		} else if ('reference' in progress) {
 			revivedProgress = revive<{ reference: UriComponents | ILocationDto }>(progress);
+		} else if ('inlineReference' in progress) {
+			revivedProgress = revive<{ inlineReference: UriComponents | ILocationDto; name?: string }>(progress);
 		} else {
 			revivedProgress = progress;
 		}

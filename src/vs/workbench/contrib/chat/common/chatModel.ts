@@ -8,13 +8,14 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { basename } from 'vs/base/common/resources';
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -37,10 +38,11 @@ export type ResponsePart =
 		>;
 	}
 	| IUsedContext
-	| IChatContentReference;
+	| IChatContentReference
+	| IChatContentInlineReference;
 
 export interface IResponse {
-	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData>;
+	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
 	readonly usedContext: IUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	onDidChangeValue: Event<void>;
@@ -105,6 +107,7 @@ export interface IPlaceholderMarkdownString extends IMarkdownString {
 
 type InternalResponsePart =
 	| { string: IMarkdownString; isPlaceholder?: boolean }
+	| IChatContentInlineReference
 	| { treeData: IChatResponseProgressFileTreeData; isPlaceholder?: undefined };
 
 export class Response implements IResponse {
@@ -126,20 +129,24 @@ export class Response implements IResponse {
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
 	private _responseParts: InternalResponsePart[];
 	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
-	private _responseData: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[];
+	private _responseData: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference)[];
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
 	private _responseRepr: string;
 
-	get value(): (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData)[] {
+	get value(): (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference)[] {
 		return this._responseData;
 	}
 
-	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>) {
+	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>) {
 		this._responseData = Array.isArray(value) ? value : [value];
 		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
 		this._responseRepr = this._responseParts.map((part) => {
 			if (isCompleteInteractiveProgressTreeData(part)) {
 				return '';
+			}
+			// TODO duplicates _updateRepr
+			if ('inlineReference' in part) {
+				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			}
 			return part.string.value;
 		}).join('\n');
@@ -154,7 +161,7 @@ export class Response implements IResponse {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart)) {
+			if ('inlineReference' in lastResponsePart || lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart)) {
 				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: typeof responsePart === 'string' ? new MarkdownString(responsePart) : responsePart });
 			} else {
@@ -192,12 +199,17 @@ export class Response implements IResponse {
 			this._usedContext = responsePart;
 		} else if ('reference' in responsePart) {
 			this._contentReferences.push(responsePart);
+		} else if ('inlineReference' in responsePart) {
+			this._responseParts.push(responsePart);
+			this._updateRepr(quiet);
 		}
 	}
 
 	private _updateRepr(quiet?: boolean) {
 		this._responseData = this._responseParts.map(part => {
-			if (isCompleteInteractiveProgressTreeData(part)) {
+			if ('inlineReference' in part) {
+				return part;
+			} else if (isCompleteInteractiveProgressTreeData(part)) {
 				return part.treeData;
 			} else if (part.isPlaceholder) {
 				return { ...part.string, isPlaceholder: true };
@@ -209,6 +221,10 @@ export class Response implements IResponse {
 			if (isCompleteInteractiveProgressTreeData(part)) {
 				return '';
 			}
+			if ('inlineReference' in part) {
+				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+			}
+
 			return part.string.value;
 		}).join('\n\n');
 
@@ -273,7 +289,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	private _followups?: IChatFollowup[];
 
 	constructor(
-		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>,
+		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
 		public readonly session: ChatModel,
 		public readonly agent: IChatAgentData | undefined,
 		private _isComplete: boolean = false,
@@ -354,7 +370,7 @@ export interface ISerializableChatAgentData {
 export interface ISerializableChatRequestData {
 	providerRequestId: string | undefined;
 	message: string | IParsedChatRequest;
-	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> | undefined;
+	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference> | undefined;
 	agent?: ISerializableChatAgentData;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
 	followups: ReadonlyArray<IChatFollowup> | undefined;
@@ -658,7 +674,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress.content, quiet);
 		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
 			request.response.updateContent(progress, quiet);
-		} else if ('documents' in progress || 'reference' in progress) {
+		} else if ('documents' in progress || 'reference' in progress || 'inlineReference' in progress) {
 			request.response.updateContent(progress);
 		} else {
 			request.setProviderRequestId(progress.requestId);

@@ -125,6 +125,11 @@ declare module 'vscode' {
 		reference: Uri | Location;
 	}
 
+	export interface InteractiveInlineContentReference {
+		inlineReference: Uri | Location;
+		title?: string; // eg symbol name
+	}
+
 	export interface InteractiveProgressContent {
 		content: string | MarkdownString;
 	}
@@ -164,7 +169,8 @@ declare module 'vscode' {
 		| InteractiveProgressTask
 		| InteractiveProgressFileTree
 		| InteractiveProgressUsedContext
-		| InteractiveContentReference;
+		| InteractiveContentReference
+		| InteractiveInlineContentReference;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
