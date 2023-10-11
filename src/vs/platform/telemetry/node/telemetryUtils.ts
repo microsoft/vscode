@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isMacintosh } from 'vs/base/common/platform';
-import { getMachineId } from 'vs/base/node/id';
+import { getMachineId, getSqmMachineId } from 'vs/base/node/id';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IStateReadService } from 'vs/platform/state/node/state';
-import { machineIdKey } from 'vs/platform/telemetry/common/telemetry';
+import { machineIdKey, sqmIdKey } from 'vs/platform/telemetry/common/telemetry';
 
 
 export async function resolveMachineId(stateService: IStateReadService, logService: ILogService) {
@@ -19,4 +19,13 @@ export async function resolveMachineId(stateService: IStateReadService, logServi
 	}
 
 	return machineId;
+}
+
+export async function resolveSqmId(stateService: IStateReadService) {
+	let sqmId = stateService.getItem<string>(sqmIdKey);
+	if (typeof sqmId !== 'string') {
+		sqmId = await getSqmMachineId();
+	}
+
+	return sqmId;
 }
