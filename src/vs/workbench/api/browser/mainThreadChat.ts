@@ -109,6 +109,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
 			},
+			provideSampleQuestions: (token) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
+			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
 			},

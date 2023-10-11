@@ -551,7 +551,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content, []);
 		}
 
 		try {
@@ -796,6 +796,7 @@ export type IChatWelcomeMessageContent = IMarkdownString | IChatReplyFollowup[];
 export interface IChatWelcomeMessageModel {
 	readonly id: string;
 	readonly content: IChatWelcomeMessageContent[];
+	readonly sampleQuestions: IChatReplyFollowup[];
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 
@@ -812,6 +813,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	constructor(
 		private readonly session: ChatModel,
 		public readonly content: IChatWelcomeMessageContent[],
+		public readonly sampleQuestions: IChatReplyFollowup[]
 	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
 	}
