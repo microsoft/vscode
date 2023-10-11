@@ -704,7 +704,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -728,7 +728,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -753,7 +753,7 @@ registerAction2(class extends Action2 {
 
 					results.push({
 						id: viewDescriptor.id,
-						label: viewDescriptor.name
+						label: viewDescriptor.name.value
 					});
 				}
 			});
@@ -827,7 +827,7 @@ class MoveFocusedViewAction extends Action2 {
 
 		const quickPick = quickInputService.createQuickPick();
 		quickPick.placeholder = localize('moveFocusedView.selectDestination', "Select a Destination for the View");
-		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name);
+		quickPick.title = localize({ key: 'moveFocusedView.title', comment: ['{0} indicates the title of the view the user has selected to move.'] }, "View: Move {0}", viewDescriptor.name.value);
 
 		const items: Array<IQuickPickItem | IQuickPickSeparator> = [];
 		const currentContainer = viewDescriptorService.getViewContainerByViewId(focusedViewId)!;
@@ -924,16 +924,16 @@ class MoveFocusedViewAction extends Action2 {
 			const destination = quickPick.selectedItems[0];
 
 			if (destination.id === '_.panel.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel);
+				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Panel, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.sidebar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar);
+				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.Sidebar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id === '_.auxiliarybar.newcontainer') {
-				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar);
+				viewDescriptorService.moveViewToLocation(viewDescriptor!, ViewContainerLocation.AuxiliaryBar, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			} else if (destination.id) {
-				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!);
+				viewDescriptorService.moveViewsToContainer([viewDescriptor], viewDescriptorService.getViewContainerById(destination.id)!, undefined, this.desc.id);
 				viewsService.openView(focusedViewId, true);
 			}
 
@@ -986,7 +986,7 @@ registerAction2(class extends Action2 {
 			return;
 		}
 
-		viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer);
+		viewDescriptorService.moveViewsToContainer([viewDescriptor], defaultContainer, undefined, this.desc.id);
 		viewsService.openView(viewDescriptor.id, true);
 	}
 });

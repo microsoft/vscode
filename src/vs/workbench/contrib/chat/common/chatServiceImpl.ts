@@ -467,6 +467,8 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned documents for session ${model.sessionId}:\n ${JSON.stringify(progress.documents, null, '\t')}`);
 				} else if ('reference' in progress) {
 					this.trace('sendRequest', `Provider returned a reference for session ${model.sessionId}:\n ${JSON.stringify(progress.reference, null, '\t')}`);
+				} else if ('inlineReference' in progress) {
+					this.trace('sendRequest', `Provider returned an inline reference for session ${model.sessionId}:\n ${JSON.stringify(progress.inlineReference, null, '\t')}`);
 				} else {
 					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
 				}
@@ -502,13 +504,12 @@ export class ChatService extends Disposable implements IChatService {
 					request = model.addRequest(parsedRequest, agentPart.agent);
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
-						if (typeof request.message !== 'string' || !request.response) {
+						if (!request.response) {
 							continue;
 						}
-						if (isMarkdownString(request.response.response.value)) {
-							history.push({ role: ChatMessageRole.User, content: request.message });
-							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
-						}
+
+						history.push({ role: ChatMessageRole.User, content: 'text' in request.message ? request.message.text : request.message.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 
 					const requestProps: IChatAgentRequest = {
@@ -534,13 +535,11 @@ export class ChatService extends Disposable implements IChatService {
 					// TODO: spell this out in the UI
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
-						if (typeof request.message !== 'string' || !request.response) {
+						if (!request.response) {
 							continue;
 						}
-						if (isMarkdownString(request.response.response.value)) {
-							history.push({ role: ChatMessageRole.User, content: request.message });
-							history.push({ role: ChatMessageRole.Assistant, content: request.response.response.value.value });
-						}
+						history.push({ role: ChatMessageRole.User, content: 'text' in request.message ? request.message.text : request.message.message });
+						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 					const commandResult = await this.chatSlashCommandService.executeCommand(commandPart.slashCommand.command, message.substring(commandPart.slashCommand.command.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
 						const { content } = p;
@@ -690,7 +689,9 @@ export class ChatService extends Disposable implements IChatService {
 			model.acceptResponseProgress(request, { content: response.message });
 		} else {
 			for (const part of response.message) {
-				const progress = isMarkdownString(part) ? { content: part.value } : { treeData: part };
+				const progress = 'inlineReference' in part ? part :
+					isMarkdownString(part) ? { content: part.value } :
+						{ treeData: part };
 				model.acceptResponseProgress(request, progress, true);
 			}
 		}

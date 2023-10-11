@@ -62,7 +62,6 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
@@ -70,6 +69,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
+import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -726,18 +726,6 @@ export class NativeWindow extends Disposable {
 		// Windows 32-bit warning
 		if (isWindows && this.environmentService.os.arch === 'ia32') {
 			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
-			const actions = [{
-				label: localize('windowseolBannerLearnMore', "Learn More"),
-				href: 'https://aka.ms/vscode-faq-old-windows'
-			}];
-
-			this.bannerService.show({
-				id: 'windows32eol.banner',
-				message,
-				ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-				actions,
-				icon: Codicon.warning
-			});
 
 			this.notificationService.prompt(
 				Severity.Warning,
@@ -764,18 +752,6 @@ export class NativeWindow extends Disposable {
 
 			if (eolReleases.has(majorVersion)) {
 				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
-				const actions = [{
-					label: localize('macoseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-macOS'
-				}];
-
-				this.bannerService.show({
-					id: 'macoseol.banner',
-					message,
-					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
 
 				this.notificationService.prompt(
 					Severity.Warning,

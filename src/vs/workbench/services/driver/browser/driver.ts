@@ -6,23 +6,29 @@
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
-import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile, IWindowDriver } from 'vs/platform/driver/common/driver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
-import { getLogs } from 'vs/platform/log/browser/log';
+import { ILogFile, getLogs } from 'vs/platform/log/browser/log';
+import { IWindowDriver, IElement, ILocaleInfo, ILocalizedStrings } from 'vs/workbench/services/driver/common/driver';
+import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 export class BrowserWindowDriver implements IWindowDriver {
 
 	constructor(
 		@IFileService private readonly fileService: IFileService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 	) {
 	}
 
 	async getLogs(): Promise<ILogFile[]> {
 		return getLogs(this.fileService, this.environmentService);
+	}
+
+	whenWorkbenchRestored(): Promise<void> {
+		return this.lifecycleService.when(LifecyclePhase.Restored);
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
@@ -211,6 +217,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	async exitApplication(): Promise<void> {
 		// No-op in web
 	}
+
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {

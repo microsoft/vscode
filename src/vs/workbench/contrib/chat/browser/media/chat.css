@@ -110,6 +110,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
 }
@@ -165,11 +166,11 @@
 
 .interactive-item-container .value .rendered-markdown p {
 	margin: 0 0 16px 0;
-	line-height: 1.6em;
+	line-height: 1.5em;
 }
 
 .interactive-item-container .value .rendered-markdown li {
-	line-height: 1.5rem;
+	line-height: 1.3rem;
 }
 
 .interactive-item-container .monaco-tokenized-source,
