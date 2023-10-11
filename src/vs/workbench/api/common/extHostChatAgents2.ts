@@ -58,13 +58,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
 
-		// const slashCommand = command && agent.slashCommands.find(s => s.name === command);
-		// if (!slashCommand) {
-		// 	throw new Error(`Unknown slashCommand: ${command}`);
-		// }
+		const slashCommand = command ? agent.slashCommands.find(s => s.name === command) : undefined;
+		if (command && !slashCommand) {
+			throw new Error(`Unknown slashCommand: ${command}`);
+		}
 
 		const task = agent.invoke(
-			{ message: prompt, variables: {} },
+			{ message: prompt, variables: {}, slashCommand },
 			{ history: context.history.map(typeConvert.ChatMessage.to) },
 			new Progress<vscode.InteractiveProgress>(p => {
 				throwIfDone();
@@ -75,13 +75,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		);
 
 		try {
-			return await raceCancellation(Promise.resolve(task).then((v) => {
-				// if (v && 'followUp' in v) {
-				// const convertedFollowup = v?.followUp?.map(f => typeConvert.ChatFollowup.from(f));
-				// return { followUp: convertedFollowup };
-				// }
-				return undefined;
-			}), token);
+			return await raceCancellation(Promise.resolve(task), token);
 		} finally {
 			done = true;
 			commandExecution.complete();
@@ -97,10 +91,6 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideSlashCommand(token);
 	}
 }
-
-// function isInteractiveProgressFileTree(thing: unknown): thing is vscode.InteractiveProgressFileTree {
-// 	return !!thing && typeof thing === 'object' && 'treeData' in thing;
-// }
 
 class ExtHostChatAgent {
 
@@ -167,7 +157,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatAgent2;
 	}
 
-	invoke(request: vscode.SlashRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken) {
-		this._callback?.(request, context, progress, token);
+	invoke(request: vscode.SlashRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.SlashResult> {
+		return this._callback?.(request, context, progress, token);
 	}
 }

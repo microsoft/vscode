@@ -44,7 +44,7 @@ declare module 'vscode' {
 		// Extensions can assign this to provide followups.
 		// Maybe context.history is the only thing needed here, but if the extension relies on some other internal info, they could store that on SlashResult
 		// copilot chat tries to save a little time by starting to compute followups before they are requested.
-		provideFollowups?: (request: SlashRequest, result: SlashResult, context: ChatAgentContext, token: CancellationToken) => ProviderResult<InteractiveSessionFollowup[]>;
+		provideFollowups?: (result: SlashResult, token: CancellationToken) => ProviderResult<InteractiveSessionFollowup[]>;
 
 		// We need this- can't handle telemetry on the vscode side yet
 		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
@@ -52,7 +52,11 @@ declare module 'vscode' {
 		// prepareSession(); Something like prepareSession from the interactive chat provider might be needed. Probably nobody needs it right now.
 	}
 
-	export type SlashRequest = Omit<InteractiveRequest, 'session'>;
+	export interface SlashRequest {
+		message: string;
+		variables: Record<string, ChatVariableValue[]>;
+		slashCommand?: SlashCommand;
+	}
 
 	// Could include "slashCommand: SlashCommand | undefined" here instead of the invoke method.
 	export type ChatAgentHandler = (request: SlashRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<SlashResult>;
