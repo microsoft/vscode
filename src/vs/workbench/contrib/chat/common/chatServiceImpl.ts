@@ -362,7 +362,10 @@ export class ChatService extends Disposable implements IChatService {
 
 			const welcomeMessage = model.welcomeMessage ? undefined : await provider.provideWelcomeMessage?.(token) ?? undefined;
 			const welcomeModel = welcomeMessage && new ChatWelcomeMessageModel(
-				model, welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]));
+				model,
+				welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item as IChatReplyFollowup[]),
+				await provider.provideSampleQuestions?.(token) ?? []
+			);
 
 			model.initialize(session, welcomeModel);
 		} catch (err) {
