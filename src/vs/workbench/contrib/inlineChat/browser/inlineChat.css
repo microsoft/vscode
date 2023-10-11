@@ -144,6 +144,14 @@
 	align-self: center;
 }
 
+.monaco-editor .inline-chat .status .label .slash-command-pill CODE {
+	border-radius: 3px;
+	padding: 1px;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+}
+
+
 .monaco-editor .inline-chat .markdownMessage {
 	padding: 10px 5px;
 }
