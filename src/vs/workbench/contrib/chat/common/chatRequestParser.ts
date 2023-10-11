@@ -95,7 +95,7 @@ export class ChatRequestParser {
 				}
 			}
 			if (part instanceof ChatRequestAgentSubcommandPart) {
-				if (!(i === 0 || agentIndex === 0 && i === 2 && /\s+/.test(parts[1].text))) {
+				if (!(i === 0 || agentIndex === 0 && i === 2 && /^\s+$/.test(parts[1].text))) {
 					// agent command not after agent nor first -> make text part
 					parts[i] = new ChatRequestTextPart(part.range, part.editorRange, part.text);
 				}
