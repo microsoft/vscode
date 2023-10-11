@@ -353,6 +353,11 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				const range = computeCompletionRanges(model, position, /\/\w*/g);
+				if (!range) {
+					return null;
+				}
+
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
 				const usedAgent = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 				if (!usedAgent) {
@@ -374,7 +379,7 @@ class AgentCompletions extends Disposable {
 							label: withSlash,
 							insertText: `${withSlash} `,
 							detail: c.description,
-							range: new Range(1, position.column - 1, 1, position.column - 1),
+							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
 					})
