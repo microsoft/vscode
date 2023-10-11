@@ -11,7 +11,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -274,7 +274,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>,
 		public readonly session: ChatModel,
-		public readonly agent: IChatAgentData | undefined,
+		public readonly agent: IChatAgent | undefined,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
@@ -627,7 +627,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
+	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgent): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}

@@ -36,21 +36,17 @@ export class MainThreadChatAgents implements MainThreadChatAgentsShape {
 	}
 
 	$registerAgent(handle: number, name: string, metadata: IChatAgentMetadata): void {
-		if (!this._chatAgentService.hasAgent(name)) {
-			// dynamic!
-			this._chatAgentService.registerAgentData({
-				id: name,
-				metadata: revive(metadata)
-			});
-		}
-
-		const d = this._chatAgentService.registerAgentCallback(name, async (request, progress, history, token) => {
-			const requestId = Math.random();
-			this._pendingProgress.set(requestId, progress);
-			try {
-				return await this._proxy.$invokeAgent(handle, requestId, request.message, { history }, token);
-			} finally {
-				this._pendingProgress.delete(requestId);
+		const d = this._chatAgentService.registerAgent({
+			id: name,
+			metadata: revive(metadata),
+			invoke: async (request, progress, history, token) => {
+				const requestId = Math.random();
+				this._pendingProgress.set(requestId, progress);
+				try {
+					return await this._proxy.$invokeAgent(handle, requestId, request.message, { history }, token);
+				} finally {
+					this._pendingProgress.delete(requestId);
+				}
 			}
 		});
 		this._agents.set(handle, d);

@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -95,7 +95,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		let agent: IChatAgentData | undefined;
+		let agent: IChatAgent | undefined;
 		if ((agent = this.agentService.getAgent(name))) {
 			if (parts.some(p => p instanceof ChatRequestAgentPart)) {
 				// Only one agent allowed
