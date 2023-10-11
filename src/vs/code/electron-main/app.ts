@@ -133,7 +133,7 @@ export class CodeApplication extends Disposable {
 	};
 
 	private windowsMainService: IWindowsMainService | undefined;
-	private auxiliaryAindowsMainService: IAuxiliaryWindowsMainService | undefined;
+	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
@@ -388,7 +388,7 @@ export class CodeApplication extends Disposable {
 			// Child Window: delegate to `AuxiliaryWindow` class
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
-				this.auxiliaryAindowsMainService?.registerWindow(contents);
+				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
 			// Block any in-page navigation
@@ -408,7 +408,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: this.auxiliaryAindowsMainService?.createWindow()
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
 					};
 				}
 
@@ -1213,7 +1213,7 @@ export class CodeApplication extends Disposable {
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
-		this.auxiliaryAindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
+		this.auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;

@@ -365,19 +365,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
 		const { focussed } = this.windowById(windowId);
 
-		return this.dialogMainService.showMessageBox(options, focussed ?? undefined);
+		return this.dialogMainService.showMessageBox(options, focussed);
 	}
 
 	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
 		const { focussed } = this.windowById(windowId);
 
-		return this.dialogMainService.showSaveDialog(options, focussed ?? undefined);
+		return this.dialogMainService.showSaveDialog(options, focussed);
 	}
 
 	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
 		const { focussed } = this.windowById(windowId);
 
-		return this.dialogMainService.showOpenDialog(options, focussed ?? undefined);
+		return this.dialogMainService.showOpenDialog(options, focussed);
 	}
 
 	async pickFileFolderAndOpen(windowId: number | undefined, options: INativeOpenDialogOptions): Promise<void> {
@@ -737,16 +737,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
 		const { focussed } = this.windowById(windowId);
-		if (focussed) {
-			focussed.webContents.openDevTools(options);
-		}
+
+		focussed?.webContents.openDevTools(options);
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
 		const { focussed } = this.windowById(windowId);
-		if (focussed) {
-			focussed.webContents.toggleDevTools();
-		}
+
+		focussed?.webContents.toggleDevTools();
 	}
 
 	async sendInputEvent(windowId: number | undefined, event: MouseInputEvent): Promise<void> {
@@ -765,6 +763,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		if (!window || !window.win) {
 			throw new Error();
 		}
+
 		const profiler = new WindowProfiler(window.win, session, this.logService);
 		const result = await profiler.inspect(duration);
 		return result;
