@@ -21,6 +21,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Event } from 'vs/base/common/event';
+import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -255,7 +257,7 @@ function canToggleWordWrap(codeEditorService: ICodeEditorService, editor: ICodeE
 	return true;
 }
 
-class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
+class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchContribution {
 
 	private readonly _canToggleWordWrap: IContextKey<boolean>;
 	private readonly _editorWordWrap: IContextKey<boolean>;
@@ -267,8 +269,11 @@ class EditorWordWrapContextKeyTracker implements IWorkbenchContribution {
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IContextKeyService private readonly _contextService: IContextKeyService,
 	) {
-		window.addEventListener('focus', () => this._update(), true);
-		window.addEventListener('blur', () => this._update(), true);
+		super();
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, 'focus', () => this._update(), true));
+			disposables.add(addDisposableListener(window, 'blur', () => this._update(), true));
+		}, { window, disposables: this._store }));
 		this._editorService.onDidActiveEditorChange(() => this._update());
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);

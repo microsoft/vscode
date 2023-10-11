@@ -444,7 +444,7 @@ export class NotebookOptions extends Disposable {
 			configuration.fontSize = this.configurationService.getValue<number>('editor.fontSize');
 		}
 
-		if (outputFontSize) {
+		if (outputFontSize || fontSize) {
 			configuration.outputFontSize = this.configurationService.getValue<number>(NotebookSetting.outputFontSize) || configuration.fontSize;
 		}
 

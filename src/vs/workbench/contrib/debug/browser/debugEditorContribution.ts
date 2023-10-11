@@ -316,11 +316,12 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 	private applyHoverConfiguration(model: ITextModel, stackFrame: IStackFrame | undefined): void {
 		if (stackFrame && this.uriIdentityService.extUri.isEqual(model.uri, stackFrame.source.uri)) {
+			const ownerDocument = this.editor.getContainerDomNode().ownerDocument;
 			if (this.altListener) {
 				this.altListener.dispose();
 			}
 			// When the alt key is pressed show regular editor hover and hide the debug hover #84561
-			this.altListener = addDisposableListener(document, 'keydown', keydownEvent => {
+			this.altListener = addDisposableListener(ownerDocument, 'keydown', keydownEvent => {
 				const standardKeyboardEvent = new StandardKeyboardEvent(keydownEvent);
 				if (standardKeyboardEvent.keyCode === KeyCode.Alt) {
 					this.altPressed = true;
@@ -332,7 +333,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 						this.showEditorHover(this.hoverPosition, false);
 					}
 
-					const onKeyUp = new DomEmitter(document, 'keyup');
+					const onKeyUp = new DomEmitter(ownerDocument, 'keyup');
 					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
 						let standardKeyboardEvent = undefined;
 						if (isKeyboardEvent(keyupEvent)) {

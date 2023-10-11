@@ -434,7 +434,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					await this._runTaskCommand(arg);
 				}
 			},
-			description: {
+			metadata: {
 				description: 'Run Task',
 				args: [{
 					name: 'args',
@@ -2387,10 +2387,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		}
 		const taskSystemInfo: ITaskSystemInfo | undefined = this._getTaskSystemInfo(workspaceFolder.uri.scheme);
 		const problemReporter = new ProblemReporter(this._outputChannel);
-		if (!taskSystemInfo) {
-			problemReporter.fatal(nls.localize('TaskSystem.workspaceFolderError', 'Workspace folder was undefined'));
-			return true;
-		}
 		const parseResult = TaskConfig.parse(workspaceFolder, this._workspace, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, config, problemReporter, source, this._contextKeyService, isRecentTask);
 		let hasErrors = false;
 		if (!parseResult.validationStatus.isOK() && (parseResult.validationStatus.state !== ValidationState.Info)) {
@@ -2898,6 +2894,10 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				if (executeResult) {
 					return this._handleExecuteResult(executeResult);
 				} else {
+					if (!this._taskRunningState.get()) {
+						// No task running, prompt to ask which to run
+						this._doRunTaskCommand();
+					}
 					return Promise.resolve(undefined);
 				}
 			});

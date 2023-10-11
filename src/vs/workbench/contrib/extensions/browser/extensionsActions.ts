@@ -1283,7 +1283,8 @@ export class InstallAnotherVersionAction extends ExtensionAction {
 			}
 			try {
 				if (pick.latest) {
-					await this.extensionsWorkbenchService.install(this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion });
+					const [extension] = pick.id !== this.extension?.version ? await this.extensionsWorkbenchService.getExtensions([{ id: this.extension!.identifier.id, preRelease: pick.isPreReleaseVersion }], CancellationToken.None) : [this.extension];
+					await this.extensionsWorkbenchService.install(extension ?? this.extension!, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				} else {
 					await this.extensionsWorkbenchService.installVersion(this.extension!, pick.id, { installPreReleaseVersion: pick.isPreReleaseVersion });
 				}

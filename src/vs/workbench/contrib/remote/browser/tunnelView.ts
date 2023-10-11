@@ -742,7 +742,7 @@ const PortChangableContextKey = new RawContextKey<boolean>('portChangable', fals
 export class TunnelPanel extends ViewPane {
 
 	static readonly ID = TUNNEL_VIEW_ID;
-	static readonly TITLE = nls.localize('remote.tunnel', "Ports");
+	static readonly TITLE: ILocalizedString = nls.localize2('remote.tunnel', "Ports");
 
 	private panelContainer: HTMLElement | undefined;
 	private table!: WorkbenchTable<ITunnelItem>;
@@ -1083,7 +1083,7 @@ export class TunnelPanel extends ViewPane {
 
 export class TunnelPanelDescriptor implements IViewDescriptor {
 	readonly id = TunnelPanel.ID;
-	readonly name = TunnelPanel.TITLE;
+	readonly name: ILocalizedString = TunnelPanel.TITLE;
 	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;

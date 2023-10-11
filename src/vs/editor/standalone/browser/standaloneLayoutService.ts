@@ -8,20 +8,28 @@ import { Event } from 'vs/base/common/event';
 import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/layoutService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { coalesce } from 'vs/base/common/arrays';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
 
-	public onDidLayout = Event.None;
+	readonly onDidLayoutMainContainer = Event.None;
+	readonly onDidLayoutActiveContainer = Event.None;
+	readonly onDidChangeActiveContainer = Event.None;
 
 	private _dimension?: dom.IDimension;
-	get dimension(): dom.IDimension {
+	get mainContainerDimension(): dom.IDimension {
 		if (!this._dimension) {
 			this._dimension = dom.getClientArea(window.document.body);
 		}
 
 		return this._dimension;
 	}
+
+	get activeContainerDimension() { return this.mainContainerDimension; }
+
+	readonly mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	readonly activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	get hasContainer(): boolean {
 		return false;
@@ -36,17 +44,23 @@ class StandaloneLayoutService implements ILayoutService {
 		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
 	}
 
+	get containers(): Iterable<HTMLElement> {
+		return coalesce(this._codeEditorService.listCodeEditors().map(codeEditor => codeEditor.getContainerDomNode()));
+	}
+
 	get activeContainer(): HTMLElement {
 		const activeCodeEditor = this._codeEditorService.getFocusedCodeEditor() ?? this._codeEditorService.getActiveCodeEditor();
 
 		return activeCodeEditor?.getContainerDomNode() ?? this.container;
 	}
 
+	getContainer() {
+		return this.activeContainer;
+	}
+
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}
-
-	readonly offset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	constructor(
 		@ICodeEditorService private _codeEditorService: ICodeEditorService

@@ -227,6 +227,7 @@
 }
 
 .scm-view.show-actions .scm-provider > .actions,
+.scm-view.show-actions > .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view.show-actions > .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: block;
@@ -240,6 +241,27 @@
 	height: 100%;
 	padding-left: 11px;
 	border-radius: 2px;
+}
+
+.scm-view .scm-input .actions {
+	position: absolute;
+	top: 7px;
+	right: 20px;
+	z-index: 2;
+}
+
+.scm-view .scm-input .actions .actions-container {
+	background-color: var(--vscode-input-background);
+}
+
+.scm-view .scm-input .actions .action-label {
+	border-radius: 5px;
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
+	outline-offset: -1px;
+}
+
+.scm-view .scm-input .actions .action-label.codicon.codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
 }
 
 .scm-view .scm-editor-container .monaco-editor {
@@ -401,7 +423,6 @@
 	z-index: 1;
 	padding: 2px 6px;
 	box-sizing: border-box;
-	width: 100%;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;

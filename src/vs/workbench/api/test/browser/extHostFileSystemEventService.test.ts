@@ -22,13 +22,13 @@ suite('ExtHostFileSystemEventService', () => {
 			drain: undefined!
 		};
 
-		const watcher1 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher(undefined!, undefined!, '**/somethingInteresting', false, false, false);
+		const watcher1 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher(undefined!, undefined!, '**/somethingInteresting', { correlate: false });
 		assert.strictEqual(watcher1.ignoreChangeEvents, false);
 		assert.strictEqual(watcher1.ignoreCreateEvents, false);
 		assert.strictEqual(watcher1.ignoreDeleteEvents, false);
 		watcher1.dispose();
 
-		const watcher2 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher(undefined!, undefined!, '**/somethingBoring', true, true, true);
+		const watcher2 = new ExtHostFileSystemEventService(protocol, new NullLogService(), undefined!).createFileSystemWatcher(undefined!, undefined!, '**/somethingBoring', { ignoreCreateEvents: true, ignoreChangeEvents: true, ignoreDeleteEvents: true, correlate: false });
 		assert.strictEqual(watcher2.ignoreChangeEvents, true);
 		assert.strictEqual(watcher2.ignoreCreateEvents, true);
 		assert.strictEqual(watcher2.ignoreDeleteEvents, true);
