@@ -45,7 +45,12 @@ declare module 'vscode' {
 
 		description: string;
 		fullName: string;
-		icon?: Uri;
+
+		/**
+		 * Icon for the agent shown in UI.
+		 */
+		iconPath?: Uri;
+
 		slashCommandProvider?: ChatAgentSlashCommandProvider;
 		followupProvider?: FollowupProvider;
 

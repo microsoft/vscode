@@ -6,6 +6,7 @@
 import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { assertType } from 'vs/base/common/types';
+import { URI } from 'vs/base/common/uri';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
@@ -117,7 +118,7 @@ class ExtHostChatAgent {
 	private _followupProvider: vscode.FollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
-	private _icon: vscode.Uri | undefined;
+	private _iconPath: URI | undefined;
 
 	constructor(
 		public readonly extension: ExtensionIdentifier,
@@ -176,7 +177,7 @@ class ExtHostChatAgent {
 				this._proxy.$updateAgent(this._handle, {
 					description: this._description ?? '',
 					fullName: this._fullName,
-					icon: this._icon,
+					icon: this._iconPath,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
 				});
@@ -203,11 +204,11 @@ class ExtHostChatAgent {
 				that._fullName = v;
 				updateMetadataSoon();
 			},
-			get icon() {
-				return that._icon;
+			get iconPath() {
+				return that._iconPath;
 			},
-			set icon(v) {
-				that._icon = v;
+			set iconPath(v) {
+				that._iconPath = v;
 				updateMetadataSoon();
 			},
 			// onDidPerformAction
