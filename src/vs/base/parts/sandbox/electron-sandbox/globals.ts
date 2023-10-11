@@ -122,7 +122,7 @@ export const process: ISandboxNodeProcess = globals.vscode.process;
 export const context: ISandboxContext = globals.vscode.context;
 
 export interface IGlobalsSlim {
-	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
+	readonly ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send' | 'invoke'>;
 	readonly webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
 }
 
@@ -138,7 +138,7 @@ export function getGlobals(win: Window): IGlobalsSlim | undefined {
 
 	const auxiliaryWindowCandidate = win as unknown as {
 		vscode: {
-			ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send'>;
+			ipcRenderer: Pick<import('vs/base/parts/sandbox/electron-sandbox/electronTypes').IpcRenderer, 'send' | 'invoke'>;
 			webFrame: import('vs/base/parts/sandbox/electron-sandbox/electronTypes').WebFrame;
 		};
 	};
