@@ -3,26 +3,40 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
-import { FileAccess } from 'vs/base/common/network';
+import { BrowserWindow, WebContents } from 'electron';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultBrowserWindowOptions } from 'vs/platform/windows/electron-main/windows';
 
-export class AuxiliaryWindow {
+export interface IAuxiliaryWindow {
 
-	static open(instantiationService: IInstantiationService): BrowserWindowConstructorOptions {
-		return instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
-			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-slim.js').fsPath
-			}
-		});
+	readonly onDidClose: Event<void>;
+
+	readonly id: number;
+	readonly win: BrowserWindow | null;
+}
+
+export class AuxiliaryWindow extends Disposable implements IAuxiliaryWindow {
+
+	readonly id = this.contents.id;
+
+	private readonly _onDidClose = this._register(new Emitter<void>());
+	readonly onDidClose = this._onDidClose.event;
+
+	private _win: BrowserWindow | null = null;
+	get win() {
+		if (!this._win) {
+			this._win = BrowserWindow.fromWebContents(this.contents);
+		}
+
+		return this._win;
 	}
 
 	constructor(
 		private readonly contents: WebContents,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
+		super();
 
 		this.create();
 		this.registerListeners();
@@ -37,6 +51,13 @@ export class AuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
+
+		// Window close
+		this.win?.on('closed', () => {
+			this._onDidClose.fire();
+
+			this.dispose();
+		});
 
 		// Support a small set of IPC calls
 		this.contents.ipc.on('vscode:focusAuxiliaryWindow', () => {
