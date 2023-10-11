@@ -5,11 +5,19 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
+export interface ISpeechProviderMetadata {
+	readonly extension: ExtensionIdentifier;
+	readonly displayName: string;
+	readonly description?: string;
+}
+
 export interface ISpeechProvider {
+	metadata: ISpeechProviderMetadata;
 	speechToText(token: CancellationToken): Promise<unknown>;
 }
 
