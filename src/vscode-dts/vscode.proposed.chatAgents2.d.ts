@@ -6,12 +6,21 @@
 declare module 'vscode' {
 
 	export interface ChatAgentContext {
-		// messages so far
-		history: ChatMessage[]; // Should be same type as request?
+		/**
+		 * All of the chat messages so far in the current chat session.
+		 */
+		history: ChatMessage[];
 	}
 
-	// TODO@API inline/copy InteractiveResponseForProgress into this type
-	export interface ChatAgentResult extends InteractiveResponseForProgress { }
+	export interface ChatAgentErrorDetails {
+		message: string;
+		responseIsIncomplete?: boolean;
+		responseIsFiltered?: boolean;
+	}
+
+	export interface ChatAgentResult2 {
+		errorDetails?: ChatAgentErrorDetails;
+	}
 
 	export interface ChatAgentSlashCommand {
 
@@ -42,10 +51,25 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
+	export interface ChatAgentCommandFollowup {
+		commandId: string;
+		args?: any[];
+		title: string; // supports codicon strings
+		when?: string;
+	}
+
+	export interface ChatAgentReplyFollowup {
+		message: string;
+		tooltip?: string;
+		title?: string;
+
+		metadata?: any;
+	}
+
 	export interface FollowupProvider {
 
 		// TODO@API inline/copy InteractiveSessionFollowup into this proposal
-		provideFollowups(result: ChatAgentResult, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
+		provideFollowups(result: ChatAgentResult2, token: CancellationToken): ProviderResult<InteractiveSessionFollowup[]>;
 	}
 
 	export interface ChatAgent2 {
@@ -107,7 +131,7 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult>;
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 
