@@ -51,12 +51,12 @@ interface IFileMatchTemplate {
 }
 
 interface IMatchTemplate {
+	lineNumber: HTMLElement;
 	parent: HTMLElement;
 	before: HTMLElement;
 	match: HTMLElement;
 	replace: HTMLElement;
 	after: HTMLElement;
-	lineNumber: HTMLElement;
 	actions: MenuWorkbenchToolBar;
 	disposables: DisposableStore;
 	contextKeyService: IContextKeyService;
@@ -310,12 +310,12 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 	renderTemplate(container: HTMLElement): IMatchTemplate {
 		container.classList.add('linematch');
 
+		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
 		const parent = DOM.append(container, DOM.$('a.plain.match'));
 		const before = DOM.append(parent, DOM.$('span'));
 		const match = DOM.append(parent, DOM.$('span.findInFileMatch'));
 		const replace = DOM.append(parent, DOM.$('span.replaceMatch'));
 		const after = DOM.append(parent, DOM.$('span'));
-		const lineNumber = DOM.append(container, DOM.$('span.matchLineNum'));
 		const actionBarContainer = DOM.append(container, DOM.$('span.actionBarContainer'));
 
 		const disposables = new DisposableStore();
@@ -369,7 +369,7 @@ export class MatchRenderer extends Disposable implements ICompressibleTreeRender
 		const extraLinesStr = numLines > 0 ? `+${numLines}` : '';
 
 		const showLineNumbers = this.configurationService.getValue<ISearchConfigurationProperties>('search').showLineNumbers;
-		const lineNumberStr = showLineNumbers ? `:${match.range().startLineNumber}` : '';
+		const lineNumberStr = showLineNumbers ? `${match.range().startLineNumber}:` : '';
 		templateData.lineNumber.classList.toggle('show', (numLines > 0) || showLineNumbers);
 
 		templateData.lineNumber.textContent = lineNumberStr + extraLinesStr;
