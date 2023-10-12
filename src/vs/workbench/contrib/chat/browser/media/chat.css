@@ -467,7 +467,6 @@
 
 .interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
-	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	width: auto;
 }
@@ -484,18 +483,45 @@
 	display: none;
 }
 
+.interactive-session .chat-used-context-list {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 3px;
+	padding: 4px;
+}
+
+.interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
+	border-radius: 2px;
+}
+
 .interactive-session .chat-used-context-label {
-	font-size: 0.9em;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.interactive-session .chat-used-context-label:hover {
+	opacity: unset;
 }
 
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
-	width: initial;
+	width: 100%;
 	border: none;
 	padding: 0;
 	text-align: initial;
-	padding-left: 4px;
 	justify-content: initial;
-	margin-bottom: 3px;
+	margin-bottom: 6px;
+}
+
+.interactive-session .chat-used-context-label .monaco-text-button {
+	outline-offset: unset !important;
+}
+
+.interactive-session .chat-used-context-label .monaco-button:focus-within {
+	outline: none;
+}
+
+.interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
+	margin: 0 2px 0 0;
 }
