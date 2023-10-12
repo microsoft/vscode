@@ -21,6 +21,7 @@ import './mainThreadLocalization';
 import './mainThreadBulkEdits';
 import './mainThreadChatProvider';
 import './mainThreadChatAgents';
+import './mainThreadChatAgents2';
 import './mainThreadChatVariables';
 import './mainThreadCodeInsets';
 import './mainThreadCLICommands';
