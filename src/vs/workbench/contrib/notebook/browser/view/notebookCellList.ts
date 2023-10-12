@@ -182,7 +182,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
 
-		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, configurationService);
+		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, configurationService, this.onDidScroll);
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
@@ -1215,12 +1215,10 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focused = this.getFocus();
 		const focus = focused.length ? focused[0] : null;
 
-		// If the cell is growing, we should favor anchoring to the focused cell
 		if (focus) {
-			const focusMode = this.element(focused[0]).focusMode;
+			// If the cell is growing, we should favor anchoring to the focused cell
 			const growing = this.view.elementHeight(index) < size;
-			if (this._notebookCellAnchor.shouldAnchor(focusMode, growing)) {
-				this._notebookCellAnchor.watchAchorDuringExecution(this.element(index), this.onDidScroll);
+			if (this._notebookCellAnchor.shouldAnchor(this.element(focused[0]).focusMode, growing, this.element(index))) {
 				return this.view.updateElementHeight(index, size, focus);
 			}
 		}
