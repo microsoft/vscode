@@ -221,11 +221,11 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
-				const screenReaderNotificationService = accessor.get(IAccessibleNotificationService);
+				const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 				const activeChannel = outputService.getActiveChannel();
 				if (activeChannel) {
 					activeChannel.clear();
-					screenReaderNotificationService.notifyCleared();
+					accessibleNotificationService.notifyCleared();
 				}
 			}
 		}));

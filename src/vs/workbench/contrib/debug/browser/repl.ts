@@ -976,9 +976,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const screenReaderNotificationService = _accessor.get(IAccessibleNotificationService);
+		const accessibleNotificationService = _accessor.get(IAccessibleNotificationService);
 		view.clearRepl();
-		screenReaderNotificationService.notifyCleared();
+		accessibleNotificationService.notifyCleared();
 	}
 });
 
