@@ -204,7 +204,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibleNotificationService private readonly _screenReaderNotificationService: IAccessibleNotificationService
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -590,7 +590,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
-		this._screenReaderNotificationService.notifyCleared();
+		this._accessibleNotificationService.notifyCleared();
 	}
 
 	hasSelection(): boolean {
