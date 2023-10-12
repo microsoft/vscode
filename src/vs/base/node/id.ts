@@ -106,7 +106,11 @@ export async function getSqmMachineId(errorLogger: (error: any) => void): Promis
 	if (isWindows) {
 		const Registry = await import('@vscode/windows-registry');
 		try {
-			return Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', SQM_KEY, 'MachineId') || '';
+			// Wait for 1s max (as to not block the startup) to read the SQM value
+			return await Promise.race([
+				Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', SQM_KEY, 'MachineId') || '',
+				new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
+			]);
 		} catch (err) {
 			errorLogger(err);
 			return '';
