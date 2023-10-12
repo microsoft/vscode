@@ -16,7 +16,7 @@ export function resolveWorkbenchCommonProperties(
 	commit: string | undefined,
 	version: string | undefined,
 	machineId: string,
-	sqmId: string | undefined,
+	sqmId: string,
 	isInternalTelemetry: boolean,
 	process: INodeProcess,
 	remoteAuthority?: string

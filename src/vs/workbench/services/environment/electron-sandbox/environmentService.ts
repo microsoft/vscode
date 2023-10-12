@@ -38,7 +38,7 @@ export interface INativeWorkbenchEnvironmentService extends IBrowserWorkbenchEnv
 	readonly mainPid: number;
 	readonly os: IOSConfiguration;
 	readonly machineId: string;
-	readonly sqmId: string | undefined;
+	readonly sqmId: string;
 
 	// --- Paths
 	readonly execPath: string;

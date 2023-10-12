@@ -184,8 +184,7 @@ class CliMain extends Disposable {
 				logService.error(error);
 			}
 		}
-		let sqmId: string | undefined = undefined;
-		sqmId = await resolveSqmId(stateService);
+		const sqmId = await resolveSqmId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();

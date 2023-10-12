@@ -15,8 +15,8 @@ export async function resolveMachineId(stateService: IStateService, logService: 
 	return machineId;
 }
 
-export async function resolveSqmId(stateService: IStateService): Promise<string | undefined> {
-	const sqmId = await resolveNodeSqmId(stateService);
+export async function resolveSqmId(stateService: IStateService, logService: ILogService): Promise<string> {
+	const sqmId = await resolveNodeSqmId(stateService, logService);
 	stateService.setItem(sqmIdKey, sqmId);
 	return sqmId;
 }

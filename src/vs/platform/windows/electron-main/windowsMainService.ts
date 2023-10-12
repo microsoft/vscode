@@ -199,7 +199,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	constructor(
 		private readonly machineId: string,
-		private readonly sqmId: string | undefined,
+		private readonly sqmId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
