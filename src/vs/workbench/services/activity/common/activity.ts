@@ -11,7 +11,6 @@ import { ViewContainer } from 'vs/workbench/common/views';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly clazz?: string;
 	readonly priority?: number;
 }
 

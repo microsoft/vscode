@@ -1181,9 +1181,10 @@ export interface ExtHostChatAgentsShape {
 }
 
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, sessionId: string, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
-	$provideFollowups(handle: number, requestId: number, token: CancellationToken): Promise<IChatFollowup[]>;
+	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
+	$releaseSession(sessionId: string): void;
 }
 
 export interface MainThreadChatVariablesShape extends IDisposable {
