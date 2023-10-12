@@ -467,6 +467,7 @@
 
 .interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
+	border: 1px solid var(--vscode-input-border, transparent);
 	border-radius: 4px;
 	width: auto;
 }
