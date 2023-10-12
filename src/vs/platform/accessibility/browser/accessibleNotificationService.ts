@@ -12,14 +12,15 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 	declare readonly _serviceBrand: undefined;
 
-	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService,
+	constructor(
+		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService) {
 		super();
 	}
 
 	notifyCleared(): void {
-		const audioCueValue = this._configurationService.getValue('audioCues.clear');
+		const audioCueValue = this._configurationService.getValue(AudioCue.clear.settingsKey);
 		if (audioCueValue === 'on' || audioCueValue === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
 			this._audioCueService.playAudioCue(AudioCue.clear);
 		} else {
