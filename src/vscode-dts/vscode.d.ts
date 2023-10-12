@@ -10072,7 +10072,8 @@ declare module 'vscode' {
 		export const onDidChangeTelemetryEnabled: Event<boolean>;
 
 		/**
-		 * An {@link Event} which fires when the default shell changes.
+		 * An {@link Event} which fires when the default shell changes. This fires with the new
+		 * shell path.
 		 */
 		export const onDidChangeShell: Event<string>;
 
@@ -11319,7 +11320,7 @@ declare module 'vscode' {
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
-		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.

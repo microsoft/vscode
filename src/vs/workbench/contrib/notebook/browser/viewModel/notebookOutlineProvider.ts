@@ -107,11 +107,10 @@ export class NotebookCellOutlineProvider {
 		this._entries.length = 0;
 		if (notebookCells) {
 			const promises: Promise<void>[] = [];
-			for (const cell of notebookCells) {
-				if (cell.textModel) {
-					// gather all symbols asynchronously
-					promises.push(this._outlineEntryFactory.cacheSymbols(cell.textModel, this._outlineModelService, cancelToken));
-				}
+			// limit the number of cells so that we don't resolve an excessive amount of text models
+			for (const cell of notebookCells.slice(0, 100)) {
+				// gather all symbols asynchronously
+				promises.push(this._outlineEntryFactory.cacheSymbols(cell, this._outlineModelService, cancelToken));
 			}
 			await Promise.allSettled(promises);
 		}

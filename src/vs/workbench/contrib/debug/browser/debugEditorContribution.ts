@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, isKeyboardEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { distinct, flatten } from 'vs/base/common/arrays';
@@ -175,13 +175,13 @@ function getWordToLineNumbersMap(model: ITextModel | null): Map<string, number[]
 
 	// For every word in every line, map its ranges for fast lookup
 	for (let lineNumber = 1, len = model.getLineCount(); lineNumber <= len; ++lineNumber) {
-		const lineContent = model.getLineContent(lineNumber);
-
+		const lineLength = model.getLineLength(lineNumber);
 		// If line is too long then skip the line
-		if (lineContent.length > MAX_TOKENIZATION_LINE_LEN) {
+		if (lineLength > MAX_TOKENIZATION_LINE_LEN) {
 			continue;
 		}
 
+		const lineContent = model.getLineContent(lineNumber);
 		model.tokenization.forceTokenization(lineNumber);
 		const lineTokens = model.tokenization.getLineTokens(lineNumber);
 		for (let tokenIndex = 0, tokenCount = lineTokens.getCount(); tokenIndex < tokenCount; tokenIndex++) {
@@ -335,7 +335,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 					const onKeyUp = new DomEmitter(document, 'keyup');
 					const listener = Event.any<KeyboardEvent | boolean>(this.hostService.onDidChangeFocus, onKeyUp.event)(keyupEvent => {
 						let standardKeyboardEvent = undefined;
-						if (keyupEvent instanceof KeyboardEvent) {
+						if (isKeyboardEvent(keyupEvent)) {
 							standardKeyboardEvent = new StandardKeyboardEvent(keyupEvent);
 						}
 						if (!standardKeyboardEvent || standardKeyboardEvent.keyCode === KeyCode.Alt) {

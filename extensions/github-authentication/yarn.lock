@@ -282,10 +282,10 @@
   resolved "https://registry.yarnpkg.com/@types/shimmer/-/shimmer-1.0.2.tgz#93eb2c243c351f3f17d5c580c7467ae5d686b65f"
   integrity sha512-dKkr1bTxbEsFlh2ARpKzcaAmsYixqt9UyCdoEZk8rHyE4iQYcDCyvSjDSf7JUWJHlJiTtbIoQjxKh6ViywqDAg==
 
-"@vscode/extension-telemetry@^0.8.4":
-  version "0.8.4"
-  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.8.4.tgz#c078c6f55df1c9e0592de3b4ce0f685dd345bfe7"
-  integrity sha512-UqM9+KZDDK3MyoHTsg6XNM+XO6pweQxzCpqJz33BoBEYAGsbBviRYcVpJglgay2oReuDD2pOI1Nio3BKNDLhWA==
+"@vscode/extension-telemetry@^0.8.5":
+  version "0.8.5"
+  resolved "https://registry.yarnpkg.com/@vscode/extension-telemetry/-/extension-telemetry-0.8.5.tgz#3db305be907c01656160e25d91f5d2840175d199"
+  integrity sha512-YFKANBT2F3qdWQstjcr40XX8BLsdKlKM7a7YPi/jNuMjuiPhb1Jn7YsDR3WZaVEzAqeqGy4gzXsFCBbuZ+L1Tg==
   dependencies:
     "@microsoft/1ds-core-js" "^3.2.13"
     "@microsoft/1ds-post-js" "^3.2.13"

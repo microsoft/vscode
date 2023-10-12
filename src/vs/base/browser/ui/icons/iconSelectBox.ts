@@ -19,6 +19,7 @@ import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlighte
 export interface IIconSelectBoxOptions {
 	readonly icons: ThemeIcon[];
 	readonly inputBoxStyles: IInputBoxStyles;
+	readonly showIconInfo?: boolean;
 }
 
 interface IRenderedIconItem {
@@ -44,9 +45,10 @@ export class IconSelectBox extends Disposable {
 
 	protected inputBox: InputBox | undefined;
 	private scrollableElement: DomScrollableElement | undefined;
+	private iconsContainer: HTMLElement | undefined;
 	private iconIdElement: HighlightedLabel | undefined;
 	private readonly iconContainerWidth = 36;
-	private readonly iconContainerHeight = 32;
+	private readonly iconContainerHeight = 36;
 
 	constructor(
 		private readonly options: IIconSelectBoxOptions,
@@ -69,8 +71,7 @@ export class IconSelectBox extends Disposable {
 			inputBoxStyles: this.options.inputBoxStyles,
 		}));
 
-		const iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
-		iconsContainer.style.paddingRight = '10px';
+		const iconsContainer = this.iconsContainer = dom.$('.icon-select-icons-container', { id: `${this.domId}_icons` });
 		iconsContainer.role = 'listbox';
 		iconsContainer.tabIndex = 0;
 		this.scrollableElement = disposables.add(new DomScrollableElement(iconsContainer, {
@@ -78,7 +79,10 @@ export class IconSelectBox extends Disposable {
 			horizontal: ScrollbarVisibility.Hidden,
 		}));
 		dom.append(iconSelectBoxContainer, this.scrollableElement.getDomNode());
-		this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+
+		if (this.options.showIconInfo) {
+			this.iconIdElement = new HighlightedLabel(dom.append(dom.append(iconSelectBoxContainer, dom.$('.icon-select-id-container')), dom.$('.icon-select-id-label')));
+		}
 
 		const iconsDisposables = disposables.add(new MutableDisposable());
 		iconsDisposables.value = this.renderIcons(this.options.icons, [], iconsContainer);
@@ -93,8 +97,10 @@ export class IconSelectBox extends Disposable {
 					matches.push(match);
 				}
 			}
-			iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
-			this.scrollableElement?.scanDomNode();
+			if (icons.length) {
+				iconsDisposables.value = this.renderIcons(icons, matches, iconsContainer);
+				this.scrollableElement?.scanDomNode();
+			}
 		}));
 
 		this.inputBox.inputElement.role = 'combobox';
@@ -128,10 +134,6 @@ export class IconSelectBox extends Disposable {
 				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.CLICK, (e: MouseEvent) => {
 					e.stopPropagation();
 					this.setSelection(index);
-				}));
-
-				disposables.add(dom.addDisposableListener(iconContainer, dom.EventType.MOUSE_OVER, (e: MouseEvent) => {
-					this.focusIcon(index);
 				}));
 
 				if (icon === focusedIcon) {
@@ -214,20 +216,26 @@ export class IconSelectBox extends Disposable {
 		this.domNode.style.width = `${dimension.width}px`;
 		this.domNode.style.height = `${dimension.height}px`;
 
-		const iconsContainerWidth = dimension.width - 40;
+		const iconsContainerWidth = dimension.width - 30;
 		this.numberOfElementsPerRow = Math.floor(iconsContainerWidth / this.iconContainerWidth);
 		if (this.numberOfElementsPerRow === 0) {
 			throw new Error('Insufficient width');
 		}
 
 		const extraSpace = iconsContainerWidth % this.iconContainerWidth;
-		const margin = Math.floor(extraSpace / this.numberOfElementsPerRow);
+		const iconElementMargin = Math.floor(extraSpace / this.numberOfElementsPerRow);
 		for (const { element } of this.renderedIcons) {
-			element.style.marginRight = `${margin}px`;
+			element.style.marginRight = `${iconElementMargin}px`;
+		}
+
+		const containerPadding = extraSpace % this.numberOfElementsPerRow;
+		if (this.iconsContainer) {
+			this.iconsContainer.style.paddingLeft = `${Math.floor(containerPadding / 2)}px`;
+			this.iconsContainer.style.paddingRight = `${Math.ceil(containerPadding / 2)}px`;
 		}
 
 		if (this.scrollableElement) {
-			this.scrollableElement.getDomNode().style.height = `${dimension.height - 80}px`;
+			this.scrollableElement.getDomNode().style.height = `${this.iconIdElement ? dimension.height - 80 : dimension.height - 40}px`;
 			this.scrollableElement.scanDomNode();
 		}
 	}
@@ -242,6 +250,12 @@ export class IconSelectBox extends Disposable {
 		}
 		this.focusIcon(index);
 		this._onDidSelect.fire(this.renderedIcons[index].icon);
+	}
+
+	clearInput(): void {
+		if (this.inputBox) {
+			this.inputBox.value = '';
+		}
 	}
 
 	focus(): void {

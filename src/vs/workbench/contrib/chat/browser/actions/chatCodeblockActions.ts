@@ -11,14 +11,16 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
-import { RelatedContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
+import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -180,7 +182,13 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-				}
+				},
+				keybinding: {
+					when: CONTEXT_ACCESSIBILITY_MODE_ENABLED,
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			});
 		}
 
@@ -255,33 +263,55 @@ export function registerChatCodeBlockActions() {
 
 			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
 
-			let workspaceEdit: WorkspaceEdit | null = null;
+			let mappedEdits: WorkspaceEdit | null = null;
 
 			if (mappedEditsProviders.length > 0) {
-				const mostRelevantProvider = mappedEditsProviders[0];
+				const mostRelevantProvider = mappedEditsProviders[0]; // TODO@ulugbekna: should we try all providers?
 
-				const selections = codeEditor.getSelections() ?? [];
-				const mappedEditsContext = {
-					selections,
-					related: [] as RelatedContextItem[], // TODO@ulugbekna: we do have not yet decided what to populate this with
-				};
+				// 0th sub-array - editor selections array if there are any selections
+				// 1st sub-array - array with documents used to get the chat reply
+				const docRefs: DocumentContextItem[][] = [];
+
+				if (codeEditor.hasModel()) {
+					const model = codeEditor.getModel();
+					const currentDocUri = model.uri;
+					const currentDocVersion = model.getVersionId();
+					const selections = codeEditor.getSelections();
+					if (selections.length > 0) {
+						docRefs.push([
+							{
+								uri: currentDocUri,
+								version: currentDocVersion,
+								ranges: selections,
+							}
+						]);
+					}
+				}
+
+				const usedDocuments = chatCodeBlockActionContext.element.response.usedContext?.documents;
+				if (usedDocuments) {
+					docRefs.push(usedDocuments);
+				}
+
 				const cancellationTokenSource = new CancellationTokenSource();
 
-				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
+				mappedEdits = await mostRelevantProvider.provideMappedEdits(
 					activeModel,
 					[chatCodeBlockActionContext.code],
-					mappedEditsContext,
+					{ documents: docRefs },
 					cancellationTokenSource.token);
 			}
 
-			if (workspaceEdit) {
-				await bulkEditService.apply(workspaceEdit);
+			if (mappedEdits) {
+				await bulkEditService.apply(mappedEdits);
 			} else {
 				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-					range: activeSelection,
-					text: chatCodeBlockActionContext.code,
-				})]);
+				await bulkEditService.apply([
+					new ResourceTextEdit(activeModel.uri, {
+						range: activeSelection,
+						text: chatCodeBlockActionContext.code,
+					}),
+				]);
 			}
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
@@ -361,14 +391,20 @@ export function registerChatCodeBlockActions() {
 					group: 'navigation',
 					isHiddenByDefault: true,
 				},
-				keybinding: {
+				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: CONTEXT_IN_CHAT_SESSION
-				}
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Slash,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				}]
 			});
 		}
 
@@ -452,7 +488,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Next Code Block'
 				},
 				keybinding: {
-					primary: KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
@@ -476,7 +513,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Previous Code Block'
 				},
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},

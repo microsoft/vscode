@@ -177,6 +177,10 @@ export class ApiRepository implements Repository {
 		return this.repository.getBranches(query, cancellationToken);
 	}
 
+	getBranchBase(name: string): Promise<Branch | undefined> {
+		return this.repository.getBranchBase(name);
+	}
+
 	setBranchUpstream(name: string, upstream: string): Promise<void> {
 		return this.repository.setBranchUpstream(name, upstream);
 	}

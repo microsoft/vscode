@@ -21,11 +21,12 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isWeb } from 'vs/base/common/platform';
 import { DragAndDropObserver } from 'vs/base/browser/dom';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export class EmptyView extends ViewPane {
 
 	static readonly ID: string = 'workbench.explorer.emptyView';
-	static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
+	static readonly NAME: ILocalizedString = nls.localize2('noWorkspace', "No Folder Opened");
 	private _disposed: boolean = false;
 
 	constructor(
@@ -59,7 +60,7 @@ export class EmptyView extends ViewPane {
 			onDrop: e => {
 				container.style.backgroundColor = '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
-				dropHandler.handleDrop(e, () => undefined, () => undefined);
+				dropHandler.handleDrop(e);
 			},
 			onDragEnter: () => {
 				const color = this.themeService.getColorTheme().getColor(listDropBackground);
@@ -87,7 +88,7 @@ export class EmptyView extends ViewPane {
 		}
 
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
-			this.updateTitle(EmptyView.NAME);
+			this.updateTitle(EmptyView.NAME.value);
 		} else {
 			this.updateTitle(this.title);
 		}

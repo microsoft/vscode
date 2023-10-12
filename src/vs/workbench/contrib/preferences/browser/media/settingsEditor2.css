@@ -8,6 +8,7 @@
 }
 
 .settings-editor {
+	height: 100%;
 	overflow: hidden;
 	max-width: 1200px;
 	margin: auto;
@@ -178,7 +179,6 @@
 	text-decoration: underline;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents,
 .settings-editor.narrow-width > .settings-body .settings-tree-container .monaco-list-row .monaco-tl-contents {
 	padding-left: 33px;
 }
@@ -247,7 +247,6 @@
 	pointer-events: initial;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-toc-container,
 .settings-editor.narrow-width > .settings-body .settings-toc-container {
 	display: none;
 }
@@ -307,7 +306,6 @@
 	margin: auto;
 }
 
-.settings-editor.no-toc-search > .settings-body .settings-tree-container,
 .settings-editor.narrow-width > .settings-body .settings-tree-container {
 	margin-left: 0px;
 }

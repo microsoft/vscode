@@ -7,6 +7,7 @@ import { reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
+import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { IAction, SubmenuAction } from 'vs/base/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -34,7 +35,6 @@ export class CommandCenterControl {
 		hoverDelegate: IHoverDelegate,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IQuickInputService quickInputService: IQuickInputService,
-		@IKeybindingService keybindingService: IKeybindingService
 	) {
 		this.element.classList.add('command-center');
 
@@ -82,7 +82,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 	) {
-		super(undefined, _submenu.actions[0], options);
+		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 	}
 
 	override render(container: HTMLElement): void {
@@ -182,6 +182,16 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			});
 			toolbar.setActions(group);
 			this._store.add(toolbar);
+
+
+			// spacer
+			if (i < groups.length - 1) {
+				const icon = renderIcon(Codicon.circleSmallFilled);
+				icon.style.padding = '0 12px';
+				icon.style.height = '100%';
+				icon.style.opacity = '0.5';
+				container.appendChild(icon);
+			}
 		}
 	}
 

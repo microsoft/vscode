@@ -40,6 +40,11 @@ import { ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { status } from 'vs/base/browser/ui/aria/aria';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { URI } from 'vs/base/common/uri';
 
 export const ID = 'editor.contrib.review';
 
@@ -340,7 +345,7 @@ class CommentingRangeDecorator {
 
 			return range;
 		}
-		return decorations[0].getActiveRange() ?? undefined;
+		return (decorations.length > 0 ? (decorations[0].getActiveRange() ?? undefined) : undefined);
 	}
 
 	public dispose(): void {
@@ -365,6 +370,7 @@ export class CommentController implements IEditorContribution {
 	private _computeCommentingRangeScheduler!: Delayer<Array<ICommentInfo | null>> | null;
 	private _pendingNewCommentCache: { [key: string]: { [key: string]: string } };
 	private _pendingEditsCache: { [key: string]: { [key: string]: { [key: number]: string } } }; // owner -> threadId -> uniqueIdInThread -> pending comment
+	private _inProcessContinueOnComments: Map<string, languages.PendingCommentThread[]> = new Map();
 	private _editorDisposables: IDisposable[] = [];
 	private _activeCursorHasCommentingRange: IContextKey<boolean>;
 	private _activeEditorHasCommentingRange: IContextKey<boolean>;
@@ -380,7 +386,9 @@ export class CommentController implements IEditorContribution {
 		@IViewsService private readonly viewsService: IViewsService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private readonly editorService: IEditorService
+		@IEditorService private readonly editorService: IEditorService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		this._commentInfos = [];
 		this._commentWidgets = [];
@@ -475,7 +483,8 @@ export class CommentController implements IEditorContribution {
 								owner: zone.owner,
 								uri: zone.editor.getModel()!.uri,
 								range: zone.commentThread.range,
-								body: pendingNewComment
+								body: pendingNewComment,
+								isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
 							});
 						}
 					}
@@ -721,6 +730,14 @@ export class CommentController implements IEditorContribution {
 			this.editor.setPosition(position);
 			this.editor.revealLineInCenterIfOutsideViewport(position.lineNumber);
 		}
+		if (this.accessibilityService.isScreenReaderOptimized()) {
+			const commentRangeStart = range?.getStartPosition().lineNumber;
+			const commentRangeEnd = range?.getEndPosition().lineNumber;
+			if (commentRangeStart && commentRangeEnd) {
+				const oneLine = commentRangeStart === commentRangeEnd;
+				oneLine ? status(nls.localize('commentRange', "Line {0}", commentRangeStart)) : status(nls.localize('commentRangeStart', "Lines {0} to {1}", commentRangeStart, commentRangeEnd));
+			}
+		}
 	}
 
 	public nextCommentingRange(): void {
@@ -812,7 +829,7 @@ export class CommentController implements IEditorContribution {
 					this.openCommentsView(thread);
 				}
 			});
-			added.forEach(thread => {
+			for (const thread of added) {
 				const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === e.owner && zoneWidget.commentThread.threadId === thread.threadId);
 				if (matchedZones.length) {
 					return;
@@ -825,21 +842,46 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const continueOnCommentText = (thread.range ? this.commentService.removeContinueOnComment({ owner: e.owner, uri: editorURI, range: thread.range })?.body : undefined);
+				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => Range.lift(pending.range).equalsRange(thread.range));
+				let continueOnCommentText: string | undefined;
+				if ((continueOnCommentIndex !== undefined) && continueOnCommentIndex >= 0) {
+					continueOnCommentText = this._inProcessContinueOnComments.get(e.owner)?.splice(continueOnCommentIndex, 1)[0].body;
+				}
+
 				const pendingCommentText = (this._pendingNewCommentCache[e.owner] && this._pendingNewCommentCache[e.owner][thread.threadId!])
 					?? continueOnCommentText;
 				const pendingEdits = this._pendingEditsCache[e.owner] && this._pendingEditsCache[e.owner][thread.threadId!];
 				this.displayCommentThread(e.owner, thread, pendingCommentText, pendingEdits);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
 				this.tryUpdateReservedSpace();
-			});
-			pending.forEach(thread => {
-				this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
-			});
+			}
+
+			for (const thread of pending) {
+				await this.resumePendingComment(editorURI, thread);
+			}
 			this._commentThreadRangeDecorator.update(this.editor, commentInfo);
 		}));
 
 		this.beginComputeAndHandleEditorChange();
+	}
+
+	private async resumePendingComment(editorURI: URI, thread: languages.PendingCommentThread) {
+		const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === thread.owner && Range.lift(zoneWidget.commentThread.range)?.equalsRange(thread.range));
+		if (thread.isReply && matchedZones.length) {
+			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: true });
+			const matchedZone = matchedZones[0];
+			matchedZone.setPendingComment(thread.body);
+		} else if (!thread.isReply) {
+			const threadStillAvailable = this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
+			if (!threadStillAvailable) {
+				return;
+			}
+			if (!this._inProcessContinueOnComments.has(thread.owner)) {
+				this._inProcessContinueOnComments.set(thread.owner, []);
+			}
+			this._inProcessContinueOnComments.get(thread.owner)?.push(thread);
+			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
+		}
 	}
 
 	private beginComputeAndHandleEditorChange(): void {
@@ -847,10 +889,17 @@ export class CommentController implements IEditorContribution {
 			if (!this._hasRespondedToEditorChange) {
 				if (this._commentInfos.some(commentInfo => commentInfo.commentingRanges.ranges.length > 0 || commentInfo.commentingRanges.fileComments)) {
 					this._hasRespondedToEditorChange = true;
-					this._activeEditorHasCommentingRange.set(true);
-					status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
-				} else {
-					this._activeEditorHasCommentingRange.set(false);
+					const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
+					if (verbose) {
+						const keybinding = this.keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getAriaLabel();
+						if (keybinding) {
+							status(nls.localize('hasCommentRangesKb', "Editor has commenting ranges, run the command Open Accessibility Help ({0}), for more information.", keybinding));
+						} else {
+							status(nls.localize('hasCommentRangesNoKb', "Editor has commenting ranges, run the command Open Accessibility Help, which is currently not triggerable via keybinding, for more information."));
+						}
+					} else {
+						status(nls.localize('hasCommentRanges', "Editor has commenting ranges."));
+					}
 				}
 			}
 		});
@@ -872,13 +921,19 @@ export class CommentController implements IEditorContribution {
 	}
 
 	private displayCommentThread(owner: string, thread: languages.CommentThread, pendingComment: string | undefined, pendingEdits: { [key: number]: string } | undefined): void {
-		if (!this.editor?.getModel()) {
+		const editor = this.editor?.getModel();
+		if (!editor) {
 			return;
 		}
-		if (this.isEditorInlineOriginal(this.editor)) {
+		if (!this.editor || this.isEditorInlineOriginal(this.editor)) {
 			return;
 		}
-		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment, pendingEdits);
+
+		let continueOnCommentReply: languages.PendingCommentThread | undefined;
+		if (thread.range && !pendingComment) {
+			continueOnCommentReply = this.commentService.removeContinueOnComment({ owner, uri: editor.uri, range: thread.range, isReply: true });
+		}
+		const zoneWidget = this.instantiationService.createInstance(ReviewZoneWidget, this.editor, owner, thread, pendingComment ?? continueOnCommentReply?.body, pendingEdits);
 		zoneWidget.display(thread.range);
 		this._commentWidgets.push(zoneWidget);
 		this.openCommentsView(thread);
@@ -1115,7 +1170,12 @@ export class CommentController implements IEditorContribution {
 		// create viewzones
 		this.removeCommentWidgetsAndStoreCache();
 
+		let hasCommentingRanges = false;
 		this._commentInfos.forEach(info => {
+			if (!hasCommentingRanges && (info.commentingRanges.ranges.length > 0 || info.commentingRanges.fileComments)) {
+				hasCommentingRanges = true;
+			}
+
 			const providerCacheStore = this._pendingNewCommentCache[info.owner];
 			const providerEditsCacheStore = this._pendingEditsCache[info.owner];
 			info.threads = info.threads.filter(thread => !thread.isDisposed);
@@ -1136,13 +1196,19 @@ export class CommentController implements IEditorContribution {
 
 				this.displayCommentThread(info.owner, thread, pendingComment, pendingEdits);
 			});
-			info.pendingCommentThreads?.forEach(thread => {
-				this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
-			});
+			for (const thread of info.pendingCommentThreads ?? []) {
+				this.resumePendingComment(this.editor!.getModel()!.uri, thread);
+			}
 		});
 
 		this._commentingRangeDecorator.update(this.editor, this._commentInfos);
 		this._commentThreadRangeDecorator.update(this.editor, this._commentInfos);
+
+		if (hasCommentingRanges) {
+			this._activeEditorHasCommentingRange.set(true);
+		} else {
+			this._activeEditorHasCommentingRange.set(false);
+		}
 	}
 
 	public closeWidget(): void {
