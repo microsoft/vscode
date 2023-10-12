@@ -1208,7 +1208,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focus = focused.length ? focused[0] : null;
 
 		// If the cell is growing, we should favor anchoring to the focused cell
-		if (focused) {
+		if (focus) {
 			const cellEditorIsFocused = this.view.element(focused[0]).focusMode === CellFocusMode.Editor;
 			const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 			const growing = this.view.elementHeight(index) < size;

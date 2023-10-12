@@ -491,11 +491,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
 
-		// Activity bar cannot be hidden
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
-		}
-
 		this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
 				this.setActivityBarHidden(change.value as boolean);
@@ -596,6 +591,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
 			}
+		}
+
+		// Activity bar cannot be hidden
+		// This check must be called after state is set
+		// because canActivityBarBeHidden calls isVisible
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
 		}
 
 		// Window border

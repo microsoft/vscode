@@ -800,7 +800,13 @@ export class CodeApplication extends Disposable {
 		}
 
 		if (checkboxChecked) {
-			windowsMainService.sendToOpeningWindow('vscode:disablePromptForProtocolHandling', uri.authority === Schemas.file ? 'local' : 'remote');
+			// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+			// update settings from within a window. But we do not know if a window
+			// is about to open or can already handle the request, so we have to send
+			// to any current window and any newly opening window.
+			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: uri.authority === Schemas.file ? 'local' : 'remote' };
+			windowsMainService.sendToFocused(request.channel, request.args);
+			windowsMainService.sendToOpeningWindow(request.channel, request.args);
 		}
 
 		return false; // not blocked by user choice

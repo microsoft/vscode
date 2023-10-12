@@ -29,6 +29,22 @@ const schema: IJSONSchema = {
 			description: nls.localize('schema.file', 'The default file icon, shown for all files that don\'t match any extension, filename or language id.')
 
 		},
+		rootFolderNames: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
+			}
+		},
+		rootFolderNamesExpanded: {
+			type: 'object',
+			description: nls.localize('schema.rootFolderNamesExpanded', 'Associates root folder names to icons for expanded folders. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),
+			additionalProperties: {
+				type: 'string',
+				description: nls.localize('schema.folderNameExpanded', 'The ID of the icon definition for the association.')
+			}
+		},
 		folderNames: {
 			type: 'object',
 			description: nls.localize('schema.folderNames', 'Associates folder names to icons. The object key is the folder name, not including any path segments. No patterns or wildcards are allowed. Folder name matching is case insensitive.'),

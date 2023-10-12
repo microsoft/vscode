@@ -264,6 +264,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
 				this.renderFollowups(lastItem.replyFollowups);
+			} else if (lastItem && isWelcomeVM(lastItem)) {
+				this.renderFollowups(lastItem.sampleQuestions);
 			} else {
 				this.renderFollowups(undefined);
 			}
