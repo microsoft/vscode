@@ -13,6 +13,9 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+// eslint-disable-next-line local/code-import-patterns
+import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService'; // TODO@bpasero layer break
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -85,7 +88,8 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 }
 
-export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
+// @ts-ignore
+class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -131,9 +135,9 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 
 				const microphoneDevice = await navigator.mediaDevices.getUserMedia({
 					audio: {
-						sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
-						sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
-						channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+						sampleRate: AudioWorkletVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+						sampleSize: AudioWorkletVoiceRecognitionService.AUDIO_BIT_DEPTH,
+						channelCount: AudioWorkletVoiceRecognitionService.AUDIO_CHANNELS,
 						autoGainControl: true,
 						noiseSuppression: true,
 						echoCancellation: false
@@ -145,7 +149,7 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				}
 
 				const audioContext = new AudioContext({
-					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+					sampleRate: AudioWorkletVoiceRecognitionService.AUDIO_SAMPLING_RATE,
 					latencyHint: 'interactive'
 				});
 
@@ -171,11 +175,11 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 				}
 
 				const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
-					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
+					channelCount: AudioWorkletVoiceRecognitionService.AUDIO_CHANNELS,
 					channelCountMode: 'explicit',
 					processorOptions: {
-						bufferTimespan: WorkbenchVoiceRecognitionService.BUFFER_TIMESPAN,
-						vadThreshold: WorkbenchVoiceRecognitionService.VAD_THRESHOLD
+						bufferTimespan: AudioWorkletVoiceRecognitionService.BUFFER_TIMESPAN,
+						vadThreshold: AudioWorkletVoiceRecognitionService.VAD_THRESHOLD
 					}
 				}, onDidTranscribe, this.sharedProcessService);
 				await voiceTranscriptionTarget.start(cts.token);
@@ -204,5 +208,99 @@ export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognit
 	}
 }
 
+class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
+
+	declare readonly _serviceBrand: undefined;
+
+	constructor(
+		@IProgressService private readonly progressService: IProgressService,
+		@INotificationService private readonly notificationService: INotificationService,
+		@ISpeechService private readonly speechService: ISpeechService
+	) { }
+
+	async transcribe(token: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>> {
+		const disposables = new DisposableStore();
+		const cts = disposables.add(new CancellationTokenSource(token));
+
+		disposables.add(cts.token.onCancellationRequested(() => {
+			disposables.dispose();
+
+			options?.onDidCancel?.();
+		}));
+
+		const onDidTranscribe = disposables.add(new Emitter<string>());
+		await this.doTranscribe(onDidTranscribe, disposables, cts);
+
+		return onDidTranscribe.event;
+	}
+
+	private doTranscribe(onDidTranscribe: Emitter<string>, disposables: DisposableStore, cts: CancellationTokenSource): Promise<void> {
+		const recordingReady = new DeferredPromise<void>();
+
+		const token = cts.token;
+		disposables.add(token.onCancellationRequested(() => recordingReady.complete()));
+
+		this.progressService.withProgress({
+			location: ProgressLocation.Window,
+			title: localize('voiceTranscription', "Voice Transcription"),
+			cancellable: true
+		}, async progress => {
+			const recordingDone = new DeferredPromise<void>();
+
+			try {
+				progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
+
+				const allSentences: string[] = [];
+				const currentSentence: string[] = [];
+
+				const session = disposables.add(this.speechService.createSpeechToTextSession('default', token));
+				disposables.add(session.onDidChange(e => {
+					if (token.isCancellationRequested) {
+						return;
+					}
+
+					switch (e.status) {
+						case SpeechToTextStatus.Started:
+							progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
+							recordingReady.complete();
+							break;
+						case SpeechToTextStatus.Recognizing:
+							if (e.text) {
+								currentSentence.push(e.text);
+
+								onDidTranscribe.fire([allSentences.join(' '), ...currentSentence].join(' '));
+							}
+							break;
+						case SpeechToTextStatus.Recognized:
+							if (e.text) {
+								allSentences.push(e.text);
+								currentSentence.length = 0;
+
+								onDidTranscribe.fire(allSentences.join(' '));
+							}
+
+							break;
+						case SpeechToTextStatus.Stopped:
+							disposables.dispose();
+							recordingDone.complete();
+							break;
+					}
+				}));
+			} catch (error) {
+				this.notificationService.error(localize('voiceTranscriptionError', "Voice transcription failed: {0}", error.message));
+
+				recordingReady.error(error);
+				recordingDone.error(error);
+			}
+
+			return recordingDone.p;
+		}, () => {
+			cts.cancel();
+		});
+
+		return recordingReady.p;
+	}
+}
+
 // Register Service
-registerSingleton(IWorkbenchVoiceRecognitionService, WorkbenchVoiceRecognitionService, InstantiationType.Delayed);
+registerSingleton(IWorkbenchVoiceRecognitionService, SpeechProviderVoiceRecognitionService, InstantiationType.Delayed);

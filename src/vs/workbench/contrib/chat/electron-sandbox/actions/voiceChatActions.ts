@@ -12,7 +12,7 @@ import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
@@ -26,8 +26,6 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { process } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import product from 'vs/platform/product/common/product';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
@@ -345,7 +343,7 @@ class VoiceChatSessions {
 	}
 }
 
-class VoiceChatInChatViewAction extends Action2 {
+export class VoiceChatInChatViewAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.voiceChatInChatView';
 
@@ -372,7 +370,7 @@ class VoiceChatInChatViewAction extends Action2 {
 	}
 }
 
-class InlineVoiceChatAction extends Action2 {
+export class InlineVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.inlineVoiceChat';
 
@@ -399,7 +397,7 @@ class InlineVoiceChatAction extends Action2 {
 	}
 }
 
-class QuickVoiceChatAction extends Action2 {
+export class QuickVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.quickVoiceChat';
 
@@ -426,7 +424,7 @@ class QuickVoiceChatAction extends Action2 {
 	}
 }
 
-class StartVoiceChatAction extends Action2 {
+export class StartVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.startVoiceChat';
 
@@ -478,7 +476,7 @@ class StartVoiceChatAction extends Action2 {
 	}
 }
 
-class StopVoiceChatAction extends Action2 {
+export class StopVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopVoiceChat';
 
@@ -505,7 +503,7 @@ class StopVoiceChatAction extends Action2 {
 	}
 }
 
-class StopVoiceChatInChatViewAction extends Action2 {
+export class StopVoiceChatInChatViewAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopVoiceChatInChatView';
 
@@ -538,7 +536,7 @@ class StopVoiceChatInChatViewAction extends Action2 {
 	}
 }
 
-class StopVoiceChatInChatEditorAction extends Action2 {
+export class StopVoiceChatInChatEditorAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopVoiceChatInChatEditor';
 
@@ -571,7 +569,7 @@ class StopVoiceChatInChatEditorAction extends Action2 {
 	}
 }
 
-class StopQuickVoiceChatAction extends Action2 {
+export class StopQuickVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopQuickVoiceChat';
 
@@ -604,7 +602,7 @@ class StopQuickVoiceChatAction extends Action2 {
 	}
 }
 
-class StopInlineVoiceChatAction extends Action2 {
+export class StopInlineVoiceChatAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopInlineVoiceChat';
 
@@ -637,7 +635,7 @@ class StopInlineVoiceChatAction extends Action2 {
 	}
 }
 
-class StopVoiceChatAndSubmitAction extends Action2 {
+export class StopVoiceChatAndSubmitAction extends Action2 {
 
 	static readonly ID = 'workbench.action.chat.stopVoiceChatAndSubmit';
 
@@ -656,22 +654,5 @@ class StopVoiceChatAndSubmitAction extends Action2 {
 
 	run(accessor: ServicesAccessor): void {
 		VoiceChatSessions.getInstance(accessor.get(IInstantiationService)).accept();
-	}
-}
-
-export function registerVoiceChatActions() {
-	if (typeof process.env.VSCODE_VOICE_MODULE_PATH === 'string' && product.quality !== 'stable') { // TODO@bpasero package
-		registerAction2(VoiceChatInChatViewAction);
-		registerAction2(QuickVoiceChatAction);
-		registerAction2(InlineVoiceChatAction);
-
-		registerAction2(StartVoiceChatAction);
-		registerAction2(StopVoiceChatAction);
-		registerAction2(StopVoiceChatAndSubmitAction);
-
-		registerAction2(StopVoiceChatInChatViewAction);
-		registerAction2(StopVoiceChatInChatEditorAction);
-		registerAction2(StopQuickVoiceChatAction);
-		registerAction2(StopInlineVoiceChatAction);
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -42,6 +42,9 @@ export interface ISpeechService {
 
 	readonly _serviceBrand: undefined;
 
+	readonly onDidRegisterSpeechProvider: Event<ISpeechProvider>;
+	readonly onDidUnregisterSpeechProvider: Event<ISpeechProvider>;
+
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
 	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession;
@@ -50,6 +53,12 @@ export interface ISpeechService {
 export class SpeechService implements ISpeechService {
 
 	readonly _serviceBrand: undefined;
+
+	private readonly _onDidRegisterSpeechProvider = new Emitter<ISpeechProvider>();
+	readonly onDidRegisterSpeechProvider = this._onDidRegisterSpeechProvider.event;
+
+	private readonly _onDidUnregisterSpeechProvider = new Emitter<ISpeechProvider>();
+	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
 
 	private readonly providers = new Map<string, ISpeechProvider>();
 
@@ -60,7 +69,12 @@ export class SpeechService implements ISpeechService {
 
 		this.providers.set(identifier, provider);
 
-		return toDisposable(() => this.providers.delete(identifier));
+		this._onDidRegisterSpeechProvider.fire(provider);
+
+		return toDisposable(() => {
+			this.providers.delete(identifier);
+			this._onDidUnregisterSpeechProvider.fire(provider);
+		});
 	}
 
 	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession {
