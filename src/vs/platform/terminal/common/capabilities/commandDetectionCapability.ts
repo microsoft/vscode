@@ -390,6 +390,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._windowsPromptPollingInProcess = false;
 			if (i === 20) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
+			} else {
+				this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -413,6 +415,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
 			if (line) {
 				this._currentCommand.commandStartLineContent = line.translateToString(true);
+				this._logService.debug('command start line content', this._currentCommand.commandStartLineContent);
+				this._logService.debug('command start x', this._currentCommand.commandStartX);
 			}
 		}
 		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
