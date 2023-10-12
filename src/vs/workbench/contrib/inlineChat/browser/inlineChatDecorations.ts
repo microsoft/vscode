@@ -12,6 +12,7 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Selection } from 'vs/editor/common/core/selection';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 
 const startInlineChatIcon = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon for starting the inline chat'));
 
@@ -24,7 +25,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		glyphMarginClassName: ThemeIcon.asClassName(startInlineChatIcon),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-
 	});
 
 	constructor(
@@ -32,6 +32,12 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	) {
 		editor.onDidChangeCursorSelection(e => this.updateDecorations(editor, e.selection));
 		this.updateDecorations(editor, editor.getSelection());
+		window.addEventListener('click', event => {
+			const target = event.target as HTMLElement;
+			if (target.classList.contains('codicon-start-inline-chat')) {
+				InlineChatController.get(editor)?.run({});
+			}
+		});
 	}
 
 	private updateDecorations(editor: ICodeEditor, selection: Selection | null) {
