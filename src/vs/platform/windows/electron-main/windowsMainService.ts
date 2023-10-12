@@ -1129,7 +1129,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			addUNCHostToAllowlist(uri.authority);
 
 			if (checkboxChecked) {
-				this.sendToOpeningWindow('vscode:configureAllowedUNCHost', uri.authority);
+				// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+				// update settings from within a window. But we do not know if a window
+				// is about to open or can already handle the request, so we have to send
+				// to any current window and any newly opening window.
+				const request = { channel: 'vscode:configureAllowedUNCHost', args: uri.authority };
+				this.sendToFocused(request.channel, request.args);
+				this.sendToOpeningWindow(request.channel, request.args);
 			}
 
 			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);

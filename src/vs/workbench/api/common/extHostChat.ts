@@ -278,7 +278,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $onDidPerformUserAction(event: IChatUserActionEvent): Promise<void> {
-		this._onDidPerformUserAction.fire(event);
+		this._onDidPerformUserAction.fire(event as any);
 	}
 
 	//#endregion

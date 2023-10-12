@@ -12,6 +12,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
+import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -21,10 +22,10 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentRequest, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { ChatModel, ChatModelInitState, ChatRequestModel, ChatWelcomeMessageModel, IChatModel, ISerializableChatData, ISerializableChatsData, isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { ChatRequestAgentPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatMessageRole, IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChat, IChatCompleteResponse, IChatDetail, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatProvider, IChatProviderInfo, IChatReplyFollowup, IChatRequest, IChatResponse, IChatService, IChatTransferredSessionData, IChatUserActionEvent, ISlashCommand, InteractiveSessionCopyKind, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -442,6 +443,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		let request: ChatRequestModel;
 		const agentPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart);
+		const agentSlashCommandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
 		const commandPart = 'kind' in parsedRequest ? undefined : parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
 
 		let gotProgress = false;
@@ -502,7 +504,6 @@ export class ChatService extends Disposable implements IChatService {
 				let slashCommandFollowups: IChatFollowup[] | void = [];
 
 				if (typeof message === 'string' && agentPart) {
-					request = model.addRequest(parsedRequest);
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
 						if (!request.response) {
@@ -512,13 +513,25 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ role: ChatMessageRole.User, content: 'text' in request.message ? request.message.text : request.message.message });
 						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
-					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, message.substring(agentPart.agent.id.length + 1).trimStart(), new Progress<IChatSlashFragment>(p => {
-						const { content } = p;
-						const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
-						progressCallback(data);
+
+					request = model.addRequest(parsedRequest, agentPart.agent);
+					const requestProps: IChatAgentRequest = {
+						requestId: generateUuid(),
+						message: message,
+						variables: {},
+						command: agentSlashCommandPart?.command.name ?? '',
+					};
+					if ('parts' in parsedRequest) {
+						const varResult = await this.chatVariablesService.resolveVariables(parsedRequest, model, token);
+						requestProps.variables = varResult.variables;
+						requestProps.message = varResult.prompt;
+					}
+
+					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, requestProps, new Progress<IChatProgress>(p => {
+						progressCallback(p);
 					}), history, token);
 					slashCommandFollowups = agentResult?.followUp;
-					rawResponse = { session: model.session! };
+					rawResponse = { session: model.session!, errorDetails: agentResult.errorDetails, timings: agentResult.timings };
 				} else if (commandPart && typeof message === 'string' && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest);
 					// contributed slash commands
