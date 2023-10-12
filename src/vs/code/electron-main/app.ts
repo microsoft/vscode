@@ -118,7 +118,8 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
-import { AuxiliaryWindow } from 'vs/platform/windows/electron-main/auxiliaryWindow';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -132,6 +133,7 @@ export class CodeApplication extends Disposable {
 	};
 
 	private windowsMainService: IWindowsMainService | undefined;
+	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
@@ -386,7 +388,7 @@ export class CodeApplication extends Disposable {
 			// Child Window: delegate to `AuxiliaryWindow` class
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
-				this.mainInstantiationService.createInstance(AuxiliaryWindow, contents);
+				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
 			// Block any in-page navigation
@@ -406,7 +408,7 @@ export class CodeApplication extends Disposable {
 
 					return {
 						action: 'allow',
-						overrideBrowserWindowOptions: AuxiliaryWindow.open(this.mainInstantiationService)
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
 					};
 				}
 
@@ -458,6 +460,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#region Bootstrap IPC Handlers
+
+		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
@@ -793,7 +797,13 @@ export class CodeApplication extends Disposable {
 		}
 
 		if (checkboxChecked) {
-			windowsMainService.sendToOpeningWindow('vscode:disablePromptForProtocolHandling', uri.authority === Schemas.file ? 'local' : 'remote');
+			// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+			// update settings from within a window. But we do not know if a window
+			// is about to open or can already handle the request, so we have to send
+			// to any current window and any newly opening window.
+			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: uri.authority === Schemas.file ? 'local' : 'remote' };
+			windowsMainService.sendToFocused(request.channel, request.args);
+			windowsMainService.sendToOpeningWindow(request.channel, request.args);
 		}
 
 		return false; // not blocked by user choice
@@ -992,6 +1002,7 @@ export class CodeApplication extends Disposable {
 
 		// Windows
 		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv], false));
+		services.set(IAuxiliaryWindowsMainService, new SyncDescriptor(AuxiliaryWindowsMainService, undefined, false));
 
 		// Dialogs
 		const dialogMainService = new DialogMainService(this.logService, this.productService);
@@ -1210,6 +1221,7 @@ export class CodeApplication extends Disposable {
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		this.auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;

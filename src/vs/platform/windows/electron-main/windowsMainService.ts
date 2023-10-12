@@ -7,7 +7,7 @@ import { app, BrowserWindow, WebContents, shell } from 'electron';
 import { Promises } from 'vs/base/node/pfs';
 import { addUNCHostToAllowlist } from 'vs/base/node/unc';
 import { hostname, release, arch } from 'os';
-import { coalesce, distinct, firstOrDefault } from 'vs/base/common/arrays';
+import { coalesce, distinct } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CharCode } from 'vs/base/common/charCode';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -178,8 +178,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly WINDOWS: ICodeWindow[] = [];
-
 	private readonly _onDidOpenWindow = this._register(new Emitter<ICodeWindow>());
 	readonly onDidOpenWindow = this._onDidOpenWindow.event;
 
@@ -194,6 +192,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	private readonly _onDidTriggerSystemContextMenu = this._register(new Emitter<{ window: ICodeWindow; x: number; y: number }>());
 	readonly onDidTriggerSystemContextMenu = this._onDidTriggerSystemContextMenu.event;
+
+	private readonly windows = new Map<number, ICodeWindow>();
 
 	private readonly windowsStateHandler = this._register(new WindowsStateHandler(this, this.stateService, this.lifecycleMainService, this.logService, this.configurationService));
 
@@ -1129,7 +1129,13 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			addUNCHostToAllowlist(uri.authority);
 
 			if (checkboxChecked) {
-				this.sendToOpeningWindow('vscode:configureAllowedUNCHost', uri.authority);
+				// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+				// update settings from within a window. But we do not know if a window
+				// is about to open or can already handle the request, so we have to send
+				// to any current window and any newly opening window.
+				const request = { channel: 'vscode:configureAllowedUNCHost', args: uri.authority };
+				this.sendToFocused(request.channel, request.args);
+				this.sendToOpeningWindow(request.channel, request.args);
 			}
 
 			return this.doResolveFilePath(path, options, true /* do not handle UNC error again */);
@@ -1452,7 +1458,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			}
 
 			// Add to our list of windows
-			WindowsMainService.WINDOWS.push(createdWindow);
+			this.windows.set(createdWindow.id, createdWindow);
 
 			// Indicate new window via event
 			this._onDidOpenWindow.fire(createdWindow);
@@ -1585,8 +1591,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private onWindowClosed(window: ICodeWindow, disposables: IDisposable): void {
 
 		// Remove from our list so that Electron can clean it up
-		const index = WindowsMainService.WINDOWS.indexOf(window);
-		WindowsMainService.WINDOWS.splice(index, 1);
+		this.windows.delete(window.id);
 
 		// Emit
 		this._onDidChangeWindowsCount.fire({ oldCount: this.getWindowCount() + 1, newCount: this.getWindowCount() });
@@ -1641,17 +1646,15 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	getWindows(): ICodeWindow[] {
-		return WindowsMainService.WINDOWS;
+		return Array.from(this.windows.values());
 	}
 
 	getWindowCount(): number {
-		return WindowsMainService.WINDOWS.length;
+		return this.windows.size;
 	}
 
 	getWindowById(windowId: number): ICodeWindow | undefined {
-		const windows = this.getWindows().filter(window => window.id === windowId);
-
-		return firstOrDefault(windows);
+		return this.windows.get(windowId);
 	}
 
 	getWindowByWebContents(webContents: WebContents): ICodeWindow | undefined {

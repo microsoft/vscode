@@ -63,8 +63,8 @@ class VoiceChatSessionControllerFactory {
 	static create(accessor: ServicesAccessor, context: 'inline'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'quick'): Promise<IVoiceChatSessionController | undefined>;
 	static create(accessor: ServicesAccessor, context: 'view'): Promise<IVoiceChatSessionController | undefined>;
-	static create(accessor: ServicesAccessor, context: 'focussed'): Promise<IVoiceChatSessionController | undefined>;
-	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focussed'): Promise<IVoiceChatSessionController | undefined> {
+	static create(accessor: ServicesAccessor, context: 'focused'): Promise<IVoiceChatSessionController | undefined>;
+	static async create(accessor: ServicesAccessor, context: 'inline' | 'quick' | 'view' | 'focused'): Promise<IVoiceChatSessionController | undefined> {
 		const chatWidgetService = accessor.get(IChatWidgetService);
 		const chatService = accessor.get(IChatService);
 		const viewsService = accessor.get(IViewsService);
@@ -73,8 +73,8 @@ class VoiceChatSessionControllerFactory {
 		const quickChatService = accessor.get(IQuickChatService);
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 
-		// Currently Focussed Context
-		if (context === 'focussed') {
+		// Currently Focused Context
+		if (context === 'focused') {
 
 			// Try with the chat widget service, which currently
 			// only supports the chat view and quick chat
@@ -468,7 +468,7 @@ class StartVoiceChatAction extends Action2 {
 			context.widget.focusInput();
 		}
 
-		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focussed');
+		const controller = await VoiceChatSessionControllerFactory.create(accessor, 'focused');
 		if (controller) {
 			VoiceChatSessions.getInstance(instantiationService).start(controller);
 		} else {
