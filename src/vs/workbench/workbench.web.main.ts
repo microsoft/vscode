@@ -66,7 +66,7 @@ import 'vs/platform/extensionResourceLoader/browser/extensionResourceLoaderServi
 import 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -182,7 +182,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { IScreenReaderNotificationService, ScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
+import { ScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
 
 export {
 
