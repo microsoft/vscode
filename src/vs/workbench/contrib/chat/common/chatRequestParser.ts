@@ -7,7 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -79,6 +79,29 @@ export class ChatRequestParser {
 				message.slice(lastPartEnd, message.length)));
 		}
 
+
+		// fix up parts:
+		// * only one agent at the beginning of the message
+		// * only one agent command after the agent or at the beginning of the message
+		let agentIndex = -1;
+		for (let i = 0; i < parts.length; i++) {
+			const part = parts[i];
+			if (part instanceof ChatRequestAgentPart) {
+				if (i === 0) {
+					agentIndex = 0;
+				} else {
+					// agent not first -> make text part
+					parts[i] = new ChatRequestTextPart(part.range, part.editorRange, part.text);
+				}
+			}
+			if (part instanceof ChatRequestAgentSubcommandPart) {
+				if (!(i === 0 || agentIndex === 0 && i === 2 && /^\s+$/.test(parts[1].text))) {
+					// agent command not after agent nor first -> make text part
+					parts[i] = new ChatRequestTextPart(part.range, part.editorRange, part.text);
+				}
+			}
+		}
+
 		return {
 			parts,
 			text: message,
@@ -95,7 +118,7 @@ export class ChatRequestParser {
 		const varRange = new OffsetRange(offset, offset + full.length);
 		const varEditorRange = new Range(position.lineNumber, position.column, position.lineNumber, position.column + full.length);
 
-		let agent: IChatAgentData | undefined;
+		let agent: IChatAgent | undefined;
 		if ((agent = this.agentService.getAgent(name))) {
 			if (parts.some(p => p instanceof ChatRequestAgentPart)) {
 				// Only one agent allowed
@@ -143,7 +166,8 @@ export class ChatRequestParser {
 
 		const usedAgent = parts.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
 		if (usedAgent) {
-			const subCommand = usedAgent.agent.metadata.subCommands.find(c => c.name === command);
+			const subCommands = await usedAgent.agent.provideSlashCommands(CancellationToken.None);
+			const subCommand = subCommands.find(c => c.name === command);
 			if (subCommand) {
 				// Valid agent subcommand
 				return new ChatRequestAgentSubcommandPart(slashRange, slashEditorRange, subCommand);

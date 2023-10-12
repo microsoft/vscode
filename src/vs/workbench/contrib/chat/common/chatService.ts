@@ -87,13 +87,19 @@ export interface IChatContentReference {
 	reference: URI | Location;
 }
 
+export interface IChatContentInlineReference {
+	inlineReference: URI | Location;
+	name?: string;
+}
+
 export type IChatProgress =
 	| { content: string | IMarkdownString }
 	| { requestId: string }
 	| { treeData: IChatResponseProgressFileTreeData }
 	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
 	| IUsedContext
-	| IChatContentReference;
+	| IChatContentReference
+	| IChatContentInlineReference;
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
@@ -102,6 +108,7 @@ export interface IChatProvider {
 	readonly iconUrl?: string;
 	prepareSession(initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IChatReplyFollowup[])[] | undefined>;
+	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
 	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
 	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
@@ -223,7 +230,7 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>;
+	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
 	errorDetails?: IChatResponseErrorDetails;
 	followups?: IChatFollowup[];
 }
@@ -273,6 +280,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
+	onDidDisposeSession: Event<{ sessionId: string }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }

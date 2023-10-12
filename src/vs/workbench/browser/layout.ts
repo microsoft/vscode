@@ -165,9 +165,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private getContainerFromDocument(document: Document): HTMLElement {
 		if (document === this.container.ownerDocument) {
+			// main window
 			return this.container;
 		} else {
-			return document.body.children[0] as HTMLElement; // TODO@bpasero a bit of a hack
+			// auxiliary window
+			return document.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
 		}
 	}
 
@@ -489,11 +491,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, false);
 		}
 
-		// Activity bar cannot be hidden
-		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
-			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
-		}
-
 		this.stateModel.onDidChangeState(change => {
 			if (change.key === LayoutStateKeys.ACTIVITYBAR_HIDDEN) {
 				this.setActivityBarHidden(change.value as boolean);
@@ -594,6 +591,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			} else {
 				this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, true);
 			}
+		}
+
+		// Activity bar cannot be hidden
+		// This check must be called after state is set
+		// because canActivityBarBeHidden calls isVisible
+		if (this.stateModel.getRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN) && !this.canActivityBarBeHidden()) {
+			this.stateModel.setRuntimeValue(LayoutStateKeys.ACTIVITYBAR_HIDDEN, false);
 		}
 
 		// Window border

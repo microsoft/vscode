@@ -37,6 +37,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
 		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
 	}
+	private _addon: TextAreaSyncAddon | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
@@ -45,10 +46,13 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	) {
 		super();
 	}
-	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
-		xterm.raw.loadAddon(addon);
-		addon.activate(xterm.raw);
+	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
+		if (this._addon) {
+			return;
+		}
+		this._addon = this.add(this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities));
+		xterm.raw.loadAddon(this._addon);
+		this._addon.activate(xterm.raw);
 	}
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
