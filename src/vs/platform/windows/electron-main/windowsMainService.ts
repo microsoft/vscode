@@ -1376,7 +1376,6 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			...options.cli,
 
 			machineId: this.machineId,
-
 			sqmId: this.sqmId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
