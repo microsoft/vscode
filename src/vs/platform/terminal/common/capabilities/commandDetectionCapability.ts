@@ -394,7 +394,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
-				this._currentCommand.commandStartX = prompt.length + 1;
+				this._currentCommand.commandStartX = prompt.length;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -443,7 +443,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
+		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
