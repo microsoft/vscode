@@ -199,6 +199,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 
 	constructor(
 		private readonly machineId: string,
+		private readonly sqmId: string,
 		private readonly initialUserEnv: IProcessEnvironment,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerService: ILoggerMainService,
@@ -1381,6 +1382,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			...options.cli,
 
 			machineId: this.machineId,
+			sqmId: this.sqmId,
 
 			windowId: -1,	// Will be filled in by the window once loaded later
 
