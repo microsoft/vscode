@@ -139,4 +139,5 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
 registerAction2(ShowAudioCueHelp);
