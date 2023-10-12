@@ -101,7 +101,7 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	}
 
 	get promptText(): string {
-		return '';
+		return `/${this.slashCommand.command}`;
 	}
 }
 
