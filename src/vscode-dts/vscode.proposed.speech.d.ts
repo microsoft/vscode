@@ -17,9 +17,12 @@ declare module 'vscode' {
 		readonly text?: string;
 	}
 
+	export interface SpeechToTextSession extends Disposable {
+		readonly onDidChange: Event<SpeechToTextEvent>;
+	}
+
 	export interface SpeechProvider {
-		// eslint-disable-next-line local/vscode-dts-event-naming
-		provideSpeechToText(token: CancellationToken): Event<SpeechToTextEvent>;
+		provideSpeechToTextSession(token: CancellationToken): SpeechToTextSession;
 	}
 
 	export namespace speech {

@@ -104,7 +104,7 @@ import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReport
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
-import { ExtHostSpeechProvider } from 'vs/workbench/api/common/extHostSpeechProvider';
+import { ExtHostSpeech } from 'vs/workbench/api/common/extHostSpeech';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 import { ExtHostRelatedInformation } from 'vs/workbench/api/common/extHostAiRelatedInformation';
 import { ExtHostAiEmbeddingVector } from 'vs/workbench/api/common/extHostEmbeddingVector';
@@ -216,7 +216,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
-	const extHostSpeechProvider = rpcProtocol.set(ExtHostContext.ExtHostSpeechProvider, new ExtHostSpeechProvider(rpcProtocol));
+	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -1377,8 +1377,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		// namespace: speech
 		const speech: typeof vscode.speech = {
 			registerSpeechProvider(id: string, provider: vscode.SpeechProvider) {
-				checkProposedApiEnabled(extension, 'speechProvider');
-				return extHostSpeechProvider.registerProvider(extension.identifier, id, provider);
+				checkProposedApiEnabled(extension, 'speech');
+				return extHostSpeech.registerProvider(extension.identifier, id, provider);
 			}
 		};
 

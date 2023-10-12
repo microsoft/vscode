@@ -1134,15 +1134,15 @@ export interface MainThreadNotebookRenderersShape extends IDisposable {
 export interface MainThreadInteractiveShape extends IDisposable {
 }
 
-export interface MainThreadSpeechProviderShape extends IDisposable {
+export interface MainThreadSpeechShape extends IDisposable {
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 
 	$emitSpeechToTextEvent(handle: number, event: ISpeechToTextEvent): void;
 }
 
-export interface ExtHostSpeechProviderShape {
-	$provideSpeechToText(handle: number, token: CancellationToken): Promise<void>;
+export interface ExtHostSpeechShape {
+	$createSpeechToTextSession(handle: number, session: number, token: CancellationToken): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
@@ -2705,7 +2705,7 @@ export const MainContext = {
 	MainThreadStatusBar: createProxyIdentifier<MainThreadStatusBarShape>('MainThreadStatusBar'),
 	MainThreadSecretState: createProxyIdentifier<MainThreadSecretStateShape>('MainThreadSecretState'),
 	MainThreadStorage: createProxyIdentifier<MainThreadStorageShape>('MainThreadStorage'),
-	MainThreadSpeechProvider: createProxyIdentifier<MainThreadSpeechProviderShape>('MainThreadSpeechProvider'),
+	MainThreadSpeech: createProxyIdentifier<MainThreadSpeechShape>('MainThreadSpeechProvider'),
 	MainThreadTelemetry: createProxyIdentifier<MainThreadTelemetryShape>('MainThreadTelemetry'),
 	MainThreadTerminalService: createProxyIdentifier<MainThreadTerminalServiceShape>('MainThreadTerminalService'),
 	MainThreadWebviews: createProxyIdentifier<MainThreadWebviewsShape>('MainThreadWebviews'),
@@ -2800,7 +2800,7 @@ export const ExtHostContext = {
 	ExtHostChatAgents: createProxyIdentifier<ExtHostChatAgentsShape>('ExtHostChatAgents'),
 	ExtHostChatVariables: createProxyIdentifier<ExtHostChatVariablesShape>('ExtHostChatVariables'),
 	ExtHostChatProvider: createProxyIdentifier<ExtHostChatProviderShape>('ExtHostChatProvider'),
-	ExtHostSpeechProvider: createProxyIdentifier<ExtHostSpeechProviderShape>('ExtHostSpeechProvider'),
+	ExtHostSpeech: createProxyIdentifier<ExtHostSpeechShape>('ExtHostSpeech'),
 	ExtHostAiRelatedInformation: createProxyIdentifier<ExtHostAiRelatedInformationShape>('ExtHostAiRelatedInformation'),
 	ExtHostAiEmbeddingVector: createProxyIdentifier<ExtHostAiEmbeddingVectorShape>('ExtHostAiEmbeddingVector'),
 	ExtHostTheming: createProxyIdentifier<ExtHostThemingShape>('ExtHostTheming'),

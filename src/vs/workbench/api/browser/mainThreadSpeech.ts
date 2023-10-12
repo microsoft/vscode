@@ -3,22 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostContext, ExtHostSpeechProviderShape, MainContext, MainThreadSpeechProviderShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-interface SpeechProviderRegistration extends IDisposable {
+interface SpeechToTextSession {
 	readonly emitter: Emitter<ISpeechToTextEvent>;
 }
 
-@extHostNamedCustomer(MainContext.MainThreadSpeechProvider)
-export class MainThreadSpeechProvider extends Disposable implements MainThreadSpeechProviderShape {
+@extHostNamedCustomer(MainContext.MainThreadSpeech)
+export class MainThreadSpeech extends Disposable implements MainThreadSpeechShape {
 
-	private readonly proxy: ExtHostSpeechProviderShape;
-	private readonly providerRegistrations = new Map<number, SpeechProviderRegistration>();
+	private readonly proxy: ExtHostSpeechShape;
+	private readonly providerRegistrations = new Map<number, IDisposable>();
+	private readonly providerSessions = new Map<number, SpeechToTextSession>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -27,27 +29,35 @@ export class MainThreadSpeechProvider extends Disposable implements MainThreadSp
 	) {
 		super();
 
-		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeechProvider);
+		this.proxy = extHostContext.getProxy(ExtHostContext.ExtHostSpeech);
 	}
 
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void {
 		this.logService.trace('[Speech] extension registered provider', metadata.extension.value);
 
-		const emitter = new Emitter<ISpeechToTextEvent>();
-
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
-			speechToText: (token) => {
-				this.proxy.$provideSpeechToText(handle, token);
+			createSpeechToTextSession: token => {
+				const cts = new CancellationTokenSource(token);
+				const session = Math.random();
 
-				return emitter.event;
+				this.proxy.$createSpeechToTextSession(handle, session, cts.token);
+
+				const emitter = new Emitter<ISpeechToTextEvent>();
+				this.providerSessions.set(session, { emitter });
+
+				return {
+					onDidChange: emitter.event,
+					dispose: () => {
+						cts.dispose(true);
+						emitter.dispose();
+					}
+				};
 			}
 		});
 		this.providerRegistrations.set(handle, {
-			emitter,
 			dispose: () => {
 				registration.dispose();
-				emitter.dispose();
 			}
 		});
 	}
@@ -60,10 +70,10 @@ export class MainThreadSpeechProvider extends Disposable implements MainThreadSp
 		}
 	}
 
-	$emitSpeechToTextEvent(handle: number, event: ISpeechToTextEvent): void {
-		const registration = this.providerRegistrations.get(handle);
-		if (registration) {
-			registration.emitter.fire(event);
+	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void {
+		const providerSession = this.providerSessions.get(session);
+		if (providerSession) {
+			providerSession.emitter.fire(event);
 		}
 	}
 }

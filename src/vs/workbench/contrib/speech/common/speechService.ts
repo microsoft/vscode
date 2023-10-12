@@ -31,7 +31,11 @@ export interface ISpeechToTextEvent {
 export interface ISpeechProvider {
 	readonly metadata: ISpeechProviderMetadata;
 
-	speechToText(token: CancellationToken): Event<ISpeechToTextEvent>;
+	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
+}
+
+export interface ISpeechToTextSession extends IDisposable {
+	readonly onDidChange: Event<ISpeechToTextEvent>;
 }
 
 export interface ISpeechService {
@@ -40,7 +44,7 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
-	speechToText(identifier: string, token: CancellationToken): Event<ISpeechToTextEvent>;
+	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession;
 }
 
 export class SpeechService implements ISpeechService {
@@ -59,12 +63,12 @@ export class SpeechService implements ISpeechService {
 		return toDisposable(() => this.providers.delete(identifier));
 	}
 
-	speechToText(identifier: string, token: CancellationToken): Event<ISpeechToTextEvent> {
+	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession {
 		const provider = this.providers.get(identifier);
 		if (!provider) {
 			throw new Error(`Speech provider with identifier ${identifier} is not registered.`);
 		}
 
-		return provider.speechToText(token);
+		return provider.createSpeechToTextSession(token);
 	}
 }
