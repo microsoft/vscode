@@ -977,11 +977,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 				break;
 
 			case EventName.createDirectoryWatcher:
-				this.createFileSystemWatcher(event.body.id, new vscode.RelativePattern(vscode.Uri.file(event.body.path), event.body.recursive ? '**' : '*'));
+				this.createFileSystemWatcher(event.body.id, new vscode.RelativePattern(vscode.Uri.file(event.body.path), event.body.recursive ? '**' : '*'), [ /* TODO need to fill in excludes list */]);
 				break;
 
 			case EventName.createFileWatcher:
-				this.createFileSystemWatcher(event.body.id, event.body.path);
+				this.createFileSystemWatcher(event.body.id, event.body.path, []);
 				break;
 
 			case EventName.closeFileWatcher:
@@ -993,8 +993,9 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	private createFileSystemWatcher(
 		id: number,
 		pattern: vscode.GlobPattern,
+		excludes: string[]
 	) {
-		const watcher = vscode.workspace.createFileSystemWatcher(pattern);
+		const watcher = typeof pattern === 'string' ? vscode.workspace.createFileSystemWatcher(pattern) : vscode.workspace.createFileSystemWatcher(pattern, { excludes });
 		watcher.onDidChange(changeFile =>
 			this.executeWithoutWaitingForResponse('watchChange', { id, path: changeFile.fsPath, eventType: 'update' })
 		);
