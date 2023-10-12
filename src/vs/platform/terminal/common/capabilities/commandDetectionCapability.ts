@@ -394,7 +394,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
 			} else if (promptMatch) {
 				// use the regex to set the position as it's possible input has occurred
-				this._currentCommand.commandStartX = promptMatch[0].length;
+				this._currentCommand.commandStartX = promptMatch[0].length + 1;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
