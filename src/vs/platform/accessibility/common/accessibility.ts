@@ -21,7 +21,6 @@ export interface IAccessibilityService {
 	getAccessibilitySupport(): AccessibilitySupport;
 	setAccessibilitySupport(accessibilitySupport: AccessibilitySupport): void;
 	alert(message: string): void;
-	alertCleared(): void;
 }
 
 export const enum AccessibilitySupport {

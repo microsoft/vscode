@@ -69,7 +69,7 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
 
 const $ = dom.$;
 
@@ -976,9 +976,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const accessibilityService = _accessor.get(IAccessibilityService);
+		const screenReaderNotificationService = _accessor.get(IScreenReaderNotificationService);
 		view.clearRepl();
-		accessibilityService.alertCleared();
+		screenReaderNotificationService.notifyCleared();
 	}
 });
 
