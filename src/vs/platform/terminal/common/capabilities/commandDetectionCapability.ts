@@ -382,7 +382,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			for (; i < 20; i++) {
 				await timeout(10);
 				prompt = this._getWindowsPrompt();
-				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
+				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
