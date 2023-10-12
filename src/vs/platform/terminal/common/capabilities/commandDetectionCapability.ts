@@ -382,7 +382,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			for (; i < 20; i++) {
 				await timeout(10);
 				prompt = this._getWindowsPrompt();
-				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
+				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
@@ -391,6 +391,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 			this._windowsPromptPollingInProcess = false;
 			if (i === 20) {
+				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
+			} else if (prompt) {
+				// use the regex to set the position as it's possible input has occurred
+				this._currentCommand.commandStartX = prompt.length;
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
@@ -438,11 +442,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _getWindowsPrompt(): string | undefined {
+	private _getWindowsPrompt(): string | undefined {
 		const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY);
 		if (!line) {
 			return;
+			return;
 		}
 		// TODO: fine tune prompt regex to accomodate for unique configurtions.
+		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 	}
 
