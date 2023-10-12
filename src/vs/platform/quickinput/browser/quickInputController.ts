@@ -52,7 +52,8 @@ export class QuickInputController extends Disposable {
 	private previousFocusElement?: HTMLElement;
 
 	constructor(private options: IQuickInputOptions,
-		private readonly themeService: IThemeService) {
+		private readonly themeService: IThemeService,
+		private readonly layoutService: ILayoutService) {
 		super();
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
@@ -72,6 +73,13 @@ export class QuickInputController extends Disposable {
 
 	private getUI() {
 		if (this.ui) {
+			// In order to support aux windows, re-parent the controller if the original event is
+			// from a different document
+			if (this.parentElement.ownerDocument !== this.layoutService.activeContainer.ownerDocument) {
+				this.parentElement = this.layoutService.activeContainer;
+				dom.append(this.parentElement, this.ui.container);
+			}
+
 			return this.ui;
 		}
 
