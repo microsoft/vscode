@@ -109,6 +109,8 @@ declare module 'vscode' {
 	export interface InteractiveRequest {
 		session: InteractiveSession;
 		message: string | InteractiveSessionReplyFollowup;
+		// TODO@API move to agent
+		// slashCommand?: InteractiveSessionSlashCommand;
 	}
 
 	export interface InteractiveResponseErrorDetails {
