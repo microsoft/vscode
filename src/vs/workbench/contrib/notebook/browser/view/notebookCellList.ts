@@ -20,7 +20,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
-import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY, NotebookSetting, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { NOTEBOOK_CELL_LIST_FOCUSED } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 import { clamp } from 'vs/base/common/numbers';
@@ -33,6 +33,7 @@ import { IListViewOptions, IListView } from 'vs/base/browser/ui/list/listView';
 import { NotebookCellListView } from 'vs/workbench/contrib/notebook/browser/view/notebookCellListView';
 import { NotebookOptions } from 'vs/workbench/contrib/notebook/browser/notebookOptions';
 import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
+import { NotebookCellAnchor } from 'vs/workbench/contrib/notebook/browser/view/notebookCellAnchor';
 
 const enum CellEditorRevealType {
 	Line,
@@ -93,6 +94,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private readonly _localDisposableStore = new DisposableStore();
 	private readonly _viewModelStore = new DisposableStore();
 	private styleElement?: HTMLStyleElement;
+	private _notebookCellAnchor: NotebookCellAnchor;
 
 	private readonly _onDidRemoveOutputs = this._localDisposableStore.add(new Emitter<readonly ICellOutputViewModel[]>());
 	readonly onDidRemoveOutputs = this._onDidRemoveOutputs.event;
@@ -157,7 +159,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		@IListService listService: IListService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super(listUser, container, delegate, renderers, options, contextKeyService, listService, configurationService, instantiationService);
 		NOTEBOOK_CELL_LIST_FOCUSED.bindTo(this.contextKeyService).set(true);
@@ -179,6 +181,8 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
+
+		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, this.configurationService);
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
@@ -1212,46 +1216,16 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const focus = focused.length ? focused[0] : null;
 
 		// If the cell is growing, we should favor anchoring to the focused cell
-		if (focus && !this.stopAnchoring) {
-			const cellEditorIsFocused = this.view.element(focused[0]).focusMode === CellFocusMode.Editor;
-			const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
+		if (focus) {
+			const focusMode = this.element(focused[0]).focusMode;
 			const growing = this.view.elementHeight(index) < size;
-			const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
-			const autoAnchor = allowScrolling && growing && anchorFocusedSetting !== 'off';
-
-			if (cellEditorIsFocused || autoAnchor || anchorFocusedSetting === 'on') {
-				this.watchAchorDuringExecution(index);
+			if (this._notebookCellAnchor.shouldAnchor(focusMode, growing)) {
+				this._notebookCellAnchor.watchAchorDuringExecution(this.element(index), this.onDidScroll);
 				return this.view.updateElementHeight(index, size, focus);
 			}
 		}
 
 		return this.view.updateElementHeight(index, size, null);
-	}
-
-	private stopAnchoring = false;
-	private executionWatcher: IDisposable | undefined;
-	private scrollWatcher: IDisposable | undefined;
-	private watchAchorDuringExecution(index: number) {
-		// anchor while the cell is executing unless the user scrolls up.
-		const viewCell = this.element(index);
-		if (!this.executionWatcher && viewCell && viewCell.cellKind === CellKind.Code) {
-			const executionState = this._notebookExecutionStateService.getCellExecution(viewCell.uri);
-
-			if (executionState && executionState.state === NotebookCellExecutionState.Executing) {
-				this.executionWatcher = viewCell.onDidStopExecution(() => {
-					this.executionWatcher?.dispose();
-					this.executionWatcher = undefined;
-					this.scrollWatcher?.dispose();
-					this.stopAnchoring = false;
-				});
-				this.scrollWatcher = this.onDidScroll((scrollEvent) => {
-					if (scrollEvent.scrollTop < scrollEvent.oldScrollTop) {
-						this.stopAnchoring = true;
-						this.scrollWatcher?.dispose();
-					}
-				});
-			}
-		}
 	}
 
 	// override
@@ -1414,8 +1388,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this._isDisposed = true;
 		this._viewModelStore.dispose();
 		this._localDisposableStore.dispose();
-		this.scrollWatcher?.dispose();
-		this.executionWatcher?.dispose();
+		this._notebookCellAnchor.dispose();
 		super.dispose();
 
 		// un-ref
