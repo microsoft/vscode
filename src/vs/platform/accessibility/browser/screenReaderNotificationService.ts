@@ -5,16 +5,9 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-
-export const IScreenReaderNotificationService = createDecorator<IScreenReaderNotificationService>('screenReaderNotificationService');
-
-export interface IScreenReaderNotificationService {
-	notifyCleared(): void;
-}
 
 export class ScreenReaderNotificationService extends Disposable implements IScreenReaderNotificationService {
 	declare readonly _serviceBrand: undefined;

@@ -46,3 +46,10 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& typeof obj.label === 'string'
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
+
+export interface IScreenReaderNotificationService {
+	readonly _serviceBrand: undefined;
+	notifyCleared(): void;
+}
+
+export const IScreenReaderNotificationService = createDecorator<IScreenReaderNotificationService>('screenReaderNotificationService');
