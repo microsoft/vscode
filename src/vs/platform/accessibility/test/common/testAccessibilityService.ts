@@ -12,7 +12,6 @@ export class TestAccessibilityService implements IAccessibilityService {
 
 	onDidChangeScreenReaderOptimized = Event.None;
 	onDidChangeReducedMotion = Event.None;
-	onDidRequestPlayClearAudioCue = Event.None;
 
 	isScreenReaderOptimized(): boolean { return false; }
 	isMotionReduced(): boolean { return false; }
