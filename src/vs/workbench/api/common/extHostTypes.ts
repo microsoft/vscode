@@ -4140,3 +4140,14 @@ export enum RelatedInformationType {
 }
 
 //#endregion
+
+//#region Speech
+
+export enum SpeechToTextStatus {
+	Started = 1,
+	Recognizing = 2,
+	Recognized = 3,
+	Stopped = 4
+}
+
+//#endregion

@@ -21,46 +21,43 @@
     {
       range: {
         start: 6,
-        endExclusive: 7
-      },
-      editorRange: {
-        startLineNumber: 1,
-        startColumn: 7,
-        endLineNumber: 1,
-        endColumn: 8
-      },
-      text: " ",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 7,
         endExclusive: 18
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 8,
-        endLineNumber: 1,
-        endColumn: 19
+        startColumn: 7,
+        endLineNumber: 2,
+        endColumn: 4
       },
-      command: {
-        name: "subCommand",
-        description: ""
-      },
-      kind: "subcommand"
+      text: " Please \ndo ",
+      kind: "text"
     },
     {
       range: {
         start: 18,
+        endExclusive: 29
+      },
+      editorRange: {
+        startLineNumber: 2,
+        startColumn: 4,
+        endLineNumber: 2,
+        endColumn: 15
+      },
+      text: "/subCommand",
+      kind: "text"
+    },
+    {
+      range: {
+        start: 29,
         endExclusive: 35
       },
       editorRange: {
-        startLineNumber: 1,
-        startColumn: 19,
+        startLineNumber: 2,
+        startColumn: 15,
         endLineNumber: 2,
-        endColumn: 16
+        endColumn: 21
       },
-      text: " \nPlease do with ",
+      text: " with ",
       kind: "text"
     },
     {
@@ -70,9 +67,9 @@
       },
       editorRange: {
         startLineNumber: 2,
-        startColumn: 16,
+        startColumn: 21,
         endLineNumber: 2,
-        endColumn: 26
+        endColumn: 31
       },
       variableName: "selection",
       variableArg: "",
@@ -85,7 +82,7 @@
       },
       editorRange: {
         startLineNumber: 2,
-        startColumn: 26,
+        startColumn: 31,
         endLineNumber: 3,
         endColumn: 5
       },
@@ -108,5 +105,5 @@
       kind: "var"
     }
   ],
-  text: "@agent /subCommand \nPlease do with #selection\nand #debugConsole"
+  text: "@agent Please \ndo /subCommand with #selection\nand #debugConsole"
 }
