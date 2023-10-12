@@ -5,11 +5,11 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { IAccessibilityService, IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export class ScreenReaderNotificationService extends Disposable implements IScreenReaderNotificationService {
+export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService,
@@ -28,7 +28,7 @@ export class ScreenReaderNotificationService extends Disposable implements IScre
 	}
 }
 
-export class TestScreenReaderNotificationService implements IScreenReaderNotificationService {
+export class TestScreenReaderNotificationService implements IAccessibleNotificationService {
 
 	declare readonly _serviceBrand: undefined;
 

@@ -8,7 +8,7 @@ import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
-import { IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -67,7 +67,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiationService.stub(IScreenReaderNotificationService, new TestScreenReaderNotificationService());
+		instantiationService.stub(IAccessibleNotificationService, new TestScreenReaderNotificationService());
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
