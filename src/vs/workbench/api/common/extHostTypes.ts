@@ -4150,14 +4150,4 @@ export enum SpeechToTextStatus {
 	Stopped = 4
 }
 
-export class SpeechToTextEvent implements vscode.SpeechToTextEvent {
-	readonly status: SpeechToTextStatus;
-	readonly text?: string;
-
-	constructor(status: SpeechToTextStatus, text?: string) {
-		this.status = status;
-		this.text = text;
-	}
-}
-
 //#endregion

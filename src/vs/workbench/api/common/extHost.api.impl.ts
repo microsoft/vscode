@@ -1599,8 +1599,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
 			RelatedInformationType: extHostTypes.RelatedInformationType,
-			SpeechToTextStatus: extHostTypes.SpeechToTextStatus,
-			SpeechToTextEvent: extHostTypes.SpeechToTextEvent
+			SpeechToTextStatus: extHostTypes.SpeechToTextStatus
 		};
 	};
 }

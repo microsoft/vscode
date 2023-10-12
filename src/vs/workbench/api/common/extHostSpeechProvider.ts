@@ -8,7 +8,6 @@ import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostSpeechProviderShape, IMainContext, MainContext, MainThreadSpeechProviderShape } from 'vs/workbench/api/common/extHost.protocol';
 import type * as vscode from 'vscode';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { SpeechToText } from 'vs/workbench/api/common/extHostTypeConverters';
 
 export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 
@@ -39,7 +38,7 @@ export class ExtHostSpeechProvider implements ExtHostSpeechProviderShape {
 				return;
 			}
 
-			this.proxy.$emitSpeechToTextEvent(handle, SpeechToText.from(e));
+			this.proxy.$emitSpeechToTextEvent(handle, e);
 		});
 
 		token.onCancellationRequested(() => subscription.dispose());
