@@ -29,7 +29,7 @@ export class SharedProcess extends Disposable {
 
 	constructor(
 		private readonly machineId: string,
-		private readonly sqmId: string | undefined,
+		private readonly sqmId: string,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
