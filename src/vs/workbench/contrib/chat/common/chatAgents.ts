@@ -90,7 +90,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	registerAgent(agent: IChatAgent): IDisposable {
 		if (this._agents.has(agent.id)) {
-			throw new Error(`Already registered an agent with id ${agent.id}}`);
+			throw new Error(`Already registered an agent with id ${agent.id}`);
 		}
 		this._agents.set(agent.id, { agent });
 		this._onDidChangeAgents.fire();
