@@ -43,7 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { IScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
 
 const enum RenderConstants {
 	/**
@@ -204,7 +204,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IScreenReaderNotificationService private readonly _screenReaderNotificationService: IScreenReaderNotificationService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -590,7 +590,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
-		this._accessibilityService.alertCleared();
+		this._screenReaderNotificationService.notifyCleared();
 	}
 
 	hasSelection(): boolean {

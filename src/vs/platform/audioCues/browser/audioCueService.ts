@@ -50,6 +50,7 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 
 	public async playAudioCue(cue: AudioCue, options: IAudioCueOptions = {}): Promise<void> {
 		if (this.isEnabled(cue)) {
+			console.log('playing cue', cue.name);
 			this.sendAudioCueTelemetry(cue, options.source);
 			await this.playSound(cue.sound.getSound(), options.allowManyInParallel);
 		}
@@ -254,6 +255,7 @@ export class Sound {
 	public static readonly chatResponseReceived2 = Sound.register({ fileName: 'chatResponseReceived2.mp3' });
 	public static readonly chatResponseReceived3 = Sound.register({ fileName: 'chatResponseReceived3.mp3' });
 	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
+	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -417,6 +419,12 @@ export class AudioCue {
 		name: localize('audioCues.chatResponsePending', 'Chat Response Pending'),
 		sound: Sound.chatResponsePending,
 		settingsKey: 'audioCues.chatResponsePending'
+	});
+
+	public static readonly clear = AudioCue.register({
+		name: localize('audioCues.clear', 'Clear'),
+		sound: Sound.clear,
+		settingsKey: 'audioCues.clear'
 	});
 
 	private constructor(
