@@ -38,4 +38,4 @@ class VoiceChatActionsContributor extends Disposable implements IWorkbenchContri
 	}
 }
 
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VoiceChatActionsContributor, LifecyclePhase.Eventually);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VoiceChatActionsContributor, LifecyclePhase.Restored);

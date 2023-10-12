@@ -281,7 +281,7 @@ class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitio
 
 							break;
 						case SpeechToTextStatus.Stopped:
-							disposables.dispose();
+							cts.cancel();
 							recordingDone.complete();
 							break;
 					}
