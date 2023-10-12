@@ -190,7 +190,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
-			})
+			}),
+			compact: true
 		};
 	}
 

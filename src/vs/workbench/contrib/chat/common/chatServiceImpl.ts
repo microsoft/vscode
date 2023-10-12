@@ -147,6 +147,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
 	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
 
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string }>());
+	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -374,6 +377,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.setInitializationError(err);
 			model.dispose();
 			this._sessionModels.delete(model.sessionId);
+			this._onDidDisposeSession.fire({ sessionId: model.sessionId });
 		}
 	}
 
@@ -501,7 +505,7 @@ export class ChatService extends Disposable implements IChatService {
 				}
 
 				let rawResponse: IChatResponse | null | undefined;
-				let slashCommandFollowups: IChatFollowup[] | void = [];
+				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 
 				if (typeof message === 'string' && agentPart) {
 					const history: IChatMessage[] = [];
@@ -516,6 +520,7 @@ export class ChatService extends Disposable implements IChatService {
 
 					request = model.addRequest(parsedRequest, agentPart.agent);
 					const requestProps: IChatAgentRequest = {
+						sessionId,
 						requestId: generateUuid(),
 						message: message,
 						variables: {},
@@ -530,8 +535,9 @@ export class ChatService extends Disposable implements IChatService {
 					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, requestProps, new Progress<IChatProgress>(p => {
 						progressCallback(p);
 					}), history, token);
-					slashCommandFollowups = agentResult?.followUp;
 					rawResponse = { session: model.session!, errorDetails: agentResult.errorDetails, timings: agentResult.timings };
+					agentOrCommandFollowups = agentResult?.followUp ? Promise.resolve(agentResult.followUp) :
+						this.chatAgentService.getFollowups(agentPart.agent.id, sessionId, CancellationToken.None);
 				} else if (commandPart && typeof message === 'string' && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest);
 					// contributed slash commands
@@ -549,7 +555,7 @@ export class ChatService extends Disposable implements IChatService {
 						const data = isCompleteInteractiveProgressTreeData(content) ? content : { content };
 						progressCallback(data);
 					}), history, token);
-					slashCommandFollowups = commandResult?.followUp;
+					agentOrCommandFollowups = Promise.resolve(commandResult?.followUp);
 					rawResponse = { session: model.session! };
 
 				} else {
@@ -592,15 +598,16 @@ export class ChatService extends Disposable implements IChatService {
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
 
 					// TODO refactor this or rethink the API https://github.com/microsoft/vscode-copilot/issues/593
-					if (provider.provideFollowups) {
-						Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(providerFollowups => {
-							const allFollowups = providerFollowups?.concat(slashCommandFollowups ?? []);
-							model.setFollowups(request, allFollowups ?? undefined);
+					if (agentOrCommandFollowups) {
+						agentOrCommandFollowups.then(followups => {
+							model.setFollowups(request, followups);
 							model.completeResponse(request);
 						});
-					} else if (slashCommandFollowups?.length) {
-						model.setFollowups(request, slashCommandFollowups);
-						model.completeResponse(request);
+					} else if (provider.provideFollowups) {
+						Promise.resolve(provider.provideFollowups(model.session!, CancellationToken.None)).then(providerFollowups => {
+							model.setFollowups(request, providerFollowups ?? undefined);
+							model.completeResponse(request);
+						});
 					} else {
 						model.completeResponse(request);
 					}
@@ -725,6 +732,7 @@ export class ChatService extends Disposable implements IChatService {
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
+		this._onDidDisposeSession.fire({ sessionId });
 	}
 
 	registerProvider(provider: IChatProvider): IDisposable {
