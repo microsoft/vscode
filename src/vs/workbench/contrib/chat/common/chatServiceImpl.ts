@@ -504,7 +504,6 @@ export class ChatService extends Disposable implements IChatService {
 				let slashCommandFollowups: IChatFollowup[] | void = [];
 
 				if (typeof message === 'string' && agentPart) {
-					request = model.addRequest(parsedRequest, agentPart.agent);
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
 						if (!request.response) {
@@ -515,6 +514,7 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 
+					request = model.addRequest(parsedRequest, agentPart.agent);
 					const requestProps: IChatAgentRequest = {
 						requestId: generateUuid(),
 						message: message,
