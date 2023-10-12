@@ -43,7 +43,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IScreenReaderNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
+import { IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 const enum RenderConstants {
 	/**
