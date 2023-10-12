@@ -26,6 +26,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private readonly _agents = new Map<number, ExtHostChatAgent>();
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
+	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
+
 	constructor(
 		mainContext: IMainContext,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
@@ -43,7 +45,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, sessionId: string, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -81,10 +83,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
-					// An option would be to call provideFollowups here and send the result back to the renderer, rather than store the result
-					// and wait for the renderer to ask for followups
-					// agent.provideFollowups(result, token);
+					this._previousResultMap.set(sessionId, result);
 					return { errorDetails: result.errorDetails }; // TODO timings here
+				} else {
+					this._previousResultMap.delete(sessionId);
 				}
 
 				return undefined;
@@ -104,6 +106,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 	}
 
+	$releaseSession(sessionId: string): void {
+		this._previousResultMap.delete(sessionId);
+	}
+
 	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
@@ -113,15 +119,18 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideSlashCommand(token);
 	}
 
-	async $provideFollowups(handle: number, requestId: number, token: CancellationToken): Promise<IChatFollowup[]> {
+	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
-			// this is OK, the agent might have disposed while the request was in flight
-			return [];
+			return Promise.resolve([]);
 		}
 
-		// TODO look up result object based on requestId
-		return agent.provideFollowups(null!, token);
+		const result = this._previousResultMap.get(sessionId);
+		if (!result) {
+			return Promise.resolve([]);
+		}
+
+		return agent.provideFollowups(result, token);
 	}
 }
 
