@@ -13,7 +13,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -291,7 +291,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
 		public readonly session: ChatModel,
-		public readonly agent: IChatAgentData | undefined,
+		public readonly agent: IChatAgent | undefined,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
@@ -362,7 +362,7 @@ export interface ISerializableChatsData {
 
 export interface ISerializableChatAgentData {
 	id: string;
-	description: string;
+	description?: string;
 	fullName?: string;
 	icon?: UriComponents;
 }
@@ -551,7 +551,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (obj.welcomeMessage) {
 			const content = obj.welcomeMessage.map(item => typeof item === 'string' ? new MarkdownString(item) : item);
-			this._welcomeMessage = new ChatWelcomeMessageModel(this, content);
+			this._welcomeMessage = new ChatWelcomeMessageModel(this, content, []);
 		}
 
 		try {
@@ -644,7 +644,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgentData): ChatRequestModel {
+	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgent): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
@@ -796,6 +796,7 @@ export type IChatWelcomeMessageContent = IMarkdownString | IChatReplyFollowup[];
 export interface IChatWelcomeMessageModel {
 	readonly id: string;
 	readonly content: IChatWelcomeMessageContent[];
+	readonly sampleQuestions: IChatReplyFollowup[];
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 
@@ -812,6 +813,7 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 	constructor(
 		private readonly session: ChatModel,
 		public readonly content: IChatWelcomeMessageContent[],
+		public readonly sampleQuestions: IChatReplyFollowup[]
 	) {
 		this._id = 'welcome_' + ChatWelcomeMessageModel.nextId++;
 	}
