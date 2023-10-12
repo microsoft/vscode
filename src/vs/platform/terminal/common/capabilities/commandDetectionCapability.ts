@@ -443,7 +443,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-
 		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 	}
 
