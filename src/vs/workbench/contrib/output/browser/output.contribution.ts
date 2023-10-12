@@ -28,7 +28,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { Disposable, dispose, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
-import { IScreenReaderNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 // Register Service
 registerSingleton(IOutputService, OutputService, InstantiationType.Delayed);
@@ -221,7 +221,7 @@ class OutputContribution extends Disposable implements IWorkbenchContribution {
 			}
 			async run(accessor: ServicesAccessor): Promise<void> {
 				const outputService = accessor.get(IOutputService);
-				const screenReaderNotificationService = accessor.get(IScreenReaderNotificationService);
+				const screenReaderNotificationService = accessor.get(IAccessibleNotificationService);
 				const activeChannel = outputService.getActiveChannel();
 				if (activeChannel) {
 					activeChannel.clear();

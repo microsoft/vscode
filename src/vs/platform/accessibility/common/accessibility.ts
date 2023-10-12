@@ -47,9 +47,14 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
 
-export interface IScreenReaderNotificationService {
+/**
+ * Manages whether an audio cue or an aria alert will be used
+ * in response to actions taken around the workbench.
+ * Targets screen reader and braille users.
+ */
+export interface IAccessibleNotificationService {
 	readonly _serviceBrand: undefined;
 	notifyCleared(): void;
 }
 
-export const IScreenReaderNotificationService = createDecorator<IScreenReaderNotificationService>('screenReaderNotificationService');
+export const IAccessibleNotificationService = createDecorator<IAccessibleNotificationService>('accessibleNotificationService');
