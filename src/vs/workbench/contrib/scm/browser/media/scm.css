@@ -242,6 +242,14 @@
 	border-radius: 2px;
 }
 
+.scm-view .scm-input .actions {
+	position: absolute;
+	top: 6px;
+	right: 20px;
+	border: 1px solid var(--vscode-toolbar-hoverBackground);
+	border-radius: 5px;
+}
+
 .scm-view .scm-editor-container .monaco-editor {
 	border-radius: 2px;
 }
