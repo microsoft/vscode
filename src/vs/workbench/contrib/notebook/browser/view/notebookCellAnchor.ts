@@ -21,34 +21,42 @@ export class NotebookCellAnchor implements IDisposable {
 
 	constructor(
 		private readonly notebookExecutionStateService: INotebookExecutionStateService,
-		private readonly configurationService: IConfigurationService) {
+		private readonly configurationService: IConfigurationService,
+		private readonly scrollEvent: Event<ScrollEvent>) {
 	}
 
-	public shouldAnchor(focusMode: CellFocusMode, growing: boolean) {
+	public shouldAnchor(focusMode: CellFocusMode, growing: boolean, executingCellUri: ICellViewModel) {
+		if (focusMode === CellFocusMode.Editor) {
+			return true;
+		}
 		if (this.stopAnchoring) {
 			return false;
 		}
-		const cellEditorIsFocused = focusMode === CellFocusMode.Editor;
+
 		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
 		const autoAnchor = allowScrolling && growing && anchorFocusedSetting !== 'off';
 
-		return (cellEditorIsFocused || autoAnchor || anchorFocusedSetting === 'on');
+		if (autoAnchor || anchorFocusedSetting === 'on') {
+			this.watchAchorDuringExecution(executingCellUri);
+			return true;
+		}
+
+		return false;
 	}
 
-	public watchAchorDuringExecution(viewCell: ICellViewModel, scrollEvent: Event<ScrollEvent>) {
+	public watchAchorDuringExecution(executingCell: ICellViewModel) {
 		// anchor while the cell is executing unless the user scrolls up.
-		if (!this.executionWatcher && viewCell && viewCell.cellKind === CellKind.Code) {
-			const executionState = this.notebookExecutionStateService.getCellExecution(viewCell.uri);
-
+		if (!this.executionWatcher && executingCell.cellKind === CellKind.Code) {
+			const executionState = this.notebookExecutionStateService.getCellExecution(executingCell.uri);
 			if (executionState && executionState.state === NotebookCellExecutionState.Executing) {
-				this.executionWatcher = (viewCell as CodeCellViewModel).onDidStopExecution(() => {
+				this.executionWatcher = (executingCell as CodeCellViewModel).onDidStopExecution(() => {
 					this.executionWatcher?.dispose();
 					this.executionWatcher = undefined;
 					this.scrollWatcher?.dispose();
 					this.stopAnchoring = false;
 				});
-				this.scrollWatcher = scrollEvent((scrollEvent) => {
+				this.scrollWatcher = this.scrollEvent((scrollEvent) => {
 					if (scrollEvent.scrollTop < scrollEvent.oldScrollTop) {
 						this.stopAnchoring = true;
 						this.scrollWatcher?.dispose();
