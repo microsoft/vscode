@@ -182,7 +182,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { GroupOrientation } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { UserDataSyncResourceProviderService } from 'vs/platform/userDataSync/common/userDataSyncResourceProvider';
 import { RemoteAuthorityResolverError, RemoteAuthorityResolverErrorCode } from 'vs/platform/remote/common/remoteAuthorityResolver';
-import { AccessibleNotificationService } from 'vs/platform/accessibility/browser/screenReaderNotificationService';
+import { AccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
 
 export {
 
