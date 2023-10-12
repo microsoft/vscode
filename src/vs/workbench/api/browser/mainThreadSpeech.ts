@@ -11,14 +11,15 @@ import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape 
 import { ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
-interface SpeechToTextSession {
-	readonly emitter: Emitter<ISpeechToTextEvent>;
-}
+type SpeechToTextSession = {
+	readonly onDidChange: Emitter<ISpeechToTextEvent>;
+};
 
 @extHostNamedCustomer(MainContext.MainThreadSpeech)
 export class MainThreadSpeech extends Disposable implements MainThreadSpeechShape {
 
 	private readonly proxy: ExtHostSpeechShape;
+
 	private readonly providerRegistrations = new Map<number, IDisposable>();
 	private readonly providerSessions = new Map<number, SpeechToTextSession>();
 
@@ -43,14 +44,15 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 
 				this.proxy.$createSpeechToTextSession(handle, session, cts.token);
 
-				const emitter = new Emitter<ISpeechToTextEvent>();
-				this.providerSessions.set(session, { emitter });
+				const onDidChange = new Emitter<ISpeechToTextEvent>();
+				this.providerSessions.set(session, { onDidChange });
 
 				return {
-					onDidChange: emitter.event,
+					onDidChange: onDidChange.event,
 					dispose: () => {
 						cts.dispose(true);
-						emitter.dispose();
+						onDidChange.dispose();
+						this.providerSessions.delete(session);
 					}
 				};
 			}
@@ -73,7 +75,7 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void {
 		const providerSession = this.providerSessions.get(session);
 		if (providerSession) {
-			providerSession.emitter.fire(event);
+			providerSession.onDidChange.fire(event);
 		}
 	}
 }

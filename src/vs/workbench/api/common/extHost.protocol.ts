@@ -1138,7 +1138,7 @@ export interface MainThreadSpeechShape extends IDisposable {
 	$registerProvider(handle: number, identifier: string, metadata: ISpeechProviderMetadata): void;
 	$unregisterProvider(handle: number): void;
 
-	$emitSpeechToTextEvent(handle: number, event: ISpeechToTextEvent): void;
+	$emitSpeechToTextEvent(session: number, event: ISpeechToTextEvent): void;
 }
 
 export interface ExtHostSpeechShape {
