@@ -7,6 +7,7 @@ import { networkInterfaces } from 'os';
 import { TernarySearchTree } from 'vs/base/common/ternarySearchTree';
 import * as uuid from 'vs/base/common/uuid';
 import { getMac } from 'vs/base/node/macAddress';
+import { isWindows } from 'vs/base/common/platform';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -98,4 +99,22 @@ async function getMacMachineId(errorLogger: (error: any) => void): Promise<strin
 		errorLogger(err);
 		return undefined;
 	}
+}
+
+const SQM_KEY: string = 'Software\\Microsoft\\SQMClient';
+export async function getSqmMachineId(errorLogger: (error: any) => void): Promise<string> {
+	if (isWindows) {
+		const Registry = await import('@vscode/windows-registry');
+		try {
+			// Wait for 1s max (as to not block the startup) to read the SQM value
+			return await Promise.race([
+				Registry.GetStringRegKey('HKEY_LOCAL_MACHINE', SQM_KEY, 'MachineId') || '',
+				new Promise<string>(resolve => setTimeout(() => resolve(''), 1000))
+			]);
+		} catch (err) {
+			errorLogger(err);
+			return '';
+		}
+	}
+	return '';
 }
