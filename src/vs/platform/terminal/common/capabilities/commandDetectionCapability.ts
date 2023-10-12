@@ -373,6 +373,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
+		let promptMatch: RegExpMatchArray | undefined;
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
 			this._windowsPromptPollingInProcess = true;
@@ -380,7 +381,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			let i = 0;
 			for (; i < 20; i++) {
 				await timeout(10);
-				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+				promptMatch = this._cursorLineLooksLikeWindowsPrompt();
+				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && promptMatch) {
 					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
@@ -390,8 +392,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._windowsPromptPollingInProcess = false;
 			if (i === 20) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
-			} else {
-				this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+			} else if (promptMatch) {
+				// use the regex to set the position as it's possible input has occurred
+				this._currentCommand.commandStartX = promptMatch[0].length;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -434,13 +437,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		return cursorYAbsolute > lastCommandYAbsolute;
 	}
 
-	private _cursorLineLooksLikeWindowsPrompt(): boolean {
+	private _cursorLineLooksLikeWindowsPrompt(): RegExpMatchArray | undefined {
 		const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY);
 		if (!line) {
-			return false;
+			return;
 		}
 		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
+		return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) ?? undefined;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
