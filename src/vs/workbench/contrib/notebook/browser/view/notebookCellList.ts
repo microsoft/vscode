@@ -157,7 +157,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		contextKeyService: IContextKeyService,
 		options: IWorkbenchListOptions<CellViewModel>,
 		@IListService listService: IListService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
@@ -182,7 +182,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		const cursorSelectionListener = this._localDisposableStore.add(new MutableDisposable());
 		const textEditorAttachListener = this._localDisposableStore.add(new MutableDisposable());
 
-		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, this.configurationService);
+		this._notebookCellAnchor = new NotebookCellAnchor(notebookExecutionStateService, configurationService);
 
 		const recomputeContext = (element: CellViewModel) => {
 			switch (element.cursorAtBoundary()) {
