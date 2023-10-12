@@ -13,6 +13,7 @@ import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const startInlineChatIcon = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon for starting the inline chat'));
 
@@ -28,7 +29,8 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	});
 
 	constructor(
-		editor: ICodeEditor
+		editor: ICodeEditor,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		editor.onDidChangeCursorSelection(e => this.updateDecorations(editor, e.selection));
 		this.updateDecorations(editor, editor.getSelection());
@@ -44,12 +46,21 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		if (!selection) {
 			return;
 		}
-		editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			if (this.previousID) {
-				accessor.removeDecoration(this.previousID);
-			}
-			this.previousID = accessor.addDecoration(selection, InlineChatDecorationsContribution.START_INLINE_CHAT_DECORATION);
-		});
+		const showGutterIcon = this.configurationService.getValue<boolean>('inlineChat.showGutterIcon');
+		if (showGutterIcon) {
+			editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+				if (this.previousID) {
+					accessor.removeDecoration(this.previousID);
+				}
+				this.previousID = accessor.addDecoration(selection, InlineChatDecorationsContribution.START_INLINE_CHAT_DECORATION);
+			});
+		} else {
+			editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+				if (this.previousID) {
+					accessor.removeDecoration(this.previousID);
+				}
+			});
+		}
 	}
 
 	dispose() { }

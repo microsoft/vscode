@@ -207,6 +207,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('showDiff', "Enable/disable showing the diff when edits are generated. Works only with inlineChat.mode equal to live or livePreview."),
 			default: true,
 			type: 'boolean'
-		}
+		},
+		'inlineChat.showGutterIcon': {
+			description: localize('showGutterIcon', "Show or hide the gutter icon that starts the inline chat window."),
+			type: 'boolean',
+			default: true
+		},
 	}
 });
