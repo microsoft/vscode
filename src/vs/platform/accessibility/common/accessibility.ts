@@ -55,6 +55,12 @@ export const IAccessibleNotificationService = createDecorator<IAccessibleNotific
  */
 export interface IAccessibleNotificationService {
 	readonly _serviceBrand: undefined;
-	notifyCleared(): void;
+	notify(event: AccessibleNotificationEvent): void;
+	notifySaved(userGesture: boolean): void;
 }
 
+export const enum AccessibleNotificationEvent {
+	Clear = 'clear',
+	Save = 'save',
+	Format = 'format'
+}
