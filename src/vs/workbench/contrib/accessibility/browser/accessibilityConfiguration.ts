@@ -123,7 +123,7 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
-			'description': localize('alert.save', "When in screen reader mode, alerts when a file is saved."),
+			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Also see {0}", '`#audioCues.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'never',

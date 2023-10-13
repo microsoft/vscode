@@ -138,7 +138,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'off'
 		},
 		'audioCues.save': {
-			'description': localize('audioCues.save', "Plays a sound when a file is saved."),
+			'markdownDescription': localize('audioCues.save', "Plays a sound when a file is saved. Also see {0}", '`#accessibility.alert.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'never',
