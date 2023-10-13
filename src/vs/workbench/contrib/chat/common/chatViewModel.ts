@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -83,6 +84,7 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly agent?: IChatAgent;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -259,8 +261,20 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.avatarIconUri;
 	}
 
+	get agent() {
+		return this._model.agent;
+	}
+
 	get response(): IResponse {
 		if (this._isPlaceholder) {
+			// TODO@roblourens- this is suspicious. We may want to separate the markdown content from other types of content?
+			const placeholderText = new MarkdownString(localize('thinking', "Thinking") + '\u2026');
+			return {
+				value: [placeholderText],
+				contentReferences: this._model.response.contentReferences,
+				usedContext: this._model.response.usedContext,
+				asString: () => placeholderText.value,
+			};
 			// TODO@roblourens- this is suspicious. We may want to separate the markdown content from other types of content?
 			const placeholderText = new MarkdownString(localize('thinking', "Thinking") + '\u2026');
 			return {
@@ -320,6 +334,19 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	set usedReferencesExpanded(v: boolean) {
 		this._usedReferencesExpanded = v;
 	}
+	private _usedReferencesExpanded: boolean | undefined;
+
+	get usedReferencesExpanded(): boolean | undefined {
+		if (typeof this._usedReferencesExpanded === 'boolean') {
+			return this._usedReferencesExpanded;
+		}
+
+		return this.isPlaceholder;
+	}
+
+	set usedReferencesExpanded(v: boolean) {
+		this._usedReferencesExpanded = v;
+	}
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
@@ -345,36 +372,37 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 		this._register(_model.onDidChange(() => {
 			if (this._isPlaceholder && (_model.response.value.length > 0 || this.isComplete)) {
-				this._isPlaceholder = false;
-			}
-
-			if (this._contentUpdateTimings) {
-				// This should be true, if the model is changing
-				const now = Date.now();
-				const wordCount = countWords(_model.response.asString());
-				const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
-				const impliedWordLoadRate = wordCount / (timeDiff / 1000);
-				const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
-				if (!this.isComplete) {
-					this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
-					this._contentUpdateTimings = {
-						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
-						lastUpdateTime: now,
-						wordCountAfterLastUpdate: wordCount,
-						impliedWordLoadRate
-					};
-				} else {
-					this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
+				if (this._isPlaceholder && (_model.response.value.length > 0 || this.isComplete)) {
+					this._isPlaceholder = false;
 				}
-			} else {
-				this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
-			}
 
-			// new data -> new id, new content to render
-			this._modelChangeCount++;
+				if (this._contentUpdateTimings) {
+					// This should be true, if the model is changing
+					const now = Date.now();
+					const wordCount = countWords(_model.response.asString());
+					const timeDiff = now - this._contentUpdateTimings!.loadingStartTime;
+					const impliedWordLoadRate = wordCount / (timeDiff / 1000);
+					const renderedWordCount = this.renderData?.renderedParts.reduce((acc, part) => acc += ('label' in part ? 0 : part.renderedWordCount), 0);
+					if (!this.isComplete) {
+						this.trace('onDidChange', `Update- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
+						this._contentUpdateTimings = {
+							loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
+							lastUpdateTime: now,
+							wordCountAfterLastUpdate: wordCount,
+							impliedWordLoadRate
+						};
+					} else {
+						this.trace(`onDidChange`, `Done- got ${wordCount} words over ${timeDiff}ms = ${impliedWordLoadRate} words/s. ${renderedWordCount} words are rendered.`);
+					}
+				} else {
+					this.logService.warn('ChatResponseViewModel#onDidChange: got model update but contentUpdateTimings is not initialized');
+				}
 
-			this._onDidChange.fire();
-		}));
+				// new data -> new id, new content to render
+				this._modelChangeCount++;
+
+				this._onDidChange.fire();
+			}));
 	}
 
 	private trace(tag: string, message: string) {

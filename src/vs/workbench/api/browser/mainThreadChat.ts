@@ -38,7 +38,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			this._proxy.$onDidPerformUserAction(e);
+			if (!e.agentId) {
+				this._proxy.$onDidPerformUserAction(e);
+			}
 		}));
 	}
 
