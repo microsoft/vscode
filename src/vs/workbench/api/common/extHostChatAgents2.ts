@@ -19,7 +19,7 @@ import { ChatAgentResultFeedbackKind } from 'vs/workbench/api/common/extHostType
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
@@ -307,9 +307,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get isDefault() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
 				return that._isDefault;
 			},
 			set isDefault(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
 				that._isDefault = v;
 				updateMetadataSoon();
 			},
