@@ -97,13 +97,13 @@ kill_app
 echo
 echo "### Ipynb tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/ipynb --extensionTestsPath=$ROOT/extensions/ipynb/out/test $API_TESTS_EXTRA_ARGS
+yarn test-extension -l ipynb
 kill_app
 
 echo
 echo "### Notebook Output tests"
 echo
-"$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/notebook-renderers --extensionTestsPath=$ROOT/extensions/notebook-renderers/out/test $API_TESTS_EXTRA_ARGS
+yarn test-extension -l notebook-renderers
 kill_app
 
 echo
