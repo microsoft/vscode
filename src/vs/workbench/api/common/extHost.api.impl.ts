@@ -1372,7 +1372,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createChatAgent(name: string, handler: vscode.ChatAgentHandler) {
 				checkProposedApiEnabled(extension, 'chatAgents2');
-				return extHostChatAgents2.createChatAgent(extension.identifier, name, handler);
+				return extHostChatAgents2.createChatAgent(extension, name, handler);
 			},
 			registerAgent(name: string, agent: vscode.ChatAgent, metadata: vscode.ChatAgentMetadata) {
 				checkProposedApiEnabled(extension, 'chatAgents');

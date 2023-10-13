@@ -9,7 +9,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
-import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
@@ -18,7 +18,8 @@ import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { ChatAgentResultFeedbackKind } from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatFollowup, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
@@ -38,7 +39,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
 	}
 
-	createChatAgent(extension: ExtensionIdentifier, name: string, handler: vscode.ChatAgentHandler): vscode.ChatAgent2 {
+	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentHandler): vscode.ChatAgent2 {
 		const handle = ExtHostChatAgents2._idPool++;
 		const agent = new ExtHostChatAgent(extension, name, this._proxy, handle, handler);
 		this._agents.set(handle, agent);
@@ -63,7 +64,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
 		setTimeout(() => commandExecution.complete(), 3 * 1000);
-		this._extHostChatProvider.allowListExtensionWhile(agent.extension, commandExecution.p);
+		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
 
 		const slashCommand = request.command
 			? await agent.validateSlashCommand(request.command)
@@ -158,6 +159,18 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		}
 		agent.acceptFeedback(Object.freeze({ result, kind }));
 	}
+
+	$acceptAction(handle: number, sessionId: string, action: IChatUserActionEvent): void {
+		const agent = this._agents.get(handle);
+		if (!agent) {
+			return;
+		}
+		const result = this._previousResultMap.get(sessionId);
+		if (!result) {
+			return;
+		}
+		agent.acceptAction({ ...action, result });
+	}
 }
 
 class ExtHostChatAgent {
@@ -169,9 +182,10 @@ class ExtHostChatAgent {
 	private _fullName: string | undefined;
 	private _iconPath: URI | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
+	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 
 	constructor(
-		public readonly extension: ExtensionIdentifier,
+		public readonly extension: IExtensionDescription,
 		private readonly _id: string,
 		private readonly _proxy: MainThreadChatAgentsShape2,
 		private readonly _handle: number,
@@ -180,6 +194,10 @@ class ExtHostChatAgent {
 
 	acceptFeedback(feedback: vscode.ChatAgentResult2Feedback) {
 		this._onDidReceiveFeedback.fire(feedback);
+	}
+
+	acceptAction(event: vscode.ChatAgentUserActionEvent) {
+		this._onDidPerformAction.fire(event);
 	}
 
 	async validateSlashCommand(command: string) {
@@ -254,7 +272,7 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get fullName() {
-				return that._fullName ?? that.extension.value;
+				return that._fullName ?? that.extension.displayName ?? that.extension.name;
 			},
 			set fullName(v) {
 				that._fullName = v;
@@ -285,6 +303,10 @@ class ExtHostChatAgent {
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
 			},
+			onDidPerformAction: !isProposedApiEnabled(this.extension, 'chatAgents2Additions')
+				? undefined!
+				: this._onDidPerformAction.event
+			,
 			dispose() {
 				disposed = true;
 				that._slashCommandProvider = undefined;

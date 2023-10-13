@@ -117,9 +117,6 @@ declare module 'vscode' {
 		 */
 		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
-		// TODO@API We need this- can't handle telemetry on the vscode side yet
-		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
-
 		// TODO@API Something like prepareSession from the interactive chat provider might be needed.Probably nobody needs it right now.
 		// prepareSession();
 

@@ -1185,6 +1185,7 @@ export interface ExtHostChatAgentsShape2 {
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	$acceptFeedback(handle: number, sessionId: string, vote: InteractiveSessionVoteDirection): void;
+	$acceptAction(handle: number, sessionId: string, action: IChatUserActionEvent): void;
 	$releaseSession(sessionId: string): void;
 }
 

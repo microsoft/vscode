@@ -365,9 +365,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				followup => {
 					this.chatService.notifyUserAction({
 						providerId: element.providerId,
+						agentId: element.agent?.id,
+						sessionId: element.sessionId,
 						action: {
 							kind: 'command',
-							command: followup
+							command: followup,
 						}
 					});
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
