@@ -14,12 +14,15 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 const startInlineChatIcon = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon for starting the inline chat'));
 
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private previousID: string | undefined;
+	private cursorChangeListener: IDisposable | undefined;
+	private readonly settingID = 'inlineChat.showGutterIcon';
 
 	private static readonly START_INLINE_CHAT_DECORATION = ModelDecorationOptions.register({
 		description: 'start-inline-chat-decoration',
@@ -29,39 +32,53 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	});
 
 	constructor(
-		editor: ICodeEditor,
+		private readonly editor: ICodeEditor,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
-		editor.onDidChangeCursorSelection(e => this.updateDecorations(editor, e.selection));
-		this.updateDecorations(editor, editor.getSelection());
-		window.addEventListener('click', event => {
-			const target = event.target as HTMLElement;
-			if (target.classList.contains('codicon-start-inline-chat')) {
-				InlineChatController.get(editor)?.run({});
+		const showGutterIcon = this.configurationService.getValue<boolean>(this.settingID);
+		if (showGutterIcon) {
+			this.activeGutterIconDecorations();
+		}
+		this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(this.settingID)) {
+				const showGutterIcon = this.configurationService.getValue<boolean>(this.settingID);
+				if (showGutterIcon) {
+					this.activeGutterIconDecorations();
+				} else {
+					this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+						if (this.previousID) {
+							accessor.removeDecoration(this.previousID);
+						}
+					});
+				}
 			}
 		});
 	}
 
-	private updateDecorations(editor: ICodeEditor, selection: Selection | null) {
+	private activeGutterIconDecorations() {
+		this.updateDecorations(this.editor.getSelection());
+		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateDecorations(e.selection));
+		window.addEventListener('click', event => {
+			const target = event.target as HTMLElement;
+			if (target.classList.contains('codicon-start-inline-chat')) {
+				InlineChatController.get(this.editor)?.run({});
+			}
+		});
+	}
+
+	private updateDecorations(selection: Selection | null) {
 		if (!selection) {
 			return;
 		}
-		const showGutterIcon = this.configurationService.getValue<boolean>('inlineChat.showGutterIcon');
-		if (showGutterIcon) {
-			editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-				if (this.previousID) {
-					accessor.removeDecoration(this.previousID);
-				}
-				this.previousID = accessor.addDecoration(selection, InlineChatDecorationsContribution.START_INLINE_CHAT_DECORATION);
-			});
-		} else {
-			editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-				if (this.previousID) {
-					accessor.removeDecoration(this.previousID);
-				}
-			});
-		}
+		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			if (this.previousID) {
+				accessor.removeDecoration(this.previousID);
+			}
+			this.previousID = accessor.addDecoration(selection, InlineChatDecorationsContribution.START_INLINE_CHAT_DECORATION);
+		});
 	}
 
-	dispose() { }
+	dispose() {
+		this.cursorChangeListener?.dispose();
+	}
 }
