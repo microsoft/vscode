@@ -507,7 +507,9 @@ export class ChatService extends Disposable implements IChatService {
 				let rawResponse: IChatResponse | null | undefined;
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 
-				if (typeof message === 'string' && agentPart) {
+				const defaultAgent = this.chatAgentService.getDefaultAgent();
+				if (typeof message === 'string' && (agentPart || defaultAgent)) {
+					const agent = (agentPart?.agent ?? defaultAgent)!;
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
 						if (!request.response) {
@@ -518,11 +520,11 @@ export class ChatService extends Disposable implements IChatService {
 						history.push({ role: ChatMessageRole.Assistant, content: request.response.response.asString() });
 					}
 
-					request = model.addRequest(parsedRequest, agentPart.agent);
+					request = model.addRequest(parsedRequest, agent);
 					const requestProps: IChatAgentRequest = {
 						sessionId,
 						requestId: generateUuid(),
-						message: message,
+						message,
 						variables: {},
 						command: agentSlashCommandPart?.command.name ?? '',
 					};
@@ -532,7 +534,7 @@ export class ChatService extends Disposable implements IChatService {
 						requestProps.message = varResult.prompt;
 					}
 
-					const agentResult = await this.chatAgentService.invokeAgent(agentPart.agent.id, requestProps, new Progress<IChatProgress>(p => {
+					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, new Progress<IChatProgress>(p => {
 						progressCallback(p);
 					}), history, token);
 					rawResponse = {
@@ -541,7 +543,7 @@ export class ChatService extends Disposable implements IChatService {
 						timings: agentResult.timings
 					};
 					agentOrCommandFollowups = agentResult?.followUp ? Promise.resolve(agentResult.followUp) :
-						this.chatAgentService.getFollowups(agentPart.agent.id, sessionId, CancellationToken.None);
+						this.chatAgentService.getFollowups(agent.id, sessionId, CancellationToken.None);
 				} else if (commandPart && typeof message === 'string' && this.chatSlashCommandService.hasCommand(commandPart.slashCommand.command)) {
 					request = model.addRequest(parsedRequest);
 					// contributed slash commands

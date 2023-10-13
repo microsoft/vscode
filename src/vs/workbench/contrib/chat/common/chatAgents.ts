@@ -5,6 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -36,7 +37,7 @@ export interface IChatAgentMetadata {
 	description?: string;
 	// subCommands: IChatAgentCommand[];
 	requireCommand?: boolean; // Do some agents not have a default action?
-	isImplicit?: boolean; // Only @workspace. slash commands get promoted to the top-level and this agent is invoked when those are used
+	isDefault?: boolean; // The agent invoked when no agent is specified
 	fullName?: string;
 	icon?: URI;
 }
@@ -69,6 +70,7 @@ export interface IChatAgentService {
 	getFollowups(id: string, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
+	getDefaultAgent(): IChatAgent | undefined;
 	hasAgent(id: string): boolean;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -110,6 +112,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		}
 		data.agent.metadata = { ...data.agent.metadata, ...updateMetadata };
 		this._onDidChangeAgents.fire();
+	}
+
+	getDefaultAgent(): IChatAgent | undefined {
+		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isDefault)?.agent;
 	}
 
 	getAgents(): Array<IChatAgent> {

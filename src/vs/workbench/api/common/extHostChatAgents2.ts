@@ -185,6 +185,7 @@ class ExtHostChatAgent {
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: URI | undefined;
+	private _isDefault: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 
@@ -258,6 +259,7 @@ class ExtHostChatAgent {
 					icon: this._iconPath,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
+					isDefault: this._isDefault
 				});
 				updateScheduled = false;
 			});
@@ -302,6 +304,13 @@ class ExtHostChatAgent {
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
+				updateMetadataSoon();
+			},
+			get isDefault() {
+				return that._isDefault;
+			},
+			set isDefault(v) {
+				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {
