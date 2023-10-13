@@ -16,20 +16,20 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-const startInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
+const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
-	private previousID: string | undefined;
+	private gutterDecorationID: string | undefined;
 	private cursorChangeListener: IDisposable | undefined;
 	private clickChangeListener: IDisposable | undefined;
 
-	private readonly settingID = 'inlineChat.showGutterIcon';
-	private readonly className = 'codicon-inline-chat';
+	private readonly gutterSettingID = 'inlineChat.showGutterIcon';
+	private readonly gutterIconClassName = 'codicon-inline-chat';
 
-	private static readonly START_INLINE_CHAT_DECORATION = ModelDecorationOptions.register({
+	private static readonly GUTTER_DECORATION = ModelDecorationOptions.register({
 		description: 'inline-chat-decoration',
-		glyphMarginClassName: ThemeIcon.asClassName(startInlineChatIcon),
+		glyphMarginClassName: ThemeIcon.asClassName(gutterInlineChatIcon),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
@@ -39,46 +39,46 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(this.settingID)) {
+			if (!e.affectsConfiguration(this.gutterSettingID)) {
 				return;
 			}
-			const showGutterIcon = this.configurationService.getValue<boolean>(this.settingID);
-			if (showGutterIcon) {
-				this.activateDecorations();
+			const gutterIconEnabled = this.configurationService.getValue<boolean>(this.gutterSettingID);
+			if (gutterIconEnabled) {
+				this.activateGutterDecoration();
 			} else {
-				this.removePreviousDecoration();
+				this.removePreviousGutterDecoration();
 			}
 		});
-		const showGutterIcon = this.configurationService.getValue<boolean>(this.settingID);
-		if (showGutterIcon) {
-			this.activateDecorations();
+		const gutterIconEnabled = this.configurationService.getValue<boolean>(this.gutterSettingID);
+		if (gutterIconEnabled) {
+			this.activateGutterDecoration();
 		}
 	}
 
-	private activateDecorations() {
-		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateDecorations(e.selection));
+	private activateGutterDecoration() {
+		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateGutterDecoration(e.selection));
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (e.target.element?.classList.contains(this.className)) {
+			if (e.target.element?.classList.contains(this.gutterIconClassName)) {
 				InlineChatController.get(this.editor)?.run();
 			}
 		});
-		this.updateDecorations(this.editor.getSelection());
+		this.updateGutterDecoration(this.editor.getSelection());
 	}
 
-	private updateDecorations(selection: Selection | null) {
+	private updateGutterDecoration(selection: Selection | null) {
 		if (!selection) {
 			return;
 		}
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this.removePreviousDecoration();
-			this.previousID = accessor.addDecoration(selection, InlineChatDecorationsContribution.START_INLINE_CHAT_DECORATION);
+			this.removePreviousGutterDecoration();
+			this.gutterDecorationID = accessor.addDecoration(selection, InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
 
-	private removePreviousDecoration() {
+	private removePreviousGutterDecoration() {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			if (this.previousID) {
-				accessor.removeDecoration(this.previousID);
+			if (this.gutterDecorationID) {
+				accessor.removeDecoration(this.gutterDecorationID);
 			}
 		});
 	}
