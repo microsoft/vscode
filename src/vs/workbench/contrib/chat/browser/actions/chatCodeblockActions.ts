@@ -105,6 +105,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: <IChatCopyAction>{
 					kind: 'copy',
 					responseId: context.element.providerResponseId,
@@ -146,6 +148,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'copy',
 					codeBlockIndex: context.codeBlockIndex,
@@ -320,6 +324,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'insert',
 					responseId: context.element.providerResponseId,
@@ -363,6 +369,8 @@ export function registerChatCodeBlockActions() {
 
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'insert',
 					responseId: context.element.providerResponseId,
@@ -439,6 +447,8 @@ export function registerChatCodeBlockActions() {
 
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'runInTerminal',
 					responseId: context.element.providerResponseId,

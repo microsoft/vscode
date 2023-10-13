@@ -22,6 +22,16 @@ declare module 'vscode' {
 		errorDetails?: ChatAgentErrorDetails;
 	}
 
+	export enum ChatAgentResultFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+	}
+
+	export interface ChatAgentResult2Feedback {
+		readonly result: ChatAgentResult2;
+		readonly kind: ChatAgentResultFeedbackKind;
+	}
+
 	export interface ChatAgentSlashCommand {
 
 		/**
@@ -51,6 +61,8 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
+	// TODO@API is this just a vscode.Command?
+	// TODO@API what's the when-property for? how about not returning it in the first place?
 	export interface ChatAgentCommandFollowup {
 		commandId: string;
 		args?: any[];
@@ -96,9 +108,14 @@ declare module 'vscode' {
 
 		followupProvider?: FollowupProvider;
 
-		// TODO@API We need this- can't handle telemetry on the vscode side yet
-		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
-
+		/**
+		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
+		 * a result.
+		 *
+		 * The passed {@link ChatAgentResult2Feedback.result result} is guaranteed to be the same instance that was
+		 * previously returned from this chat agent.
+		 */
+		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
 		// TODO@API Something like prepareSession from the interactive chat provider might be needed.Probably nobody needs it right now.
 		// prepareSession();
