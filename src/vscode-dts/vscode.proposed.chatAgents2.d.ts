@@ -51,6 +51,8 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
+	// TODO@API is this just a vscode.Command?
+	// TODO@API what's the when-property for? how about not returning it in the first place?
 	export interface ChatAgentCommandFollowup {
 		commandId: string;
 		args?: any[];
