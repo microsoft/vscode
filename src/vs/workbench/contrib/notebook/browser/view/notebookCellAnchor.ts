@@ -11,6 +11,8 @@ import { INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/co
 import { Event } from 'vs/base/common/event';
 import { ScrollEvent } from 'vs/base/common/scrollable';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IListView } from 'vs/base/browser/ui/list/listView';
+import { CellViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 
 
 export class NotebookCellAnchor implements IDisposable {
@@ -25,17 +27,21 @@ export class NotebookCellAnchor implements IDisposable {
 		private readonly scrollEvent: Event<ScrollEvent>) {
 	}
 
-	public shouldAnchor(focusMode: CellFocusMode, growing: boolean, executingCellUri: ICellViewModel) {
-		if (focusMode === CellFocusMode.Editor) {
+	public shouldAnchor(cellListView: IListView<CellViewModel>, focusedIndex: number, heightDelta: number, executingCellUri: ICellViewModel) {
+		if (cellListView.element(focusedIndex).focusMode === CellFocusMode.Editor) {
 			return true;
 		}
 		if (this.stopAnchoring) {
 			return false;
 		}
 
+		const newFocusBottom = cellListView.elementTop(focusedIndex) + cellListView.elementHeight(focusedIndex) + heightDelta;
+		const viewBottom = cellListView.renderHeight + cellListView.getScrollTop();
+		const focusStillVisible = viewBottom > newFocusBottom;
 		const anchorFocusedSetting = this.configurationService.getValue(NotebookSetting.anchorToFocusedCell);
 		const allowScrolling = this.configurationService.getValue(NotebookSetting.scrollToRevealCell) !== 'none';
-		const autoAnchor = allowScrolling && growing && anchorFocusedSetting !== 'off';
+		const growing = heightDelta > 0;
+		const autoAnchor = allowScrolling && growing && !focusStillVisible && anchorFocusedSetting !== 'off';
 
 		if (autoAnchor || anchorFocusedSetting === 'on') {
 			this.watchAchorDuringExecution(executingCellUri);
