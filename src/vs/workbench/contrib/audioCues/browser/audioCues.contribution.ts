@@ -137,6 +137,18 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 			default: 'off'
 		},
+		'audioCues.save': {
+			'description': localize('audioCues.save', "Plays a sound when a file is saved."),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'off'],
+			'default': 'off',
+			'enumDescriptions': [
+				localize('audioCues.enabled.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+				localize('audioCues.enabled.always', "Plays the audio cue whenever a file is saved, including auto save."),
+				localize('audioCues.enabled.off', "Disable audio cue.")
+			],
+			tags: ['accessibility']
+		},
 	},
 });
 
