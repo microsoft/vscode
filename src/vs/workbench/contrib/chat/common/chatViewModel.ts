@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -83,6 +84,7 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly agent?: IChatAgent;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -257,6 +259,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get avatarIconUri() {
 		return this._model.avatarIconUri;
+	}
+
+	get agent() {
+		return this._model.agent;
 	}
 
 	get response(): IResponse {

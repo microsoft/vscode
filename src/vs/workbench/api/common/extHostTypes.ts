@@ -4128,6 +4128,11 @@ export class ChatMessage implements vscode.ChatMessage {
 	}
 }
 
+export enum ChatAgentResultFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
+}
+
 //#endregion
 
 //#region ai
