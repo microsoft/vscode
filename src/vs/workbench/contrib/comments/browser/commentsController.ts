@@ -1190,10 +1190,6 @@ export class CommentController implements IEditorContribution {
 					pendingEdits = providerEditsCacheStore[thread.threadId!];
 				}
 
-				if (pendingComment || pendingEdits) {
-					thread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
-				}
-
 				this.displayCommentThread(info.owner, thread, pendingComment, pendingEdits);
 			});
 			for (const thread of info.pendingCommentThreads ?? []) {
