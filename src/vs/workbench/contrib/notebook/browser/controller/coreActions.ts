@@ -383,7 +383,8 @@ export function parseMultiCellExecutionArgs(accessor: ServicesAccessor, ...args:
 	return context ? {
 		ui: false,
 		notebookEditor: context.notebookEditor,
-		selectedCells: context.selectedCells ?? []
+		selectedCells: context.selectedCells ?? [],
+		cell: context.cell
 	} : undefined;
 }
 

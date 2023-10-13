@@ -144,6 +144,12 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: required
+              Recurse: true
+
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
@@ -163,6 +169,13 @@ stages:
               TreatSignatureUpdateFailureAs: 'Warning'
               SignatureFreshness: 'OneDay'
               TreatStaleSignatureAs: 'Error'
+
+          - task: PublishSecurityAnalysisLogs@3
+            inputs:
+              ArtifactName: CodeAnalysisLogs
+              ArtifactType: Container
+              PublishProcessedResults: false
+              AllTools: true
 
           - task: TSAUpload@2
             inputs:

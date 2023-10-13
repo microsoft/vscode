@@ -43,16 +43,16 @@ export class ChatVariablesService implements IChatVariablesService {
 								resolvedVariables[part.variableName] = value;
 								parsedPrompt[i] = `[${part.text}](values:${part.variableName})`;
 							} else {
-								parsedPrompt[i] = part.text;
+								parsedPrompt[i] = part.promptText;
 							}
 						}).catch(onUnexpectedExternalError));
 					}
 				} else if (part instanceof ChatRequestDynamicReferencePart) {
 					// Maybe the dynamic reference should include a full IChatRequestVariableValue[] at the time it is inserted?
 					resolvedVariables[part.referenceText] = [{ level: 'full', value: part.data.toString() }];
-					parsedPrompt[i] = `[${part.text}](values:${part.referenceText})`;
+					parsedPrompt[i] = part.promptText;
 				} else {
-					parsedPrompt[i] = part.text;
+					parsedPrompt[i] = part.promptText;
 				}
 			});
 
@@ -60,7 +60,7 @@ export class ChatVariablesService implements IChatVariablesService {
 
 		return {
 			variables: resolvedVariables,
-			prompt: parsedPrompt.join('')
+			prompt: parsedPrompt.join('').trim()
 		};
 	}
 
