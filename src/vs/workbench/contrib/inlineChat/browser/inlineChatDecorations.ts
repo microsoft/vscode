@@ -5,7 +5,7 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -22,6 +22,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private previousID: string | undefined;
 	private cursorChangeListener: IDisposable | undefined;
+	private clickChangeListener: IDisposable | undefined;
 	private readonly settingID = 'inlineChat.showGutterIcon';
 
 	private static readonly START_INLINE_CHAT_DECORATION = ModelDecorationOptions.register({
@@ -58,9 +59,8 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private activeGutterIconDecorations() {
 		this.updateDecorations(this.editor.getSelection());
 		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateDecorations(e.selection));
-		window.addEventListener('click', event => {
-			const target = event.target as HTMLElement;
-			if (target.classList.contains('codicon-start-inline-chat')) {
+		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+			if (e.target.element?.classList.contains('codicon-start-inline-chat')) {
 				InlineChatController.get(this.editor)?.run({});
 			}
 		});
@@ -80,5 +80,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	dispose() {
 		this.cursorChangeListener?.dispose();
+		this.clickChangeListener?.dispose();
 	}
 }
