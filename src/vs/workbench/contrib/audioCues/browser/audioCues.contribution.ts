@@ -131,8 +131,13 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
 			...audioCueFeatureBase,
 			default: 'off'
-		}
-	}
+		},
+		'audioCues.clear': {
+			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, debug console, or output channel). When this is disabled, an aria alert will announce 'Cleared'."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+	},
 });
 
 registerAction2(ShowAudioCueHelp);
