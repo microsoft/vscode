@@ -318,14 +318,14 @@
 
 /* gutter decoration */
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-start-inline-chat {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
 	cursor: pointer;
 	display: block;
 	opacity: 0.5;
 	transition: opacity .2s ease-in-out;
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-start-inline-chat:hover {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
 	opacity: 1;
 }
 

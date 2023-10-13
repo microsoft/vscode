@@ -16,7 +16,7 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-const startInlineChatIcon = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon for starting the inline chat'));
+const startInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon for starting the inline chat'));
 
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
@@ -26,7 +26,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private readonly settingID = 'inlineChat.showGutterIcon';
 
 	private static readonly START_INLINE_CHAT_DECORATION = ModelDecorationOptions.register({
-		description: 'start-inline-chat-decoration',
+		description: 'inline-chat-decoration',
 		glyphMarginClassName: ThemeIcon.asClassName(startInlineChatIcon),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -60,7 +60,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.updateDecorations(this.editor.getSelection());
 		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateDecorations(e.selection));
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (e.target.element?.classList.contains('codicon-start-inline-chat')) {
+			if (e.target.element?.classList.contains('codicon-inline-chat')) {
 				InlineChatController.get(this.editor)?.run({});
 			}
 		});
