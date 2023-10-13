@@ -337,10 +337,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
-		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.contentReferences.length) {
-			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
-			templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
-			templateData.elementDisposables.add(contentReferencesListResult);
+		if (isResponseVM(element)) {
+			this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 		}
 
 		let fileTreeIndex = 0;
@@ -390,6 +388,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.value);
+		dom.clearNode(templateData.referencesListContainer);
 		const slashCommands = this.delegate.getSlashCommands();
 
 		for (const item of element.content) {
@@ -432,9 +431,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		disposables.clear();
-
-		// TODO we can probably render the ref list more efficiently
-		dom.clearNode(templateData.referencesListContainer);
 
 		const renderableResponse = reduceInlineContentReferences(element.response.value);
 		let isFullyRendered = false;
@@ -498,12 +494,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
-				if (this._usedReferencesEnabled && element.response.contentReferences.length) {
-					const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
-					templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
-					disposables.add(contentReferencesListResult);
-				}
-
+				this.renderContentReferencesIfNeeded(element, templateData, disposables);
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {
 					if (!partToRender) {
@@ -540,12 +531,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					disposables.add(result);
 				});
 			} else {
-				if (this._usedReferencesEnabled && element.response.contentReferences.length) {
-					const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
-					templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
-					disposables.add(contentReferencesListResult);
-				}
-
 				// Nothing new to render, not done, keep waiting
 				return false;
 			}
@@ -613,6 +598,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
+	private renderContentReferencesIfNeeded(element: IChatResponseViewModel, templateData: IChatListItemTemplate, disposables: DisposableStore): void {
+		dom.clearNode(templateData.referencesListContainer);
+		if (this._usedReferencesEnabled && element.response.contentReferences.length) {
+			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
+			templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
+			disposables.add(contentReferencesListResult);
+		}
+	}
+
 	private renderContentReferencesListData(data: ReadonlyArray<IChatContentReference>, element: IChatResponseViewModel, templateData: IChatListItemTemplate): { element: HTMLElement; dispose: () => void } {
 		const listDisposables = new DisposableStore();
 		const referencesLabel = data.length > 1 ?
@@ -670,9 +664,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		list.layout(data.length * 22);
 		list.splice(0, list.length, data);
-		dom.scheduleAtNextAnimationFrame(() => {
-			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
-		});
 
 		return {
 			element: container,
