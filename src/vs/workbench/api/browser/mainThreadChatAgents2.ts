@@ -36,6 +36,16 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._register(this._chatService.onDidDisposeSession(e => {
 			this._proxy.$releaseSession(e.sessionId);
 		}));
+		this._register(this._chatService.onDidPerformUserAction(e => {
+			if (e.agentId) {
+				for (const [handle, agent] of this._agents) {
+					if (agent.name === e.agentId && e.action.kind === 'vote') {
+						this._proxy.$acceptFeedback(handle, e.action.sessionId, e.action.direction);
+						break;
+					}
+				}
+			}
+		}));
 	}
 
 	$unregisterAgent(handle: number): void {

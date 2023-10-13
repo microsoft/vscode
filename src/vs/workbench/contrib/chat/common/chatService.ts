@@ -171,6 +171,7 @@ export enum InteractiveSessionVoteDirection {
 export interface IChatVoteAction {
 	kind: 'vote';
 	responseId: string;
+	sessionId: string;
 	direction: InteractiveSessionVoteDirection;
 }
 
@@ -215,6 +216,7 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
 	providerId: string;
+	agentId?: string;
 }
 
 export interface IChatDynamicRequest {
