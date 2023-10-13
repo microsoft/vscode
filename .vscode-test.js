@@ -7,6 +7,7 @@
 
 const path = require('path');
 const { defineConfig } = require('@vscode/test-cli');
+const os = require('os');
 
 /**
  * A list of extension folders who have opted into tests, or configuration objects.
@@ -22,12 +23,12 @@ const extensions = [
 	},
 	{
 		label: 'ipynb',
-		workspaceFolder: '%TEMPDIR%/ipynb-%RANDOM%',
+		workspaceFolder: path.join(os.tmpdir(), `ipynb-${Math.floor(Math.random() * 100000)}`),
 		mocha: { timeout: 60_000 }
 	},
 	{
 		label: 'notebook-renderers',
-		workspaceFolder: '%TEMPDIR%/nbout-%RANDOM%',
+		workspaceFolder: path.join(os.tmpdir(), `nbout-${Math.floor(Math.random() * 100000)}`),
 		mocha: { timeout: 60_000 }
 	},
 ];
