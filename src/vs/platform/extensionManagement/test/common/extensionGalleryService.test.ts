@@ -71,51 +71,9 @@ suite('Extension Gallery Service', () => {
 		assert.deepStrictEqual(actual, expected);
 	});
 
-	test('sorting single extension version with fallback target platform', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
 	test('sorting single extension version with not compatible target platform', async () => {
 		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_ARM64)];
 		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2')];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first with no fallbacks', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.DARWIN_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [...actual];
-		sortExtensionVersions(actual, TargetPlatform.DARWIN_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred at first and fallback at last', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32)];
-		const expected = [actual[0], actual[2], actual[1]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is not first', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64), aExtensionVersion('1.1.2')];
-		const expected = [actual[1], actual[0], actual[2]];
-		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
-		assert.deepStrictEqual(actual, expected);
-	});
-
-	test('sorting single extension version with multiple target platforms and preferred is at the end', async () => {
-		const actual = [aExtensionVersion('1.1.2', TargetPlatform.WIN32_IA32), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.2', TargetPlatform.WIN32_X64)];
-		const expected = [actual[2], actual[0], actual[1]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_X64);
 		assert.deepStrictEqual(actual, expected);
 	});
@@ -142,8 +100,8 @@ suite('Extension Gallery Service', () => {
 	});
 
 	test('sorting multiple extension versions with target platforms - 3', async () => {
-		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_IA32), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
-		const expected = [actual[0], actual[1], actual[2], actual[5], actual[4], actual[3]];
+		const actual = [aExtensionVersion('1.2.4'), aExtensionVersion('1.1.2'), aExtensionVersion('1.1.1'), aExtensionVersion('1.0.0', TargetPlatform.DARWIN_ARM64), aExtensionVersion('1.0.0', TargetPlatform.WIN32_ARM64)];
+		const expected = [actual[0], actual[1], actual[2], actual[4], actual[3]];
 		sortExtensionVersions(actual, TargetPlatform.WIN32_ARM64);
 		assert.deepStrictEqual(actual, expected);
 	});
