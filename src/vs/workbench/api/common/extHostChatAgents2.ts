@@ -19,7 +19,7 @@ import { ChatAgentResultFeedbackKind } from 'vs/workbench/api/common/extHostType
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
@@ -185,6 +185,7 @@ class ExtHostChatAgent {
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: URI | undefined;
+	private _isDefault: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 
@@ -258,6 +259,7 @@ class ExtHostChatAgent {
 					icon: this._iconPath,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
+					isDefault: this._isDefault
 				});
 				updateScheduled = false;
 			});
@@ -302,6 +304,15 @@ class ExtHostChatAgent {
 			},
 			set followupProvider(v) {
 				that._followupProvider = v;
+				updateMetadataSoon();
+			},
+			get isDefault() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				return that._isDefault;
+			},
+			set isDefault(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				that._isDefault = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {
