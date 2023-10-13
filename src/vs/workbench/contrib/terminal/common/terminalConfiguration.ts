@@ -619,11 +619,6 @@ const terminalConfiguration: IConfigurationNode = {
 			markdownDescription: localize('terminal.integrated.accessibleViewPreserveCursorPosition', "Preserve the cursor position on reopen of the terminal's accessible view rather than setting it to the bottom of the buffer."),
 			type: 'boolean',
 			default: false
-		},
-		[TerminalSettingId.HideAccessibleView]: {
-			description: localize('terminal.integrated.hideAccessibleView', "Controls whether the terminal's accessible view is hidden."),
-			type: 'boolean',
-			default: false
 		}
 	}
 };
