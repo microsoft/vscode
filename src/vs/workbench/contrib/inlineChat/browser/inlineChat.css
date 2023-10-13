@@ -319,8 +319,8 @@
 /* gutter decoration */
 
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
-	cursor: pointer;
 	display: block;
+	cursor: pointer;
 	opacity: 0.5;
 	transition: opacity .2s ease-in-out;
 }
