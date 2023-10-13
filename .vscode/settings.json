@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		".vscode-test": true,
 		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
@@ -141,6 +142,11 @@
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
 			"${workspaceFolder}/build/**/*.js"
+		]
+	},
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/extensions/*/out/**/*.js",
 		]
 	},
 	"githubPullRequests.assignCreated": "${user}",
