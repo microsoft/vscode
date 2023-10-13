@@ -61,7 +61,7 @@ suite('chat', () => {
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
 		const lastResult = await deferred.p;
 		assert.deepStrictEqual(lastResult.slashCommand, { name: 'hello', description: 'Hello' });
-		assert.strictEqual(lastResult.prompt, ' friend');
+		assert.strictEqual(lastResult.prompt, 'friend');
 	});
 
 	test('agent and variable', async () => {
