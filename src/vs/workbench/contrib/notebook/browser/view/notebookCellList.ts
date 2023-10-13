@@ -1215,8 +1215,9 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 
 		if (focus) {
 			// If the cell is growing, we should favor anchoring to the focused cell
-			const growing = this.view.elementHeight(index) < size;
-			if (this._notebookCellAnchor.shouldAnchor(this.element(focused[0]).focusMode, growing, this.element(index))) {
+			const heightDelta = size - this.view.elementHeight(index);
+
+			if (this._notebookCellAnchor.shouldAnchor(this.view, focus, heightDelta, this.element(index))) {
 				return this.view.updateElementHeight(index, size, focus);
 			}
 		}
