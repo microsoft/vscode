@@ -467,7 +467,7 @@
 
 .interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
-	border: 1px solid var(--vscode-input-border, transparent);
+	border: none;
 	border-radius: 4px;
 	width: auto;
 }
@@ -517,10 +517,6 @@
 
 .interactive-session .chat-used-context-label .monaco-text-button {
 	outline-offset: unset !important;
-}
-
-.interactive-session .chat-used-context-label .monaco-button:focus-within {
-	outline: none;
 }
 
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {

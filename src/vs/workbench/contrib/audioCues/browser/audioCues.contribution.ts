@@ -131,8 +131,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
 			...audioCueFeatureBase,
 			default: 'off'
-		}
-	}
+		},
+		'audioCues.clear': {
+			'description': localize('audioCues.clear', "Plays a sound when a feature is cleared (for example, the terminal, debug console, or output channel). When this is disabled, an aria alert will announce 'Cleared'."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+		'audioCues.save': {
+			'markdownDescription': localize('audioCues.save', "Plays a sound when a file is saved. Also see {0}", '`#accessibility.alert.save#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('audioCues.enabled.userGesture', "Plays the audio cue when a user explicitly saves a file."),
+				localize('audioCues.enabled.always', "Plays the audio cue whenever a file is saved, including auto save."),
+				localize('audioCues.enabled.never', "Never plays the audio cue.")
+			],
+			tags: ['accessibility']
+		},
+	},
 });
 
 registerAction2(ShowAudioCueHelp);

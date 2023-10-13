@@ -146,7 +146,7 @@
 
 .monaco-editor .inline-chat .status .label .slash-command-pill CODE {
 	border-radius: 3px;
-	padding: 1px;
+	padding: 0 1px;
 	background-color: var(--vscode-chat-slashCommandBackground);
 	color: var(--vscode-chat-slashCommandForeground);
 }

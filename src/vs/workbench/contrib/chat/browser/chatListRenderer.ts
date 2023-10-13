@@ -55,6 +55,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IProductService } from 'vs/platform/product/common/productService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
@@ -145,6 +146,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IProductService productService: IProductService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -152,10 +154,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
-		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
+		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
 		this._register(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
-				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences');
+				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
 			}
 		}));
 	}
@@ -363,9 +365,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				followup => {
 					this.chatService.notifyUserAction({
 						providerId: element.providerId,
+						agentId: element.agent?.id,
+						sessionId: element.sessionId,
 						action: {
 							kind: 'command',
-							command: followup
+							command: followup,
 						}
 					});
 					return this.commandService.executeCommand(followup.commandId, ...(followup.args ?? []));
