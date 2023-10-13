@@ -329,7 +329,8 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
-				const agents = this.chatAgentService.getAgents();
+				const agents = this.chatAgentService.getAgents()
+					.filter(a => !a.metadata.isDefault);
 				return <CompletionList>{
 					suggestions: agents.map((c, i) => {
 						const withAt = `@${c.id}`;
