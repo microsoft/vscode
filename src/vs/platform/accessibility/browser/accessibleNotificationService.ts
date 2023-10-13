@@ -6,7 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
@@ -33,13 +33,12 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 	notifySaved(userGesture: boolean): void {
 		const { audioCue, alertMessage } = this._events.get(AccessibleNotificationEvent.Save)!;
 		const audioCueSetting = this._configurationService.getValue(audioCue.settingsKey);
-		if (audioCueSetting === 'off') {
+		if (audioCueSetting === 'never') {
 			alert(alertMessage);
 			return;
-		} else if (audioCueSetting === 'always') {
-			this._audioCueService.playAudioCue(audioCue);
-		} else if (audioCueSetting === 'userGesture' && userGesture) {
-			this._audioCueService.playAudioCue(audioCue);
+		} else if (audioCueSetting === 'always' || audioCueSetting === 'userGesture' && userGesture) {
+			// Play sound bypasses the usual audio cue checks IE screen reader optimized, auto, etc.
+			this._audioCueService.playSound(Sound.save, true);
 		}
 	}
 }

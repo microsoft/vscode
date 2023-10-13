@@ -14,6 +14,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorAutoSave extends Disposable implements IWorkbenchContribution {
 
@@ -32,7 +33,8 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		@IEditorService private readonly editorService: IEditorService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IWorkingCopyService private readonly workingCopyService: IWorkingCopyService,
-		@ILogService private readonly logService: ILogService
+		@ILogService private readonly logService: ILogService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super();
 
@@ -196,7 +198,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-
+				this._accessibleNotificationService.notifySaved(false);
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);
