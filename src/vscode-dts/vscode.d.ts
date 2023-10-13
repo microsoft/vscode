@@ -1552,7 +1552,7 @@ declare module 'vscode' {
 		 */
 		with(change: {
 			/**
-			 * The new scheme, defauls to this Uri's scheme.
+			 * The new scheme, defaults to this Uri's scheme.
 			 */
 			scheme?: string;
 			/**
