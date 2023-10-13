@@ -23,7 +23,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
  */
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
-	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity'
+	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
+	HideAccessibleView = 'accessibility.hideAccessibleView'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -159,6 +160,12 @@ export function registerAccessibilityConfiguration() {
 				default: ViewDimUnfocusedOpacityProperties.Default,
 				tags: ['accessibility'],
 				scope: ConfigurationScope.APPLICATION,
+			},
+			[AccessibilityWorkbenchSettingId.HideAccessibleView]: {
+				description: localize('terminal.integrated.hideAccessibleView', "Controls whether the terminal's accessible view is hidden."),
+				type: 'boolean',
+				default: false,
+				tags: ['accessibility']
 			}
 		}
 	});
