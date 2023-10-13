@@ -85,8 +85,8 @@ export class TerminalEditor extends EditorPane {
 
 	override clearInput(): void {
 		super.clearInput();
-		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement === this._overflowGuardElement) {
-			this._editorInput?.detachInstance();
+		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement.parentElement === this._overflowGuardElement) {
+			this._editorInput.terminalInstance?.detachFromElement();
 		}
 		this._editorInput = undefined;
 	}
