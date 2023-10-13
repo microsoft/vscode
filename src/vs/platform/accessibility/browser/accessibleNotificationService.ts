@@ -29,7 +29,7 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 	}
 }
 
-export class TestAccessibleNotificationService implements IAccessibleNotificationService {
+export class TestAccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 
 	declare readonly _serviceBrand: undefined;
 

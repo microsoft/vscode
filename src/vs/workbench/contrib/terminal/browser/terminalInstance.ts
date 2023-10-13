@@ -355,7 +355,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 

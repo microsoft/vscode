@@ -47,6 +47,7 @@ export function isAccessibilityInformation(obj: any): obj is IAccessibilityInfor
 		&& (typeof obj.role === 'undefined' || typeof obj.role === 'string');
 }
 
+export const IAccessibleNotificationService = createDecorator<IAccessibleNotificationService>('accessibleNotificationService');
 /**
  * Manages whether an audio cue or an aria alert will be used
  * in response to actions taken around the workbench.
@@ -57,4 +58,3 @@ export interface IAccessibleNotificationService {
 	notifyCleared(): void;
 }
 
-export const IAccessibleNotificationService = createDecorator<IAccessibleNotificationService>('accessibleNotificationService');
