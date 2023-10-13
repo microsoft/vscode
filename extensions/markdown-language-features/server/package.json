@@ -17,7 +17,7 @@
     "@vscode/l10n": "^0.0.11",
     "vscode-languageserver": "^8.1.0",
     "vscode-languageserver-textdocument": "^1.0.8",
-    "vscode-languageserver-types": "^3.17.3",
+    "vscode-languageserver-types": "^3.17.4",
     "vscode-markdown-languageservice": "^0.4.0-alpha.5",
     "vscode-uri": "^3.0.7"
   },
