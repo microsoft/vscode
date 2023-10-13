@@ -27,21 +27,28 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		if (audioCueValue === 'on' || audioCueValue === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
 			this._audioCueService.playAudioCue(audioCue);
 		} else {
-			alert(alertMessage);
+			this._accessibilityService.alert(alertMessage);
 		}
 	}
+
 	notifySaved(userGesture: boolean): void {
 		const { audioCue, alertMessage } = this._events.get(AccessibleNotificationEvent.Save)!;
-		const audioCueSetting = this._configurationService.getValue(audioCue.settingsKey);
-		if (audioCueSetting === 'never') {
-			alert(alertMessage);
-			return;
-		} else if (audioCueSetting === 'always' || audioCueSetting === 'userGesture' && userGesture) {
+		const alertSetting: NotificationSetting = this._configurationService.getValue('accessibility.alert.save');
+		if (this._shouldNotify(alertSetting, userGesture)) {
+			this._accessibilityService.alert(alertMessage);
+		}
+		const audioCueSetting: NotificationSetting = this._configurationService.getValue(audioCue.settingsKey);
+		if (this._shouldNotify(audioCueSetting, userGesture)) {
 			// Play sound bypasses the usual audio cue checks IE screen reader optimized, auto, etc.
 			this._audioCueService.playSound(Sound.save, true);
 		}
 	}
+
+	private _shouldNotify(settingValue: NotificationSetting, userGesture: boolean): boolean {
+		return settingValue === 'always' || settingValue === 'userGesture' && userGesture;
+	}
 }
+type NotificationSetting = 'never' | 'always' | 'userGesture';
 
 export class TestAccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 
