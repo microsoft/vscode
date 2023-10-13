@@ -20,6 +20,16 @@ const extensions = [
 		workspaceFolder: `extensions/markdown-language-features/test-workspace`,
 		mocha: { timeout: 60_000 }
 	},
+	{
+		label: 'ipynb',
+		workspaceFolder: '%TEMPDIR%/ipynb-%RANDOM%',
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'notebook-renderers',
+		workspaceFolder: '%TEMPDIR%/nbout-%RANDOM%',
+		mocha: { timeout: 60_000 }
+	},
 ];
 
 
