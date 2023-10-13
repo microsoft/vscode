@@ -60,7 +60,7 @@ suite('chat', () => {
 		const deferred = getDeferredForRequest();
 		interactive.sendInteractiveRequestToProvider('provider', { message: '@agent /hello friend' });
 		const lastResult = await deferred.p;
-		assert.strictEqual(lastResult.slashCommand, { name: 'hello', description: 'Hello' });
+		assert.deepStrictEqual(lastResult.slashCommand, { name: 'hello', description: 'Hello' });
 		assert.strictEqual(lastResult.prompt, ' friend');
 	});
 
