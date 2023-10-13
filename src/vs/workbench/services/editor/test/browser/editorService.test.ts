@@ -28,8 +28,6 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestAccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 suite('EditorService', () => {
 
@@ -61,9 +59,6 @@ suite('EditorService', () => {
 
 		const editorService = disposables.add(instantiationService.createInstance(EditorService));
 		instantiationService.stub(IEditorService, editorService);
-
-		const accessibleNotificationService = disposables.add(new TestAccessibleNotificationService());
-		instantiationService.stub(IAccessibleNotificationService, accessibleNotificationService);
 
 		testLocalInstantiationService = instantiationService;
 
