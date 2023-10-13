@@ -67,11 +67,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			? await agent.validateSlashCommand(request.command)
 			: undefined;
 
-
 		try {
-
 			const task = agent.invoke(
-				{ prompt: request.message, variables: {}, slashCommand },
+				{
+					prompt: request.message,
+					variables: typeConvert.ChatVariable.objectTo(request.variables),
+					slashCommand
+				},
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
 				new Progress<vscode.InteractiveProgress>(p => {
 					throwIfDone();
