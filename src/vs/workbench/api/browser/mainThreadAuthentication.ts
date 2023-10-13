@@ -243,8 +243,10 @@ export class MainThreadAuthentication extends Disposable implements MainThreadAu
 			}
 
 			let session;
-			if (sessions?.length && !options.forceNewSession && supportsMultipleAccounts) {
-				session = await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions);
+			if (sessions?.length && !options.forceNewSession) {
+				session = supportsMultipleAccounts
+					? await this.authenticationService.selectSession(providerId, extensionId, extensionName, scopes, sessions)
+					: sessions[0];
 			} else {
 				let sessionToRecreate: AuthenticationSession | undefined;
 				if (typeof options.forceNewSession === 'object' && options.forceNewSession.sessionToRecreate) {
