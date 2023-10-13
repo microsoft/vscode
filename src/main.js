@@ -372,6 +372,13 @@ function getArgvConfigPath() {
 	return path.join(os.homedir(), dataFolderName, 'argv.json');
 }
 
+/**
+ * Configures the crash reporter for the application based on command-line arguments or product configuration.
+ * If a --crash-reporter-directory is specified, it sets the crashDumps directory to that location.
+ * If not, it uses information from product.json to configure the crash reporter, including setting the submit URL,
+ * adding a crash-reporter-id to the process arguments, and starting the crash reporter for all processes.
+ * @param {void}
+ */
 function configureCrashReporter() {
 
 	let crashReporterDirectory = args['crash-reporter-directory'];
