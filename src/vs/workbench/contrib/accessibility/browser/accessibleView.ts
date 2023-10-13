@@ -216,7 +216,7 @@ export class AccessibleView extends Disposable {
 				this._accessibleViewVerbosityEnabled.set(this._configurationService.getValue(this._currentProvider.verbositySettingKey));
 				this._updateToolbar(this._currentProvider.actions, this._currentProvider.options.type);
 			}
-			if (e.affectsConfiguration(TerminalSettingId.HideAccessibleView)) {
+			if (e.affectsConfiguration(TerminalSettingId.HideAccessibleView) && this._currentProvider?.id === AccessibleViewProviderId.Terminal) {
 				this._container.classList.toggle('hide', this._configurationService.getValue(TerminalSettingId.HideAccessibleView));
 			}
 		}));
