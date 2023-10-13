@@ -117,6 +117,7 @@ export const enum TerminalSettingId {
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
 	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
+	HideAccessibleView = 'terminal.integrated.hideAccessibleView',
 
 	// Debug settings that are hidden from user
 
