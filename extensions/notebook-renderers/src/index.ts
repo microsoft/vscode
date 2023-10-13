@@ -7,7 +7,7 @@ import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-not
 import { createOutputContent, appendOutput, scrollableClass } from './textHelper';
 import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
-import { cleanStackTrace } from './stackTraceHelper';
+import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -173,7 +173,7 @@ function renderError(
 	if (err.stack) {
 		outputElement.classList.add('traceback');
 
-		const stackTrace = cleanStackTrace(err.stack);
+		const stackTrace = formatStackTrace(err.stack);
 
 		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
 		const content = createOutputContent(outputInfo.id, stackTrace ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });

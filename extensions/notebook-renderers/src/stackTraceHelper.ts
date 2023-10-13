@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export function cleanStackTrace(stack: string) {
+export function formatStackTrace(stack: string) {
 	let cleaned: string;
 	// Ansi colors are described here:
 	// https://en.wikipedia.org/wiki/ANSI_escape_code under the SGR section
