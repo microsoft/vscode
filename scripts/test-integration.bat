@@ -59,7 +59,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Markdown tests
-call "%INTEGRATION_TEST_ELECTRON_PATH%" %~dp0\..\extensions\markdown-language-features\test-workspace --extensionDevelopmentPath=%~dp0\..\extensions\markdown-language-features --extensionTestsPath=%~dp0\..\extensions\markdown-language-features\out\test %API_TESTS_EXTRA_ARGS%
+call yarn test-extension -l markdown-language-features
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
