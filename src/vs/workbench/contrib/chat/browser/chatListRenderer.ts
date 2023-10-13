@@ -85,6 +85,7 @@ interface IChatListItemTemplate {
 	avatar: HTMLElement;
 	username: HTMLElement;
 	value: HTMLElement;
+	referencesListContainer: HTMLElement;
 	contextKeyService: IContextKeyService;
 	templateDisposables: IDisposable;
 	elementDisposables: DisposableStore;
@@ -233,6 +234,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const user = dom.append(header, $('.user'));
 		const avatar = dom.append(user, $('.avatar'));
 		const username = dom.append(user, $('h3.username'));
+		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
 
@@ -252,7 +254,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 
-		const template: IChatListItemTemplate = { avatar, username, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatar, username, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
@@ -333,6 +335,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete);
 
 		dom.clearNode(templateData.value);
+		dom.clearNode(templateData.referencesListContainer);
+
+		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.contentReferences.length) {
+			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
+			templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
+			templateData.elementDisposables.add(contentReferencesListResult);
+		}
+
 		let fileTreeIndex = 0;
 		for (const data of value) {
 			const result = 'value' in data
@@ -340,12 +350,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				: this.renderTreeData(data, element, templateData, fileTreeIndex++);
 			templateData.value.appendChild(result.element);
 			templateData.elementDisposables.add(result);
-		}
-
-		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.contentReferences.length) {
-			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
-			templateData.value.appendChild(contentReferencesListResult.element);
-			templateData.elementDisposables.add(contentReferencesListResult);
 		}
 
 		if (isResponseVM(element) && element.errorDetails?.message) {
@@ -429,6 +433,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		disposables.clear();
 
+		// TODO we can probably render the ref list more efficiently
+		dom.clearNode(templateData.referencesListContainer);
+
 		const renderableResponse = reduceInlineContentReferences(element.response.value);
 		let isFullyRendered = false;
 		if (element.isCanceled) {
@@ -491,6 +498,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				disposables.clear();
 				this.basicRenderElement(renderableResponse, element, index, templateData);
 			} else if (!isFullyRendered) {
+				if (this._usedReferencesEnabled && element.response.contentReferences.length) {
+					const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
+					templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
+					disposables.add(contentReferencesListResult);
+				}
+
 				let hasRenderedOneMarkdownBlock = false;
 				partsToRender.forEach((partToRender, index) => {
 					if (!partToRender) {
@@ -527,6 +540,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					disposables.add(result);
 				});
 			} else {
+				if (this._usedReferencesEnabled && element.response.contentReferences.length) {
+					const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
+					templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
+					disposables.add(contentReferencesListResult);
+				}
+
 				// Nothing new to render, not done, keep waiting
 				return false;
 			}
