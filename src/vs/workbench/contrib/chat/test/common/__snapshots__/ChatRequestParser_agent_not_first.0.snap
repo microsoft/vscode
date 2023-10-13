@@ -25,14 +25,8 @@
         endLineNumber: 1,
         endColumn: 17
       },
-      agent: {
-        id: "agent",
-        metadata: {
-          description: "",
-          subCommands: [ { name: "subCommand" } ]
-        }
-      },
-      kind: "agent"
+      text: "@agent",
+      kind: "text"
     },
     {
       range: {
@@ -59,8 +53,8 @@
         endLineNumber: 1,
         endColumn: 29
       },
-      command: { name: "subCommand" },
-      kind: "subcommand"
+      text: "/subCommand",
+      kind: "text"
     },
     {
       range: {

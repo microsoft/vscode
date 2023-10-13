@@ -176,7 +176,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
 			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
-			highlightToggledItems: true,
+			highlightToggledItems: true
 		}));
 
 		// Context

@@ -1588,9 +1588,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (this.visible) {
 			// The layout of tabs can be an expensive operation because we access DOM properties
 			// that can result in the browser doing a full page layout to validate them. To buffer
-			// this a little bit we try at least to schedule this work on the next animation frame.
+			// this a little bit we try at least to schedule this work on the next animation frame
+			// when we have restored or when idle otherwise.
 			if (!this.layoutScheduler.value) {
-				const scheduledLayout = (this.lifecycleService.phase > LifecyclePhase.Restored ? scheduleAtNextAnimationFrame : runWhenIdle)(() => {
+				const scheduledLayout = (this.lifecycleService.phase >= LifecyclePhase.Restored ? scheduleAtNextAnimationFrame : runWhenIdle)(() => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();

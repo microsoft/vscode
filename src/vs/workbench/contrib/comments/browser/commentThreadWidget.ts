@@ -332,6 +332,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		return undefined;
 	}
 
+	setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this._commentReply?.setPendingComment(comment);
+	}
+
 	getDimensions() {
 		return this._body.getDimensions();
 	}

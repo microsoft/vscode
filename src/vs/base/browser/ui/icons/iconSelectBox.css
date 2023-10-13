@@ -22,8 +22,10 @@
 }
 
 .icon-select-box .icon-select-icons-container > .icon-container.focused {
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px;
+	background-color: var(--vscode-quickInputList-focusBackground);
+}
+
+.icon-select-box .icon-select-icons-container > .icon-container:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 }
 

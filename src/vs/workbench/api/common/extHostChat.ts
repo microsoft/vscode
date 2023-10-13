@@ -140,6 +140,24 @@ export class ExtHostChat implements ExtHostChatShape {
 		return rawFollowups?.map(f => typeConvert.ChatFollowup.from(f));
 	}
 
+	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
+		const entry = this._chatProvider.get(handle);
+		if (!entry) {
+			return undefined;
+		}
+
+		if (!entry.provider.provideSampleQuestions) {
+			return undefined;
+		}
+
+		const rawFollowups = await entry.provider.provideSampleQuestions(token);
+		if (!rawFollowups) {
+			return undefined;
+		}
+
+		return rawFollowups?.map(f => typeConvert.ChatReplyFollowup.from(f));
+	}
+
 	$removeRequest(handle: number, sessionId: number, requestId: string): void {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {
@@ -260,7 +278,7 @@ export class ExtHostChat implements ExtHostChatShape {
 	}
 
 	async $onDidPerformUserAction(event: IChatUserActionEvent): Promise<void> {
-		this._onDidPerformUserAction.fire(event);
+		this._onDidPerformUserAction.fire(event as any);
 	}
 
 	//#endregion
