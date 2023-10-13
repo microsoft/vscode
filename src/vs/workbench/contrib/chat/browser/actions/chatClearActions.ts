@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -118,5 +118,5 @@ export function getClearAction(viewId: string, providerId: string) {
 }
 
 function announceChatCleared(accessor: ServicesAccessor): void {
-	accessor.get(IAccessibleNotificationService).notifyCleared();
+	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
 }

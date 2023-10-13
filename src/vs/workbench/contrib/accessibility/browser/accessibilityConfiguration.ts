@@ -47,6 +47,10 @@ export const enum AccessibilityVerbositySettingId {
 	Comments = 'accessibility.verbosity.comments'
 }
 
+export const enum AccessibilityAlertSettingId {
+	Save = 'accessibility.alert.save'
+}
+
 export const enum AccessibleViewProviderId {
 	Terminal = 'terminal',
 	TerminalHelp = 'terminal-help',
@@ -117,7 +121,19 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseProperty
-		}
+		},
+		[AccessibilityAlertSettingId.Save]: {
+			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Also see {0}", '`#audioCues.save#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('alert.save.userGesture', "Alerts when a file is saved via user gesture."),
+				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
+				localize('alert.save.never', "Never alerts.")
+			],
+			tags: ['accessibility']
+		},
 	}
 };
 
