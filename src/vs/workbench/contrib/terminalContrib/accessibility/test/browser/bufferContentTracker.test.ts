@@ -67,7 +67,7 @@ suite('Buffer Content Tracker', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
-		instantiationService.stub(IAccessibleNotificationService, new TestAccessibleNotificationService());
+		instantiationService.stub(IAccessibleNotificationService, store.add(new TestAccessibleNotificationService()));
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
