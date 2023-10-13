@@ -5,9 +5,10 @@
 
 declare module 'vscode' {
 
-	export type ChatAgentUserActionEvent = InteractiveSessionUserActionEvent & {
-		result: ChatAgentResult2;
-	};
+	export interface ChatAgentUserActionEvent {
+		readonly result: ChatAgentResult2;
+		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
+	}
 
 	export interface ChatAgent2 {
 
