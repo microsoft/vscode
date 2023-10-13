@@ -215,6 +215,8 @@ export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertActi
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
 	providerId: string;
+	agentId: string | undefined;
+	sessionId: string;
 }
 
 export interface IChatDynamicRequest {

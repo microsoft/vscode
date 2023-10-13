@@ -58,6 +58,7 @@ export interface IChatResponseModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
+	readonly agent?: IChatAgent;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
