@@ -251,7 +251,6 @@ class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitio
 				progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
 
 				const allSentences: string[] = [];
-				const currentSentence: string[] = [];
 
 				const session = disposables.add(this.speechService.createSpeechToTextSession('default', token));
 				disposables.add(session.onDidChange(e => {
@@ -266,15 +265,12 @@ class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitio
 							break;
 						case SpeechToTextStatus.Recognizing:
 							if (e.text) {
-								currentSentence.push(e.text);
-
-								onDidTranscribe.fire([allSentences.join(' '), ...currentSentence].join(' '));
+								onDidTranscribe.fire([allSentences.join(' '), e.text].join(' '));
 							}
 							break;
 						case SpeechToTextStatus.Recognized:
 							if (e.text) {
 								allSentences.push(e.text);
-								currentSentence.length = 0;
 
 								onDidTranscribe.fire(allSentences.join(' '));
 							}
