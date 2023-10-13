@@ -519,10 +519,6 @@
 	outline-offset: unset !important;
 }
 
-.interactive-session .chat-used-context-label .monaco-button:focus-within {
-	outline: none;
-}
-
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
 	margin: 0 2px 0 0;
 }
