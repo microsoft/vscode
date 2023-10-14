@@ -85,7 +85,7 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 }
 
-class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
+export class WorkbenchVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -131,9 +131,9 @@ class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionS
 
 				const microphoneDevice = await navigator.mediaDevices.getUserMedia({
 					audio: {
-						sampleRate: AudioWorkletVoiceRecognitionService.AUDIO_SAMPLING_RATE,
-						sampleSize: AudioWorkletVoiceRecognitionService.AUDIO_BIT_DEPTH,
-						channelCount: AudioWorkletVoiceRecognitionService.AUDIO_CHANNELS,
+						sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+						sampleSize: WorkbenchVoiceRecognitionService.AUDIO_BIT_DEPTH,
+						channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 						autoGainControl: true,
 						noiseSuppression: true,
 						echoCancellation: false
@@ -145,7 +145,7 @@ class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionS
 				}
 
 				const audioContext = new AudioContext({
-					sampleRate: AudioWorkletVoiceRecognitionService.AUDIO_SAMPLING_RATE,
+					sampleRate: WorkbenchVoiceRecognitionService.AUDIO_SAMPLING_RATE,
 					latencyHint: 'interactive'
 				});
 
@@ -171,11 +171,11 @@ class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionS
 				}
 
 				const voiceTranscriptionTarget = new VoiceTranscriptionWorkletNode(audioContext, {
-					channelCount: AudioWorkletVoiceRecognitionService.AUDIO_CHANNELS,
+					channelCount: WorkbenchVoiceRecognitionService.AUDIO_CHANNELS,
 					channelCountMode: 'explicit',
 					processorOptions: {
-						bufferTimespan: AudioWorkletVoiceRecognitionService.BUFFER_TIMESPAN,
-						vadThreshold: AudioWorkletVoiceRecognitionService.VAD_THRESHOLD
+						bufferTimespan: WorkbenchVoiceRecognitionService.BUFFER_TIMESPAN,
+						vadThreshold: WorkbenchVoiceRecognitionService.VAD_THRESHOLD
 					}
 				}, onDidTranscribe, this.sharedProcessService);
 				await voiceTranscriptionTarget.start(cts.token);
@@ -205,4 +205,4 @@ class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionS
 }
 
 // Register Service
-registerSingleton(IWorkbenchVoiceRecognitionService, AudioWorkletVoiceRecognitionService, InstantiationType.Delayed);
+registerSingleton(IWorkbenchVoiceRecognitionService, WorkbenchVoiceRecognitionService, InstantiationType.Delayed);
