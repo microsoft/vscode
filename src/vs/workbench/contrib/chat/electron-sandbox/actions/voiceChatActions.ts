@@ -243,7 +243,7 @@ class VoiceChatSessions {
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession('default', cts.token));
+		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession(cts.token));
 
 		let transcription: string = '';
 		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 2000));

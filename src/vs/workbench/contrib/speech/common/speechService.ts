@@ -3,11 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export const ISpeechService = createDecorator<ISpeechService>('speechService');
 
@@ -47,7 +49,7 @@ export interface ISpeechService {
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
-	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession;
+	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
 }
 
 export class SpeechService implements ISpeechService {
@@ -61,6 +63,8 @@ export class SpeechService implements ISpeechService {
 	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
 
 	private readonly providers = new Map<string, ISpeechProvider>();
+
+	constructor(@ILogService private readonly logService: ILogService) { }
 
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable {
 		if (this.providers.has(identifier)) {
@@ -77,10 +81,12 @@ export class SpeechService implements ISpeechService {
 		});
 	}
 
-	createSpeechToTextSession(identifier: string, token: CancellationToken): ISpeechToTextSession {
-		const provider = this.providers.get(identifier);
+	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession {
+		const provider = firstOrDefault(Array.from(this.providers.values()));
 		if (!provider) {
-			throw new Error(`Speech provider with identifier ${identifier} is not registered.`);
+			throw new Error(`No Speech provider is registered.`);
+		} else if (this.providers.size > 1) {
+			this.logService.warn(`Multiple speech providers registered. Picking first one: ${provider.metadata.displayName}`);
 		}
 
 		return provider.createSpeechToTextSession(token);
