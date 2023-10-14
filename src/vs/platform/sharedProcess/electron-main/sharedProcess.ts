@@ -19,7 +19,6 @@ import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtil
 import { parseSharedProcessDebugPort } from 'vs/platform/environment/node/environmentService';
 import { assertIsDefined } from 'vs/base/common/types';
 import { SharedProcessChannelConnection, SharedProcessRawConnection, SharedProcessLifecycle } from 'vs/platform/sharedProcess/common/sharedProcess';
-import { IProductService } from 'vs/platform/product/common/productService';
 
 export class SharedProcess extends Disposable {
 
@@ -34,8 +33,7 @@ export class SharedProcess extends Disposable {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@ILoggerMainService private readonly loggerMainService: ILoggerMainService,
-		@IPolicyService private readonly policyService: IPolicyService,
-		@IProductService private readonly productService: IProductService
+		@IPolicyService private readonly policyService: IPolicyService
 	) {
 		super();
 
@@ -164,8 +162,7 @@ export class SharedProcess extends Disposable {
 			type: 'shared-process',
 			entryPoint: 'vs/code/node/sharedProcess/sharedProcessMain',
 			payload: this.createSharedProcessConfiguration(),
-			execArgv,
-			allowLoadingUnsignedLibraries: !!process.env.VSCODE_VOICE_MODULE_PATH && this.productService.quality !== 'stable' // TODO@bpasero package
+			execArgv
 		});
 	}
 
