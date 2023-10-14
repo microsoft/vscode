@@ -1229,7 +1229,7 @@ export interface IChatDto {
 }
 
 export interface IChatRequestDto {
-	message: string | IChatReplyFollowup;
+	message: string;
 	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 
