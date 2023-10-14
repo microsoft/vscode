@@ -86,7 +86,6 @@ import { RepositoryContextKeys } from 'vs/workbench/contrib/scm/browser/scmViewS
 import { DragAndDropController } from 'vs/editor/contrib/dnd/browser/dnd';
 import { DropIntoEditorController } from 'vs/editor/contrib/dropOrPasteInto/browser/dropIntoEditorController';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
-import { contrastBorder, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { defaultButtonStyles, defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { CodeActionController } from 'vs/editor/contrib/codeAction/browser/codeActionController';
@@ -228,6 +227,7 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
 	inputWidgetHeight: number;
+	actionBar: ActionBar;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -247,7 +247,9 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		private outerLayout: ISCMLayout,
 		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
+		private actionViewItemProvider: IActionViewItemProvider,
 		@IInstantiationService private instantiationService: IInstantiationService,
+		@ISCMViewService private scmViewService: ISCMViewService
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
@@ -262,7 +264,10 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
+		const actionsContainer = append(inputElement, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
+
+		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, actionBar, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -315,6 +320,13 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const layoutEditor = () => templateData.inputWidget.layout();
 		templateData.elementDisposables.add(this.outerLayout.onDidChange(layoutEditor));
 		layoutEditor();
+
+		// Action bar
+		templateData.actionBar.clear();
+		templateData.actionBar.context = input.repository.provider;
+
+		const menus = this.scmViewService.menus.getRepositoryMenus(input.repository.provider);
+		templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.inputBoxMenu, templateData.actionBar));
 	}
 
 	renderCompressedElements(): void {
@@ -2349,7 +2361,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height), getActionViewItemProvider(this.instantiationService));
 		const delegate = new ListDelegate(this.inputRenderer);
 
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
@@ -2601,8 +2613,6 @@ export class SCMViewPane extends ViewPane {
 		super.dispose();
 	}
 }
-
-export const scmProviderSeparatorBorderColor = registerColor('scm.providerBorder', { dark: '#454545', light: '#C8C8C8', hcDark: contrastBorder, hcLight: contrastBorder }, localize('scm.providerBorder', "SCM Provider separator border."));
 
 export class SCMActionButton implements IDisposable {
 	private button: Button | ButtonWithDescription | ButtonWithDropdown | undefined;

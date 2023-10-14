@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/66ea1422ac817ff7704359b8ec4934a987024aaa",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/221a2443a5e8ac029685a0f872af39b23cc2b634",
 	"name": "LaTeX",
 	"scopeName": "text.tex.latex",
 	"patterns": [
@@ -2071,7 +2071,22 @@
 			]
 		},
 		{
-			"begin": "(?<!\\\\)(\\`\\`)",
+			"begin": "(,,)",
+			"beginCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.begin.latex"
+				}
+			},
+			"end": "(?<!\\\\)(\\`\\`)",
+			"endCaptures": {
+				"1": {
+					"name": "punctuation.definition.string.end.latex"
+				}
+			},
+			"name": "string.quoted.double.latex"
+		},
+		{
+			"begin": "(?<!\\\\|\\\\catcode|\\\\string)(\\`\\`)",
 			"beginCaptures": {
 				"1": {
 					"name": "punctuation.definition.string.begin.latex"

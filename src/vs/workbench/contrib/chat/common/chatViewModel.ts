@@ -10,7 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -34,7 +35,7 @@ export interface IChatAddRequestEvent {
 }
 
 export interface IChatViewModel {
-	readonly isInitialized: boolean;
+	readonly initState: ChatModelInitState;
 	readonly providerId: string;
 	readonly sessionId: string;
 	readonly onDidDisposeModel: Event<void>;
@@ -83,6 +84,7 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly agent?: IChatAgent;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -95,6 +97,7 @@ export interface IChatResponseViewModel {
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
+	usedReferencesExpanded?: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -122,8 +125,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 		return this._model.providerId;
 	}
 
-	get isInitialized() {
-		return this._model.isInitialized;
+	get initState() {
+		return this._model.initState;
 	}
 
 	constructor(
@@ -196,7 +199,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
-		return this.id + (this._model.session.isInitialized ? '' : '_initializing');
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
 	get sessionId() {
@@ -235,7 +238,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get dataId() {
-		return this._model.id + `_${this._modelChangeCount}` + (this._model.session.isInitialized ? '' : '_initializing');
+		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
 	get providerId() {
@@ -256,6 +259,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get avatarIconUri() {
 		return this._model.avatarIconUri;
+	}
+
+	get agent() {
+		return this._model.agent;
 	}
 
 	get response(): IResponse {
@@ -298,6 +305,8 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	renderData: IChatResponseRenderData | undefined = undefined;
 
 	currentRenderedHeight: number | undefined;
+
+	usedReferencesExpanded?: boolean | undefined;
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
@@ -370,5 +379,6 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	readonly sampleQuestions: IChatReplyFollowup[];
 	currentRenderedHeight?: number;
 }

@@ -938,7 +938,7 @@ export class QuickPick<T extends IQuickPickItem> extends QuickInput implements I
 				this._selectedItems = selectedItems as T[];
 				this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
 				if (selectedItems.length) {
-					this.handleAccept(event instanceof MouseEvent && event.button === 1 /* mouse middle click */);
+					this.handleAccept(dom.isMouseEvent(event) && event.button === 1 /* mouse middle click */);
 				}
 			}));
 			this.visibleDisposables.add(this.ui.list.onChangedCheckedElements(checkedItems => {

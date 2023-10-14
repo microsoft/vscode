@@ -54,6 +54,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { assertType } from 'vs/base/common/types';
+import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -557,6 +559,20 @@ export class InlineChatWidget {
 		this._elements.message.setAttribute('state', expansionState);
 	}
 
+	updateSlashCommandUsed(command: string): void {
+		const details = this._slashCommandDetails.find(candidate => candidate.command === command);
+		if (!details) {
+			return;
+		}
+
+		this._elements.infoLabel.classList.toggle('hidden', false);
+		const label = localize('slashCommandUsed', "Using {0} to generate response...", `\`\`/${details.command}\`\``);
+
+		const e = renderFormattedText(label, { inline: true, renderCodeSegments: true, className: 'slash-command-pill' });
+		reset(this._elements.infoLabel, e);
+		this._onDidChangeHeight.fire();
+	}
+
 	updateInfo(message: string): void {
 		this._elements.infoLabel.classList.toggle('hidden', !message);
 		const renderedMessage = renderLabelWithIcons(message);
@@ -793,7 +809,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		@IInstantiationService private readonly _instaService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
-		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 + 3 });
+		super(editor, { showFrame: false, showArrow: false, isAccessible: true, className: 'inline-chat-widget', keepEditorSelection: true, showInHiddenAreas: true, ordinal: 10000 });
 
 		this._ctxVisible = CTX_INLINE_CHAT_VISIBLE.bindTo(contextKeyService);
 		this._ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
@@ -873,12 +889,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		return info.width - info.minimap.minimapWidth;
 	}
 
-	updateBackgroundColor(position: Position, selection: IRange) {
-		if (!this.container) {
-			return;
-		}
-		const widgetLineNumber = position.lineNumber;
-		this.container.classList.toggle('inside-selection', widgetLineNumber >= selection.startLineNumber && widgetLineNumber < selection.endLineNumber);
+	updateBackgroundColor(newPosition: Position, wholeRange: IRange) {
+		assertType(this.container);
+		const widgetLineNumber = newPosition.lineNumber;
+		this.container.classList.toggle('inside-selection', widgetLineNumber > wholeRange.startLineNumber && widgetLineNumber < wholeRange.endLineNumber);
 	}
 
 	private _calculateIndentationWidth(position: Position): number {
@@ -903,9 +917,8 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	setContainerMargins(): void {
-		if (!this.container) {
-			return;
-		}
+		assertType(this.container);
+
 		const info = this.editor.getLayoutInfo();
 		const marginWithoutIndentation = info.glyphMarginWidth + info.decorationsWidth + info.lineNumbersWidth;
 		this.container.style.marginLeft = `${marginWithoutIndentation}px`;

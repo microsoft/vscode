@@ -33,6 +33,7 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
+import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -70,7 +71,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHostService private readonly hostService: IHostService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService
+		@ITextEditorService private readonly textEditorService: ITextEditorService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super();
 
@@ -432,7 +434,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		return this.getEditors(EditorsOrder.SEQUENTIAL).map(({ editor }) => editor);
 	}
 
-	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): readonly IEditorIdentifier[] {
+	getEditors(order: EditorsOrder, options?: { excludeSticky?: boolean }): IEditorIdentifier[] {
 		switch (order) {
 
 			// MRU
@@ -972,9 +974,12 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 		}
-
+		const success = saveResults.every(result => !!result);
+		if (success) {
+			this.accessibleNotificationService.notifySaved(options?.reason === SaveReason.EXPLICIT);
+		}
 		return {
-			success: saveResults.every(result => !!result),
+			success,
 			editors: coalesce(saveResults)
 		};
 	}

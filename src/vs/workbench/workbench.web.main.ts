@@ -63,6 +63,7 @@ import 'vs/workbench/services/userDataSync/browser/webUserDataSyncEnablementServ
 import 'vs/workbench/services/userDataProfile/browser/userDataProfileStorageService';
 import 'vs/workbench/services/configurationResolver/browser/configurationResolverService';
 import 'vs/platform/extensionResourceLoader/browser/extensionResourceLoaderService';
+import 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';

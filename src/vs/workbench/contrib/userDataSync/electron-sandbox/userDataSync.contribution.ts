@@ -10,7 +10,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { UserDataSycnUtilServiceChannel } from 'vs/platform/userDataSync/common/userDataSyncIpc';
 import { registerAction2, Action2, MenuId } from 'vs/platform/actions/common/actions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -36,8 +36,8 @@ registerAction2(class OpenSyncBackupsFolder extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.userData.actions.openSyncBackupsFolder',
-			title: { value: localize('Open Backup folder', "Open Local Backups Folder"), original: 'Open Local Backups Folder' },
-			category: { value: SYNC_TITLE, original: `Settings Sync` },
+			title: localize2('Open Backup folder', "Open Local Backups Folder"),
+			category: SYNC_TITLE,
 			menu: {
 				id: MenuId.CommandPalette,
 				when: CONTEXT_SYNC_STATE.notEqualsTo(SyncStatus.Uninitialized),

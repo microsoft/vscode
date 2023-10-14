@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
@@ -24,7 +24,7 @@ import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { IEditorGroupsView, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
@@ -121,10 +121,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
-		private parent: HTMLElement,
-		protected groupsView: IEditorGroupsView,
-		protected groupView: IEditorGroupView,
-		protected tabsModel: IReadonlyEditorGroupModel,
+		private readonly parent: HTMLElement,
+		protected readonly editorPartsView: IEditorPartsView,
+		protected readonly groupsView: IEditorGroupsView,
+		protected readonly groupView: IEditorGroupView,
+		protected readonly tabsModel: IReadonlyEditorGroupModel,
 		@IContextMenuService protected readonly contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
@@ -175,7 +176,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
 			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
-			highlightToggledItems: true,
+			highlightToggledItems: true
 		}));
 
 		// Context
@@ -356,7 +357,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = node;
-		if (e instanceof MouseEvent) {
+		if (isMouseEvent(e)) {
 			anchor = new StandardMouseEvent(e);
 		}
 

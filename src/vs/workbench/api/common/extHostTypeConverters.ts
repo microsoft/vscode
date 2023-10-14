@@ -2236,6 +2236,15 @@ export namespace ChatMessageRole {
 }
 
 export namespace ChatVariable {
+	export function objectTo(variableObject: Record<string, IChatRequestVariableValue[]>): Record<string, vscode.ChatVariableValue[]> {
+		const result: Record<string, vscode.ChatVariableValue[]> = {};
+		for (const key of Object.keys(variableObject)) {
+			result[key] = variableObject[key].map(ChatVariable.to);
+		}
+
+		return result;
+	}
+
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
@@ -2288,6 +2297,45 @@ export namespace InteractiveEditorResponseFeedbackKind {
 				return types.InteractiveEditorResponseFeedbackKind.Undone;
 			case InlineChatResponseFeedbackKind.Accepted:
 				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+		}
+	}
+}
+
+export namespace ChatResponseProgress {
+	export function from(progress: vscode.InteractiveProgress): extHostProtocol.IChatResponseProgressDto {
+		if ('placeholder' in progress && 'resolvedContent' in progress) {
+			return { placeholder: progress.placeholder };
+		} else if ('responseId' in progress) {
+			return { requestId: progress.responseId };
+		} else if ('content' in progress) {
+			return { content: typeof progress.content === 'string' ? progress.content : MarkdownString.from(progress.content) };
+		} else if ('documents' in progress) {
+			return {
+				documents: progress.documents.map(d => ({
+					uri: d.uri,
+					version: d.version,
+					ranges: d.ranges.map(r => Range.from(r))
+				}))
+			};
+		} else if ('reference' in progress) {
+			return {
+				reference: 'uri' in progress.reference ?
+					{
+						uri: progress.reference.uri,
+						range: Range.from(progress.reference.range)
+					} : progress.reference
+			};
+		} else if ('inlineReference' in progress) {
+			return {
+				inlineReference: 'uri' in progress.inlineReference ?
+					{
+						uri: progress.inlineReference.uri,
+						range: Range.from(progress.inlineReference.range)
+					} : progress.inlineReference,
+				title: progress.title,
+			};
+		} else {
+			return progress;
 		}
 	}
 }
