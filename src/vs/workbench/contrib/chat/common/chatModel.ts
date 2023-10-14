@@ -92,7 +92,7 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: IParsedChatRequest | IChatReplyFollowup,
+		public readonly message: IParsedChatRequest,
 		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -521,7 +521,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		const firstRequestMessage = firstOrDefault(this._requests)?.message;
-		const message = (firstRequestMessage && 'text' in firstRequestMessage) ? firstRequestMessage.text : firstRequestMessage?.message ?? '';
+		const message = firstRequestMessage?.text ?? '';
 		return message.split('\n')[0].substring(0, 50);
 	}
 
@@ -645,7 +645,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgent): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, chatAgent?: IChatAgent): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
@@ -753,7 +753,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					providerRequestId: r.providerRequestId,
-					message: 'text' in r.message ? r.message : r.message.message,
+					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
