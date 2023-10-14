@@ -378,10 +378,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.saveViewCustomizations();
 	}
 
-	isViewContainerRemovedPermanently(viewContainerId: string): boolean {
-		return this.isGeneratedContainerId(viewContainerId) && !this.viewContainersCustomLocations.has(viewContainerId);
-	}
-
 	private onDidChangeDefaultContainer(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
 		const viewsToMove = views.filter(view =>
 			!this.viewDescriptorsCustomLocations.has(view.id) // Move views which are not already moved
