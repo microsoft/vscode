@@ -325,7 +325,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			rendererDelegate
 		));
 		this._register(this.renderer.onDidClickFollowup(item => {
-			this.acceptInput(item);
+			// is this used anymore?
+			this.acceptInput(item.message);
 		}));
 
 		this.tree = <WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
@@ -408,7 +409,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidAcceptFollowup(followup => this.acceptInput(followup)));
+		this._register(this.inputPart.onDidAcceptFollowup(followup => {
+			// this.chatService.notifyUserAction
+			this.acceptInput(followup.message);
+		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 	}
 
@@ -469,14 +473,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setValue(value);
 	}
 
-	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
+	async acceptInput(query?: string): Promise<void> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
 			const editorValue = this.inputPart.inputEditor.getValue();
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
-			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
+			const usedSlashCommand = this.lookupSlashCommand(input);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
