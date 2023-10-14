@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -40,6 +39,11 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { editorBackground, editorForeground, inputBackground } from 'vs/platform/theme/common/colorRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -123,6 +127,9 @@ export class InlineChatController implements IEditorContribution {
 	private _strategy?: EditModeStrategy;
 	private _ignoreModelContentChanged = false;
 
+	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _editorOptions: ChatEditorOptions;
+
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInstantiationService private readonly _instaService: IInstantiationService,
@@ -144,6 +151,8 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
+		this._markdownRenderer = this._store.add(_instaService.createInstance(MarkdownRenderer, {}));
+		this._editorOptions = this._store.add(_instaService.createInstance(ChatEditorOptions, undefined, editorForeground, inputBackground, editorBackground));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
 			if (this._activeSession || !e.newModelUrl) {
@@ -706,7 +715,16 @@ export class InlineChatController implements IEditorContribution {
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
+			let codeBlockIndex = 0;
+			const renderedMarkdown = this._store.add(this._markdownRenderer.render(response.raw.message, {
+				fillInIncompleteTokens: true,
+				codeBlockRendererSync: (languageId, text) => {
+					const codeBlockPart = this._store.add(this._instaService.createInstance(CodeBlockPart, this._editorOptions, MenuId.InlineChatCodeBlock));
+					const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element: response };
+					codeBlockPart.render(data, /* width*/ 500);
+					return codeBlockPart.element;
+				}
+			}));
 			this._zone.value.widget.updateStatus('');
 			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
 			this._zone.value.widget.updateToolbar(true);

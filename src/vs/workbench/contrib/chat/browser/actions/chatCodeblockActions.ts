@@ -26,6 +26,7 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
@@ -36,15 +37,12 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export interface IChatCodeBlockActionContext {
-	code: string;
-	languageId: string;
-	codeBlockIndex: number;
+export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
 }
 
 export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
-	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing && isResponseVM(thing.element);
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -66,7 +64,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext): any;
+	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
 export function registerChatCodeBlockActions() {

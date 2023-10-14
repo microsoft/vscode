@@ -190,6 +190,7 @@ export class MenuId {
 	static readonly InlineSuggestionToolbar = new MenuId('InlineSuggestionToolbar');
 	static readonly ChatContext = new MenuId('ChatContext');
 	static readonly ChatCodeBlock = new MenuId('ChatCodeblock');
+	static readonly InlineChatCodeBlock = new MenuId('InlineChatCodeblock');
 	static readonly ChatMessageTitle = new MenuId('ChatMessageTitle');
 	static readonly ChatExecute = new MenuId('ChatExecute');
 	static readonly ChatInputSide = new MenuId('ChatInputSide');
