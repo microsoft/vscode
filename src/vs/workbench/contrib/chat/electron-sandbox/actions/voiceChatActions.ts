@@ -9,7 +9,6 @@ import { firstOrDefault } from 'vs/base/common/arrays';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
 import { Action2, MenuId } from 'vs/platform/actions/common/actions';
@@ -19,7 +18,6 @@ import { spinningLoading } from 'vs/platform/theme/common/iconRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IWorkbenchVoiceRecognitionService } from 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
@@ -33,6 +31,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
+import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -190,6 +189,7 @@ class VoiceChatSessionControllerFactory {
 }
 
 interface ActiveVoiceChatSession {
+	readonly id: number;
 	readonly controller: IVoiceChatSessionController;
 	readonly disposables: DisposableStore;
 }
@@ -218,37 +218,61 @@ class VoiceChatSessions {
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchVoiceRecognitionService private readonly voiceRecognitionService: IWorkbenchVoiceRecognitionService
+		@ISpeechService private readonly speechService: ISpeechService
 	) { }
 
 	async start(controller: IVoiceChatSessionController): Promise<void> {
 		this.stop();
 
-		const voiceChatSessionId = ++this.voiceChatSessionIds;
-		this.currentVoiceChatSession = {
+		const sessionId = ++this.voiceChatSessionIds;
+		const session = this.currentVoiceChatSession = {
+			id: sessionId,
 			controller,
 			disposables: new DisposableStore()
 		};
 
 		const cts = new CancellationTokenSource();
-		this.currentVoiceChatSession.disposables.add(toDisposable(() => cts.dispose(true)));
+		session.disposables.add(toDisposable(() => cts.dispose(true)));
 
-		this.currentVoiceChatSession.disposables.add(controller.onDidAcceptInput(() => this.stop(voiceChatSessionId, controller.context)));
-		this.currentVoiceChatSession.disposables.add(controller.onDidCancelInput(() => this.stop(voiceChatSessionId, controller.context)));
+		session.disposables.add(controller.onDidAcceptInput(() => this.stop(sessionId, controller.context)));
+		session.disposables.add(controller.onDidCancelInput(() => this.stop(sessionId, controller.context)));
 
 		controller.updateInput('');
 		controller.focusInput();
 
 		this.voiceChatGettingReadyKey.set(true);
 
-		const onDidTranscribe = await this.voiceRecognitionService.transcribe(cts.token, {
-			onDidCancel: () => this.stop(voiceChatSessionId, controller.context)
-		});
+		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession('default', cts.token));
 
-		if (cts.token.isCancellationRequested) {
-			return;
-		}
+		let transcription: string = '';
+		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
 
+			switch (status) {
+				case SpeechToTextStatus.Started:
+					this.onDidSpeechToTextSessionStart(controller);
+					break;
+				case SpeechToTextStatus.Recognizing:
+					if (text) {
+						session.controller.updateInput([transcription, text].join(' '));
+					}
+					break;
+				case SpeechToTextStatus.Recognized:
+					if (text) {
+						transcription = [transcription, text].join(' ');
+						session.controller.updateInput(transcription);
+					}
+					break;
+				case SpeechToTextStatus.Stopped:
+					this.stop(session.id, controller.context);
+					break;
+			}
+		}));
+	}
+
+	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController): void {
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(true);
 
@@ -266,48 +290,6 @@ class VoiceChatSessions {
 				this.voiceChatInEditorInProgressKey.set(true);
 				break;
 		}
-
-		this.registerTranscriptionListener(this.currentVoiceChatSession, onDidTranscribe);
-	}
-
-	private registerTranscriptionListener(session: ActiveVoiceChatSession, onDidTranscribe: Event<string>) {
-		let lastText: string | undefined = undefined;
-		let lastTextSimilarCount = 0;
-
-		session.disposables.add(onDidTranscribe(text => {
-			if (!text && lastText) {
-				text = lastText;
-			}
-
-			if (text) {
-				if (lastText && this.isSimilarTranscription(text, lastText)) {
-					lastTextSimilarCount++;
-				} else {
-					lastTextSimilarCount = 0;
-					lastText = text;
-				}
-
-				if (lastTextSimilarCount >= 2) {
-					session.controller.acceptInput();
-				} else {
-					session.controller.updateInput(text);
-				}
-			}
-		}));
-	}
-
-	private isSimilarTranscription(textA: string, textB: string): boolean {
-
-		// Attempt to compare the 2 strings in a way to see
-		// if they are similar or not. As such we:
-		// - ignore trailing punctuation
-		// - collapse all whitespace
-		// - compare case insensitive
-
-		return equalsIgnoreCase(
-			textA.replace(/[.,;:!?]+$/, '').replace(/\s+/g, ''),
-			textB.replace(/[.,;:!?]+$/, '').replace(/\s+/g, '')
-		);
 	}
 
 	stop(voiceChatSessionId = this.voiceChatSessionIds, context?: VoiceChatSessionContext): void {

@@ -13,9 +13,6 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { FileAccess } from 'vs/base/common/network';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-// eslint-disable-next-line local/code-import-patterns
-import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService'; // TODO@bpasero layer break
-import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const IWorkbenchVoiceRecognitionService = createDecorator<IWorkbenchVoiceRecognitionService>('workbenchVoiceRecognitionService');
 
@@ -88,7 +85,6 @@ class VoiceTranscriptionWorkletNode extends AudioWorkletNode {
 	}
 }
 
-// @ts-ignore
 class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
 
 	declare readonly _serviceBrand: undefined;
@@ -208,98 +204,5 @@ class AudioWorkletVoiceRecognitionService implements IWorkbenchVoiceRecognitionS
 	}
 }
 
-class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitionService {
-
-	declare readonly _serviceBrand: undefined;
-
-	constructor(
-		@IProgressService private readonly progressService: IProgressService,
-		@INotificationService private readonly notificationService: INotificationService,
-		@ISpeechService private readonly speechService: ISpeechService
-	) { }
-
-	async transcribe(token: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>> {
-		const disposables = new DisposableStore();
-		const cts = new CancellationTokenSource(token);
-
-		disposables.add(cts.token.onCancellationRequested(() => {
-			disposables.dispose();
-
-			options?.onDidCancel?.();
-		}));
-
-		const onDidTranscribe = disposables.add(new Emitter<string>());
-		await this.doTranscribe(onDidTranscribe, disposables, cts);
-
-		return onDidTranscribe.event;
-	}
-
-	private doTranscribe(onDidTranscribe: Emitter<string>, disposables: DisposableStore, cts: CancellationTokenSource): Promise<void> {
-		const recordingReady = new DeferredPromise<void>();
-		const recordingDone = new DeferredPromise<void>();
-
-		const token = cts.token;
-		token.onCancellationRequested(() => {
-			recordingReady.complete();
-			recordingDone.complete();
-		});
-
-		this.progressService.withProgress({
-			location: ProgressLocation.Window,
-			title: localize('voiceTranscription', "Voice Transcription"),
-			cancellable: true
-		}, async progress => {
-
-			try {
-				progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
-
-				const allSentences: string[] = [];
-
-				const session = disposables.add(this.speechService.createSpeechToTextSession('default', token));
-				disposables.add(session.onDidChange(e => {
-					if (token.isCancellationRequested) {
-						return;
-					}
-
-					switch (e.status) {
-						case SpeechToTextStatus.Started:
-							progress.report({ message: localize('voiceTranscriptionRecording', "Recording from microphone...") });
-							recordingReady.complete();
-							break;
-						case SpeechToTextStatus.Recognizing:
-							if (e.text) {
-								onDidTranscribe.fire([allSentences.join(' '), e.text].join(' '));
-							}
-							break;
-						case SpeechToTextStatus.Recognized:
-							if (e.text) {
-								allSentences.push(e.text);
-
-								onDidTranscribe.fire(allSentences.join(' '));
-							}
-
-							break;
-						case SpeechToTextStatus.Stopped:
-							cts.cancel();
-							recordingDone.complete();
-							break;
-					}
-				}));
-			} catch (error) {
-				this.notificationService.error(localize('voiceTranscriptionError', "Voice transcription failed: {0}", error.message));
-
-				recordingReady.error(error);
-				recordingDone.error(error);
-			}
-
-			return recordingDone.p;
-		}, () => {
-			cts.cancel();
-		});
-
-		return recordingReady.p;
-	}
-}
-
 // Register Service
-registerSingleton(IWorkbenchVoiceRecognitionService, SpeechProviderVoiceRecognitionService, InstantiationType.Delayed);
+registerSingleton(IWorkbenchVoiceRecognitionService, AudioWorkletVoiceRecognitionService, InstantiationType.Delayed);

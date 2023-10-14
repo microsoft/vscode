@@ -5,7 +5,7 @@
 
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ExtHostContext, ExtHostSpeechShape, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import { ISpeechProviderMetadata, ISpeechService, ISpeechToTextEvent } from 'vs/workbench/contrib/speech/common/speechService';
@@ -39,21 +39,22 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 		const registration = this.speechService.registerSpeechProvider(identifier, {
 			metadata,
 			createSpeechToTextSession: token => {
+				const disposables = new DisposableStore();
 				const cts = new CancellationTokenSource(token);
 				const session = Math.random();
 
-				this.proxy.$createSpeechToTextSession(handle, session, cts.token);
-				token.onCancellationRequested(() => this.proxy.$cancelSpeechToTextSession(session));
+				this.proxy.$createSpeechToTextSession(handle, session);
+				disposables.add(token.onCancellationRequested(() => this.proxy.$cancelSpeechToTextSession(session)));
 
-				const onDidChange = new Emitter<ISpeechToTextEvent>();
+				const onDidChange = disposables.add(new Emitter<ISpeechToTextEvent>());
 				this.providerSessions.set(session, { onDidChange });
 
 				return {
 					onDidChange: onDidChange.event,
 					dispose: () => {
 						cts.dispose(true);
-						onDidChange.dispose();
 						this.providerSessions.delete(session);
+						disposables.dispose();
 					}
 				};
 			}
