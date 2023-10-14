@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ExtHostSpeechShape, IMainContext, MainContext, MainThreadSpeechShape } from 'vs/workbench/api/common/extHost.protocol';
 import type * as vscode from 'vscode';
@@ -15,6 +15,7 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 
 	private readonly proxy: MainThreadSpeechShape;
 	private readonly providers = new Map<number, vscode.SpeechProvider>();
+	private readonly sessions = new Map<number, CancellationTokenSource>();
 
 	constructor(
 		mainContext: IMainContext
@@ -28,23 +29,30 @@ export class ExtHostSpeech implements ExtHostSpeechShape {
 			return;
 		}
 
-		const speechToTextSession = provider.provideSpeechToTextSession(token);
-		if (token.isCancellationRequested) {
+		const cts = new CancellationTokenSource(token);
+		this.sessions.set(session, cts);
+
+		const speechToTextSession = provider.provideSpeechToTextSession(cts.token);
+		if (cts.token.isCancellationRequested) {
 			return;
 		}
 
 		const listener = speechToTextSession.onDidChange(e => {
-			if (token.isCancellationRequested) {
+			if (cts.token.isCancellationRequested) {
 				return;
 			}
 
 			this.proxy.$emitSpeechToTextEvent(session, e);
 		});
 
-		token.onCancellationRequested(() => {
+		cts.token.onCancellationRequested(() => {
 			listener.dispose();
 			speechToTextSession.dispose();
 		});
+	}
+
+	async $cancelSpeechToTextSession(session: number): Promise<void> {
+		this.sessions.get(session)?.dispose(true);
 	}
 
 	registerProvider(extension: ExtensionIdentifier, identifier: string, provider: vscode.SpeechProvider): IDisposable {

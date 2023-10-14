@@ -43,6 +43,7 @@ export class MainThreadSpeech extends Disposable implements MainThreadSpeechShap
 				const session = Math.random();
 
 				this.proxy.$createSpeechToTextSession(handle, session, cts.token);
+				token.onCancellationRequested(() => this.proxy.$cancelSpeechToTextSession(session));
 
 				const onDidChange = new Emitter<ISpeechToTextEvent>();
 				this.providerSessions.set(session, { onDidChange });

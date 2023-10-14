@@ -220,7 +220,7 @@ class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitio
 
 	async transcribe(token: CancellationToken, options?: IWorkbenchVoiceRecognitionOptions): Promise<Event<string>> {
 		const disposables = new DisposableStore();
-		const cts = disposables.add(new CancellationTokenSource(token));
+		const cts = new CancellationTokenSource(token);
 
 		disposables.add(cts.token.onCancellationRequested(() => {
 			disposables.dispose();
@@ -236,16 +236,19 @@ class SpeechProviderVoiceRecognitionService implements IWorkbenchVoiceRecognitio
 
 	private doTranscribe(onDidTranscribe: Emitter<string>, disposables: DisposableStore, cts: CancellationTokenSource): Promise<void> {
 		const recordingReady = new DeferredPromise<void>();
+		const recordingDone = new DeferredPromise<void>();
 
 		const token = cts.token;
-		disposables.add(token.onCancellationRequested(() => recordingReady.complete()));
+		token.onCancellationRequested(() => {
+			recordingReady.complete();
+			recordingDone.complete();
+		});
 
 		this.progressService.withProgress({
 			location: ProgressLocation.Window,
 			title: localize('voiceTranscription', "Voice Transcription"),
 			cancellable: true
 		}, async progress => {
-			const recordingDone = new DeferredPromise<void>();
 
 			try {
 				progress.report({ message: localize('voiceTranscriptionGettingReady', "Getting microphone ready...") });
