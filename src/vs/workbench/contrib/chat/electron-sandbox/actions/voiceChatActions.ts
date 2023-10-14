@@ -32,6 +32,7 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { RunOnceScheduler } from 'vs/base/common/async';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -245,6 +246,7 @@ class VoiceChatSessions {
 		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession('default', cts.token));
 
 		let transcription: string = '';
+		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 2000));
 		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -257,12 +259,14 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.controller.updateInput([transcription, text].join(' '));
+						acceptTranscriptionScheduler.cancel();
 					}
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (text) {
 						transcription = [transcription, text].join(' ');
 						session.controller.updateInput(transcription);
+						acceptTranscriptionScheduler.schedule();
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
