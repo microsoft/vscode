@@ -339,9 +339,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
-		if (isResponseVM(element)) {
-			this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
-		}
+		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 
 		let fileTreeIndex = 0;
 		for (const data of value) {
@@ -355,7 +353,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (isResponseVM(element) && element.errorDetails?.message) {
 			const icon = element.errorDetails.responseIsFiltered ? Codicon.info : Codicon.error;
 			const errorDetails = dom.append(templateData.value, $('.interactive-response-error-details', undefined, renderIcon(icon)));
-			errorDetails.appendChild($('span', undefined, element.errorDetails.message));
+			const renderedError = templateData.elementDisposables.add(this.renderer.render(new MarkdownString(element.errorDetails.message)));
+			errorDetails.appendChild($('span', undefined, renderedError.element));
 		}
 
 		if (isResponseVM(element) && element.commandFollowups?.length) {
@@ -602,12 +601,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		};
 	}
 
-	private renderContentReferencesIfNeeded(element: IChatResponseViewModel, templateData: IChatListItemTemplate, disposables: DisposableStore): void {
+	private renderContentReferencesIfNeeded(element: ChatTreeItem, templateData: IChatListItemTemplate, disposables: DisposableStore): void {
 		dom.clearNode(templateData.referencesListContainer);
-		if (this._usedReferencesEnabled && element.response.contentReferences.length) {
+		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.contentReferences.length) {
+			dom.show(templateData.referencesListContainer);
 			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
 			templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
 			disposables.add(contentReferencesListResult);
+		} else {
+			dom.hide(templateData.referencesListContainer);
 		}
 	}
 
