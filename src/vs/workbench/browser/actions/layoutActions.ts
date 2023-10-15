@@ -470,7 +470,7 @@ export class ToggleStatusbarVisibilityAction extends Action2 {
 
 registerAction2(ToggleStatusbarVisibilityAction);
 
-// --- Bse Class Toggle Boolean Setting Action
+// --- Base Class Toggle Boolean Setting Action
 
 abstract class BaseToggleBooleanSettingAction extends Action2 {
 
@@ -524,7 +524,7 @@ export class ToggleSeparatePinnedTabsAction extends BaseToggleBooleanSettingActi
 				original: 'Separate Pinned Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.has('config.workbench.editor.showTabs'),
+			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple'),
 			f1: true
 		});
 	}
