@@ -48,4 +48,11 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 
 		return undefined;
 	}
+
+	getLastActiveWindow(): IAuxiliaryWindow | undefined {
+		const windows = Array.from(this.windows.values());
+		const maxLastFocusTime = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
+
+		return windows.find(window => window.lastFocusTime === maxLastFocusTime);
+	}
 }

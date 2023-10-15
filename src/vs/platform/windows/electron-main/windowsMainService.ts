@@ -1620,9 +1620,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
-		const lastFocusedDate = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
+		const maxLastFocusTime = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
 
-		return windows.find(window => window.lastFocusTime === lastFocusedDate);
+		return windows.find(window => window.lastFocusTime === maxLastFocusTime);
 	}
 
 	sendToFocused(channel: string, ...args: any[]): void {

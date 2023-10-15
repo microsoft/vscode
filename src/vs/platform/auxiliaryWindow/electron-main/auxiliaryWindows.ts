@@ -17,5 +17,7 @@ export interface IAuxiliaryWindowsMainService {
 	registerWindow(webContents: WebContents): void;
 
 	getWindowById(windowId: number): IAuxiliaryWindow | undefined;
+
 	getFocusedWindow(): IAuxiliaryWindow | undefined;
+	getLastActiveWindow(): IAuxiliaryWindow | undefined;
 }
