@@ -1057,13 +1057,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.paneItems[0].pane.setExpanded(true);
 			}
 			this.paneItems[0].pane.headerVisible = false;
+			this.paneItems[0].pane.collapsible = true;
 		} else {
-			this.paneItems.forEach(i => {
-				i.pane.headerVisible = true;
-				if (i.pane === this.lastMergedCollapsedPane) {
-					i.pane.setExpanded(false);
-				}
-			});
+			if (this.paneItems.length === 1) {
+				this.paneItems[0].pane.setExpanded(true);
+				this.paneItems[0].pane.collapsible = false;
+			} else {
+				this.paneItems.forEach(i => {
+					i.pane.headerVisible = true;
+					i.pane.collapsible = true;
+					if (i.pane === this.lastMergedCollapsedPane) {
+						i.pane.setExpanded(false);
+					}
+				});
+			}
 			this.lastMergedCollapsedPane = undefined;
 		}
 	}
