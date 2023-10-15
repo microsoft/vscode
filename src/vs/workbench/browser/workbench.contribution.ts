@@ -730,7 +730,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'zenMode.showTabs': {
 				'type': 'string',
 				'enum': ['multiple', 'single', 'none'],
-				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show muötiple editor tabs, a single editor tab or hide the editor title area completely."),
+				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab or hide the editor title area completely."),
 				'enumDescriptions': [
 					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
 					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
