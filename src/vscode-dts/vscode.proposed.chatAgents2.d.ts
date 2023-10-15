@@ -146,8 +146,87 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API InteractiveProgress is a lot to inline...
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	// TODO@API should these each be prefixed ChatAgentProgress*?
+	export type ChatAgentProgress =
+		| ChatAgentContent
+		| ChatAgentTask
+		| ChatAgentFileTree
+		| ChatAgentUsedContext
+		| ChatAgentContentReference
+		| ChatAgentInlineContentReference;
+
+	/**
+	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
+	 */
+	export interface ChatAgentContentReference {
+		/**
+		 * The resource that was referenced.
+		 */
+		reference: Uri | Location;
+	}
+
+	/**
+	 * A reference to a piece of content that will be rendered inline with the markdown content.
+	 */
+	export interface ChatAgentInlineContentReference {
+		/**
+		 * The resource being referenced.
+		 */
+		inlineReference: Uri | Location;
+
+		/**
+		 * An alternate title for the resource.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
+	 */
+	export interface ChatAgentContent {
+		/**
+		 * The content as a string of markdown source.
+		 */
+		content: string;
+	}
+
+	/**
+	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
+	 * which is replaced once the full content is available.
+	 */
+	export interface ChatAgentTask {
+		/**
+		 * The markdown string to be rendered immediately.
+		 */
+		placeholder: string;
+
+		/**
+		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
+		 */
+		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
+	}
+
+	export interface ChatAgentFileTreeData {
+		label: string;
+		uri: Uri;
+		children?: ChatAgentFileTreeData[];
+	}
+
+	export interface ChatAgentFileTree {
+		treeData: ChatAgentFileTreeData;
+	}
+
+	export interface ChatAgentDocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	export interface ChatAgentUsedContext {
+		documents: ChatAgentDocumentContext[];
+	}
+
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 
