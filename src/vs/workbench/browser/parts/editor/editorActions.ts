@@ -2441,17 +2441,13 @@ export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const activeEditor = editorService.activeEditor;
-		if (!activeEditor) {
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
 			return;
 		}
 
 		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
 
-		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
-			pinned: true,
-			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
-		});
-		await editorGroupService.activeGroup.closeEditor(activeEditor);
+		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
 	}
 }
