@@ -16,6 +16,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { join } from 'vs/base/common/path';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 
 export const IWindowsMainService = createDecorator<IWindowsMainService>('windowsMainService');
 
@@ -156,4 +158,25 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	}
 
 	return options;
+}
+
+export function getFocusedWindow(accessor: ServicesAccessor): ICodeWindow | IAuxiliaryWindow | undefined {
+	const windowsMainService = accessor.get(IWindowsMainService);
+	const auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
+
+	// By: Electron focused window
+	const focusedWindow = windowsMainService.getFocusedWindow() ?? auxiliaryWindowsMainService.getFocusedWindow();
+	if (focusedWindow) {
+		return focusedWindow;
+	}
+
+	// By: Last active window
+	const mainLastActiveWindow = windowsMainService.getLastActiveWindow();
+	const auxiliaryLastActiveWindow = auxiliaryWindowsMainService.getLastActiveWindow();
+
+	if (mainLastActiveWindow && auxiliaryLastActiveWindow) {
+		return mainLastActiveWindow.lastFocusTime < auxiliaryLastActiveWindow.lastFocusTime ? auxiliaryLastActiveWindow : mainLastActiveWindow;
+	}
+
+	return mainLastActiveWindow ?? auxiliaryLastActiveWindow;
 }
