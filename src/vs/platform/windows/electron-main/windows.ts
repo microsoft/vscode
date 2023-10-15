@@ -160,7 +160,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	return options;
 }
 
-export function getFocusedWindow(accessor: ServicesAccessor): ICodeWindow | IAuxiliaryWindow | undefined {
+export function getFocusedOrLastActiveWindow(accessor: ServicesAccessor): ICodeWindow | IAuxiliaryWindow | undefined {
 	const windowsMainService = accessor.get(IWindowsMainService);
 	const auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
