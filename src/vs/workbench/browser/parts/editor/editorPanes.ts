@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, isEditorOpenError } from 'vs/workbench/common/editor';
+import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow, getActiveWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -128,7 +128,23 @@ export class EditorPanes extends Disposable {
 
 	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
-			return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
+
+			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
+			// TODO@bpasero revisit this once all editors can support aux windows
+			if (getWindow(this.editorPanesParent) !== window && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
+				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in floating windows yet."), [
+					toAction({
+						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {
+							return this.groupView.closeEditor(editor);
+						}
+					})
+				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, context);
+			}
+
+			// Open editor normally
+			else {
+				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
+			}
 		} catch (error) {
 
 			// First check if caller instructed us to ignore error handling
