@@ -45,3 +45,15 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 		}
 	}
 });
+
+Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfiguration({
+	...applicationConfigurationNodeBase,
+	'properties': {
+		'application.experimental.keybindTutor': {
+			type: 'boolean',
+			default: false,
+			tags: ['experimental'],
+			markdownDescription: localize('experimental.keybindTutor', "If enabled, vscode will help you learn shortcuts that are useful for your workflow.")
+		}
+	}
+});
