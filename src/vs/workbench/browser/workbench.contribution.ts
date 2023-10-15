@@ -41,7 +41,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.showTabs': {
 				'type': 'string',
 				'enum': ['multiple', 'single', 'none'],
-				'description': localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
+				'enumDescriptions': [
+					localize('workbench.editor.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('workbench.editor.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('workbench.editor.showTabs.none', "The editor title area is not displayed."),
+				],
+				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
 				'default': 'multiple'
 			},
 			'workbench.editor.wrapTabs': {
@@ -187,7 +192,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.pinnedTabsOnSeparateRow': {
 				'type': 'boolean',
 				'default': false,
-				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 			},
 			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
@@ -722,10 +727,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
 			},
-			'zenMode.hideTabs': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
+			'zenMode.showTabs': {
+				'type': 'string',
+				'enum': ['multiple', 'single', 'none'],
+				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show muötiple editor tabs, a single editor tab or hide the editor title area completely."),
+				'enumDescriptions': [
+					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('zenMode.showTabs.none', "The editor title area is not displayed."),
+				],
+				'default': 'multiple'
 			},
 			'zenMode.hideStatusBar': {
 				'type': 'boolean',
@@ -770,9 +781,19 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
-			const result: ConfigurationKeyValuePairs = [['workbench.editor.showTabs', { value: value }]];
-			if (value === false) {
-				result.push(['workbench.editor.showTabs', { value: 'single' }]);
+			if (typeof value === 'boolean') {
+				value = value ? 'multiple' : 'single';
+			}
+			return [['workbench.editor.showTabs', { value: value }]];
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
+			if (value === true) {
+				result.push(['zenMode.showTabs', { value: 'single' }]);
 			}
 			return result;
 		}
