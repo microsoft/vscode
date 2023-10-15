@@ -78,7 +78,7 @@ export class EditorTitleControl extends Themable {
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
 		if (this.groupsView.partOptions.showTabs !== 'multiple') {
-			return undefined; // single tabs have breadcrumbs inlined
+			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
 		}
 
 		// Breadcrumbs container
