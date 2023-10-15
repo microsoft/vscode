@@ -131,6 +131,8 @@ export interface LogOptions {
 	readonly path?: string;
 	/** A commit range, such as "0a47c67f0fb52dd11562af48658bc1dff1d75a38..0bb4bdea78e1db44d728fd6894720071e303304f" */
 	readonly range?: string;
+	readonly reverse?: boolean;
+	readonly sortByAuthorDate?: boolean;
 }
 
 export interface CommitOptions {
@@ -217,6 +219,7 @@ export interface Repository {
 	deleteBranch(name: string, force?: boolean): Promise<void>;
 	getBranch(name: string): Promise<Branch>;
 	getBranches(query: BranchQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
+	getBranchBase(name: string): Promise<Branch | undefined>;
 	setBranchUpstream(name: string, upstream: string): Promise<void>;
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;

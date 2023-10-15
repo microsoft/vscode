@@ -723,13 +723,13 @@ MenuRegistry.appendMenuItem(MenuId.GlobalActivity, <ISubmenuItem>{
 	title: localize('themes', "Themes"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, <ISubmenuItem>{
 	title: localize({ key: 'miSelectTheme', comment: ['&& denotes a mnemonic'] }, "&&Theme"),
 	submenu: ThemesSubMenu,
 	group: '2_configuration',
-	order: 6
+	order: 7
 });
 
 MenuRegistry.appendMenuItem(ThemesSubMenu, {

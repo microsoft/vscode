@@ -35,7 +35,7 @@ export class InlayHintsAccessibility implements IEditorContribution {
 	private readonly _ariaElement: HTMLSpanElement;
 	private readonly _ctxIsReading: IContextKey<boolean>;
 
-	private _sessionDispoosables = new DisposableStore();
+	private readonly _sessionDispoosables = new DisposableStore();
 
 	constructor(
 		private readonly _editor: ICodeEditor,

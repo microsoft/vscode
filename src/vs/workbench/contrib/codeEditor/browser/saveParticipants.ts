@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Disposable } from 'vs/base/common/lifecycle';
 import * as strings from 'vs/base/common/strings';
 import { IActiveCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
@@ -12,25 +13,24 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CodeActionProvider, CodeActionTriggerType } from 'vs/editor/common/languages';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeActionTriggerType, CodeActionProvider } from 'vs/editor/common/languages';
-import { applyCodeAction, ApplyCodeActionReason, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { ApplyCodeActionReason, applyCodeAction, getCodeActions } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKind, CodeActionTriggerSource } from 'vs/editor/contrib/codeAction/common/types';
-import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode } from 'vs/editor/contrib/format/browser/format';
+import { FormattingMode, formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider } from 'vs/editor/contrib/format/browser/format';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressStep, IProgress, Progress } from 'vs/platform/progress/common/progress';
-import { ITextFileService, ITextFileSaveParticipant, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
-import { SaveReason } from 'vs/workbench/common/editor';
-import { Disposable } from 'vs/base/common/lifecycle';
-import { IWorkbenchContribution, Extensions as WorkbenchContributionsExtensions, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
-import { Registry } from 'vs/platform/registry/common/platform';
-import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IProgress, IProgressStep, Progress } from 'vs/platform/progress/common/progress';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchContributionsExtensions } from 'vs/workbench/common/contributions';
+import { SaveReason } from 'vs/workbench/common/editor';
+import { getModifiedRanges } from 'vs/workbench/contrib/format/browser/formatModified';
+import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ITextFileEditorModel, ITextFileSaveParticipant, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 export class TrimWhitespaceParticipant implements ITextFileSaveParticipant {
 
@@ -160,8 +160,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 	 */
 	private findLastNonEmptyLine(model: ITextModel): number {
 		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
-			const lineContent = model.getLineContent(lineNumber);
-			if (lineContent.length > 0) {
+			const lineLength = model.getLineLength(lineNumber);
+			if (lineLength > 0) {
 				// this line has content
 				return lineNumber;
 			}
@@ -277,22 +277,26 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return;
 		}
 
-		// Do not run code actions on auto save
-		if (env.reason !== SaveReason.EXPLICIT) {
+		const textEditorModel = model.textEditorModel;
+		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
+
+		// Convert boolean values to strings
+		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
+		if (!setting) {
 			return undefined;
 		}
 
-		const textEditorModel = model.textEditorModel;
+		if (env.reason === SaveReason.AUTO) {
+			return undefined;
+		}
 
-		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: model.resource };
-		const setting = this.configurationService.getValue<{ [kind: string]: boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
-		if (!setting) {
+		if (env.reason !== SaveReason.EXPLICIT && Array.isArray(setting)) {
 			return undefined;
 		}
 
 		const settingItems: string[] = Array.isArray(setting)
 			? setting
-			: Object.keys(setting).filter(x => setting[x]);
+			: Object.keys(setting).filter(x => setting[x] && setting[x] !== 'never');
 
 		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
@@ -314,15 +318,17 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
-
 		const excludedActions = Array.isArray(setting)
 			? []
 			: Object.keys(setting)
-				.filter(x => setting[x] === false)
+				.filter(x => setting[x] === 'never' || false)
 				.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
-		await this.applyOnSaveActions(textEditorModel, codeActionsOnSave, excludedActions, progress, token);
+
+		const filteredSaveList = Array.isArray(setting) ? codeActionsOnSave : codeActionsOnSave.filter(x => setting[x.value] === 'always' || ((setting[x.value] === 'explicit' || setting[x.value] === true) && env.reason === SaveReason.EXPLICIT));
+
+		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}
 
 	private createCodeActionsOnSave(settingItems: readonly string[]): CodeActionKind[] {

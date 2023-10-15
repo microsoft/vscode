@@ -285,10 +285,6 @@
 	border-style: solid;
 }
 
-.xterm-screen .xterm-decoration-container .xterm-decoration.quick-fix {
-	z-index: 7;
-}
-
 .monaco-workbench .part.sidebar > .title > .title-actions .switch-terminal {
 	display: flex;
 	align-items: center;
@@ -484,15 +480,6 @@
 	pointer-events: none;
 	color: var(--vscode-terminalCommandDecoration-defaultBackground);
 }
-.monaco-workbench .terminal .terminal-command-decoration.quick-fix {
-	color: var(--vscode-editorLightBulb-foreground) !important;
-	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
-}
-.monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
-	/* Use success background to blend in with the terminal better as it's lower priority. We will
-	 * probably want to add an explicit color for this eventually. */
-	color: var(--vscode-terminalCommandDecoration-successBackground) !important;
-}
 
 .terminal-scroll-highlight {
 	left: 0;
@@ -563,34 +550,6 @@
 
 .monaco-workbench .xterm .xterm-viewport::-webkit-scrollbar-thumb:active {
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
-}
-
-.monaco-workbench .terminal-accessible-widget {
-	position: absolute;
-	left: 10px;
-	top: 0;
-	bottom: 0;
-	right: 0;
-	opacity: 0;
-	/* Reset cursor style as monaco controls it here */
-	cursor: default;
-	padding: 0;
-	overflow: initial;
-	overflow-x: initial;
-	pointer-events: none;
-	z-index: 0;
-}
-
-.monaco-workbench .terminal-accessible-widget div {
-	white-space: pre-wrap;
-}
-
-.monaco-workbench .terminal-accessible-widget.focus-within,
-.monaco-workbench .terminal-accessible-widget.active {
-	pointer-events: all;
-	opacity: 1;
-	z-index: 33;
-	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 
 .monaco-workbench .xterm.terminal.hide {

@@ -170,9 +170,15 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			return;
 		}
 
-		// complex changes
-		this._logService.debug('[IE] livePreview-mode: full diff');
-		this._renderChangesWithFullDiff(changes, range);
+		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+			// no change or changes to an empty file
+			this._logService.debug('[IE] livePreview-mode: no diff');
+			this._cleanupFullDiff();
+		} else {
+			// complex changes
+			this._logService.debug('[IE] livePreview-mode: full diff');
+			this._renderChangesWithFullDiff(changes, range);
+		}
 	}
 
 	// --- full diff
@@ -238,7 +244,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			originalDiffHidden,
 			modifiedHidden: modifiedLineRange,
 			modifiedDiffHidden,
-			anchor: new Position(modifiedLineRange.endLineNumberExclusive - 1, Number.MAX_SAFE_INTEGER)
+			anchor: new Position(modifiedLineRange.startLineNumber - 1, 1)
 		};
 	}
 

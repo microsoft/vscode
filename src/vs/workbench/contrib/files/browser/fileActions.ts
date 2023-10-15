@@ -517,14 +517,14 @@ export class GlobalCompareResourcesAction extends Action2 {
 
 export class ToggleAutoSaveAction extends Action2 {
 	static readonly ID = 'workbench.action.toggleAutoSave';
-	static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");
 
 	constructor() {
 		super({
 			id: ToggleAutoSaveAction.ID,
-			title: { value: ToggleAutoSaveAction.LABEL, original: 'Toggle Auto Save' },
+			title: nls.localize2('toggleAutoSave', "Toggle Auto Save"),
 			f1: true,
-			category: Categories.File
+			category: Categories.File,
+			metadata: { description: nls.localize2('toggleAutoSaveDescription', "Toggle the ability to save files automatically after typing") }
 		});
 	}
 

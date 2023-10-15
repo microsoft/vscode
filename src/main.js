@@ -201,16 +201,15 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile',
-
-		// override which password-store is used
-		'password-store'
+		'force-color-profile'
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -219,7 +218,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -272,13 +274,21 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						}
 					}
 					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
+					}
+					break;
 			}
 		}
 	});
 
 	// Following features are disabled from the runtime:
 	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
-	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+	const featuresToDisable =
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);

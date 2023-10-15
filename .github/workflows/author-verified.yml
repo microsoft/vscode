@@ -10,7 +10,7 @@ jobs:
     steps:
       - name: Checkout Actions
         if: contains(github.event.issue.labels.*.name, 'author-verification-requested') && contains(github.event.issue.labels.*.name, 'insiders-released')
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           repository: "microsoft/vscode-github-triage-actions"
           ref: stable
