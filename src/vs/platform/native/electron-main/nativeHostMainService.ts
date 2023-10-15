@@ -25,7 +25,7 @@ import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
@@ -34,7 +34,7 @@ import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
 import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { getFocusedWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -61,7 +61,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -804,6 +805,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	private focusedWindow(): ICodeWindow | IAuxiliaryWindow | undefined {
-		return this.windowsMainService.getFocusedWindow() ?? this.auxiliaryWindowsMainService.getFocusedWindow();
+		return this.instantiationService.invokeFunction(getFocusedWindow);
 	}
 }
