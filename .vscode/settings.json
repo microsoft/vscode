@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		".vscode-test": true,
 		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
@@ -143,6 +144,11 @@
 			"${workspaceFolder}/build/**/*.js"
 		]
 	},
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/extensions/*/out/**/*.js",
+		]
+	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
 	"githubPullRequests.ignoredPullRequestBranches": [
@@ -151,4 +157,12 @@
 	"application.experimental.rendererProfiling": true,
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
+	"typescript.preferences.autoImportFileExcludePatterns": [
+		"xterm",
+		"xterm-headless",
+		"node-pty",
+		"vscode-notebook-renderer",
+		"src/vs/workbench/workbench.web.main.ts",
+		"src/vs/workbench/api/common/extHostTypes.ts"
+	]
 }

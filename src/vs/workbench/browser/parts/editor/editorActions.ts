@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,7 +33,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -68,7 +68,7 @@ abstract class AbstractSplitEditorAction extends Action2 {
 
 export class SplitEditorAction extends AbstractSplitEditorAction {
 
-	static readonly ID = 'workbench.action.splitEditor';
+	static readonly ID = SPLIT_EDITOR;
 
 	constructor() {
 		super({
@@ -2418,5 +2418,40 @@ export class ReOpenInTextEditorAction extends Action2 {
 				}
 			}
 		], activeEditorPane.group);
+	}
+}
+
+export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.experimentalMoveEditorIntoNewWindowAction',
+			title: {
+				value: localize('popEditorOut', "Move Active Editor into a New Window (Experimental)"),
+				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Move Active Editor into a New Window (Experimental)"),
+				original: 'Move Active Editor into a New Window (Experimental)'
+			},
+			category: Categories.View,
+			precondition: ActiveEditorContext,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const activeEditor = editorService.activeEditor;
+		if (!activeEditor) {
+			return;
+		}
+
+		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
+
+		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
+			pinned: true,
+			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
+		});
+		await editorGroupService.activeGroup.closeEditor(activeEditor);
 	}
 }

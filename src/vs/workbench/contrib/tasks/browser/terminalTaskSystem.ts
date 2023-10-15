@@ -936,7 +936,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			});
 			if (trigger === Triggers.reconnect && !!terminal.xterm) {
 				const bufferLines = [];
-
 				const bufferReverseIterator = terminal.xterm.getBufferReverseIterator();
 				const startRegex = new RegExp(watchingProblemMatcher.beginPatterns.map(pattern => pattern.source).join('|'));
 				for (const nextLine of bufferReverseIterator) {
@@ -945,8 +944,16 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 						break;
 					}
 				}
+				let delayer: Async.Delayer<any> | undefined = undefined;
 				for (let i = bufferLines.length - 1; i >= 0; i--) {
 					watchingProblemMatcher.processLine(bufferLines[i]);
+					if (!delayer) {
+						delayer = new Async.Delayer(3000);
+					}
+					delayer.trigger(() => {
+						watchingProblemMatcher.forceDelivery();
+						delayer = undefined;
+					});
 				}
 			}
 		} else {
@@ -1038,7 +1045,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
-			this._terminalGroupService.showPanel(task.command.presentation.focus);
+			await this._terminalService.revealActiveTerminal();
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;
 		this._fireTaskEvent(TaskEvent.changed());

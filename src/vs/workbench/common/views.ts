@@ -11,13 +11,12 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { getOrSet } from 'vs/base/common/map';
+import { getOrSet, SetMap } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { flatten } from 'vs/base/common/arrays';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { SetMap } from 'vs/base/common/collections';
 import { IProgressIndicator } from 'vs/platform/progress/common/progress';
 import Severity from 'vs/base/common/severity';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
@@ -30,6 +29,8 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
+export const VIEWS_LOG_ID = 'views';
+export const VIEWS_LOG_NAME = localize('views log', "Views");
 export const defaultViewIcon = registerIcon('default-view-icon', Codicon.window, localize('defaultViewIcon', 'Default view icon.'));
 
 export namespace Extensions {
@@ -264,7 +265,7 @@ export interface IViewDescriptor {
 
 	readonly id: string;
 
-	readonly name: string;
+	readonly name: ILocalizedString;
 
 	readonly ctorDescriptor: SyncDescriptor<IView>;
 
@@ -608,14 +609,13 @@ export interface IViewDescriptorService {
 
 	getDefaultViewContainer(location: ViewContainerLocation): ViewContainer | undefined;
 	getViewContainerById(id: string): ViewContainer | null;
-	isViewContainerRemovedPermanently(id: string): boolean;
 	getDefaultViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainerLocation(viewContainer: ViewContainer): ViewContainerLocation | null;
 	getViewContainersByLocation(location: ViewContainerLocation): ViewContainer[];
 	getViewContainerModel(viewContainer: ViewContainer): IViewContainerModel;
 
 	readonly onDidChangeContainerLocation: Event<{ viewContainer: ViewContainer; from: ViewContainerLocation; to: ViewContainerLocation }>;
-	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number): void;
+	moveViewContainerToLocation(viewContainer: ViewContainer, location: ViewContainerLocation, requestedIndex?: number, reason?: string): void;
 
 	getViewContainerBadgeEnablementState(id: string): boolean;
 	setViewContainerBadgeEnablementState(id: string, badgesEnabled: boolean): void;
@@ -627,10 +627,10 @@ export interface IViewDescriptorService {
 	getViewLocationById(id: string): ViewContainerLocation | null;
 
 	readonly onDidChangeContainer: Event<{ views: IViewDescriptor[]; from: ViewContainer; to: ViewContainer }>;
-	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState): void;
+	moveViewsToContainer(views: IViewDescriptor[], viewContainer: ViewContainer, visibilityState?: ViewVisibilityState, reason?: string): void;
 
 	readonly onDidChangeLocation: Event<{ views: IViewDescriptor[]; from: ViewContainerLocation; to: ViewContainerLocation }>;
-	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation): void;
+	moveViewToLocation(view: IViewDescriptor, location: ViewContainerLocation, reason?: string): void;
 
 	reset(): void;
 }

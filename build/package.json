@@ -11,7 +11,7 @@
     "@types/byline": "^4.2.32",
     "@types/cssnano": "^4.0.0",
     "@types/debounce": "^1.0.0",
-    "@types/debug": "4.1.5",
+    "@types/debug": "^4.1.5",
     "@types/fancy-log": "^1.3.0",
     "@types/fs-extra": "^9.0.12",
     "@types/glob": "^7.1.1",
@@ -29,13 +29,11 @@
     "@types/mkdirp": "^1.0.1",
     "@types/mocha": "^9.1.1",
     "@types/node": "18.x",
-    "@types/p-limit": "^2.2.0",
     "@types/pump": "^1.0.1",
     "@types/rimraf": "^2.0.4",
     "@types/through": "^0.0.29",
     "@types/through2": "^2.0.36",
     "@types/tmp": "^0.2.1",
-    "@types/underscore": "^1.8.9",
     "@types/workerpool": "^6.4.0",
     "@types/xml2js": "0.0.33",
     "@vscode/iconv-lite-umd": "0.7.0",
@@ -53,12 +51,12 @@
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",
     "node-fetch": "2",
-    "p-limit": "^3.1.0",
     "source-map": "0.6.1",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
     "tmp": "^0.2.1",
-    "vscode-universal-bundler": "^0.0.2"
+    "vscode-universal-bundler": "^0.0.2",
+    "workerpool": "^6.4.0"
   },
   "scripts": {
     "compile": "../node_modules/.bin/tsc -p tsconfig.build.json",
@@ -66,11 +64,8 @@
     "npmCheckJs": "../node_modules/.bin/tsc --noEmit"
   },
   "optionalDependencies": {
-    "tree-sitter": "https://github.com/joaomoreno/node-tree-sitter/releases/download/v0.20.0/tree-sitter-0.20.0.tgz",
-    "tree-sitter-typescript": "^0.20.1",
+    "tree-sitter": "^0.20.5",
+    "tree-sitter-typescript": "^0.20.3",
     "vscode-gulp-watch": "^5.0.3"
-  },
-  "dependencies": {
-    "workerpool": "^6.4.0"
   }
 }

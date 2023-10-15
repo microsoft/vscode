@@ -29,6 +29,7 @@ import { BREAKPOINT_EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, CONTEXT_CAL
 import { getEvaluatableExpressionAtPosition } from 'vs/workbench/contrib/debug/common/debugUtils';
 import { DisassemblyViewInput } from 'vs/workbench/contrib/debug/common/disassemblyViewInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 class ToggleBreakpointAction extends Action2 {
 	constructor() {
@@ -81,8 +82,8 @@ class ToggleBreakpointAction extends Action2 {
 			// Does not account for multi line selections, Set to remove multiple cursor on the same line
 			const lineNumbers = [...new Set(editor.getSelections().map(s => s.getPosition().lineNumber))];
 
-			const bps = debugService.getModel().getBreakpoints();
 			await Promise.all(lineNumbers.map(async line => {
+				const bps = debugService.getModel().getBreakpoints({ lineNumber: line, uri: modelUri });
 				if (bps.length) {
 					await Promise.all(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
 				} else if (canSet) {
@@ -266,12 +267,12 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 export class RunToCursorAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.runToCursor';
-	public static readonly LABEL = nls.localize('runToCursor', "Run to Cursor");
+	public static readonly LABEL: ILocalizedString = nls.localize2('runToCursor', "Run to Cursor");
 
 	constructor() {
 		super({
 			id: RunToCursorAction.ID,
-			label: RunToCursorAction.LABEL,
+			label: RunToCursorAction.LABEL.value,
 			alias: 'Debug: Run to Cursor',
 			precondition: ContextKeyExpr.and(CONTEXT_DEBUGGERS_AVAILABLE, PanelFocusContext.toNegated(), ContextKeyExpr.or(EditorContextKeys.editorTextFocus, CONTEXT_DISASSEMBLY_VIEW_FOCUS)),
 			contextMenuOpts: {
@@ -307,12 +308,12 @@ export class RunToCursorAction extends EditorAction {
 export class SelectionToReplAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.selectionToRepl';
-	public static readonly LABEL = nls.localize('evaluateInDebugConsole', "Evaluate in Debug Console");
+	public static readonly LABEL: ILocalizedString = nls.localize2('evaluateInDebugConsole', "Evaluate in Debug Console");
 
 	constructor() {
 		super({
 			id: SelectionToReplAction.ID,
-			label: SelectionToReplAction.LABEL,
+			label: SelectionToReplAction.LABEL.value,
 			alias: 'Debug: Evaluate in Console',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {
@@ -347,12 +348,12 @@ export class SelectionToReplAction extends EditorAction {
 export class SelectionToWatchExpressionsAction extends EditorAction {
 
 	public static readonly ID = 'editor.debug.action.selectionToWatch';
-	public static readonly LABEL = nls.localize('addToWatch', "Add to Watch");
+	public static readonly LABEL: ILocalizedString = nls.localize2('addToWatch', "Add to Watch");
 
 	constructor() {
 		super({
 			id: SelectionToWatchExpressionsAction.ID,
-			label: SelectionToWatchExpressionsAction.LABEL,
+			label: SelectionToWatchExpressionsAction.LABEL.value,
 			alias: 'Debug: Add to Watch',
 			precondition: ContextKeyExpr.and(CONTEXT_IN_DEBUG_MODE, EditorContextKeys.editorTextFocus),
 			contextMenuOpts: {

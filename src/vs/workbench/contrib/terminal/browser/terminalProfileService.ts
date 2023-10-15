@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { equals } from 'vs/base/common/arrays';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 import { AutoOpenBarrier } from 'vs/base/common/async';
 import { throttle } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -11,7 +12,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { isMacintosh, isWeb, isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, IExtensionTerminalProfile, TerminalSettingPrefix, TerminalSettingId, ITerminalProfileObject, IShellLaunchConfig, ITerminalExecutable } from 'vs/platform/terminal/common/terminal';
 import { registerTerminalDefaultProfileConfiguration } from 'vs/platform/terminal/common/terminalPlatformConfiguration';
 import { terminalIconsEqual, terminalProfileArgsMatch } from 'vs/platform/terminal/common/terminalProfiles';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -34,6 +35,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private _profilesReadyBarrier: AutoOpenBarrier | undefined;
 	private _profilesReadyPromise: Promise<void>;
 	private _availableProfiles: ITerminalProfile[] | undefined;
+	private _automationProfile: unknown;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
 	private _platformConfigJustRefreshed = false;
@@ -86,7 +88,8 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		const platformKey = await this.getPlatformKey();
 
 		this._configurationService.onDidChangeConfiguration(async e => {
-			if (e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
+			if (e.affectsConfiguration(TerminalSettingPrefix.AutomationProfile + platformKey) ||
+				e.affectsConfiguration(TerminalSettingPrefix.DefaultProfile + platformKey) ||
 				e.affectsConfiguration(TerminalSettingPrefix.Profiles + platformKey) ||
 				e.affectsConfiguration(TerminalSettingId.UseWslProfiles)) {
 				if (e.source !== ConfigurationTarget.DEFAULT) {
@@ -139,11 +142,19 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	}
 
 	protected async _refreshAvailableProfilesNow(): Promise<void> {
+		// Profiles
 		const profiles = await this._detectProfiles(true);
-		const profilesChanged = !(equals(profiles, this._availableProfiles, profilesEqual));
+		const profilesChanged = !arrays.equals(profiles, this._availableProfiles, profilesEqual);
+		// Contributed profiles
 		const contributedProfilesChanged = await this._updateContributedProfiles();
-		if (profilesChanged || contributedProfilesChanged) {
+		// Automation profiles
+		const platform = await this.getPlatformKey();
+		const automationProfile = this._configurationService.getValue<ITerminalExecutable | null | undefined>(`${TerminalSettingPrefix.AutomationProfile}${platform}`);
+		const automationProfileChanged = !objects.equals(automationProfile, this._automationProfile);
+		// Update
+		if (profilesChanged || contributedProfilesChanged || automationProfileChanged) {
 			this._availableProfiles = profiles;
+			this._automationProfile = automationProfile;
 			this._onDidChangeAvailableProfiles.fire(this._availableProfiles);
 			this._profilesReadyBarrier!.open();
 			this._updateWebContextKey();
@@ -161,7 +172,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 			}
 		}
 		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
-		const contributedProfilesChanged = !equals(filteredContributedProfiles, this._contributedProfiles, contributedProfilesEqual);
+		const contributedProfilesChanged = !arrays.equals(filteredContributedProfiles, this._contributedProfiles, contributedProfilesEqual);
 		this._contributedProfiles = filteredContributedProfiles;
 		return contributedProfilesChanged;
 	}

@@ -41,7 +41,7 @@ import { UndoRedoService } from 'vs/platform/undoRedo/common/undoRedoService';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorModel } from 'vs/workbench/common/editor/editorModel';
-import { CellFindMatchWithIndex, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellFindMatchWithIndex, CellFocusMode, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookCellStateChangedEvent, NotebookLayoutInfo } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { NotebookCellStatusBarService } from 'vs/workbench/contrib/notebook/browser/services/notebookCellStatusBarServiceImpl';
 import { ListViewInfoAccessor, NotebookCellList } from 'vs/workbench/contrib/notebook/browser/view/notebookCellList';
@@ -173,7 +173,7 @@ export class NotebookEditorTestModel extends EditorModel implements INotebookEdi
 	}
 }
 
-export function setupInstantiationService(disposables: Pick<DisposableStore, 'add'> = new DisposableStore()) {
+export function setupInstantiationService(disposables: DisposableStore) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 	instantiationService.stub(ILanguageService, disposables.add(new LanguageService()));
 	instantiationService.stub(IUndoRedoService, instantiationService.createInstance(UndoRedoService));
@@ -196,7 +196,7 @@ export function setupInstantiationService(disposables: Pick<DisposableStore, 'ad
 	return instantiationService;
 }
 
-function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
+function _createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: IActiveNotebookEditorDelegate; viewModel: NotebookViewModel } {
 
 	const viewType = 'notebook';
 	const notebook = disposables.add(instantiationService.createInstance(NotebookTextModel, viewType, URI.parse('test'), cells.map((cell): ICellDto2 => {
@@ -276,7 +276,11 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 		override async revealRangeInCenterIfOutsideViewportAsync() { }
 		override async layoutNotebookCell() { }
 		override async removeInset() { }
-		override async focusNotebookCell() { }
+		override async focusNotebookCell(cell: ICellViewModel, focusItem: 'editor' | 'container' | 'output') {
+			cell.focusMode = focusItem === 'editor' ? CellFocusMode.Editor
+				: focusItem === 'output' ? CellFocusMode.Output
+					: CellFocusMode.Container;
+		}
 		override cellAt(index: number) { return viewModel.cellAt(index)!; }
 		override getCellIndex(cell: ICellViewModel) { return viewModel.getCellIndex(cell); }
 		override getCellsInRange(range?: ICellRange) { return viewModel.getCellsInRange(range); }
@@ -339,11 +343,12 @@ function _createTestNotebookEditor(instantiationService: TestInstantiationServic
 	return { editor: notebookEditor, viewModel };
 }
 
-export function createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate; viewModel: NotebookViewModel } {
+export function createTestNotebookEditor(instantiationService: TestInstantiationService, disposables: DisposableStore, cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][]): { editor: INotebookEditorDelegate; viewModel: NotebookViewModel } {
 	return _createTestNotebookEditor(instantiationService, disposables, cells);
 }
 
-export async function withTestNotebookDiffModel<R = any>(disposables: DisposableStore, originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+export async function withTestNotebookDiffModel<R = any>(originalCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], modifiedCells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (diffModel: INotebookDiffEditorModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R): Promise<R> {
+	const disposables = new DisposableStore();
 	const instantiationService = setupInstantiationService(disposables);
 	const originalNotebook = createTestNotebookEditor(instantiationService, disposables, originalCells);
 	const modifiedNotebook = createTestNotebookEditor(instantiationService, disposables, modifiedCells);
@@ -368,7 +373,7 @@ export async function withTestNotebookDiffModel<R = any>(disposables: Disposable
 		}
 	};
 
-	const res = await callback(model, instantiationService);
+	const res = await callback(model, disposables, instantiationService);
 	if (res instanceof Promise) {
 		res.finally(() => {
 			originalNotebook.editor.dispose();
@@ -391,12 +396,13 @@ interface IActiveTestNotebookEditorDelegate extends IActiveNotebookEditorDelegat
 	visibleRanges: ICellRange[];
 }
 
-export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, accessor: TestInstantiationService) => Promise<R> | R, disposables: DisposableStore = new DisposableStore(), accessor?: TestInstantiationService): Promise<R> {
+export async function withTestNotebook<R = any>(cells: [source: string, lang: string, kind: CellKind, output?: IOutputDto[], metadata?: NotebookCellMetadata][], callback: (editor: IActiveTestNotebookEditorDelegate, viewModel: NotebookViewModel, disposables: DisposableStore, accessor: TestInstantiationService) => Promise<R> | R, accessor?: TestInstantiationService): Promise<R> {
+	const disposables: DisposableStore = new DisposableStore();
 	const instantiationService = accessor ?? setupInstantiationService(disposables);
 	const notebookEditor = _createTestNotebookEditor(instantiationService, disposables, cells);
 
 	return runWithFakedTimers({ useFakeTimers: true }, async () => {
-		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, instantiationService);
+		const res = await callback(notebookEditor.editor, notebookEditor.viewModel, disposables, instantiationService);
 		if (res instanceof Promise) {
 			res.finally(() => {
 				notebookEditor.editor.dispose();
@@ -427,11 +433,13 @@ export function createNotebookCellList(instantiationService: TestInstantiationSe
 		disposeTemplate() { }
 	};
 
+	const notebookOptions = !!viewContext ? viewContext.notebookOptions
+		: disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false));
 	const cellList: NotebookCellList = disposables.add(instantiationService.createInstance(
 		NotebookCellList,
 		'NotebookCellList',
 		DOM.$('container'),
-		viewContext ?? new ViewContext(disposables.add(new NotebookOptions(instantiationService.get(IConfigurationService), instantiationService.get(INotebookExecutionStateService), false)), disposables.add(new NotebookEventDispatcher()), () => ({} as IBaseCellEditorOptions)),
+		notebookOptions,
 		delegate,
 		[renderer],
 		instantiationService.get<IContextKeyService>(IContextKeyService),

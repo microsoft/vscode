@@ -282,6 +282,13 @@ export const TestProductService = { _serviceBrand: undefined, ...product };
 
 export class TestActivityService implements IActivityService {
 	_serviceBrand: undefined;
+	onDidChangeActivity = Event.None;
+	getViewContainerActivities(viewContainerId: string): IActivity[] {
+		return [];
+	}
+	getActivity(id: string): IActivity[] {
+		return [];
+	}
 	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable {
 		return this;
 	}

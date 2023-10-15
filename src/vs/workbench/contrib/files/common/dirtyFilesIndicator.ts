@@ -60,7 +60,6 @@ export class DirtyFilesIndicator extends Disposable implements IWorkbenchContrib
 				VIEWLET_ID,
 				{
 					badge: new NumberBadge(dirtyCount, num => num === 1 ? nls.localize('dirtyFile', "1 unsaved file") : nls.localize('dirtyFiles', "{0} unsaved files", dirtyCount)),
-					clazz: 'explorer-viewlet-label'
 				}
 			);
 		} else {

@@ -56,18 +56,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 			});
 	}
 
-	private compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
-		const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
-		const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
-		if (aOrMax < bOrMax) {
-			return -1;
-		} else if (aOrMax > bOrMax) {
-			return 1;
-		} else {
-			return 0;
-		}
-	}
-
 	filterSettings(filter: string, groupFilter: IGroupFilter, settingMatcher: ISettingMatcher): ISettingMatch[] {
 		const allGroups = this.filterGroups;
 
@@ -90,36 +78,6 @@ abstract class AbstractSettingsModel extends EditorModel {
 			}
 		}
 
-		filterMatches.sort((a, b) => {
-			if (a.matchType !== b.matchType) {
-				// Sort by match type if the match types are not the same.
-				// The priority of the match type is given by the SettingMatchType enum.
-				return b.matchType - a.matchType;
-			} else if (a.matchType === SettingMatchType.RemoteMatch) {
-				// The match types are the same and are RemoteMatch.
-				// Sort by score.
-				return b.score - a.score;
-			} else {
-				// The match types are the same.
-				if (a.setting.extensionInfo && b.setting.extensionInfo
-					&& a.setting.extensionInfo.id === b.setting.extensionInfo.id) {
-					// These settings belong to the same extension.
-					if (a.setting.categoryLabel !== b.setting.categoryLabel
-						&& (a.setting.categoryOrder !== undefined || b.setting.categoryOrder !== undefined)
-						&& a.setting.categoryOrder !== b.setting.categoryOrder) {
-						// These two settings don't belong to the same category and have different category orders.
-						return this.compareTwoNullableNumbers(a.setting.categoryOrder, b.setting.categoryOrder);
-					} else if (a.setting.categoryLabel === b.setting.categoryLabel
-						&& (a.setting.order !== undefined || b.setting.order !== undefined)
-						&& a.setting.order !== b.setting.order) {
-						// These two settings belong to the same category, but have different orders.
-						return this.compareTwoNullableNumbers(a.setting.order, b.setting.order);
-					}
-				}
-				// In the worst case, go back to lexicographical order.
-				return b.score - a.score;
-			}
-		});
 		return filterMatches;
 	}
 
@@ -676,7 +634,6 @@ export class DefaultSettings extends Disposable {
 		// Try using the title if the category id wasn't given
 		// (in which case the category id is the same as the extension id)
 		const categoryLabel = config.extensionInfo?.id === config.id ? config.title : config.id;
-		const categoryOrder = config.order;
 
 		for (const key in settingsObject) {
 			const prop: IConfigurationPropertySchema = settingsObject[key];
@@ -763,8 +720,7 @@ export class DefaultSettings extends Disposable {
 					order: prop.order,
 					nonLanguageSpecificDefaultValueSource: defaultValueSource,
 					isLanguageTagSetting,
-					categoryLabel,
-					categoryOrder
+					categoryLabel
 				});
 			}
 		}

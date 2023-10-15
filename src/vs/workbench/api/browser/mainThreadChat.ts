@@ -9,11 +9,11 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, ExtHostContext, IChatRequestDto, IChatResponseProgressDto, ILocationDto, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatDynamicRequest, IChatProgress, IChatRequest, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatDynamicRequest, IChatProgress, IChatResponse, IChatResponseProgressFileTreeData, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -38,7 +38,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			this._proxy.$onDidPerformUserAction(e);
+			if (!e.agentId) {
+				this._proxy.$onDidPerformUserAction(e);
+			}
 		}));
 	}
 
@@ -89,13 +91,6 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					}
 				};
 			},
-			resolveRequest: async (session, context, token) => {
-				const dto = await this._proxy.$resolveRequest(handle, session.id, context, token);
-				return <IChatRequest>{
-					session,
-					...dto
-				};
-			},
 			provideReply: async (request, progress, token) => {
 				const id = `${handle}_${request.session.id}`;
 				this._activeRequestProgressCallbacks.set(id, progress);
@@ -115,6 +110,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			},
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
+			provideSampleQuestions: (token) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
 			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
@@ -159,15 +157,23 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			return;
 		}
 
-		this._activeRequestProgressCallbacks.get(id)?.(progress);
+		// TS won't let us change the type of `progress`
+		let revivedProgress: IChatProgress;
+		if ('documents' in progress) {
+			revivedProgress = { documents: revive(progress.documents) };
+		} else if ('reference' in progress) {
+			revivedProgress = revive<{ reference: UriComponents | ILocationDto }>(progress);
+		} else if ('inlineReference' in progress) {
+			revivedProgress = revive<{ inlineReference: UriComponents | ILocationDto; name?: string }>(progress);
+		} else {
+			revivedProgress = progress;
+		}
+
+		this._activeRequestProgressCallbacks.get(id)?.(revivedProgress);
 	}
 
 	async $acceptChatState(sessionId: number, state: any): Promise<void> {
 		this._stateEmitters.get(sessionId)?.fire(state);
-	}
-
-	$addRequest(context: any): void {
-		this._chatService.addRequest(context);
 	}
 
 	async $sendRequestToProvider(providerId: string, message: IChatDynamicRequest): Promise<void> {

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { parentOriginHash } from 'vs/workbench/browser/iframe';
+import { parentOriginHash } from 'vs/base/browser/iframe';
 
 suite('parentOriginHash', () => {
 

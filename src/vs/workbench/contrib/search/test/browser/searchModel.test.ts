@@ -27,7 +27,7 @@ import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentitySe
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 import { ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
@@ -37,6 +37,9 @@ import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -580,6 +583,8 @@ suite('SearchModel', () => {
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 });

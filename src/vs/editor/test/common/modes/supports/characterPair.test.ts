@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 import { CharacterPairSupport } from 'vs/editor/common/languages/supports/characterPair';
 import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/modesTestUtils';
-import { StandardAutoClosingPairConditional } from 'vs/editor/common/languages/languageConfiguration';
 
 suite('CharacterPairSupport', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('only autoClosingPairs', () => {
 		const characaterPairSupport = new CharacterPairSupport({ autoClosingPairs: [{ open: 'a', close: 'b' }] });

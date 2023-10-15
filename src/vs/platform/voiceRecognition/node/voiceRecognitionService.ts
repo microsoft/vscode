@@ -37,8 +37,6 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 	) { }
 
 	async transcribe(channelData: Float32Array, cancellation: CancellationToken): Promise<string> {
-		this.logService.info(`[voice] transcribe(${channelData.length}): Begin`);
-
 		const modulePath = process.env.VSCODE_VOICE_MODULE_PATH; // TODO@bpasero package
 		if (!modulePath || this.productService.quality === 'stable') {
 			this.logService.error(`[voice] transcribe(${channelData.length}): Voice recognition not yet supported`);
@@ -47,15 +45,12 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 
 		const now = Date.now();
 
-		this.logService.info(`[voice] transcribe(${channelData.length}): Getting module from ${modulePath}`);
-
 		try {
 			const voiceModule: {
 				transcribe: (
 					audioBuffer: { channelCount: 1; samplingRate: 16000; bitDepth: 16; channelData: Float32Array },
 					options: {
 						language: string | 'auto';
-						suppressNonSpeechTokens: boolean;
 						signal: AbortSignal;
 					}
 				) => Promise<string>;
@@ -71,15 +66,14 @@ export class VoiceRecognitionService implements IVoiceRecognitionService {
 				channelData
 			}, {
 				language: 'en',
-				suppressNonSpeechTokens: true,
 				signal: abortController.signal
 			});
 
-			this.logService.info(`[voice] transcribe(${channelData.length}): End (text: "${text}", took: ${Date.now() - now}ms)`);
+			this.logService.info(`[voice] transcribe(${channelData.length}): Text "${text}", took ${Date.now() - now}ms)`);
 
 			return text;
 		} catch (error) {
-			this.logService.error(`[voice] transcribe(${channelData.length}): Failed (error: "${error}", took: ${Date.now() - now}ms)`);
+			this.logService.error(`[voice] transcribe(${channelData.length}): Failed width "${error}", took ${Date.now() - now}ms)`);
 
 			throw error;
 		}

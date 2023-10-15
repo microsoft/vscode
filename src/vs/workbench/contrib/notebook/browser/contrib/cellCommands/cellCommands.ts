@@ -501,7 +501,7 @@ registerAction2(class extends NotebookMultiCellAction {
 				value: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
 				original: 'Toggle Outputs'
 			},
-			description: {
+			metadata: {
 				description: localize('notebookActions.toggleOutputs', "Toggle Outputs"),
 				args: cellExecutionArgs
 			}

@@ -125,6 +125,12 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.scmSourceControl', "The Source Control menu")
 	},
 	{
+		key: 'scm/inputBox',
+		id: MenuId.SCMInputBox,
+		description: localize('menus.scmInputBox', "The Source Control input box menu"),
+		proposed: 'contribSourceControlInputBoxMenu'
+	},
+	{
 		key: 'scm/resourceState/context',
 		id: MenuId.SCMResourceContext,
 		description: localize('menus.resourceStateContext', "The Source Control resource state context menu")
@@ -153,14 +159,12 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'terminal/context',
 		id: MenuId.TerminalInstanceContext,
-		description: localize('menus.terminalContext', "The terminal context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalContext', "The terminal context menu")
 	},
 	{
 		key: 'terminal/title/context',
 		id: MenuId.TerminalTabContext,
-		description: localize('menus.terminalTabContext', "The terminal tabs context menu"),
-		proposed: 'terminalContextMenu'
+		description: localize('menus.terminalTabContext', "The terminal tabs context menu")
 	},
 	{
 		key: 'view/title',

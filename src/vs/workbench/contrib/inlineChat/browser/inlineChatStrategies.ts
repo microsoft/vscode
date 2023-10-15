@@ -409,7 +409,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -436,7 +436,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override getWidgetPosition(): Position | undefined {
 		if (this._session.lastTextModelChanges.length) {
-			return this._session.wholeRange.value.getEndPosition();
+			return this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
 		return;
 	}

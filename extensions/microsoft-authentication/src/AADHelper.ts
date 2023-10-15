@@ -260,6 +260,7 @@ export class AzureActiveDirectoryService {
 				this._logger.trace(`[${scopeData.scopeStr}] '${token.sessionId}' Found a matching token with a different scopes '${token.scope}'. Attempting to get a new session using the existing session.`);
 				try {
 					const itoken = await this.doRefreshToken(token.refreshToken, scopeData);
+					this._sessionChangeEmitter.fire({ added: [this.convertToSessionSync(itoken)], removed: [], changed: [] });
 					matchingTokens.push(itoken);
 				} catch (err) {
 					this._logger.error(`[${scopeData.scopeStr}] Attempted to get a new session using the existing session with scopes '${token.scope}' but it failed due to: ${err.message ?? err}`);
@@ -523,13 +524,6 @@ export class AzureActiveDirectoryService {
 			throw e;
 		}
 
-		let label;
-		if (claims.name && claims.email) {
-			label = `${claims.name} - ${claims.email}`;
-		} else {
-			label = claims.email ?? claims.unique_name ?? claims.preferred_username ?? 'user@example.com';
-		}
-
 		const id = `${claims.tid}/${(claims.oid ?? (claims.altsecid ?? '' + claims.ipd ?? ''))}`;
 		const sessionId = existingId || `${id}/${randomUUID()}`;
 		this._logger.trace(`[${scopeData.scopeStr}] '${sessionId}' Token response parsed successfully.`);
@@ -542,7 +536,7 @@ export class AzureActiveDirectoryService {
 			scope: scopeData.scopeStr,
 			sessionId,
 			account: {
-				label,
+				label: claims.email ?? claims.preferred_username ?? claims.unique_name ?? 'user@example.com',
 				id,
 				type: claims.tid === MSA_TID || claims.tid === MSA_PASSTHRU_TID ? MicrosoftAccountType.MSA : MicrosoftAccountType.AAD
 			}

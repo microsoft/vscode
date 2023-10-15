@@ -54,10 +54,12 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
-					responseId: item.providerResponseId
+					responseId: item.providerResponseId,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Up);
@@ -94,10 +96,12 @@ export function registerChatTitleActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
-					responseId: item.providerResponseId
+					responseId: item.providerResponseId,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Down);

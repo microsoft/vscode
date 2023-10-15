@@ -46,6 +46,8 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
@@ -91,10 +93,11 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async moveWindowTop(options?: { targetWindowId?: number }): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
+	async focusWindow(options?: { targetWindowId?: number | undefined } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -230,7 +233,9 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 
 		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
 		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
-		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService))));
+		const uriIdentityService = this._register(new UriIdentityService(fileService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
