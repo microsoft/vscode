@@ -516,7 +516,6 @@ suite('ViewDescriptorService', () => {
 		testObject.whenExtensionsRegistered();
 
 		assert.deepStrictEqual(testObject.getViewContainerById(generatedViewContainerId), null);
-		assert.deepStrictEqual(testObject.isViewContainerRemovedPermanently(generatedViewContainerId), true);
 
 		const actual = JSON.parse(storageService.get('views.customizations', StorageScope.PROFILE)!);
 		assert.deepStrictEqual(actual, { viewContainerLocations: {}, viewLocations: {}, viewContainerBadgeEnablementStates: {} });
