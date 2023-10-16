@@ -18,7 +18,7 @@ suite('StackTraceHelper', () => {
 		assert.equal(formatStackTrace(stack), stack);
 	});
 
-	test('IPython cell references are linkified', () => {
+	test('IPython stack line numbers are linkified', () => {
 		const stack =
 			'---------------------------------------------------------------------------\n' +
 			'Exception                                 Traceback(most recent call last)\n' +
@@ -31,7 +31,21 @@ suite('StackTraceHelper', () => {
 			'----> 2     raise Exception\n';
 
 		const formatted = formatStackTrace(stack);
-		assert.ok(formatted.indexOf);
+		assert.ok(formatted.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, formatted);
+	});
+
+	test('IPython stack trace lines without associated location are not linkified', () => {
+		const stack =
+			'---------------------------------------------------------------------------\n' +
+			'Exception                                 Traceback(most recent call last)\n' +
+			'File C:\\venvs\\myLib.py:2, in throwEx()\n' +
+			'\n' +
+			'unkown reference' +
+			'      1 import myLib\n' + // trace lines without an associated file
+			'----> 2 myLib.throwEx()\n';
+
+		const formatted = formatStackTrace(stack);
+		assert.ok(formatted.indexOf('<a') === -1, formatted);
 	});
 
 });

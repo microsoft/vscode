@@ -22,5 +22,46 @@ export function formatStackTrace(stack: string) {
 		return `${prefix}${num}${suffix}\n`;
 	});
 
+	if (isIpythonStackTrace(stack)) {
+		return linkifyStack(stack);
+	}
+
 	return cleaned;
+}
+
+function isIpythonStackTrace(stack: string) {
+	const cellIdentifier = /^Cell In\[\d+\], line \d+$/gm;
+	return cellIdentifier.test(stack);
+}
+
+const fileRegex = /^File\s+(.+):\d+/;
+const lineNumberRegex = /([ ->]*?)(\d+)(.*)/;
+
+function linkifyStack(stack: string) {
+	const lines = stack.split('\n');
+
+	let fileOrCell: string | undefined;
+
+	for (const i in lines) {
+
+		const original = lines[i];
+		console.log(`linkify ${original}`); // REMOVE
+		if (fileRegex.test(original)) {
+			const fileMatch = lines[i].match(fileRegex);
+			fileOrCell = fileMatch![1];
+			console.log(`matched file ${fileOrCell}`); // REMOVE
+			continue;
+		} else if (!fileOrCell || original.trim() === '') {
+			// we don't have a location, so don't linkify anything
+			fileOrCell = undefined;
+			continue;
+		} else if (lineNumberRegex.test(original)) {
+			console.log(`linkify line ${original}`); // REMOVE
+			lines[i] = original.replace(lineNumberRegex, (_s, prefix, num, suffix) => {
+				return `${prefix}<a href='${fileOrCell}:${num}'>${num}</a>${suffix}`;
+			});
+		}
+	}
+
+	return lines.join('\n');
 }
