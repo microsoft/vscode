@@ -4,34 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Stop the running animation, we only use it as a hint to apply CSS rules.
+ * Show a "microphone" icon when recording is in progress that glows via outline.
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
-	animation: none;
-}
-
-/*
- * Clear styles and replace icon to "stop" when hovering over it.
- */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
-	content: "\ead7"; /* use `debug-stop` icon unicode for hovering over running voice recording */
-	color: inherit;
-	outline: none;
-	border: none;
-	border-radius: 0;
-}
-
-/*
- * Show a "microphone" icon when recording is in progress that glows via outline.
- */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
-	content: "\ec12";
 	color: var(--vscode-voiceRecording-background);
 	outline: 1px solid var(--vscode-voiceRecording-background);
-	border: 1px solid var(--vscode-voiceRecording-background);
+	outline-offset: -1px;
 	animation: pulseAnimation 1s infinite;
 	border-radius: 50%;
 }
@@ -41,10 +20,37 @@
 		outline-width: 1px;
 	}
 	50% {
-		outline-width: 4px;
+		outline-width: 3px;
 		outline-color: var(--vscode-voiceRecording-dimmedBackground);
 	}
 	100% {
 		outline-width: 1px;
 	}
+}
+
+/*
+ * Replace with "microphone" icon.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+	content: "\ec12";
+}
+
+/*
+ * Clear animation styles when hovering.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover {
+	color: inherit;
+	outline: none;
+	animation: none;
+	border-radius: 5px;
+}
+
+/*
+ * Replace with "stop" icon when hovering.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
+	content: "\ead7"; /* use `debug-stop` icon unicode for hovering over running voice recording */
 }
