@@ -141,17 +141,7 @@ export function isTargetPlatformCompatible(extensionTargetPlatform: TargetPlatfo
 		return true;
 	}
 
-	// Fallback
-	const fallbackTargetPlatforms = getFallbackTargetPlarforms(productTargetPlatform);
-	return fallbackTargetPlatforms.includes(extensionTargetPlatform);
-}
-
-export function getFallbackTargetPlarforms(targetPlatform: TargetPlatform): TargetPlatform[] {
-	switch (targetPlatform) {
-		case TargetPlatform.WIN32_X64: return [];
-		case TargetPlatform.WIN32_ARM64: return [];
-	}
-	return [];
+	return false;
 }
 
 export interface IGalleryExtensionProperties {
