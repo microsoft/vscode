@@ -33,6 +33,8 @@ import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/action
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -54,7 +56,24 @@ interface IVoiceChatSessionController {
 	focusInput(): void;
 	acceptInput(): void;
 	updateInput(text: string): void;
+
+	setInputPlaceholder(text: string): void;
+	clearInputPlaceholder(): void;
 }
+
+export const VOICE_RECORDING_BACKGROUND = registerColor('voiceRecording.background', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
+}, localize('voiceRecording.background', "Background color for voice recording icon when recording."));
+
+export const VOICE_RECORDING_BACKGROUND_DIMMED = registerColor('voiceRecording.dimmedBackground', {
+	dark: transparent(ACTIVITY_BAR_BADGE_BACKGROUND, 0.4),
+	light: transparent(ACTIVITY_BAR_BADGE_BACKGROUND, 0.4),
+	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
+}, localize('voiceRecording.dimmedBackground', "Dimmed background color for voice recording icon when recording."));
 
 class VoiceChatSessionControllerFactory {
 
@@ -157,7 +176,9 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(chatView.providerId)),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.updateInput(text)
+			updateInput: text => chatView.updateInput(text),
+			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
+			clearInputPlaceholder: () => chatView.resetInputPlaceholder()
 		};
 	}
 
@@ -168,7 +189,9 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: quickChatService.onDidClose,
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.updateInput(text)
+			updateInput: text => quickChat.updateInput(text),
+			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
+			clearInputPlaceholder: () => quickChat.resetInputPlaceholder()
 		};
 	}
 
@@ -184,7 +207,9 @@ class VoiceChatSessionControllerFactory {
 			),
 			focusInput: () => inlineChat.focus(),
 			acceptInput: () => inlineChat.acceptInput(),
-			updateInput: text => inlineChat.updateInput(text)
+			updateInput: text => inlineChat.updateInput(text),
+			setInputPlaceholder: text => inlineChat.setPlaceholder(text),
+			clearInputPlaceholder: () => inlineChat.resetPlaceholder()
 		};
 	}
 }
@@ -254,7 +279,7 @@ class VoiceChatSessions {
 
 			switch (status) {
 				case SpeechToTextStatus.Started:
-					this.onDidSpeechToTextSessionStart(controller);
+					this.onDidSpeechToTextSessionStart(controller, session.disposables);
 					break;
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
@@ -276,7 +301,7 @@ class VoiceChatSessions {
 		}));
 	}
 
-	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController): void {
+	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(true);
 
@@ -294,6 +319,17 @@ class VoiceChatSessions {
 				this.voiceChatInEditorInProgressKey.set(true);
 				break;
 		}
+
+		let dotCount = 0;
+
+		const updatePlaceholder = () => {
+			dotCount = (dotCount + 1) % 4;
+			controller.setInputPlaceholder(`${localize('listening', "I'm listening")}${'.'.repeat(dotCount)}`);
+			placeholderScheduler.schedule();
+		};
+
+		const placeholderScheduler = disposables.add(new RunOnceScheduler(updatePlaceholder, 500));
+		updatePlaceholder();
 	}
 
 	stop(voiceChatSessionId = this.voiceChatSessionIds, context?: VoiceChatSessionContext): void {
@@ -304,6 +340,8 @@ class VoiceChatSessions {
 		) {
 			return;
 		}
+
+		this.currentVoiceChatSession.controller.clearInputPlaceholder();
 
 		this.currentVoiceChatSession.disposables.dispose();
 		this.currentVoiceChatSession = undefined;

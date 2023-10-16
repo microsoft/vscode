@@ -14,7 +14,7 @@ import { EditorAccessibilityHelpContribution, HoverAccessibleViewContribution, I
 import { AccessibilityStatus } from 'vs/workbench/contrib/accessibility/browser/accessibilityStatus';
 import { CommentsAccessibilityHelpContribution } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { AccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
+import { AccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 
 registerAccessibilityConfiguration();
 registerSingleton(IAccessibleViewService, AccessibleViewService, InstantiationType.Delayed);

@@ -233,7 +233,7 @@ class FormatDocumentAction extends EditorAction {
 			const instaService = accessor.get(IInstantiationService);
 			const progressService = accessor.get(IEditorProgressService);
 			await progressService.showWhile(
-				instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None),
+				instaService.invokeFunction(formatDocumentWithSelectedProvider, editor, FormattingMode.Explicit, Progress.None, CancellationToken.None, true),
 				250
 			);
 		}
