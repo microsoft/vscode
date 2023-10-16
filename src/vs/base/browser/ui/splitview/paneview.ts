@@ -58,6 +58,7 @@ export abstract class Pane extends Disposable implements IView {
 
 	private expandedSize: number | undefined = undefined;
 	private _headerVisible = true;
+	private _collapsible = true;
 	private _bodyRendered = false;
 	private _minimumBodySize: number;
 	private _maximumBodySize: number;
@@ -154,6 +155,10 @@ export abstract class Pane extends Disposable implements IView {
 	}
 
 	setExpanded(expanded: boolean): boolean {
+		if (!expanded && !this.collapsible) {
+			return false;
+		}
+
 		if (this._expanded === !!expanded) {
 			return false;
 		}
@@ -196,6 +201,19 @@ export abstract class Pane extends Disposable implements IView {
 		this._headerVisible = !!visible;
 		this.updateHeader();
 		this._onDidChange.fire(undefined);
+	}
+
+	get collapsible(): boolean {
+		return this._collapsible;
+	}
+
+	set collapsible(collapsible: boolean) {
+		if (this._collapsible === !!collapsible) {
+			return;
+		}
+
+		this._collapsible = !!collapsible;
+		this.updateHeader();
 	}
 
 	get orientation(): Orientation {
@@ -302,6 +320,7 @@ export abstract class Pane extends Disposable implements IView {
 		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
+		this.header.classList.toggle('not-collapsible', !this.collapsible);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
 		this.header.style.color = this.styles.headerForeground ?? '';
