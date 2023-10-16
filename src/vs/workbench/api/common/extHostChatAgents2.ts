@@ -19,7 +19,7 @@ import { ChatAgentResultFeedbackKind } from 'vs/workbench/api/common/extHostType
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
-import { isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
+import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
@@ -63,7 +63,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
-		setTimeout(() => commandExecution.complete(), 3 * 1000);
+		setTimeout(() => commandExecution.complete(), 10 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(agent.extension.identifier, commandExecution.p);
 
 		const slashCommand = request.command
@@ -78,7 +78,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					slashCommand
 				},
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
-				new Progress<vscode.InteractiveProgress>(p => {
+				new Progress<vscode.ChatAgentProgress>(p => {
 					throwIfDone();
 					const convertedProgress = typeConvert.ChatResponseProgress.from(p);
 					this._proxy.$handleProgressChunk(requestId, convertedProgress);
@@ -185,6 +185,7 @@ class ExtHostChatAgent {
 	private _description: string | undefined;
 	private _fullName: string | undefined;
 	private _iconPath: URI | undefined;
+	private _isDefault: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 
@@ -258,6 +259,7 @@ class ExtHostChatAgent {
 					icon: this._iconPath,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
+					isDefault: this._isDefault
 				});
 				updateScheduled = false;
 			});
@@ -304,6 +306,15 @@ class ExtHostChatAgent {
 				that._followupProvider = v;
 				updateMetadataSoon();
 			},
+			get isDefault() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				return that._isDefault;
+			},
+			set isDefault(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				that._isDefault = v;
+				updateMetadataSoon();
+			},
 			get onDidReceiveFeedback() {
 				return that._onDidReceiveFeedback.event;
 			},
@@ -321,7 +332,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatAgent2;
 	}
 
-	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
+	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.ChatAgentProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
 		return this._callback(request, context, progress, token);
 	}
 }

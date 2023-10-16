@@ -1142,7 +1142,8 @@ export interface MainThreadSpeechShape extends IDisposable {
 }
 
 export interface ExtHostSpeechShape {
-	$createSpeechToTextSession(handle: number, session: number, token: CancellationToken): Promise<void>;
+	$createSpeechToTextSession(handle: number, session: number): Promise<void>;
+	$cancelSpeechToTextSession(session: number): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
@@ -1229,7 +1230,7 @@ export interface IChatDto {
 }
 
 export interface IChatRequestDto {
-	message: string | IChatReplyFollowup;
+	message: string;
 	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 

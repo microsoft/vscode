@@ -271,7 +271,7 @@ export class InlineChatController implements IEditorContribution {
 
 		this._showWidget(true, options.position);
 		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
-		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._updatePlaceholder();
 
 		if (!session) {
 			const createSessionCts = new CancellationTokenSource();
@@ -346,7 +346,7 @@ export class InlineChatController implements IEditorContribution {
 		updateWholeRangeDecoration();
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
-		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._updatePlaceholder();
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
@@ -409,8 +409,23 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	private _placeholder: string | undefined = undefined;
+	setPlaceholder(text: string): void {
+		this._placeholder = text;
+		this._updatePlaceholder();
+	}
+
+	resetPlaceholder(): void {
+		this._placeholder = undefined;
+		this._updatePlaceholder();
+	}
+
+	private _updatePlaceholder(): void {
+		this._zone.value.widget.placeholder = this._getPlaceholderText();
+	}
+
 	private _getPlaceholderText(): string {
-		let result = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		let result = this._placeholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 		if (InlineChatController._promptHistory.length > 0) {
 			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
 			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
@@ -427,7 +442,7 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
-		this._zone.value.widget.placeholder = this._getPlaceholderText();
+		this._updatePlaceholder();
 
 		if (options.message) {
 			this.updateInput(options.message);
