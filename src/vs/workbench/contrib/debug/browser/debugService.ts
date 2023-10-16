@@ -1043,6 +1043,12 @@ export class DebugService implements IDebugService {
 		this.debugStorage.storeBreakpoints(this.model);
 	}
 
+	async updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void> {
+		this.model.updateDataBreakpoint(id, update);
+		this.debugStorage.storeBreakpoints(this.model);
+		await this.sendDataBreakpoints();
+	}
+
 	async removeDataBreakpoints(id?: string): Promise<void> {
 		this.model.removeDataBreakpoints(id);
 		this.debugStorage.storeBreakpoints(this.model);

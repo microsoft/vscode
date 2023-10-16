@@ -315,25 +315,29 @@ suite('Debug - Breakpoints', () => {
 		let eventCount = 0;
 		disposables.add(model.onDidChangeBreakpoints(() => eventCount++));
 
-		model.addDataBreakpoint('label', 'id', true, ['read'], 'read');
-		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite');
+		model.addDataBreakpoint('label', 'id', true, ['read'], 'read', '1');
+		model.addDataBreakpoint('second', 'secondId', false, ['readWrite'], 'readWrite', '2');
+		model.updateDataBreakpoint('1', { condition: 'aCondition' });
+		model.updateDataBreakpoint('2', { hitCondition: '10' });
 		const dataBreakpoints = model.getDataBreakpoints();
 		assert.strictEqual(dataBreakpoints[0].canPersist, true);
 		assert.strictEqual(dataBreakpoints[0].dataId, 'id');
 		assert.strictEqual(dataBreakpoints[0].accessType, 'read');
+		assert.strictEqual(dataBreakpoints[0].condition, 'aCondition');
 		assert.strictEqual(dataBreakpoints[1].canPersist, false);
 		assert.strictEqual(dataBreakpoints[1].description, 'second');
 		assert.strictEqual(dataBreakpoints[1].accessType, 'readWrite');
+		assert.strictEqual(dataBreakpoints[1].hitCondition, '10');
 
-		assert.strictEqual(eventCount, 2);
+		assert.strictEqual(eventCount, 4);
 
 		model.removeDataBreakpoints(dataBreakpoints[0].getId());
-		assert.strictEqual(eventCount, 3);
+		assert.strictEqual(eventCount, 5);
 		assert.strictEqual(model.getDataBreakpoints().length, 1);
 
 		model.removeDataBreakpoints();
 		assert.strictEqual(model.getDataBreakpoints().length, 0);
-		assert.strictEqual(eventCount, 4);
+		assert.strictEqual(eventCount, 6);
 	});
 
 	test('message and class name', () => {

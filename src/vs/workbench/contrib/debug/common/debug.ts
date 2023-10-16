@@ -1092,6 +1092,12 @@ export interface IDebugService {
 	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): Promise<void>;
 
 	/**
+	 * Updates an already existing data breakpoint.
+	 * Notifies debug adapter of breakpoint changes.
+	 */
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): Promise<void>;
+
+	/**
 	 * Removes all data breakpoints. If id is passed only removes the data breakpoint with the passed id.
 	 * Notifies debug adapter of breakpoint changes.
 	 */

@@ -1661,10 +1661,23 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ removed, sessionOnly: false });
 	}
 
-	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType): void {
-		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType);
+	addDataBreakpoint(label: string, dataId: string, canPersist: boolean, accessTypes: DebugProtocol.DataBreakpointAccessType[] | undefined, accessType: DebugProtocol.DataBreakpointAccessType, id?: string): void {
+		const newDataBreakpoint = new DataBreakpoint(label, dataId, canPersist, true, undefined, undefined, undefined, accessTypes, accessType, id);
 		this.dataBreakpoints.push(newDataBreakpoint);
 		this._onDidChangeBreakpoints.fire({ added: [newDataBreakpoint], sessionOnly: false });
+	}
+
+	updateDataBreakpoint(id: string, update: { hitCondition?: string; condition?: string }): void {
+		const dataBreakpoint = this.dataBreakpoints.find(fbp => fbp.getId() === id);
+		if (dataBreakpoint) {
+			if (typeof update.condition === 'string') {
+				dataBreakpoint.condition = update.condition;
+			}
+			if (typeof update.hitCondition === 'string') {
+				dataBreakpoint.hitCondition = update.hitCondition;
+			}
+			this._onDidChangeBreakpoints.fire({ changed: [dataBreakpoint], sessionOnly: false });
+		}
 	}
 
 	removeDataBreakpoints(id?: string): void {
