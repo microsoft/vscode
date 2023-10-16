@@ -180,10 +180,7 @@ export class Workbench extends Layout {
 				// Paste
 				const handlePaste = (event: ClipboardEvent) => {
 					commandService.executeCommand('_files.executePaste', event.clipboardData?.files)
-					// console.log('window paste')
-					// console.log(event.clipboardData?.files.length)
 				}
-
 				window.addEventListener('paste', handlePaste)
 			});
 
