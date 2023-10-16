@@ -92,6 +92,11 @@ mkdir %CFWORKSPACE%
 call "%INTEGRATION_TEST_ELECTRON_PATH%" %CFWORKSPACE% --extensionDevelopmentPath=%~dp0\..\extensions\configuration-editing --extensionTestsPath=%~dp0\..\extensions\configuration-editing\out\test %API_TESTS_EXTRA_ARGS%
 if %errorlevel% neq 0 exit /b %errorlevel%
 
+echo.
+echo ### GitHub Authentication tests
+call yarn test-extension -l github-authentication
+if %errorlevel% neq 0 exit /b %errorlevel%
+
 :: Tests standalone (CommonJS)
 
 echo.

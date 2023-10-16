@@ -64,6 +64,7 @@
     "vscode-tas-client": "^0.1.47"
   },
   "devDependencies": {
+    "@types/mocha": "^9.1.1",
     "@types/node": "18.x",
     "@types/node-fetch": "^2.5.7"
   },
