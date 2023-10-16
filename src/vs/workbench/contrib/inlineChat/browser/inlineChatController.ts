@@ -35,7 +35,7 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -549,7 +549,7 @@ export class InlineChatController implements IEditorContribution {
 		this._chatAccessibilityService.acceptRequest();
 
 		const progressEdits: TextEdit[][] = [];
-		const progress = new Progress<IInlineChatProgressItem>(async data => {
+		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
 			if (data.message) {
 				this._zone.value.widget.updateToolbar(false);
@@ -567,8 +567,9 @@ export class InlineChatController implements IEditorContribution {
 				}
 				progressEdits.push(data.edits);
 				await this._makeChanges(progressEdits, false);
+				await this._strategy?.renderProgressChanges();
 			}
-		}, { async: true });
+		});
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 

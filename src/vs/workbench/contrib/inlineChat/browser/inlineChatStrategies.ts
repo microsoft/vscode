@@ -41,6 +41,8 @@ export abstract class EditModeStrategy {
 
 	abstract undoChanges(response: EditResponse): Promise<void>;
 
+	abstract renderProgressChanges(): Promise<void>;
+
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
@@ -120,6 +122,10 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async undoChanges(_response: EditResponse): Promise<void> {
+		// nothing to do
+	}
+
+	override async renderProgressChanges(): Promise<void> {
 		// nothing to do
 	}
 
@@ -316,6 +322,10 @@ export class LiveStrategy extends EditModeStrategy {
 		LiveStrategy._undoModelUntil(textModelN, response.modelAltVersionId);
 	}
 
+	override async renderProgressChanges(): Promise<void> {
+		// nothing to do
+	}
+
 	override async renderChanges(response: EditResponse) {
 
 		this._inlineDiffDecorations.update();
@@ -399,6 +409,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		this._previewZone.rawValue?.hide();
 		this._previewZone.rawValue?.dispose();
 		super.dispose();
+	}
+
+	override async renderProgressChanges(): Promise<void> {
+		if (!this._diffZone.value.isVisible) {
+			this._diffZone.value.show();
+		}
 	}
 
 	override async renderChanges(response: EditResponse) {
