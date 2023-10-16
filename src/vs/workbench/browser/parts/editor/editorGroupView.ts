@@ -1073,7 +1073,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let openEditorPromise: Promise<IEditorPane | undefined>;
 		if (context.active) {
 			openEditorPromise = (async () => {
-				const { pane, changed, cancelled, error } = await this.editorPane.openEditor(editor, options, { newInGroup: context.isNew });
+				const { pane, changed, cancelled, error } = await this.editorPane.openEditor(editor, options, internalOptions, { newInGroup: context.isNew });
 
 				// Return early if the operation was cancelled by another operation
 				if (cancelled) {
@@ -1415,7 +1415,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				ignoreError: internalOptions?.fromError
 			};
 
-			this.doOpenEditor(nextActiveEditor, options);
+			const internalEditorOpenOptions: IInternalEditorOpenOptions = {
+				// When closing an editor, we reveal the next one in the group.
+				// However, this can be a result of moving an editor to another
+				// window so we explicitly disable window reordering in this case.
+				preserveWindowOrder: true
+			};
+
+			this.doOpenEditor(nextActiveEditor, options, internalEditorOpenOptions);
 		}
 
 		// Otherwise we are empty, so clear from editor control and send event
