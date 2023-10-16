@@ -9,85 +9,54 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Event } from 'vs/base/common/event';
 import { ViewContainer } from 'vs/workbench/common/views';
 
-export interface IActivity {
-	readonly badge: IBadge;
-	readonly priority?: number;
-}
-
-export const IActivityService = createDecorator<IActivityService>('activityService');
-
-export interface IActivityService {
-
-	readonly _serviceBrand: undefined;
-
-	/**
-	 * Emitted when activity changes for a view container or when the activity of the global actions change.
-	 */
-	readonly onDidChangeActivity: Event<string | ViewContainer>;
-
-	/**
-	 * Show activity for the given view container
-	 */
-	showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
-
-	/**
-	 * Returns the activity for the given view container
-	 */
-	getViewContainerActivities(viewContainerId: string): IActivity[];
-
-	/**
-	 * Show activity for the given view
-	 */
-	showViewActivity(viewId: string, badge: IActivity): IDisposable;
-
-	/**
-	 * Show accounts activity
-	 */
-	showAccountsActivity(activity: IActivity): IDisposable;
-
-	/**
-	 * Show global activity
-	 */
-	showGlobalActivity(activity: IActivity): IDisposable;
-
-	/**
-	 * Return the activity for the given action
-	 */
-	getActivity(id: string): IActivity[];
-}
-
+// Define interfaces and decorators at the top of the file
 export interface IBadge {
-	getDescription(): string;
+    getDescription(): string;
 }
 
 class BaseBadge implements IBadge {
+    constructor(readonly descriptorFn: (arg: any) => string) {
+        this.descriptorFn = descriptorFn;
+    }
 
-	constructor(readonly descriptorFn: (arg: any) => string) {
-		this.descriptorFn = descriptorFn;
-	}
-
-	getDescription(): string {
-		return this.descriptorFn(null);
-	}
+    getDescription(): string {
+        return this.descriptorFn(null);
+    }
 }
 
 export class NumberBadge extends BaseBadge {
+    constructor(readonly number: number, descriptorFn: (num: number) => string) {
+        super(descriptorFn);
+        this.number = number;
+    }
 
-	constructor(readonly number: number, descriptorFn: (num: number) => string) {
-		super(descriptorFn);
-
-		this.number = number;
-	}
-
-	override getDescription(): string {
-		return this.descriptorFn(this.number);
-	}
+    override getDescription(): string {
+        return this.descriptorFn(this.number);
+    }
 }
 
 export class IconBadge extends BaseBadge {
-	constructor(readonly icon: ThemeIcon, descriptorFn: () => string) {
-		super(descriptorFn);
-	}
+    constructor(readonly icon: ThemeIcon, descriptorFn: () => string) {
+        super(descriptorFn);
+    }
 }
 
-export class ProgressBadge extends BaseBadge { }
+export class ProgressBadge extends BaseBadge {}
+
+export interface IActivity {
+    readonly badge: IBadge;
+    readonly priority?: number;
+}
+
+export interface IActivityService {
+    readonly _serviceBrand: undefined;
+    readonly onDidChangeActivity: Event<string | ViewContainer>;
+    showViewContainerActivity(viewContainerId: string, badge: IActivity): IDisposable;
+    getViewContainerActivities(viewContainerId: string): IActivity[];
+    showViewActivity(viewId: string, badge: IActivity): IDisposable;
+    showAccountsActivity(activity: IActivity): IDisposable;
+    showGlobalActivity(activity: IActivity): IDisposable;
+    getActivity(id: string): IActivity[];
+}
+
+export const IActivityService = createDecorator<IActivityService>('activityService');
