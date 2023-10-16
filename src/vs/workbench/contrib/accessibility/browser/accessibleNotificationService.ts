@@ -8,6 +8,8 @@ import { localize } from 'vs/nls';
 import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { SaveReason } from 'vs/workbench/common/editor';
+import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 	declare readonly _serviceBrand: undefined;
@@ -15,10 +17,12 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 	constructor(
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService) {
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService) {
 		super();
 		this._events.set(AccessibleNotificationEvent.Clear, { audioCue: AudioCue.clear, alertMessage: localize('cleared', "Cleared") });
 		this._events.set(AccessibleNotificationEvent.Save, { audioCue: AudioCue.save, alertMessage: localize('saved', "Saved") });
+		this._register(this._workingCopyService.onDidSave((e) => this._notifySaved(e.reason === SaveReason.EXPLICIT)));
 	}
 
 	notify(event: AccessibleNotificationEvent): void {
@@ -31,7 +35,7 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		}
 	}
 
-	notifySaved(userGesture: boolean): void {
+	private _notifySaved(userGesture: boolean): void {
 		const { audioCue, alertMessage } = this._events.get(AccessibleNotificationEvent.Save)!;
 		const alertSetting: NotificationSetting = this._configurationService.getValue('accessibility.alert.save');
 		if (this._shouldNotify(alertSetting, userGesture)) {
@@ -55,5 +59,4 @@ export class TestAccessibleNotificationService extends Disposable implements IAc
 	declare readonly _serviceBrand: undefined;
 
 	notify(event: AccessibleNotificationEvent): void { }
-	notifySaved(userGesture: boolean): void { }
 }
