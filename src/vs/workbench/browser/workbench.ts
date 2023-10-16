@@ -41,6 +41,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export interface IWorkbenchOptions {
 
@@ -149,6 +150,7 @@ export class Workbench extends Layout {
 				const hostService = accessor.get(IHostService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
+				const commandService = accessor.get(ICommandService)
 
 				// Layout
 				this.initLayout(accessor);
@@ -174,6 +176,15 @@ export class Workbench extends Layout {
 
 				// Restore
 				this.restore(lifecycleService);
+
+				// Paste
+				const handlePaste = (event: ClipboardEvent) => {
+					commandService.executeCommand('_files.executePaste', event.clipboardData?.files)
+					// console.log('window paste')
+					// console.log(event.clipboardData?.files.length)
+				}
+
+				window.addEventListener('paste', handlePaste)
 			});
 
 			return instantiationService;

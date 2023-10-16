@@ -45,6 +45,7 @@ registerAction2(ResetActiveEditorReadonlyInSession);
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
 CommandsRegistry.registerCommand('_files.newWindow', newWindowCommand);
+CommandsRegistry.registerCommand('_files.executePaste', pasteFileHandler);
 
 const explorerCommandsWeightBonus = 10; // give our commands a little bit more weight over other default list/tree commands
 
@@ -116,13 +117,15 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const PASTE_FILE_ID = 'filesExplorer.paste';
 
-KeybindingsRegistry.registerCommandAndKeybindingRule({
-	id: PASTE_FILE_ID,
-	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
-	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-	handler: pasteFileHandler
-});
+// KeybindingsRegistry.registerCommandAndKeybindingRule({
+// 	id: PASTE_FILE_ID,
+// 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
+// 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
+// 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+// 	handler: pasteFileHandler
+// });
+
+
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'filesExplorer.cancelCut',
