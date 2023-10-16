@@ -212,7 +212,6 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		await model.accept(editor);
-		alert('Accepted');
 		model.stop();
 		editor.focus();
 	}
