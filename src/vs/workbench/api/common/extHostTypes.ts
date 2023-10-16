@@ -4083,8 +4083,8 @@ export class InteractiveWindowInput {
 //#region Interactive session
 
 export enum InteractiveSessionVoteDirection {
-	Up = 1,
-	Down = 2
+	Down = 0,
+	Up = 1
 }
 
 export enum InteractiveSessionCopyKind {

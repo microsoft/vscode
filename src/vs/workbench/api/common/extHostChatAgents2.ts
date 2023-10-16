@@ -78,7 +78,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					slashCommand
 				},
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
-				new Progress<vscode.InteractiveProgress>(p => {
+				new Progress<vscode.ChatAgentProgress>(p => {
 					throwIfDone();
 					const convertedProgress = typeConvert.ChatResponseProgress.from(p);
 					this._proxy.$handleProgressChunk(requestId, convertedProgress);
@@ -332,7 +332,7 @@ class ExtHostChatAgent {
 		} satisfies vscode.ChatAgent2;
 	}
 
-	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.InteractiveProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
+	invoke(request: vscode.ChatAgentRequest, context: vscode.ChatAgentContext, progress: Progress<vscode.ChatAgentProgress>, token: CancellationToken): vscode.ProviderResult<vscode.ChatAgentResult2> {
 		return this._callback(request, context, progress, token);
 	}
 }

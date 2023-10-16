@@ -164,8 +164,8 @@ export type IChatFollowup = IChatReplyFollowup | IChatResponseCommandFollowup;
 
 // Name has to match the one in vscode.d.ts for some reason
 export enum InteractiveSessionVoteDirection {
-	Up = 1,
-	Down = 2
+	Down = 0,
+	Up = 1
 }
 
 export interface IChatVoteAction {
