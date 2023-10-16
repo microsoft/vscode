@@ -1446,7 +1446,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 
 		if (this._contentWidgets.hasOwnProperty(widget.getId())) {
-			console.warn('Overwriting a content widget with the same id.');
+			console.warn('Overwriting a content widget with the same id:' + widget.getId());
 		}
 
 		this._contentWidgets[widget.getId()] = widgetData;
