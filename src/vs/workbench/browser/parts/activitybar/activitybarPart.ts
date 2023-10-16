@@ -47,6 +47,7 @@ export class ActivitybarPart extends Part {
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
+	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
 
 	//#region IView
 
@@ -75,6 +76,7 @@ export class ActivitybarPart extends Part {
 			partContainerClass: 'activitybar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
+			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
 			iconSize: 24,
