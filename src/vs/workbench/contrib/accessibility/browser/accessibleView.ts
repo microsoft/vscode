@@ -170,6 +170,9 @@ export class AccessibleView extends Disposable {
 
 		this._container = document.createElement('div');
 		this._container.classList.add('accessible-view');
+		if (this._configurationService.getValue('accessibility.hideAccessibleView')) {
+			this._container.classList.add('hide');
+		}
 		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
 			contributions: EditorExtensionsRegistry.getEditorContributions().filter(c => c.id !== CodeActionController.ID)
 		};
