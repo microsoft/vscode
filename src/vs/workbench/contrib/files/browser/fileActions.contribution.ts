@@ -122,10 +122,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-	handler: pasteFileHandler,
+	handler: pasteFileHandler
 });
-
-
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'filesExplorer.cancelCut',

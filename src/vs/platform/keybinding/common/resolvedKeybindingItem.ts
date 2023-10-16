@@ -30,7 +30,7 @@ export class ResolvedKeybindingItem {
 		this.bubble = (command ? command.charCodeAt(0) === CharCode.Caret : false);
 		this.command = this.bubble ? command!.substr(1) : command;
 		if (command === 'filesExplorer.paste') {
-			this.bubble = true
+			this.bubble = true;
 		}
 		this.commandArgs = commandArgs;
 		this.when = when;

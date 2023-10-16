@@ -1083,26 +1083,26 @@ CommandsRegistry.registerCommand({
 });
 
 const getNativeFileUri = (file: File) => {
-	return URI.file(file.path)
-}
+	return URI.file(file.path);
+};
 
 const getNativeFileUris = (files: FileList | undefined): readonly URI[] => {
 	if (!files) {
-		return []
+		return [];
 	}
-	const filesArray = [...files]
-	return filesArray.map(getNativeFileUri)
-}
+	const filesArray = [...files];
+	return filesArray.map(getNativeFileUri);
+};
 
 
 const getFilesToPaste = async (fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> => {
 	if (fileList) {
-		const nativeFiles = getNativeFileUris(fileList)
-		return nativeFiles
+		const nativeFiles = getNativeFileUris(fileList);
+		return nativeFiles;
 	}
 	return resources.distinctParents(await clipboardService.readResources(), r => r);
 
-}
+};
 
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
@@ -1115,7 +1115,7 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
-	const toPaste = await getFilesToPaste(fileList, clipboardService)
+	const toPaste = await getFilesToPaste(fileList, clipboardService);
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
