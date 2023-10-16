@@ -17,66 +17,34 @@
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
 	content: "\ead7"; /* use `debug-stop` icon unicode for hovering over running voice recording */
-	background-color: inherit;
-	border-radius: 0;
 	color: inherit;
 	outline: none;
+	border: none;
+	border-radius: 0;
 }
 
 /*
- * Remove ::after element to improve "stop" visuals when hovering over it.
- */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::after,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::after {
-	display: none;
-}
-
-/*
- * Show a "microphone" icon when recording is in progress that:
- * - uses z-index:1 and applies a background color to draw over the glowing animation (below)
- * - emphasizes activity by drawing with badge colors
+ * Show a "microphone" icon when recording is in progress that glows via outline.
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
 	content: "\ec12";
-	z-index: 1;
-	border-radius: 50%;
-	background-color: var(--vscode-input-background);
-	color: var(--vscode-activityBarBadge-background);
-	outline: 1px solid var(--vscode-activityBarBadge-background);
-}
-
-/*
- * Draw an ::after element for the glowing effect over the "microphone" icon that:
- * - uses badge colors to emphasize activity
- * - uses a "pulseAnimation" to indicate activity
- */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
-	content: "";
-	position: absolute;
-	top: 50%;
-	left: 50%;
-	width: 18px;
-	height: 18px;
-	background-color: var(--vscode-activityBarBadge-background);
-	border-radius: 50%;
+	color: var(--vscode-voiceRecording-background);
+	outline: 1px solid var(--vscode-voiceRecording-background);
+	border: 1px solid var(--vscode-voiceRecording-background);
 	animation: pulseAnimation 1s infinite;
-	transform: translate(-50%, -50%) scale(0);
-	opacity: 0;
+	border-radius: 50%;
 }
 
 @keyframes pulseAnimation {
 	0% {
-		transform: translate(-50%, -50%) scale(1);
-		opacity: 1;
+		outline-width: 1px;
 	}
 	50% {
-		transform: translate(-50%, -50%) scale(1.3);
-		opacity: 0.5;
+		outline-width: 4px;
+		outline-color: var(--vscode-voiceRecording-dimmedBackground);
 	}
 	100% {
-		transform: translate(-50%, -50%) scale(1);
-		opacity: 1;
+		outline-width: 1px;
 	}
 }
