@@ -14,7 +14,7 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 0px 20px;
+	padding: 16px 20px 16px 20px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
@@ -110,6 +110,7 @@
 }
 
 .interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .interactive-session-followups,
 .interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
 }
@@ -130,18 +131,11 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	min-height: 36px;
 	word-wrap: break-word;
 }
 
-.interactive-item-container .value > :last-child:not(.rendered-markdown) {
-	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
-		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
-	margin-bottom: 16px;
-}
-
-.interactive-item-container .value > .interactive-response-error-details:not(:last-child) {
-	margin-bottom: 8px;
+.interactive-item-container .value > :last-child.rendered-markdown > :last-child {
+	margin-bottom: 0px;
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
@@ -329,6 +323,10 @@
 	gap: 6px;
 }
 
+.interactive-response .interactive-response-error-details .rendered-markdown :last-child {
+	margin-bottom: 0px;
+}
+
 .interactive-response .interactive-response-error-details .codicon {
 	margin-top: 1px;
 }
@@ -466,7 +464,7 @@
 
 .interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
-	border: 1px solid var(--vscode-input-border, transparent);
+	border: none;
 	border-radius: 4px;
 	width: auto;
 }
@@ -483,18 +481,41 @@
 	display: none;
 }
 
+.interactive-session .chat-used-context-list {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 3px;
+	padding: 4px;
+}
+
+.interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
+	border-radius: 2px;
+}
+
 .interactive-session .chat-used-context-label {
-	font-size: 0.9em;
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+}
+
+.interactive-session .chat-used-context-label:hover {
+	opacity: unset;
 }
 
 .interactive-session .chat-used-context-label .monaco-button {
 	/* unset Button styles */
 	display: inline-flex;
-	width: initial;
+	width: 100%;
 	border: none;
 	padding: 0;
 	text-align: initial;
-	padding-left: 4px;
 	justify-content: initial;
-	margin-bottom: 3px;
+	margin-bottom: 6px;
+}
+
+.interactive-session .chat-used-context-label .monaco-text-button {
+	outline-offset: unset !important;
+}
+
+.interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
+	margin: 0 2px 0 0;
 }

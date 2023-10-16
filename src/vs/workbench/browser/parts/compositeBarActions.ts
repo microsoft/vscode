@@ -140,6 +140,7 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 
 	readonly hoverOptions: IActivityHoverOptions;
 	readonly hasPopup?: boolean;
+	readonly compact?: boolean;
 }
 
 export class CompoisteBarActionViewItem extends BaseActionViewItem {
@@ -300,10 +301,25 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		if (activity && shouldRenderBadges) {
 
-			const { badge, clazz } = activity;
+			const { badge } = activity;
+			const classes: string[] = [];
+
+			if (this.options.compact) {
+				classes.push('compact');
+			}
+
+			// Progress
+			if (badge instanceof ProgressBadge) {
+				show(this.badge);
+				classes.push('progress-badge');
+			}
+
+			else if (this.options.compact) {
+				show(this.badge);
+			}
 
 			// Number
-			if (badge instanceof NumberBadge) {
+			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
 					if (badge.number > 999) {
@@ -333,16 +349,11 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 				show(this.badge);
 			}
 
-			// Progress
-			else if (badge instanceof ProgressBadge) {
-				show(this.badge);
+			if (classes.length) {
+				this.badge.classList.add(...classes);
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classes));
 			}
 
-			if (clazz) {
-				const classNames = clazz.split(' ');
-				this.badge.classList.add(...classNames);
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classNames));
-			}
 		}
 
 		this.updateTitle();

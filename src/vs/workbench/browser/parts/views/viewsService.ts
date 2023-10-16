@@ -32,6 +32,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { FilterViewPaneContainer } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { ICommandActionTitle, ILocalizedString } from 'vs/platform/action/common/action';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class ViewsService extends Disposable implements IViewsService {
 
@@ -56,7 +57,8 @@ export class ViewsService extends Disposable implements IViewsService {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super();
 
@@ -239,7 +241,8 @@ export class ViewsService extends Disposable implements IViewsService {
 
 	getFocusedViewName(): string {
 		const viewId: string = this.contextKeyService.getContextKeyValue(FocusedViewContext.key) ?? '';
-		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? '';
+		const textEditorFocused = this.editorService.activeTextEditorControl?.hasTextFocus() ? localize('editor', "Text Editor") : undefined;
+		return this.viewDescriptorService.getViewDescriptorById(viewId.toString())?.name?.value ?? textEditorFocused ?? '';
 	}
 
 	async openView<T extends IView>(id: string, focus?: boolean): Promise<T | null> {

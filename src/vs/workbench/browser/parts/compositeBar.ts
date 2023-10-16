@@ -133,6 +133,7 @@ export interface ICompositeBarOptions {
 	readonly icon: boolean;
 	readonly orientation: ActionsOrientation;
 	readonly colors: (theme: IColorTheme) => ICompositeBarColors;
+	readonly compact?: boolean;
 	readonly compositeSize: number;
 	readonly overflowActionSize: number;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -185,9 +186,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	}
 
 	setCompositeBarItems(items: ICompositeBarItem[]): void {
-		if (this.model.setItems(items)) {
-			this.updateCompositeSwitcher();
-		}
+		this.model.setItems(items);
+		this.updateCompositeSwitcher();
 	}
 
 	getPinnedComposites(): ICompositeBarItem[] {
@@ -208,7 +208,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				const item = this.model.findItem(action.id);
 				return item && this.instantiationService.createInstance(
 					CompositeActionViewItem,
-					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions },
+					{ draggable: true, colors: this.options.colors, icon: this.options.icon, hoverOptions: this.options.activityHoverOptions, compact: this.options.compact },
 					action as CompositeBarAction,
 					item.pinnedAction,
 					item.toggleBadgeAction,
@@ -680,37 +680,11 @@ class CompositeBarModel {
 		this.setItems(items);
 	}
 
-	setItems(items: ICompositeBarItem[]): boolean {
-		const result: ICompositeBarModelItem[] = [];
-		let hasChanges: boolean = false;
-		if (!this.items || this.items.length === 0) {
-			this._items = items.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
-			hasChanges = true;
-		} else {
-			const existingItems = this.items;
-			for (let index = 0; index < items.length; index++) {
-				const newItem = items[index];
-				const existingItem = existingItems.filter(({ id }) => id === newItem.id)[0];
-				if (existingItem) {
-					if (
-						existingItem.pinned !== newItem.pinned ||
-						index !== existingItems.indexOf(existingItem)
-					) {
-						existingItem.pinned = newItem.pinned;
-						result.push(existingItem);
-						hasChanges = true;
-					} else {
-						result.push(existingItem);
-					}
-				} else {
-					result.push(this.createCompositeBarItem(newItem.id, newItem.name, newItem.order, newItem.pinned, newItem.visible));
-					hasChanges = true;
-				}
-			}
-			this._items = result;
-		}
-
-		return hasChanges;
+	setItems(items: ICompositeBarItem[]): void {
+		this._items = [];
+		this._items = items
+			.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible))
+			.sort((a, b) => (a.order ?? items.length) - (b.order ?? items.length));
 	}
 
 	get visibleItems(): ICompositeBarModelItem[] {

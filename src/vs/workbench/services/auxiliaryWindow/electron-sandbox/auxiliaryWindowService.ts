@@ -5,14 +5,15 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { DeferredPromise } from 'vs/base/common/async';
 
-type AuxiliaryWindow = Window & typeof globalThis & {
+type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	moveTop: () => void;
 };
 
@@ -26,38 +27,45 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService
 	) {
-		super(layoutService, environmentService);
+		super(layoutService);
 	}
 
-
-	protected override applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
-		super.applyCSS(auxiliaryWindow, disposables);
+	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
+
+		return super.create(auxiliaryWindow, disposables);
 	}
 
 	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
 		super.patchMethods(auxiliaryWindow);
 
+		// Obtain window identifier
+		const windowId = new DeferredPromise<number>();
+		(async () => {
+			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
+		})();
+
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = function () {
+		auxiliaryWindow.focus = async function () {
 			originalWindowFocus();
 
-			getGlobals(auxiliaryWindow)?.ipcRenderer.send('vscode:focusAuxiliaryWindow');
+			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
 		};
 
-		// Add a method to move window to the top (TODO@bpasero better to go entirely through native host service)
+		// Add a method to move window to the top
 		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: () => {
-				getGlobals(auxiliaryWindow)?.ipcRenderer.send('vscode:moveAuxiliaryWindowTop');
+			value: async () => {
+				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
 			},
 			writable: false,
 			enumerable: false,

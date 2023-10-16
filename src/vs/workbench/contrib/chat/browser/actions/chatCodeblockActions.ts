@@ -17,8 +17,10 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
@@ -103,6 +105,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: <IChatCopyAction>{
 					kind: 'copy',
 					responseId: context.element.providerResponseId,
@@ -144,6 +148,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'copy',
 					codeBlockIndex: context.codeBlockIndex,
@@ -180,7 +186,13 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-				}
+				},
+				keybinding: {
+					when: CONTEXT_ACCESSIBILITY_MODE_ENABLED,
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			});
 		}
 
@@ -312,6 +324,8 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'insert',
 					responseId: context.element.providerResponseId,
@@ -355,6 +369,8 @@ export function registerChatCodeBlockActions() {
 
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'insert',
 					responseId: context.element.providerResponseId,
@@ -383,14 +399,20 @@ export function registerChatCodeBlockActions() {
 					group: 'navigation',
 					isHiddenByDefault: true,
 				},
-				keybinding: {
+				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: CONTEXT_IN_CHAT_SESSION
-				}
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Slash,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				}]
 			});
 		}
 
@@ -425,6 +447,8 @@ export function registerChatCodeBlockActions() {
 
 			chatService.notifyUserAction(<IChatUserActionEvent>{
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
 				action: {
 					kind: 'runInTerminal',
 					responseId: context.element.providerResponseId,
@@ -474,7 +498,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Next Code Block'
 				},
 				keybinding: {
-					primary: KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
@@ -498,7 +523,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Previous Code Block'
 				},
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
