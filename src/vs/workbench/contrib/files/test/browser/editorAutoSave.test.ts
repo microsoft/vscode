@@ -24,7 +24,7 @@ import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { TestAccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
+import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 
 suite('EditorAutoSave', () => {
 

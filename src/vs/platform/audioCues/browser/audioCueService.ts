@@ -256,6 +256,7 @@ export class Sound {
 	public static readonly chatResponseReceived4 = Sound.register({ fileName: 'chatResponseReceived4.mp3' });
 	public static readonly clear = Sound.register({ fileName: 'clear.mp3' });
 	public static readonly save = Sound.register({ fileName: 'save.mp3' });
+	public static readonly format = Sound.register({ fileName: 'format.mp3' });
 
 	private constructor(public readonly fileName: string) { }
 }
@@ -431,6 +432,12 @@ export class AudioCue {
 		name: localize('audioCues.save', 'Save'),
 		sound: Sound.save,
 		settingsKey: 'audioCues.save'
+	});
+
+	public static readonly format = AudioCue.register({
+		name: localize('audioCues.format', 'Format'),
+		sound: Sound.format,
+		settingsKey: 'audioCues.format'
 	});
 
 	private constructor(
