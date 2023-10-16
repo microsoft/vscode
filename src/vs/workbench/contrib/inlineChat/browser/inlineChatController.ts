@@ -252,6 +252,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		if (this._activeSession) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
+			widgetPosition = this._strategy?.getWidgetPosition() ?? widgetPosition;
 		}
 		this._zone.value.show(widgetPosition);
 	}

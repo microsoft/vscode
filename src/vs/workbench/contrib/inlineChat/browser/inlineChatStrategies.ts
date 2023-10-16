@@ -454,7 +454,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		if (this._session.lastTextModelChanges.length) {
 			return this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
-		return;
+		return this._session.wholeRange.value.getStartPosition().delta(-1);
 	}
 }
 
