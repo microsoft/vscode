@@ -15,6 +15,8 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
+import { Action } from 'vs/base/common/actions';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -24,8 +26,8 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private cursorChangeListener: IDisposable | undefined;
 	private clickChangeListener: IDisposable | undefined;
 
-	private readonly gutterSettingID = 'inlineChat.showGutterIcon';
-	private readonly gutterIconClassName = 'codicon-inline-chat';
+	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
+	private static readonly gutterIconClassName = 'codicon-inline-chat';
 
 	private static readonly GUTTER_DECORATION = ModelDecorationOptions.register({
 		description: 'inline-chat-decoration',
@@ -39,17 +41,17 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		this.configurationService.onDidChangeConfiguration(e => {
-			if (!e.affectsConfiguration(this.gutterSettingID)) {
+			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
 			}
-			const gutterIconEnabled = this.configurationService.getValue<boolean>(this.gutterSettingID);
+			const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
 			if (gutterIconEnabled) {
 				this.activateGutterDecoration();
 			} else {
 				this.removePreviousGutterDecoration();
 			}
 		});
-		const gutterIconEnabled = this.configurationService.getValue<boolean>(this.gutterSettingID);
+		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
 		if (gutterIconEnabled) {
 			this.activateGutterDecoration();
 		}
@@ -58,7 +60,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private activateGutterDecoration() {
 		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateGutterDecoration(e.selection));
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (e.target.element?.classList.contains(this.gutterIconClassName)) {
+			if (e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				InlineChatController.get(this.editor)?.run();
 			}
 		});
@@ -88,3 +90,14 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.clickChangeListener?.dispose();
 	}
 }
+
+GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const configurationService = accessor.get(IConfigurationService);
+	result.push(new Action(
+		'inlineChat.toggleShowGutterIcon',
+		localize('toggleShowGutterIcon', "Toggle Inline Chat Icon"),
+		undefined,
+		true,
+		() => { configurationService.updateValue(InlineChatDecorationsContribution.gutterSettingID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID)); }
+	));
+});
