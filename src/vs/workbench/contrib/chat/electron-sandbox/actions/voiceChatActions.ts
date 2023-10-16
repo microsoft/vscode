@@ -33,6 +33,8 @@ import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/action
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
+import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -58,6 +60,20 @@ interface IVoiceChatSessionController {
 	setInputPlaceholder(text: string): void;
 	clearInputPlaceholder(): void;
 }
+
+export const VOICE_RECORDING_BACKGROUND = registerColor('voiceRecording.background', {
+	dark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	light: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
+}, localize('voiceRecording.background', "Background color for voice recording icon when recording."));
+
+export const VOICE_RECORDING_BACKGROUND_DIMMED = registerColor('voiceRecording.dimmedBackground', {
+	dark: transparent(ACTIVITY_BAR_BADGE_BACKGROUND, 0.4),
+	light: transparent(ACTIVITY_BAR_BADGE_BACKGROUND, 0.4),
+	hcDark: ACTIVITY_BAR_BADGE_BACKGROUND,
+	hcLight: ACTIVITY_BAR_BADGE_BACKGROUND
+}, localize('voiceRecording.dimmedBackground', "Dimmed background color for voice recording icon when recording."));
 
 class VoiceChatSessionControllerFactory {
 
