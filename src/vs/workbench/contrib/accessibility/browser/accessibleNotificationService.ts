@@ -6,50 +6,65 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-import { AudioCue, IAudioCueService, Sound } from 'vs/platform/audioCues/browser/audioCueService';
+import { AudioCue, IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ILogService } from 'vs/platform/log/common/log';
 import { SaveReason } from 'vs/workbench/common/editor';
+import { AccessibilityAlertSettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 
 export class AccessibleNotificationService extends Disposable implements IAccessibleNotificationService {
 	declare readonly _serviceBrand: undefined;
-	private _events: Map<AccessibleNotificationEvent, { audioCue: AudioCue; alertMessage: string }> = new Map();
+	private _events: Map<AccessibleNotificationEvent, { audioCue: AudioCue; alertMessage: string; alertSetting?: string }> = new Map();
 	constructor(
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService) {
+		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService,
+		@ILogService private readonly _logService: ILogService) {
 		super();
 		this._events.set(AccessibleNotificationEvent.Clear, { audioCue: AudioCue.clear, alertMessage: localize('cleared', "Cleared") });
-		this._register(this._workingCopyService.onDidSave((e) => this._notifySaved(e.reason === SaveReason.EXPLICIT)));
-		this._events.set(AccessibleNotificationEvent.Format, { audioCue: AudioCue.format, alertMessage: localize('formatted', "Formatted") });
+		this._events.set(AccessibleNotificationEvent.Save, { audioCue: AudioCue.save, alertMessage: localize('saved', "Saved"), alertSetting: AccessibilityAlertSettingId.Save });
+		this._events.set(AccessibleNotificationEvent.Format, { audioCue: AudioCue.format, alertMessage: localize('formatted', "Formatted"), alertSetting: AccessibilityAlertSettingId.Format });
+
+		this._register(this._workingCopyService.onDidSave((e) => this._notify(AccessibleNotificationEvent.Save, e.reason === SaveReason.EXPLICIT)));
 	}
 
-	notify(event: AccessibleNotificationEvent): void {
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void {
+		if (event === AccessibleNotificationEvent.Format) {
+			return this._notify(event, userGesture);
+		}
 		const { audioCue, alertMessage } = this._events.get(event)!;
 		const audioCueValue = this._configurationService.getValue(audioCue.settingsKey);
 		if (audioCueValue === 'on' || audioCueValue === 'auto' && this._accessibilityService.isScreenReaderOptimized()) {
+			this._logService.debug('AccessibleNotificationService playing sound: ', audioCue.name);
 			this._audioCueService.playAudioCue(audioCue);
 		} else {
+			this._logService.debug('AccessibleNotificationService alerting: ', alertMessage);
 			this._accessibilityService.alert(alertMessage);
 		}
 	}
 
-	private _notifySaved(userGesture: boolean): void {
-		const { audioCue, alertMessage } = this._events.get(AccessibleNotificationEvent.Save)!;
-		const alertSetting: NotificationSetting = this._configurationService.getValue('accessibility.alert.save');
-		if (this._shouldNotify(alertSetting, userGesture)) {
+	private _notify(event: AccessibleNotificationEvent, userGesture?: boolean): void {
+		const { audioCue, alertMessage, alertSetting } = this._events.get(event)!;
+		if (!alertSetting) {
+			return;
+		}
+		const alertSettingValue: NotificationSetting = this._configurationService.getValue(alertSetting);
+		if (this._shouldNotify(alertSettingValue, userGesture)) {
+			this._logService.debug('AccessibleNotificationService alerting: ', alertMessage);
 			this._accessibilityService.alert(alertMessage);
 		}
 		const audioCueSetting: NotificationSetting = this._configurationService.getValue(audioCue.settingsKey);
 		if (this._shouldNotify(audioCueSetting, userGesture)) {
+			this._logService.debug('AccessibleNotificationService playing sound: ', audioCue.name);
 			// Play sound bypasses the usual audio cue checks IE screen reader optimized, auto, etc.
-			this._audioCueService.playSound(Sound.save, true);
+			this._audioCueService.playSound(audioCue.sound.getSound(), true);
 		}
 	}
 
-	private _shouldNotify(settingValue: NotificationSetting, userGesture: boolean): boolean {
-		return settingValue === 'always' || settingValue === 'userGesture' && userGesture;
+	private _shouldNotify(settingValue: NotificationSetting, userGesture?: boolean): boolean {
+		return settingValue === 'always' || settingValue === 'userGesture' && userGesture === true;
 	}
 }
 type NotificationSetting = 'never' | 'always' | 'userGesture';
@@ -58,5 +73,5 @@ export class TestAccessibleNotificationService extends Disposable implements IAc
 
 	declare readonly _serviceBrand: undefined;
 
-	notify(event: AccessibleNotificationEvent): void { }
+	notify(event: AccessibleNotificationEvent, userGesture?: boolean): void { }
 }
