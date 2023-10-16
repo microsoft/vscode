@@ -264,6 +264,17 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-interactive-result-editor-background-color);
+}
+
+.interactive-item-compact .interactive-result-code-block {
+	margin: 0 0 8px 0;
+}
+
+
 .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;

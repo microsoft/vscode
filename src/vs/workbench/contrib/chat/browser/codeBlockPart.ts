@@ -92,7 +92,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService
 	) {
 		super();
-		this.element = $('.interactive-result-editor-wrapper');
+		this.element = $('.interactive-result-code-block');
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, menuId, {
