@@ -48,7 +48,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			if (gutterIconEnabled) {
 				this.activateGutterDecoration();
 			} else {
-				this.removePreviousGutterDecoration();
+				this.deactivateGutterDecoration();
 			}
 		});
 		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
@@ -58,13 +58,20 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private activateGutterDecoration() {
-		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => this.updateGutterDecoration(e.selection));
+		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => {
+			this.updateGutterDecoration(e.selection);
+		});
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				InlineChatController.get(this.editor)?.run();
 			}
 		});
 		this.updateGutterDecoration(this.editor.getSelection());
+	}
+
+	private deactivateGutterDecoration() {
+		this.removePreviousGutterDecoration();
+		this.dispose();
 	}
 
 	private updateGutterDecoration(selection: Selection | null) {
@@ -88,6 +95,9 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	dispose() {
 		this.cursorChangeListener?.dispose();
 		this.clickChangeListener?.dispose();
+		this.cursorChangeListener = undefined;
+		this.clickChangeListener = undefined;
+		this.gutterDecorationID = undefined;
 	}
 }
 
