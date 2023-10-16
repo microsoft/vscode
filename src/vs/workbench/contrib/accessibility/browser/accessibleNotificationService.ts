@@ -21,8 +21,8 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		@IWorkingCopyService private readonly _workingCopyService: IWorkingCopyService) {
 		super();
 		this._events.set(AccessibleNotificationEvent.Clear, { audioCue: AudioCue.clear, alertMessage: localize('cleared', "Cleared") });
-		this._events.set(AccessibleNotificationEvent.Save, { audioCue: AudioCue.save, alertMessage: localize('saved', "Saved") });
 		this._register(this._workingCopyService.onDidSave((e) => this._notifySaved(e.reason === SaveReason.EXPLICIT)));
+		this._events.set(AccessibleNotificationEvent.Format, { audioCue: AudioCue.format, alertMessage: localize('formatted', "Formatted") });
 	}
 
 	notify(event: AccessibleNotificationEvent): void {
