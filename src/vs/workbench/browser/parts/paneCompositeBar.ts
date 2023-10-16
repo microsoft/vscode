@@ -30,7 +30,6 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -97,7 +96,6 @@ export class PaneCompositeBar extends Disposable {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -219,16 +217,12 @@ export class PaneCompositeBar extends Disposable {
 		this.hasExtensionsRegistered = true;
 
 		// show/hide/remove composites
-		const shouldRemoveNotExsitingComposite = !(this.extensionBisectService.isActive
-			|| this.environmentService.disableExtensions === true
-			|| (Array.isArray(this.environmentService.disableExtensions) && this.environmentService.disableExtensions.length > 0));
-
 		for (const { id } of this.cachedViewContainers) {
 			const viewContainer = this.getViewContainer(id);
 			if (viewContainer) {
 				this.showOrHideViewContainer(viewContainer);
 			} else {
-				if (shouldRemoveNotExsitingComposite) {
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
 					this.removeComposite(id);
 				} else {
 					this.hideComposite(id);
