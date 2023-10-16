@@ -7,7 +7,6 @@ import * as assert from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { TestAccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
 import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -22,6 +21,7 @@ import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilitie
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
