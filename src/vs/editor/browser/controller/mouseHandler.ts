@@ -106,7 +106,7 @@ export class MouseHandler extends ViewEventHandler {
 					// When the editor is within a Shadow DOM, `e.target` will point to the Web Component itself,
 					// which will cause `this.viewHelper.viewDomNode.contains(e.target)` to always return `false`.
 					// To work around this, we don't trigger `this._onMouseLeave` if viewRoot is a shadow root.
-					if (!this.viewHelper.viewDomNode.contains(e.target as Node) && !viewRootIsShadowRoot) {
+					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null) && !viewRootIsShadowRoot) {
 						// went outside the editor!
 						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
 					}
