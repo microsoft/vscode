@@ -181,16 +181,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Watermark & shortcuts
 			this._register(this.instantiationService.createInstance(EditorGroupWatermark, this.element));
 
-			// Progress bar
-			this.progressBar = this._register(new ProgressBar(this.element, defaultProgressBarStyles));
-			this.progressBar.hide();
-
-			// Scoped instantiation service
-			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-				[IContextKeyService, this.scopedContextKeyService],
-				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
-			));
-
 			// Context keys
 			this.handleGroupContextKeys();
 
@@ -198,6 +188,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			this.titleContainer = document.createElement('div');
 			this.titleContainer.classList.add('title');
 			this.element.appendChild(this.titleContainer);
+
+			// Progress bar
+			this.progressBar = this._register(new ProgressBar(this.titleContainer, defaultProgressBarStyles));
+			this.progressBar.hide();
+
+			// Scoped instantiation service
+			this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+				[IContextKeyService, this.scopedContextKeyService],
+				[IEditorProgressService, this._register(new EditorProgressIndicator(this.progressBar, this))]
+			));
 
 			// Title control
 			this.titleControl = this._register(this.scopedInstantiationService.createInstance(EditorTitleControl, this.titleContainer, this.editorPartsView, this.groupsView, this, this.model));

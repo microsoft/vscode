@@ -90,7 +90,7 @@
 .monaco-workbench .part.editor > .content .monaco-progress-container {
 	position: absolute;
 	left: 0;
-	top: var(--editor-group-tab-total-height);
+	bottom: 0;
 	z-index: 5; /* on top of things */
 	height: 2px;
 }

@@ -404,7 +404,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	protected updateTabHeight(): void {
 		this.parent.style.setProperty('--editor-group-tab-height', `${this.tabHeight}px`);
-		this.parent.parentElement?.style.setProperty('--editor-group-tab-total-height', `${this.tabHeight * (this.groupsView.partOptions.pinnedTabsOnSeparateRow ? 2 : 1)}px`);
 	}
 
 	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
