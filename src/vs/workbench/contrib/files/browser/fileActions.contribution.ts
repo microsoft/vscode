@@ -117,13 +117,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 
 const PASTE_FILE_ID = 'filesExplorer.paste';
 
-// KeybindingsRegistry.registerCommandAndKeybindingRule({
-// 	id: PASTE_FILE_ID,
-// 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
-// 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
-// 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
-// 	handler: pasteFileHandler
-// });
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: PASTE_FILE_ID,
+	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
+	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+	handler: pasteFileHandler,
+});
 
 
 

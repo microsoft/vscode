@@ -1095,15 +1095,16 @@ const getNativeFileUris = (files: FileList | undefined): readonly URI[] => {
 }
 
 
-const getFilesToPaste = async (nativeFiles: readonly URI[], clipboardService: IClipboardService): Promise<readonly URI[]> => {
-	if (nativeFiles.length > 0) {
+const getFilesToPaste = async (fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> => {
+	if (fileList) {
+		const nativeFiles = getNativeFileUris(fileList)
 		return nativeFiles
 	}
 	return resources.distinctParents(await clipboardService.readResources(), r => r);
 
 }
 
-export const pasteFileHandler = async (accessor: ServicesAccessor, event?: FileList) => {
+export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
 	const fileService = accessor.get(IFileService);
@@ -1113,9 +1114,8 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, event?: FileL
 	const uriIdentityService = accessor.get(IUriIdentityService);
 	const dialogService = accessor.get(IDialogService);
 
-	const nativeFiles = getNativeFileUris(event)
 	const context = explorerService.getContext(true);
-	const toPaste = await getFilesToPaste(nativeFiles, clipboardService)
+	const toPaste = await getFilesToPaste(fileList, clipboardService)
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
