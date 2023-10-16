@@ -40,6 +40,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -336,10 +337,16 @@ export class InlineChatController implements IEditorContribution {
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 		const updateWholeRangeDecoration = () => {
-			wholeRangeDecoration.set([{
-				range: this._activeSession!.wholeRange.value,
-				options: InlineChatController._decoBlock
-			}]);
+
+			const range = this._activeSession!.wholeRange.value;
+			const decorations: IModelDeltaDecoration[] = [];
+			if (!range.isEmpty()) {
+				decorations.push({
+					range,
+					options: InlineChatController._decoBlock
+				});
+			}
+			wholeRangeDecoration.set(decorations);
 		};
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
