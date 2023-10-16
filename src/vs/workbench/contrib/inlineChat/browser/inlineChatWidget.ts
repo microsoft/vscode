@@ -56,6 +56,12 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { assertType } from 'vs/base/common/types';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
+import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
+import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -182,6 +188,7 @@ export class InlineChatWidget {
 	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
 
+	private readonly _onDidChangeLayout = this._store.add(new MicrotaskEmitter<void>());
 	private readonly _onDidChangeInput = this._store.add(new Emitter<this>());
 	readonly onDidChangeInput: Event<this> = this._onDidChangeInput.event;
 
@@ -192,6 +199,10 @@ export class InlineChatWidget {
 	private _slashCommandDetails: { command: string; detail: string }[] = [];
 
 	private _slashCommandContentWidget: SlashCommandContentWidget;
+
+	private readonly _markdownRenderer: MarkdownRenderer;
+	private readonly _editorOptions: ChatEditorOptions;
+	private _codeBlockDisposables = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -234,6 +245,10 @@ export class InlineChatWidget {
 		const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/inline-chat/model${InlineChatWidget._modelPool++}.txt` });
 		this._inputModel = this._store.add(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
 		this._inputEditor.setModel(this._inputModel);
+
+		this._markdownRenderer = this._store.add(_instantiationService.createInstance(MarkdownRenderer, {}));
+		this._editorOptions = this._store.add(_instantiationService.createInstance(ChatEditorOptions, undefined, editorForeground, inputBackground, editorBackground));
+
 
 		// --- context keys
 
@@ -440,6 +455,7 @@ export class InlineChatWidget {
 				const editorHeightInLines = Math.floor(editorHeight / lineHeight);
 				this._elements.root.style.setProperty('--vscode-inline-chat-cropped', String(Math.floor(editorHeightInLines / 5)));
 				this._elements.root.style.setProperty('--vscode-inline-chat-expanded', String(Math.floor(editorHeightInLines / 3)));
+				this._onDidChangeLayout.fire();
 			}
 		} finally {
 			this._isLayouting = false;
@@ -519,22 +535,37 @@ export class InlineChatWidget {
 		return this._elements.markdownMessage.textContent ?? undefined;
 	}
 
-	updateMarkdownMessage(message: Node | undefined) {
+	updateMarkdownMessage(message: IMarkdownString | undefined) {
+		this._codeBlockDisposables.clear();
 		this._elements.markdownMessage.classList.toggle('hidden', !message);
 		let expansionState: ExpansionState;
+		let textContent: string | undefined = undefined;
 		if (!message) {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
 			expansionState = ExpansionState.NOT_CROPPED;
-
 		} else {
+			let codeBlockIndex = 0;
+			const renderedMarkdown = this._codeBlockDisposables.add(this._markdownRenderer.render(message, {
+				fillInIncompleteTokens: true,
+				codeBlockRendererSync: (languageId, text) => {
+					const codeBlockPart = this._codeBlockDisposables.add(this._instantiationService.createInstance(CodeBlockPart, this._editorOptions, MenuId.InlineChatCodeBlock));
+					const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element: undefined };
+					codeBlockPart.render(data, this._elements.message.clientWidth);
+					this._codeBlockDisposables.add(this._onDidChangeLayout.event(() => {
+						codeBlockPart.layout(this._elements.message.clientWidth);
+					}));
+					return codeBlockPart.element;
+				}
+			}));
+			textContent = renderedMarkdown.element.textContent || undefined;
 			if (this._preferredExpansionState) {
-				reset(this._elements.message, message);
+				reset(this._elements.message, renderedMarkdown.element);
 				expansionState = this._preferredExpansionState;
 				this._preferredExpansionState = undefined;
 			} else {
 				this._updateLineClamp(ExpansionState.CROPPED);
-				reset(this._elements.message, message);
+				reset(this._elements.message, renderedMarkdown.element);
 				expansionState = this._elements.message.scrollHeight > this._elements.message.clientHeight ? ExpansionState.CROPPED : ExpansionState.NOT_CROPPED;
 			}
 			this._ctxMessageCropState.set(expansionState);
@@ -542,6 +573,7 @@ export class InlineChatWidget {
 		}
 		this._expansionState = expansionState;
 		this._onDidChangeHeight.fire();
+		return textContent;
 	}
 
 	updateMarkdownMessageExpansionState(expansionState: ExpansionState) {
