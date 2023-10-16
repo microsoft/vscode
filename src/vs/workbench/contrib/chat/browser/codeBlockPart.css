@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+
+.interactive-result-editor-wrapper {
+	position: relative;
+}
+
+.interactive-result-editor-wrapper .monaco-toolbar {
+	display: none;
+	position: absolute;
+	top: -13px;
+	right: 10px;
+	height: 26px;
+	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
+	border: 1px solid var(--vscode-chat-requestBorder);
+	z-index: 100;
+}
+
+.interactive-result-editor-wrapper .monaco-toolbar .action-item {
+	height: 24px;
+	width: 24px;
+	margin: 1px 2px;
+}
+
+.interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
+	margin: 1px;
+}
+
+.interactive-result-editor-wrapper:hover .monaco-toolbar,
+.interactive-result-editor-wrapper .monaco-toolbar:focus-within,
+.interactive-result-editor-wrapper.focused .monaco-toolbar {
+	display: initial;
+	border-radius: 2px;
+}
+
+.interactive-result-editor-wrapper {
+	margin: 16px 0;
+}
+
+.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor,
+.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .margin,
+.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-interactive-result-editor-background-color);
+}
+
+.interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
+	border: 1px solid var(--vscode-input-border, transparent);
+}
+
+.interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
+	border-color: var(--vscode-focusBorder, transparent);
+}
+
+.interactive-result-editor-wrapper,
+.interactive-result-editor-wrapper .monaco-editor,
+.interactive-result-editor-wrapper .monaco-editor .overflow-guard {
+	border-radius: 4px;
+}
+
+.interactive-item-compact .interactive-result-editor-wrapper {
+	margin: 0 0 8px 0;
+}
+
