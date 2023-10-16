@@ -552,34 +552,6 @@
 	background-color: var(--vscode-scrollbarSlider-activeBackground);
 }
 
-.monaco-workbench .terminal-accessible-widget {
-	position: absolute;
-	left: 10px;
-	top: 0;
-	bottom: 0;
-	right: 0;
-	opacity: 0;
-	/* Reset cursor style as monaco controls it here */
-	cursor: default;
-	padding: 0;
-	overflow: initial;
-	overflow-x: initial;
-	pointer-events: none;
-	z-index: 0;
-}
-
-.monaco-workbench .terminal-accessible-widget div {
-	white-space: pre-wrap;
-}
-
-.monaco-workbench .terminal-accessible-widget.focus-within,
-.monaco-workbench .terminal-accessible-widget.active {
-	pointer-events: all;
-	opacity: 1;
-	z-index: 33;
-	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
-}
-
 .monaco-workbench .xterm.terminal.hide {
 	visibility: hidden;
 }

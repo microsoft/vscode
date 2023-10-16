@@ -253,7 +253,7 @@ export function registerTerminalActions() {
 		run: async (c, _, args) => {
 			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 
@@ -268,7 +268,7 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: editorGroupsService.activeGroup.index }
 			});
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 
@@ -279,7 +279,7 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: SIDE_GROUP }
 			});
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 

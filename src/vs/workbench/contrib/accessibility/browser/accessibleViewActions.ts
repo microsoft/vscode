@@ -184,8 +184,8 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletion,
 			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineCompletions)),
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.check,

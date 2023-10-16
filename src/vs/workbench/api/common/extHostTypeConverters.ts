@@ -2236,6 +2236,15 @@ export namespace ChatMessageRole {
 }
 
 export namespace ChatVariable {
+	export function objectTo(variableObject: Record<string, IChatRequestVariableValue[]>): Record<string, vscode.ChatVariableValue[]> {
+		const result: Record<string, vscode.ChatVariableValue[]> = {};
+		for (const key of Object.keys(variableObject)) {
+			result[key] = variableObject[key].map(ChatVariable.to);
+		}
+
+		return result;
+	}
+
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
@@ -2293,13 +2302,16 @@ export namespace InteractiveEditorResponseFeedbackKind {
 }
 
 export namespace ChatResponseProgress {
-	export function from(progress: vscode.InteractiveProgress): extHostProtocol.IChatResponseProgressDto {
+	export function from(progress: vscode.InteractiveProgress | vscode.ChatAgentProgress): extHostProtocol.IChatResponseProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
 			return { placeholder: progress.placeholder };
 		} else if ('responseId' in progress) {
 			return { requestId: progress.responseId };
 		} else if ('content' in progress) {
-			return { content: typeof progress.content === 'string' ? progress.content : MarkdownString.from(progress.content) };
+			return {
+				content: 'markdownContent' in progress ? progress.markdownContent :
+					(typeof progress.content === 'string' ? progress.content : MarkdownString.from(progress.content))
+			};
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({

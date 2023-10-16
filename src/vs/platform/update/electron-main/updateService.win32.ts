@@ -99,11 +99,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected buildUpdateFeedUrl(quality: string): string | undefined {
-		let platform = 'win32';
-
-		if (process.arch !== 'ia32') {
-			platform += `-${process.arch}`;
-		}
+		let platform = `win32-${process.arch}`;
 
 		if (getUpdateType() === UpdateType.Archive) {
 			platform += '-archive';

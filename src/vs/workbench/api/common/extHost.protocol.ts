@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
@@ -1142,7 +1142,8 @@ export interface MainThreadSpeechShape extends IDisposable {
 }
 
 export interface ExtHostSpeechShape {
-	$createSpeechToTextSession(handle: number, session: number, token: CancellationToken): Promise<void>;
+	$createSpeechToTextSession(handle: number, session: number): Promise<void>;
+	$cancelSpeechToTextSession(session: number): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
@@ -1184,6 +1185,8 @@ export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, sessionId: string, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
+	$acceptFeedback(handle: number, sessionId: string, vote: InteractiveSessionVoteDirection): void;
+	$acceptAction(handle: number, sessionId: string, action: IChatUserActionEvent): void;
 	$releaseSession(sessionId: string): void;
 }
 
@@ -1227,7 +1230,7 @@ export interface IChatDto {
 }
 
 export interface IChatRequestDto {
-	message: string | IChatReplyFollowup;
+	message: string;
 	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 
