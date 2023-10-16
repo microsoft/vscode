@@ -252,7 +252,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
-							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}`;
+							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
+							// Re-render once content references are loaded
+							(isResponseVM(element) ? `_${element.response.contentReferences.length}` : '');
 					},
 				}
 			});

@@ -26,14 +26,7 @@
           }
         ]
       },
-      response: [
-        {
-          value: "",
-          isTrusted: false,
-          supportThemeIcons: false,
-          supportHtml: false
-        }
-      ],
+      response: [  ],
       responseErrorDetails: undefined,
       followups: undefined,
       isCanceled: false,
