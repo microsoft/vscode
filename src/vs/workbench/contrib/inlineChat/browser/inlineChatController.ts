@@ -238,7 +238,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let widgetPosition: Position;
 		if (initialRender) {
-			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getEndPosition().delta(-1);
+			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getStartPosition().delta(-1);
 			this._zone.value.setContainerMargins();
 			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
