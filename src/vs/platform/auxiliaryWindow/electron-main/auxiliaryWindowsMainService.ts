@@ -9,7 +9,7 @@ import { FileAccess } from 'vs/base/common/network';
 import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { defaultBrowserWindowOptions } from 'vs/platform/windows/electron-main/windows';
+import { defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService {
 
@@ -50,9 +50,6 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 	}
 
 	getLastActiveWindow(): IAuxiliaryWindow | undefined {
-		const windows = Array.from(this.windows.values());
-		const maxLastFocusTime = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
-
-		return windows.find(window => window.lastFocusTime === maxLastFocusTime);
+		return getLastFocused(Array.from(this.windows.values()));
 	}
 }
