@@ -31,6 +31,8 @@ suite('StackTraceHelper', () => {
 			'----> 2     raise Exception\n';
 
 		const formatted = formatStackTrace(stack);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=3\'>Cell In[3]</a>') > 0, formatted);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=3:2\'>2</a>') > 0, formatted);
 		assert.ok(formatted.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, formatted);
 	});
 

@@ -29,13 +29,15 @@ export function formatStackTrace(stack: string) {
 	return cleaned;
 }
 
+const fileRegex = /^File\s+(.+):\d+/;
+const lineNumberRegex = /([ ->]*?)(\d+)(.*)/;
+const cellRegex = /^(Cell\s+In\[(\d+)\])(,\s+line \d+)$/;
+
 function isIpythonStackTrace(stack: string) {
+	// at least one group will point to the Cell within the notebook
 	const cellIdentifier = /^Cell In\[\d+\], line \d+$/gm;
 	return cellIdentifier.test(stack);
 }
-
-const fileRegex = /^File\s+(.+):\d+/;
-const lineNumberRegex = /([ ->]*?)(\d+)(.*)/;
 
 function linkifyStack(stack: string) {
 	const lines = stack.split('\n');
@@ -49,8 +51,12 @@ function linkifyStack(stack: string) {
 		if (fileRegex.test(original)) {
 			const fileMatch = lines[i].match(fileRegex);
 			fileOrCell = fileMatch![1];
-			console.log(`matched file ${fileOrCell}`); // REMOVE
 			continue;
+		} else if (cellRegex.test(original)) {
+			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
+				fileOrCell = `vscode-notebook-cell:?execution=${executionCount}`;
+				return `<a href='${fileOrCell}'>${cellLabel}</a>${suffix}`;
+			});
 		} else if (!fileOrCell || original.trim() === '') {
 			// we don't have a location, so don't linkify anything
 			fileOrCell = undefined;
