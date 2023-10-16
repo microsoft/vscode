@@ -908,92 +908,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		this._setAriaLabel(xterm.raw, this._instanceId, this._title);
 
-		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => {
-			// Disable all input if the terminal is exiting
-			if (this._isExiting) {
-				return false;
-			}
+		xterm.raw.attachCustomKeyEventHandler((event: KeyboardEvent): boolean => this.shouldProcessKeyEvent(event));
 
-			const standardKeyboardEvent = new StandardKeyboardEvent(event);
-			const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-
-			// Respect chords if the allowChords setting is set and it's not Escape. Escape is
-			// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
-			// terminals generally
-			const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
-			if (this._keybindingService.inChordMode || isValidChord) {
-				event.preventDefault();
-				return false;
-			}
-
-			const SHOW_TERMINAL_CONFIG_PROMPT_KEY = 'terminal.integrated.showTerminalConfigPrompt';
-			const EXCLUDED_KEYS = ['RightArrow', 'LeftArrow', 'UpArrow', 'DownArrow', 'Space', 'Meta', 'Control', 'Shift', 'Alt', '', 'Delete', 'Backspace', 'Tab'];
-
-			// only keep track of input if prompt hasn't already been shown
-			if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
-				!EXCLUDED_KEYS.includes(event.key) &&
-				!event.ctrlKey &&
-				!event.shiftKey &&
-				!event.altKey) {
-				this._hasHadInput = true;
-			}
-
-			// for keyboard events that resolve to commands described
-			// within commandsToSkipShell, either alert or skip processing by xterm.js
-			if (resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
-				// don't alert when terminal is opened or closed
-				if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
-					this._hasHadInput &&
-					!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
-					this._notificationService.prompt(
-						Severity.Info,
-						nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),
-						[
-							{
-								label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
-								run: () => {
-									this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
-								}
-							} as IPromptChoice
-						]
-					);
-					this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
-				}
-				event.preventDefault();
-				return false;
-			}
-
-			// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
-			if (this._configHelper.config.allowMnemonics && !isMacintosh && event.altKey) {
-				return false;
-			}
-
-			// If tab focus mode is on, tab is not passed to the terminal
-			if (TabFocus.getTabFocusMode() && event.key === 'Tab') {
-				return false;
-			}
-
-			// Prevent default when shift+tab is being sent to the terminal to avoid it bubbling up
-			// and changing focus https://github.com/microsoft/vscode/issues/188329
-			if (event.key === 'Tab' && event.shiftKey) {
-				event.preventDefault();
-				return true;
-			}
-
-			// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
-			// system
-			if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
-				return false;
-			}
-
-			// Fallback to force ctrl+v to paste on browsers that do not support
-			// navigator.clipboard.readText
-			if (!BrowserFeatures.clipboard.readText && event.key === 'v' && event.ctrlKey) {
-				return false;
-			}
-
-			return true;
-		});
 		this._register(dom.addDisposableListener(xterm.raw.element, 'mousedown', () => {
 			// We need to listen to the mouseup event on the document since the user may release
 			// the mouse button anywhere outside of _xterm.element.
@@ -1051,6 +967,86 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (this.xterm) {
 			this._terminalShellIntegrationEnabledContextKey.set(this.xterm.shellIntegration.status === ShellIntegrationStatus.VSCode);
 		}
+	}
+
+	shouldProcessKeyEvent(event: KeyboardEvent): boolean {
+		// Disable all input if the terminal is exiting
+		if (this._isExiting) {
+			return false;
+		}
+
+		const standardKeyboardEvent = new StandardKeyboardEvent(event);
+		const resolveResult = this._keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+
+		// Respect chords if the allowChords setting is set and it's not Escape. Escape is
+		// handled specially for Zen Mode's Escape, Escape chord, plus it's important in
+		// terminals generally
+		const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded && this._configHelper.config.allowChords && event.key !== 'Escape';
+		if (this._keybindingService.inChordMode || isValidChord) {
+			event.preventDefault();
+			return false;
+		}
+
+		const SHOW_TERMINAL_CONFIG_PROMPT_KEY = 'terminal.integrated.showTerminalConfigPrompt';
+		const EXCLUDED_KEYS = ['RightArrow', 'LeftArrow', 'UpArrow', 'DownArrow', 'Space', 'Meta', 'Control', 'Shift', 'Alt', '', 'Delete', 'Backspace', 'Tab'];
+
+		// only keep track of input if prompt hasn't already been shown
+		if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
+			!EXCLUDED_KEYS.includes(event.key) &&
+			!event.ctrlKey &&
+			!event.shiftKey &&
+			!event.altKey) {
+			this._hasHadInput = true;
+		}
+
+		// for keyboard events that resolve to commands described
+		// within commandsToSkipShell, either alert or skip processing by xterm.js
+		if (resolveResult.kind === ResultKind.KbFound && resolveResult.commandId && this._skipTerminalCommands.some(k => k === resolveResult.commandId) && !this._configHelper.config.sendKeybindingsToShell) {
+			// don't alert when terminal is opened or closed
+			if (this._storageService.getBoolean(SHOW_TERMINAL_CONFIG_PROMPT_KEY, StorageScope.APPLICATION, true) &&
+				this._hasHadInput &&
+				!TERMINAL_CREATION_COMMANDS.includes(resolveResult.commandId)) {
+				this._notificationService.prompt(
+					Severity.Info,
+					nls.localize('keybindingHandling', "Some keybindings don't go to the terminal by default and are handled by {0} instead.", this._productService.nameLong),
+					[
+						{
+							label: nls.localize('configureTerminalSettings', "Configure Terminal Settings"),
+							run: () => {
+								this._preferencesService.openSettings({ jsonEditor: false, query: `@id:${TerminalSettingId.CommandsToSkipShell},${TerminalSettingId.SendKeybindingsToShell},${TerminalSettingId.AllowChords}` });
+							}
+						} as IPromptChoice
+					]
+				);
+				this._storageService.store(SHOW_TERMINAL_CONFIG_PROMPT_KEY, false, StorageScope.APPLICATION, StorageTarget.USER);
+			}
+			event.preventDefault();
+			return false;
+		}
+
+		// Skip processing by xterm.js of keyboard events that match menu bar mnemonics
+		if (this._configHelper.config.allowMnemonics && !isMacintosh && event.altKey) {
+			return false;
+		}
+
+		// If tab focus mode is on, tab is not passed to the terminal
+		if (TabFocus.getTabFocusMode() && event.key === 'Tab') {
+			return false;
+		}
+
+		// Always have alt+F4 skip the terminal on Windows and allow it to be handled by the
+		// system
+		if (isWindows && event.altKey && event.key === 'F4' && !event.ctrlKey) {
+			return false;
+		}
+
+		// Fallback to force ctrl+v to paste on browsers that do not support
+		// navigator.clipboard.readText
+		if (!BrowserFeatures.clipboard.readText && event.key === 'v' && event.ctrlKey) {
+			return false;
+		}
+
+		return true;
 	}
 
 	resetFocusContextKey(): void {
