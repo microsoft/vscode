@@ -112,6 +112,11 @@ echo
 "$INTEGRATION_TEST_ELECTRON_PATH" $LINUX_EXTRA_ARGS $(mktemp -d 2>/dev/null) --extensionDevelopmentPath=$ROOT/extensions/configuration-editing --extensionTestsPath=$ROOT/extensions/configuration-editing/out/test $API_TESTS_EXTRA_ARGS
 kill_app
 
+echo
+echo "### GitHub Authentication tests"
+echo
+yarn test-extension -l github-authentication
+kill_app
 
 # Tests standalone (CommonJS)
 
