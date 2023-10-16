@@ -181,11 +181,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (element.contentUpdateTimings && element.contentUpdateTimings.impliedWordLoadRate) {
+			const minRate = 12;
 			// This doesn't account for dead time after the last update. When the previous update is the final one and the model is only waiting for followupQuestions, that's good.
 			// When there was one quick update and then you are waiting longer for the next one, that's not good since the rate should be decreasing.
 			// If it's an issue, we can change this to be based on the total time from now to the beginning.
 			const rateBoost = 1.5;
-			return element.contentUpdateTimings.impliedWordLoadRate * rateBoost;
+			const rate = element.contentUpdateTimings.impliedWordLoadRate * rateBoost;
+			return Math.max(rate, minRate);
 		}
 
 		return 8;
