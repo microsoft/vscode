@@ -22,21 +22,27 @@ export function formatStackTrace(stack: string) {
 		return `${prefix}${num}${suffix}\n`;
 	});
 
-	if (isIpythonStackTrace(stack)) {
-		return linkifyStack(stack);
+	if (isIpythonStackTrace(cleaned)) {
+		return linkifyStack(cleaned);
 	}
 
 	return cleaned;
 }
 
-const fileRegex = /^File\s+(.+):\d+/;
-const lineNumberRegex = /([ ->]*?)(\d+)(.*)/;
-const cellRegex = /^(Cell\s+In\[(\d+)\])(,\s+line \d+)$/;
+const formatSequence = /\u001b\[.+?m/g;
+const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
+const lineNumberRegex = /((?:\u001b\[.+?m)?[ ->]*?)(\d+)(.*)/;
+const cellRegex = /(Cell\s+(?:\u001b\[.+?m)?In\s*\[(\d+)\])(,\s*line \d+)/;
+// older versions of IPython ~8.3.0
+const inputRegex = /(Input\s+?(?:\u001b\[.+?m)In\s*\[(\d+)\])(.*?)/;
 
 function isIpythonStackTrace(stack: string) {
 	// at least one group will point to the Cell within the notebook
-	const cellIdentifier = /^Cell In\[\d+\], line \d+$/gm;
-	return cellIdentifier.test(stack);
+	return cellRegex.test(stack);
+}
+
+function stripFormatting(text: string) {
+	return text.replace(formatSequence, '');
 }
 
 function linkifyStack(stack: string) {
@@ -50,22 +56,34 @@ function linkifyStack(stack: string) {
 		console.log(`linkify ${original}`); // REMOVE
 		if (fileRegex.test(original)) {
 			const fileMatch = lines[i].match(fileRegex);
-			fileOrCell = fileMatch![1];
+			fileOrCell = stripFormatting(fileMatch![1]);
+			console.log(`matched file ${fileOrCell}`); // REMOVE
 			continue;
 		} else if (cellRegex.test(original)) {
 			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = `vscode-notebook-cell:?execution=${executionCount}`;
-				return `<a href='${fileOrCell}'>${cellLabel}</a>${suffix}`;
+				fileOrCell = `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}`;
+				return `<a href='${fileOrCell}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
+			console.log(`matched cell ${fileOrCell}`); // REMOVE
+			continue;
+		} else if (inputRegex.test(original)) {
+			lines[i] = original.replace(inputRegex, (_s, cellLabel, executionCount, suffix) => {
+				fileOrCell = `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}`;
+				return `<a href='${fileOrCell}'>${stripFormatting(cellLabel)}</a>${suffix}`;
+			});
+			console.log(`matched cell ${fileOrCell}`); // REMOVE
+			continue;
 		} else if (!fileOrCell || original.trim() === '') {
 			// we don't have a location, so don't linkify anything
 			fileOrCell = undefined;
 			continue;
 		} else if (lineNumberRegex.test(original)) {
-			console.log(`linkify line ${original}`); // REMOVE
+
 			lines[i] = original.replace(lineNumberRegex, (_s, prefix, num, suffix) => {
 				return `${prefix}<a href='${fileOrCell}:${num}'>${num}</a>${suffix}`;
 			});
+			console.log(`matched line ${lines[i]}`); // REMOVE
+			continue;
 		}
 	}
 
