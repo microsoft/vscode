@@ -33,6 +33,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -332,6 +333,7 @@ export async function formatDocumentWithProvider(
 	token: CancellationToken
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -393,7 +395,7 @@ export async function formatDocumentWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format);
 	return true;
 }
 
