@@ -477,6 +477,7 @@ export class PaneCompositeBar extends Disposable {
 
 	private onDidPinnedViewContainersStorageValueChange(e: IProfileStorageValueChangeEvent): void {
 		if (this.pinnedViewContainersValue !== this.getStoredPinnedViewContainersValue() /* This checks if current window changed the value or not */) {
+			this._placeholderViewContainersValue = undefined;
 			this._pinnedViewContainersValue = undefined;
 			this._cachedViewContainers = undefined;
 
@@ -489,19 +490,20 @@ export class PaneCompositeBar extends Disposable {
 					name: cachedViewContainer.name,
 					order: cachedViewContainer.order,
 					pinned: cachedViewContainer.pinned,
-					visible: !!compositeItems.find(({ id }) => id === cachedViewContainer.id)
+					visible: cachedViewContainer.visible,
 				});
 			}
 
-			for (let index = 0; index < compositeItems.length; index++) {
-				// Add items currently exists but does not exist in new.
-				if (!newCompositeItems.some(({ id }) => id === compositeItems[index].id)) {
-					const viewContainer = this.viewDescriptorService.getViewContainerById(compositeItems[index].id);
-					newCompositeItems.splice(index, 0, {
-						...compositeItems[index],
-						pinned: true,
-						visible: true,
-						order: viewContainer?.order,
+			for (const viewContainer of this.getViewContainers()) {
+				// Add missing view containers
+				if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
+					const compositeItem = compositeItems.find(({ id }) => id === viewContainer.id);
+					newCompositeItems.push({
+						id: viewContainer.id,
+						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+						order: viewContainer.order,
+						pinned: e.external ? true : compositeItem?.pinned ?? true,
+						visible: e.external ? !this.shouldBeHidden(viewContainer) : compositeItem?.visible ?? true,
 					});
 				}
 			}
