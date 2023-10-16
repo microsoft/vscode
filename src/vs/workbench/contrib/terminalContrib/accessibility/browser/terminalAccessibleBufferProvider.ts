@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
@@ -24,7 +25,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 	private _focusedInstance: ITerminalInstance | undefined;
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
+		private readonly _instance: Pick<ITerminalInstance, 'shouldProcessKeyEvent' | 'sendText' | 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
 		@IModelService _modelService: IModelService,
@@ -48,6 +49,13 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 				this._focusedInstance = _terminalService.activeInstance;
 			}
 		}));
+	}
+
+	onKeyDown(e: IKeyboardEvent): void {
+		if (!this._instance.shouldProcessKeyEvent(e.browserEvent) || !isSingleLetterKey(e.browserEvent)) {
+			return;
+		}
+		this._instance.focus();
 	}
 
 	onClose() {
@@ -115,3 +123,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+
+function isSingleLetterKey(event: KeyboardEvent): boolean {
+	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
