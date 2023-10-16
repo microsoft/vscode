@@ -3,12 +3,80 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover,
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover {
-	animation: none; /* stop the running voice recording animation for showing another codicon to stop */
+/*
+ * Stop the running animation, we only use it as a hint to apply CSS rules.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
+	animation: none;
 }
 
+/*
+ * Clear styles and replace icon to "stop" when hovering over it.
+ */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::before {
 	content: "\ead7"; /* use `debug-stop` icon unicode for hovering over running voice recording */
+	background-color: inherit;
+	border-radius: 0;
+	color: inherit;
+	outline: none;
+}
+
+/*
+ * Remove ::after element to improve "stop" visuals when hovering over it.
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::after,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover::after {
+	display: none;
+}
+
+/*
+ * Show a "microphone" icon when recording is in progress that:
+ * - uses z-index:1 and applies a background color to draw over the glowing animation (below)
+ * - emphasizes activity by drawing with badge colors
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before {
+	content: "\ec12";
+	z-index: 1;
+	border-radius: 50%;
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-activityBarBadge-background);
+	outline: 1px solid var(--vscode-activityBarBadge-background);
+}
+
+/*
+ * Draw an ::after element for the glowing effect over the "microphone" icon that:
+ * - uses badge colors to emphasize activity
+ * - uses a "pulseAnimation" to indicate activity
+ */
+.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after,
+.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::after {
+	content: "";
+	position: absolute;
+	top: 50%;
+	left: 50%;
+	width: 18px;
+	height: 18px;
+	background-color: var(--vscode-activityBarBadge-background);
+	border-radius: 50%;
+	animation: pulseAnimation 1s infinite;
+	transform: translate(-50%, -50%) scale(0);
+	opacity: 0;
+}
+
+@keyframes pulseAnimation {
+	0% {
+		transform: translate(-50%, -50%) scale(1);
+		opacity: 1;
+	}
+	50% {
+		transform: translate(-50%, -50%) scale(1.3);
+		opacity: 0.5;
+	}
+	100% {
+		transform: translate(-50%, -50%) scale(1);
+		opacity: 1;
+	}
 }
