@@ -28,10 +28,14 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+
+export interface IChangePlaceholderEvent {
+	kind: 'changePlaceholder';
 }
 
 export interface IChatViewModel {
@@ -43,6 +47,8 @@ export interface IChatViewModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	setInputPlaceholder(text: string): void;
+	resetInputPlaceholder(): void;
 }
 
 export interface IChatRequestViewModel {
@@ -109,8 +115,19 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
+	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
-		return this._model.inputPlaceholder;
+		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+	}
+
+	setInputPlaceholder(text: string): void {
+		this._inputPlaceholder = text;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
+	}
+
+	resetInputPlaceholder(): void {
+		this._inputPlaceholder = undefined;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
 	get sessionId() {

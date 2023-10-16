@@ -54,6 +54,9 @@ interface IVoiceChatSessionController {
 	focusInput(): void;
 	acceptInput(): void;
 	updateInput(text: string): void;
+
+	setInputPlaceholder(text: string): void;
+	clearInputPlaceholder(): void;
 }
 
 class VoiceChatSessionControllerFactory {
@@ -157,7 +160,9 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: Event.filter(viewsService.onDidChangeViewVisibility, e => e.id === chatContributionService.getViewIdForProvider(chatView.providerId)),
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
-			updateInput: text => chatView.updateInput(text)
+			updateInput: text => chatView.updateInput(text),
+			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
+			clearInputPlaceholder: () => chatView.resetInputPlaceholder()
 		};
 	}
 
@@ -168,7 +173,9 @@ class VoiceChatSessionControllerFactory {
 			onDidCancelInput: quickChatService.onDidClose,
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
-			updateInput: text => quickChat.updateInput(text)
+			updateInput: text => quickChat.updateInput(text),
+			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
+			clearInputPlaceholder: () => quickChat.resetInputPlaceholder()
 		};
 	}
 
@@ -184,7 +191,9 @@ class VoiceChatSessionControllerFactory {
 			),
 			focusInput: () => inlineChat.focus(),
 			acceptInput: () => inlineChat.acceptInput(),
-			updateInput: text => inlineChat.updateInput(text)
+			updateInput: text => inlineChat.updateInput(text),
+			setInputPlaceholder: text => inlineChat.setPlaceholder(text),
+			clearInputPlaceholder: () => inlineChat.resetPlaceholder()
 		};
 	}
 }
@@ -254,7 +263,7 @@ class VoiceChatSessions {
 
 			switch (status) {
 				case SpeechToTextStatus.Started:
-					this.onDidSpeechToTextSessionStart(controller);
+					this.onDidSpeechToTextSessionStart(controller, session.disposables);
 					break;
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
@@ -276,7 +285,7 @@ class VoiceChatSessions {
 		}));
 	}
 
-	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController): void {
+	private onDidSpeechToTextSessionStart(controller: IVoiceChatSessionController, disposables: DisposableStore): void {
 		this.voiceChatGettingReadyKey.set(false);
 		this.voiceChatInProgressKey.set(true);
 
@@ -294,6 +303,17 @@ class VoiceChatSessions {
 				this.voiceChatInEditorInProgressKey.set(true);
 				break;
 		}
+
+		let dotCount = 0;
+
+		const updatePlaceholder = () => {
+			dotCount = (dotCount + 1) % 4;
+			controller.setInputPlaceholder(`${localize('listening', "I'm listening")}${'.'.repeat(dotCount)}`);
+			placeholderScheduler.schedule();
+		};
+
+		const placeholderScheduler = disposables.add(new RunOnceScheduler(updatePlaceholder, 500));
+		updatePlaceholder();
 	}
 
 	stop(voiceChatSessionId = this.voiceChatSessionIds, context?: VoiceChatSessionContext): void {
@@ -304,6 +324,8 @@ class VoiceChatSessions {
 		) {
 			return;
 		}
+
+		this.currentVoiceChatSession.controller.clearInputPlaceholder();
 
 		this.currentVoiceChatSession.disposables.dispose();
 		this.currentVoiceChatSession = undefined;
