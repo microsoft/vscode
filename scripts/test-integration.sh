@@ -36,10 +36,10 @@ echo "Storing log files into '$VSCODELOGSDIR'."
 
 # Tests standalone (AMD)
 
-# echo
-# echo "### node.js integration tests"
-# echo
-# ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
+echo
+echo "### node.js integration tests"
+echo
+./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
 
 # Tests in the extension host
@@ -67,7 +67,7 @@ kill_app
 echo
 echo "### Colorize tests"
 echo
-yarn test-extension -l colorize-tests
+yarn test-extension -l vscode-colorize-tests
 kill_app
 
 echo
