@@ -437,9 +437,9 @@
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content::before {
-	mask-size: 10px;
-	-webkit-mask-size: 10px;
-	top: 4px;
+	mask-size: 12px;
+	-webkit-mask-size: 12px;
+	top: 2px;
 }
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
@@ -448,10 +448,10 @@
 	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
-	min-width: 10px;
+	min-width: 12px;
 	height: 10px;
 	line-height: 10px;
-	padding: 0 4px;
+	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
 }
