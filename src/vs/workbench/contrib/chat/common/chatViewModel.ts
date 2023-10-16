@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -28,10 +28,14 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+
+export interface IChangePlaceholderEvent {
+	kind: 'changePlaceholder';
 }
 
 export interface IChatViewModel {
@@ -43,6 +47,8 @@ export interface IChatViewModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	setInputPlaceholder(text: string): void;
+	resetInputPlaceholder(): void;
 }
 
 export interface IChatRequestViewModel {
@@ -109,8 +115,19 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
+	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
-		return this._model.inputPlaceholder;
+		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+	}
+
+	setInputPlaceholder(text: string): void {
+		this._inputPlaceholder = text;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
+	}
+
+	resetInputPlaceholder(): void {
+		this._inputPlaceholder = undefined;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
 	get sessionId() {
@@ -267,7 +284,14 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get response(): IResponse {
 		if (this._isPlaceholder) {
-			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
+			// TODO@roblourens- this is suspicious. We may want to separate the markdown content from other types of content?
+			const placeholderText = new MarkdownString(localize('thinking', "Thinking") + '\u2026');
+			return {
+				value: [placeholderText],
+				contentReferences: this._model.response.contentReferences,
+				usedContext: this._model.response.usedContext,
+				asString: () => placeholderText.value,
+			};
 		}
 
 		return this._model.response;
@@ -306,7 +330,19 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	currentRenderedHeight: number | undefined;
 
-	usedReferencesExpanded?: boolean | undefined;
+	private _usedReferencesExpanded: boolean | undefined;
+
+	get usedReferencesExpanded(): boolean | undefined {
+		if (typeof this._usedReferencesExpanded === 'boolean') {
+			return this._usedReferencesExpanded;
+		}
+
+		return this.isPlaceholder;
+	}
+
+	set usedReferencesExpanded(v: boolean) {
+		this._usedReferencesExpanded = v;
+	}
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
@@ -331,7 +367,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		}
 
 		this._register(_model.onDidChange(() => {
-			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
+			if (this._isPlaceholder && (_model.response.value.length > 0 || this.isComplete)) {
 				this._isPlaceholder = false;
 			}
 
