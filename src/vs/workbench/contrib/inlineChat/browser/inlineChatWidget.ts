@@ -549,7 +549,7 @@ export class InlineChatWidget {
 			const renderedMarkdown = this._codeBlockDisposables.add(this._markdownRenderer.render(message, {
 				fillInIncompleteTokens: true,
 				codeBlockRendererSync: (languageId, text) => {
-					const codeBlockPart = this._codeBlockDisposables.add(this._instantiationService.createInstance(CodeBlockPart, this._editorOptions, MenuId.InlineChatCodeBlock));
+					const codeBlockPart = this._codeBlockDisposables.add(this._instantiationService.createInstance(CodeBlockPart, this._editorOptions, MenuId.ChatCodeBlock));
 					const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element: undefined };
 					codeBlockPart.render(data, this._elements.message.clientWidth);
 					this._codeBlockDisposables.add(this._onDidChangeLayout.event(() => {
@@ -558,7 +558,7 @@ export class InlineChatWidget {
 					return codeBlockPart.element;
 				}
 			}));
-			textContent = renderedMarkdown.element.textContent || undefined;
+			textContent = renderedMarkdown.element.textContent ?? undefined;
 			if (this._preferredExpansionState) {
 				reset(this._elements.message, renderedMarkdown.element);
 				expansionState = this._preferredExpansionState;
