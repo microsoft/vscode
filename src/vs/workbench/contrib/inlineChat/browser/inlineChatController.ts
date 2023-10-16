@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -730,11 +729,10 @@ export class InlineChatController implements IEditorContribution {
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
+
 			this._zone.value.widget.updateStatus('');
-			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
+			const content = this._zone.value.widget.updateMarkdownMessage(response.raw.message);
 			this._zone.value.widget.updateToolbar(true);
-			const content = renderedMarkdown.element.textContent;
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
 			}
