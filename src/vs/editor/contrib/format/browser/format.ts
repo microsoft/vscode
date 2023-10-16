@@ -33,6 +33,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
 
@@ -310,7 +311,8 @@ export async function formatDocumentWithSelectedProvider(
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
 	progress: IProgress<DocumentFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
@@ -320,7 +322,7 @@ export async function formatDocumentWithSelectedProvider(
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token, userGesture);
 	}
 }
 
@@ -329,9 +331,11 @@ export async function formatDocumentWithProvider(
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -393,7 +397,7 @@ export async function formatDocumentWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
 	return true;
 }
 

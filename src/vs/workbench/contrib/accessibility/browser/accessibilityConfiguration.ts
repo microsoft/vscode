@@ -49,7 +49,8 @@ export const enum AccessibilityVerbositySettingId {
 }
 
 export const enum AccessibilityAlertSettingId {
-	Save = 'accessibility.alert.save'
+	Save = 'accessibility.alert.save',
+	Format = 'accessibility.alert.format'
 }
 
 export const enum AccessibleViewProviderId {
@@ -132,6 +133,18 @@ const configuration: IConfigurationNode = {
 				localize('alert.save.userGesture', "Alerts when a file is saved via user gesture."),
 				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
 				localize('alert.save.never', "Never alerts.")
+			],
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Format]: {
+			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Also see {0}", '`#audioCues.format#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'never',
+			'enumDescriptions': [
+				localize('alert.format.userGesture', "Alerts when a file is formatted via user gesture."),
+				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
+				localize('alert.format.never', "Never alerts.")
 			],
 			tags: ['accessibility']
 		},
