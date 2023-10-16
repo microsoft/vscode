@@ -404,11 +404,16 @@ export function registerChatCodeBlockActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
-				menu: {
+				menu: [{
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					isHiddenByDefault: true,
+					when: CONTEXT_IN_CHAT_SESSION,
+				}, {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: CTX_INLINE_CHAT_VISIBLE,
-				},
+				}],
 				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
