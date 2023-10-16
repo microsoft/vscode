@@ -180,3 +180,19 @@ export function getFocusedOrLastActiveWindow(accessor: ServicesAccessor): ICodeW
 
 	return mainLastActiveWindow ?? auxiliaryLastActiveWindow;
 }
+
+export function getLastFocused(windows: ICodeWindow[]): ICodeWindow | undefined;
+export function getLastFocused(windows: IAuxiliaryWindow[]): IAuxiliaryWindow | undefined;
+export function getLastFocused(windows: ICodeWindow[] | IAuxiliaryWindow[]): ICodeWindow | IAuxiliaryWindow | undefined {
+	let lastFocusedWindow: ICodeWindow | IAuxiliaryWindow | undefined = undefined;
+	let maxLastFocusTime = Number.MIN_VALUE;
+
+	for (const window of windows) {
+		if (window.lastFocusTime > maxLastFocusTime) {
+			maxLastFocusTime = window.lastFocusTime;
+			lastFocusedWindow = window;
+		}
+	}
+
+	return lastFocusedWindow;
+}
