@@ -189,7 +189,7 @@ export class ExtHostChat implements ExtHostChatShape {
 
 		const requestObj: vscode.InteractiveRequest = {
 			session: realSession,
-			message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.to(request.message),
+			message: request.message,
 			variables: {}
 		};
 

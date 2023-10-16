@@ -706,7 +706,9 @@
 		"--vscode-widget-border",
 		"--vscode-widget-shadow",
 		"--vscode-window-activeBorder",
-		"--vscode-window-inactiveBorder"
+		"--vscode-window-inactiveBorder",
+		"--vscode-voiceRecording-background",
+		"--vscode-voiceRecording-dimmedBackground"
 	],
 	"others": [
 		"--background-dark",

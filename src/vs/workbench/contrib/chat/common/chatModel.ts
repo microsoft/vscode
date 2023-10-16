@@ -45,8 +45,6 @@ export interface IResponse {
 	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
 	readonly usedContext: IUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
-	onDidChangeValue: Event<void>;
-	updateContent(responsePart: ResponsePart, quiet?: boolean): void;
 	asString(): string;
 }
 
@@ -92,7 +90,7 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: IParsedChatRequest | IChatReplyFollowup,
+		public readonly message: IParsedChatRequest,
 		private _providerRequestId?: string) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
 	}
@@ -162,16 +160,18 @@ export class Response implements IResponse {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if ('inlineReference' in lastResponsePart || lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart)) {
+			if (lastResponsePart && ('inlineReference' in lastResponsePart || lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart))) {
 				// The last part is resolving or a tree data item, start a new part
 				this._responseParts.push({ string: typeof responsePart === 'string' ? new MarkdownString(responsePart) : responsePart });
-			} else {
+			} else if (lastResponsePart) {
 				// Combine this part with the last, non-resolving string part
 				if (isMarkdownString(responsePart)) {
 					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, responsePart) };
 				} else {
 					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart, lastResponsePart.string) };
 				}
+			} else {
+				this._responseParts.push({ string: isMarkdownString(responsePart) ? responsePart : new MarkdownString(responsePart) });
 			}
 
 			this._updateRepr(quiet);
@@ -200,6 +200,7 @@ export class Response implements IResponse {
 			this._usedContext = responsePart;
 		} else if ('reference' in responsePart) {
 			this._contentReferences.push(responsePart);
+			this._onDidChangeValue.fire();
 		} else if ('inlineReference' in responsePart) {
 			this._responseParts.push(responsePart);
 			this._updateRepr(quiet);
@@ -266,7 +267,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._followups;
 	}
 
-	private _response: IResponse;
+	private _response: Response;
 	public get response(): IResponse {
 		return this._response;
 	}
@@ -521,7 +522,7 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	get title(): string {
 		const firstRequestMessage = firstOrDefault(this._requests)?.message;
-		const message = (firstRequestMessage && 'text' in firstRequestMessage) ? firstRequestMessage.text : firstRequestMessage?.message ?? '';
+		const message = firstRequestMessage?.text ?? '';
 		return message.split('\n')[0].substring(0, 50);
 	}
 
@@ -645,13 +646,13 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._requests;
 	}
 
-	addRequest(message: IParsedChatRequest | IChatReplyFollowup, chatAgent?: IChatAgent): ChatRequestModel {
+	addRequest(message: IParsedChatRequest, chatAgent?: IChatAgent): ChatRequestModel {
 		if (!this._session) {
 			throw new Error('addRequest: No session');
 		}
 
 		const request = new ChatRequestModel(this, message);
-		request.response = new ChatResponseModel(new MarkdownString(''), this, chatAgent);
+		request.response = new ChatResponseModel([], this, chatAgent);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -664,7 +665,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel(new MarkdownString(''), this, undefined);
+			request.response = new ChatResponseModel([], this, undefined);
 		}
 
 		if (request.response.isComplete) {
@@ -709,7 +710,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel(new MarkdownString(''), this, undefined);
+			request.response = new ChatResponseModel([], this, undefined);
 		}
 
 		request.response.setErrorDetails(rawResponse.errorDetails);
@@ -753,7 +754,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					providerRequestId: r.providerRequestId,
-					message: 'text' in r.message ? r.message : r.message.message,
+					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,

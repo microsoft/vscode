@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { Delayer, IntervalTimer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -360,7 +360,6 @@ export class SettingsEditor2 extends EditorPane {
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
-		await timeout(0); // Force setInput to be async
 		if (!this.input) {
 			return;
 		}

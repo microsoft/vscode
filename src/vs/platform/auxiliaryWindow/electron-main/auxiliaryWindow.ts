@@ -15,6 +15,8 @@ export interface IAuxiliaryWindow {
 	readonly id: number;
 	readonly win: BrowserWindow | null;
 
+	readonly lastFocusTime: number;
+
 	focus(options?: { force: boolean }): void;
 }
 
@@ -42,6 +44,9 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		return this.win;
 	}
 
+	private _lastFocusTime = Date.now(); // window is shown on creation so take current time
+	get lastFocusTime(): number { return this._lastFocusTime; }
+
 	constructor(
 		private readonly contents: WebContents,
 		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
@@ -61,11 +66,16 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private registerWindowListeners(window: BrowserWindow): void {
 
-		// Window close
+		// Window Close
 		window.on('closed', () => {
 			this._onDidClose.fire();
 
 			this.dispose();
+		});
+
+		// Window Focus
+		window.on('focus', () => {
+			this._lastFocusTime = Date.now();
 		});
 	}
 }

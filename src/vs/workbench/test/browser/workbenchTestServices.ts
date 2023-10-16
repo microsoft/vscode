@@ -166,7 +166,7 @@ import { IHoverOptions, IHoverService, IHoverWidget } from 'vs/workbench/service
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
-import { TestAccessibleNotificationService } from 'vs/platform/accessibility/browser/accessibleNotificationService';
+import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);

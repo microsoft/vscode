@@ -156,7 +156,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
-	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
+	async acceptInput(query?: string): Promise<void> {
 		const editorValue = this._inputEditor.getValue();
 		if (!query && editorValue) {
 			// Followups and programmatic messages don't go to history

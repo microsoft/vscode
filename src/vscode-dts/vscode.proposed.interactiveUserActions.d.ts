@@ -6,8 +6,8 @@
 declare module 'vscode' {
 
 	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
+		Down = 0,
+		Up = 1
 	}
 
 	export interface InteractiveSessionVoteAction {
