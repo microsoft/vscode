@@ -39,7 +39,7 @@ import { getRemoteAuthority } from 'vs/platform/remote/common/remoteHosts';
 import { IStateService } from 'vs/platform/state/node/state';
 import { IAddFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from 'vs/platform/window/common/window';
 import { CodeWindow } from 'vs/platform/windows/electron-main/windowImpl';
-import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from 'vs/platform/windows/electron-main/windowsFinder';
 import { IWindowState, WindowsStateHandler } from 'vs/platform/windows/electron-main/windowsStateHandler';
 import { IRecent } from 'vs/platform/workspaces/common/workspaces';
@@ -1620,9 +1620,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	}
 
 	private doGetLastActiveWindow(windows: ICodeWindow[]): ICodeWindow | undefined {
-		const maxLastFocusTime = Math.max.apply(Math, windows.map(window => window.lastFocusTime));
-
-		return windows.find(window => window.lastFocusTime === maxLastFocusTime);
+		return getLastFocused(windows);
 	}
 
 	sendToFocused(channel: string, ...args: any[]): void {
