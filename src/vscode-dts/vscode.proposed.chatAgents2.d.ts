@@ -206,14 +206,34 @@ declare module 'vscode' {
 		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
 	}
 
-	export interface ChatAgentFileTreeData {
-		label: string;
-		uri: Uri;
-		children?: ChatAgentFileTreeData[];
+	/**
+	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
+	 */
+	export interface ChatAgentFileTree {
+		/**
+		 * The root node of the tree.
+		 */
+		treeData: ChatAgentFileTreeData;
 	}
 
-	export interface ChatAgentFileTree {
-		treeData: ChatAgentFileTreeData;
+	/**
+	 * Represents a node in a chat response tree.
+	 */
+	export interface ChatAgentFileTreeData {
+		/**
+		 * A human-readable string describing this node.
+		 */
+		label: string;
+
+		/**
+		 * A Uri for this node, opened when it's clicked.
+		 */
+		uri: Uri;
+
+		/**
+		 * The children of this node.
+		 */
+		children?: ChatAgentFileTreeData[];
 	}
 
 	export interface ChatAgentDocumentContext {
@@ -222,6 +242,9 @@ declare module 'vscode' {
 		ranges: Range[];
 	}
 
+	/**
+	 * Document references that should be used by the MappedEditsProvider.
+	 */
 	export interface ChatAgentUsedContext {
 		documents: ChatAgentDocumentContext[];
 	}
