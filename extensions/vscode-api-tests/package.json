@@ -45,7 +45,6 @@
     "tunnels",
     "testCoverage",
     "testObserver",
-    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
