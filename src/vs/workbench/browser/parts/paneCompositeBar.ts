@@ -502,9 +502,9 @@ export class PaneCompositeBar extends Disposable {
 					newCompositeItems.push({
 						id: viewContainer.id,
 						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-						order: viewContainer.order,
-						pinned: e.external ? true : compositeItem?.pinned ?? true,
-						visible: e.external ? !this.shouldBeHidden(viewContainer) : compositeItem?.visible ?? true,
+						order: compositeItem?.order ?? viewContainer.order,
+						pinned: compositeItem?.pinned ?? true,
+						visible: compositeItem?.visible ?? !this.shouldBeHidden(viewContainer),
 					});
 				}
 			}
