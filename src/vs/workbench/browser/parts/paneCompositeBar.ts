@@ -498,14 +498,25 @@ export class PaneCompositeBar extends Disposable {
 			for (const viewContainer of this.getViewContainers()) {
 				// Add missing view containers
 				if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
-					const compositeItem = compositeItems.find(({ id }) => id === viewContainer.id);
-					newCompositeItems.push({
-						id: viewContainer.id,
-						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-						order: viewContainer.order,
-						pinned: e.external ? true : compositeItem?.pinned ?? true,
-						visible: e.external ? !this.shouldBeHidden(viewContainer) : compositeItem?.visible ?? true,
-					});
+					const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
+					if (index !== -1) {
+						const compositeItem = compositeItems[index];
+						newCompositeItems.splice(index, 0, {
+							id: viewContainer.id,
+							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+							order: compositeItem.order,
+							pinned: compositeItem.pinned,
+							visible: compositeItem.visible,
+						});
+					} else {
+						newCompositeItems.push({
+							id: viewContainer.id,
+							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+							order: viewContainer.order,
+							pinned: true,
+							visible: !this.shouldBeHidden(viewContainer),
+						});
+					}
 				}
 			}
 

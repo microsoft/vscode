@@ -12,6 +12,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./list';
 import { IListContextMenuEvent, IListEvent, IListMouseEvent, IListRenderer, IListVirtualDelegate } from './list';
 import { IListAccessibilityProvider, IListOptions, IListOptionsUpdate, IListStyles, List, TypeNavigationMode } from './listWidget';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IPagedRenderer<TElement, TTemplateData> extends IListRenderer<TElement, TTemplateData> {
 	renderPlaceholder(index: number, templateData: TTemplateData): void;
@@ -144,7 +145,7 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.list.getHTMLElement() === document.activeElement;
+		return isActiveElement(this.getHTMLElement());
 	}
 
 	domFocus(): void {

@@ -718,6 +718,22 @@ export function getActiveElement(): Element | null {
 }
 
 /**
+ * Returns whether the active element of the `document` that owns
+ * the `element` is `element`.
+ */
+export function isActiveElement(element: Element): boolean {
+	return element.ownerDocument.activeElement === element;
+}
+
+/**
+ * Returns whether the active element of the `document` that owns
+ * the `ancestor` is contained in `ancestor`.
+ */
+export function isAncestorOfActiveElement(ancestor: Element): boolean {
+	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+}
+
+/**
  * Returns the active document across all child windows.
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
@@ -959,6 +975,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
 			return isAncestor(activeElement, element);
 		} else {
+			const window = element;
 			return isAncestor(window.document.activeElement, window.document);
 		}
 	}
@@ -1209,7 +1226,7 @@ export function domContentLoaded(): Promise<unknown> {
  * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
  * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
  */
-export function computeScreenAwareSize(cssPx: number): number {
+export function computeScreenAwareSize(window: Window, cssPx: number): number {
 	const screenPx = window.devicePixelRatio * cssPx;
 	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }
@@ -1633,7 +1650,11 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => this.registerListeners(window, disposableStore), { window, disposableStore: this._subscriptions }));
+	}
+
+	private registerListeners(window: Window, disposables: DisposableStore): void {
+		disposables.add(addDisposableListener(window, 'keydown', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1670,7 +1691,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+		disposables.add(addDisposableListener(window, 'keyup', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1702,21 +1723,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+		disposables.add(addDisposableListener(window.document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
+		disposables.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}

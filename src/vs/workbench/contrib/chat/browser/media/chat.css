@@ -432,7 +432,7 @@
 
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 3px;
+	border-radius: 4px;
 	padding: 4px;
 }
 

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, isActiveElement } from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -526,7 +526,7 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
-			if (document.activeElement !== this._toolbar.getElement()) {
+			if (!isActiveElement(this._toolbar.getElement())) {
 				this._contextViewService.hideContextView();
 			}
 		}));

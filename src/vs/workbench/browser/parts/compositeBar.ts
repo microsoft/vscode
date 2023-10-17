@@ -683,8 +683,7 @@ class CompositeBarModel {
 	setItems(items: ICompositeBarItem[]): void {
 		this._items = [];
 		this._items = items
-			.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible))
-			.sort((a, b) => (a.order ?? items.length) - (b.order ?? items.length));
+			.map(i => this.createCompositeBarItem(i.id, i.name, i.order, i.pinned, i.visible));
 	}
 
 	get visibleItems(): ICompositeBarModelItem[] {
