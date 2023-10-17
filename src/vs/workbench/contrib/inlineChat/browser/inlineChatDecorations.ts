@@ -97,7 +97,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		}
 		if (gutterIconMode === GutterMode.OnEmptyLine) {
 			const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
-			if (selection.isEmpty() && textAtLine && /^\s*$/g.test(textAtLine)) {
+			if (selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine)) {
 				this.addDecoration(startLineNumber);
 			}
 		}
