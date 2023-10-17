@@ -473,7 +473,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 
 		// If we already have a group element, we can reparent it
 		if (!this._groupElement) {
-			this._groupElement = document.createElement('div');
+			this._groupElement = this._layoutService.container.ownerDocument.createElement('div');
 			this._groupElement.classList.add('terminal-group');
 		}
 
