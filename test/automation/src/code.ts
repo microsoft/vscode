@@ -185,7 +185,7 @@ export class Code {
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
-						await new Promise(resolve => setTimeout(resolve, 500));
+						await this.wait(500);
 					} catch (error) {
 						done = true;
 						resolve();
@@ -242,6 +242,10 @@ export class Code {
 		await this.poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
+	whenWorkbenchRestored(): Promise<void> {
+		return this.driver.whenWorkbenchRestored();
+	}
+
 	getLocaleInfo(): Promise<ILocaleInfo> {
 		return this.driver.getLocaleInfo();
 	}
@@ -252,6 +256,10 @@ export class Code {
 
 	getLogs(): Promise<ILogFile[]> {
 		return this.driver.getLogs();
+	}
+
+	wait(millis: number): Promise<void> {
+		return this.driver.wait(millis);
 	}
 
 	private async poll<T>(
@@ -285,7 +293,7 @@ export class Code {
 				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, retryInterval));
+			await this.wait(retryInterval);
 			trial++;
 		}
 	}

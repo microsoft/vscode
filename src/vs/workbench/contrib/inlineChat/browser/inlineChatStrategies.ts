@@ -41,6 +41,8 @@ export abstract class EditModeStrategy {
 
 	abstract undoChanges(response: EditResponse): Promise<void>;
 
+	abstract renderProgressChanges(): Promise<void>;
+
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
@@ -120,6 +122,10 @@ export class PreviewStrategy extends EditModeStrategy {
 	}
 
 	override async undoChanges(_response: EditResponse): Promise<void> {
+		// nothing to do
+	}
+
+	override async renderProgressChanges(): Promise<void> {
 		// nothing to do
 	}
 
@@ -316,6 +322,10 @@ export class LiveStrategy extends EditModeStrategy {
 		LiveStrategy._undoModelUntil(textModelN, response.modelAltVersionId);
 	}
 
+	override async renderProgressChanges(): Promise<void> {
+		// nothing to do
+	}
+
 	override async renderChanges(response: EditResponse) {
 
 		this._inlineDiffDecorations.update();
@@ -354,7 +364,7 @@ export class LiveStrategy extends EditModeStrategy {
 		const lastTextModelChanges = this._session.lastTextModelChanges;
 		let lastLineOfLocalEdits: number | undefined;
 		for (const change of lastTextModelChanges) {
-			const changeEndLineNumber = change.modifiedRange.endLineNumberExclusive - 1;
+			const changeEndLineNumber = change.modified.endLineNumberExclusive - 1;
 			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
 				lastLineOfLocalEdits = changeEndLineNumber;
 			}
@@ -401,6 +411,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		super.dispose();
 	}
 
+	override async renderProgressChanges(): Promise<void> {
+		if (!this._diffZone.value.isVisible) {
+			this._diffZone.value.show();
+		}
+	}
+
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
@@ -409,7 +425,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value, response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -436,9 +452,9 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override getWidgetPosition(): Position | undefined {
 		if (this._session.lastTextModelChanges.length) {
-			return this._session.wholeRange.value.getEndPosition();
+			return this._session.wholeRange.value.getStartPosition().delta(-1);
 		}
-		return;
+		return this._session.wholeRange.value.getStartPosition().delta(-1);
 	}
 }
 

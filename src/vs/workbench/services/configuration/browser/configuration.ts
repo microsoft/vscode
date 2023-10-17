@@ -259,8 +259,8 @@ class FileServiceBasedConfiguration extends Disposable {
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
 				try {
-					const content = (await this.fileService.readFile(resource)).value.toString();
-					return content;
+					const content = await this.fileService.readFile(resource, { atomic: true });
+					return content.value.toString();
 				} catch (error) {
 					this.logService.trace(`Error while resolving configuration file '${resource.toString()}': ${errors.getErrorMessage(error)}`);
 					if ((<FileOperationError>error).fileOperationResult !== FileOperationResult.FILE_NOT_FOUND
@@ -446,8 +446,8 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	protected readonly _onDidChangeConfiguration: Emitter<ConfigurationModel> = this._register(new Emitter<ConfigurationModel>());
 	readonly onDidChangeConfiguration: Event<ConfigurationModel> = this._onDidChangeConfiguration.event;
 
-	private fileWatcherDisposable: IDisposable = Disposable.None;
-	private directoryWatcherDisposable: IDisposable = Disposable.None;
+	private readonly fileWatcherDisposable = this._register(new MutableDisposable());
+	private readonly directoryWatcherDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly configurationResource: URI,
@@ -469,22 +469,20 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	private watchResource(): void {
-		this.fileWatcherDisposable = this.fileService.watch(this.configurationResource);
+		this.fileWatcherDisposable.value = this.fileService.watch(this.configurationResource);
 	}
 
 	private stopWatchingResource(): void {
-		this.fileWatcherDisposable.dispose();
-		this.fileWatcherDisposable = Disposable.None;
+		this.fileWatcherDisposable.value = undefined;
 	}
 
 	private watchDirectory(): void {
 		const directory = this.uriIdentityService.extUri.dirname(this.configurationResource);
-		this.directoryWatcherDisposable = this.fileService.watch(directory);
+		this.directoryWatcherDisposable.value = this.fileService.watch(directory);
 	}
 
 	private stopWatchingDirectory(): void {
-		this.directoryWatcherDisposable.dispose();
-		this.directoryWatcherDisposable = Disposable.None;
+		this.directoryWatcherDisposable.value = undefined;
 	}
 
 	async initialize(): Promise<ConfigurationModel> {
@@ -494,7 +492,7 @@ class FileServiceBasedRemoteUserConfiguration extends Disposable {
 	}
 
 	async resolveContent(): Promise<string> {
-		const content = await this.fileService.readFile(this.configurationResource);
+		const content = await this.fileService.readFile(this.configurationResource, { atomic: true });
 		return content.value.toString();
 	}
 
@@ -764,7 +762,7 @@ class FileServiceBasedWorkspaceConfiguration extends Disposable {
 	}
 
 	async resolveContent(workspaceIdentifier: IWorkspaceIdentifier): Promise<string> {
-		const content = await this.fileService.readFile(workspaceIdentifier.configPath);
+		const content = await this.fileService.readFile(workspaceIdentifier.configPath, { atomic: true });
 		return content.value.toString();
 	}
 

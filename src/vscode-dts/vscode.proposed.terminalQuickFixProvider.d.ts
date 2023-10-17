@@ -80,9 +80,4 @@ declare module 'vscode' {
 		Top = 0,
 		Bottom = 1
 	}
-
-	enum TerminalQuickFixType {
-		Command = 0,
-		Opener = 1
-	}
 }

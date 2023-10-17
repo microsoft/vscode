@@ -109,6 +109,7 @@ export const getInitializedMainTestCollection = async (singleUse = testStubs.nes
 	const c = new MainThreadTestCollection(async (t, l) => singleUse.expand(t, l));
 	await singleUse.expand(singleUse.root.id, Infinity);
 	c.apply(singleUse.collectDiff());
+	singleUse.dispose();
 	return c;
 };
 

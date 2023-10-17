@@ -798,7 +798,7 @@ class GenericGoToLocationAction extends SymbolNavigationAction {
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.goToLocations',
-	description: {
+	metadata: {
 		description: 'Go to locations from a position in a file',
 		args: [
 			{ name: 'uri', description: 'The text document in which to start', constraint: URI },
@@ -841,7 +841,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'editor.action.peekLocations',
-	description: {
+	metadata: {
 		description: 'Peek locations from a position in a file',
 		args: [
 			{ name: 'uri', description: 'The text document in which to start', constraint: URI },

@@ -13,6 +13,7 @@ import type * as Proto from './protocol/protocol';
 import { TsServerLog, TsServerProcess, TsServerProcessFactory, TsServerProcessKind } from './server';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 type BrowserWatchEvent = {
 	type: 'watchDirectory' | 'watchFile';
@@ -40,16 +41,19 @@ export class WorkerServerProcessFactory implements TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		_configuration: TypeScriptServiceConfiguration,
 		_versionManager: TypeScriptVersionManager,
+		_nodeVersionManager: NodeVersionManager,
 		tsServerLog: TsServerLog | undefined,
 	) {
 		const tsServerPath = version.tsServerPath;
-		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, [
+		const launchArgs = [
 			...args,
-
-			// Explicitly give TS Server its path so it can
-			// load local resources
+			// Explicitly give TS Server its path so it can load local resources
 			'--executingFilePath', tsServerPath,
-		], tsServerLog, this._logger);
+		];
+		if (_configuration.webExperimentalTypeAcquisition) {
+			launchArgs.push('--experimentalTypeAcquisition');
+		}
+		return new WorkerServerProcess(kind, tsServerPath, this._extensionUri, launchArgs, tsServerLog, this._logger);
 	}
 }
 

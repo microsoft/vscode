@@ -52,7 +52,7 @@ class SelectToBracketAction extends EditorAction {
 			label: nls.localize('smartSelect.selectToBracket', "Select to Bracket"),
 			alias: 'Select to Bracket',
 			precondition: undefined,
-			description: {
+			metadata: {
 				description: `Select to Bracket`,
 				args: [{
 					name: 'args',

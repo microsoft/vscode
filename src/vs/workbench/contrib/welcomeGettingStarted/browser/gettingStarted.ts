@@ -1225,11 +1225,12 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.groupsService.contentDimension;
+		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
 
-		if (toSide && fullSize.width > 700) {
+		if (toSide && fullSize && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
-				this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT, { activate: true });
+				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
+				this.groupsService.activateGroup(sideGroup);
 
 				const gettingStartedSize = Math.floor(fullSize.width / 2);
 
@@ -1573,7 +1574,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		const active = document.activeElement;
+		const active = this.container.ownerDocument.activeElement;
 
 		let parent = this.container.parentElement;
 		while (parent && parent !== active) {
@@ -1585,6 +1586,8 @@ export class GettingStartedPage extends EditorPane {
 			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}
+
+		super.focus();
 	}
 }
 

@@ -50,11 +50,11 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 	) {
 		super();
 		this._updateConfig();
-		this._configurationService.onDidChangeConfiguration(e => {
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._updateConfig();
 			}
-		});
+		}));
 		if (isLinux) {
 			if (navigator.userAgent.includes('Ubuntu')) {
 				this._linuxDistro = LinuxDistro.Ubuntu;
@@ -191,15 +191,16 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 		}
 
 		// Get the character dimensions from xterm if it's available
-		if (xtermCore) {
-			if (xtermCore._renderService && xtermCore._renderService.dimensions?.css.cell.width && xtermCore._renderService.dimensions?.css.cell.height) {
+		if (xtermCore?._renderService?._renderer.value) {
+			const cellDims = xtermCore._renderService.dimensions.css.cell;
+			if (cellDims?.width && cellDims?.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xtermCore._renderService.dimensions.css.cell.height / lineHeight,
-					charWidth: xtermCore._renderService.dimensions.css.cell.width - Math.round(letterSpacing) / window.devicePixelRatio
+					charHeight: cellDims.height / lineHeight,
+					charWidth: cellDims.width - Math.round(letterSpacing) / window.devicePixelRatio
 				};
 			}
 		}

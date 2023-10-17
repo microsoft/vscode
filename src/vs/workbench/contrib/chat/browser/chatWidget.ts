@@ -8,7 +8,7 @@ import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tre
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
@@ -20,14 +20,14 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatWidgetViewOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
-import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
@@ -49,14 +49,29 @@ export interface IChatWidgetStyles {
 	resultEditorBackground: string;
 }
 
+export interface IChatWidgetContrib extends IDisposable {
+	readonly id: string;
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
-	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): any }[] = [];
+	public static readonly CONTRIBS: { new(...args: [IChatWidget, ...any]): IChatWidgetContrib }[] = [];
 
 	private _onDidFocus = this._register(new Emitter<void>());
 	readonly onDidFocus = this._onDidFocus.event;
 
 	private _onDidChangeViewModel = this._register(new Emitter<void>());
 	readonly onDidChangeViewModel = this._onDidChangeViewModel.event;
+
+	private _onDidClear = this._register(new Emitter<void>());
+	readonly onDidClear = this._onDidClear.event;
+
+	private _onDidAcceptInput = this._register(new Emitter<void>());
+	readonly onDidAcceptInput = this._onDidAcceptInput.event;
+
+	private _onDidChangeHeight = this._register(new Emitter<number>());
+	readonly onDidChangeHeight = this._onDidChangeHeight.event;
+
+	private contribs: IChatWidgetContrib[] = [];
 
 	private tree!: WorkbenchObjectTree<ChatTreeItem>;
 	private renderer!: ChatListItemRenderer;
@@ -68,9 +83,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private container!: HTMLElement;
 
 	private bodyDimension: dom.Dimension | undefined;
-	private visible = false;
 	private visibleChangeCount = 0;
 	private requestInProgress: IContextKey<boolean>;
+	private _visible = false;
+	public get visible() {
+		return this._visible;
+	}
 
 	private previousTreeScrollHeight: number = 0;
 
@@ -109,6 +127,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
+		private readonly viewOptions: IChatWidgetViewOptions,
 		private readonly styles: IChatWidgetStyles,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -123,6 +142,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.requestInProgress = CONTEXT_CHAT_REQUEST_IN_PROGRESS.bindTo(contextKeyService);
 
 		this._register((chatWidgetService as ChatWidgetService).register(this));
+	}
+
+	get supportsFileReferences(): boolean {
+		return !!this.viewOptions.supportsFileReferences;
 	}
 
 	get providerId(): string {
@@ -146,18 +169,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	render(parent: HTMLElement): void {
 		const viewId = 'viewId' in this.viewContext ? this.viewContext.viewId : undefined;
 		this.editorOptions = this._register(this.instantiationService.createInstance(ChatEditorOptions, viewId, this.styles.listForeground, this.styles.inputEditorBackground, this.styles.resultEditorBackground));
-		const renderInputOnTop = this.viewContext.renderInputOnTop ?? false;
+		const renderInputOnTop = this.viewOptions.renderInputOnTop ?? false;
+		const renderStyle = this.viewOptions.renderStyle;
 
 		this.container = dom.append(parent, $('.interactive-session'));
 		if (renderInputOnTop) {
-			this.createInput(this.container, { renderFollowups: false });
+			this.createInput(this.container, { renderFollowups: false, renderStyle });
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 		} else {
 			this.listContainer = dom.append(this.container, $(`.interactive-list`));
 			this.createInput(this.container);
 		}
 
-		this.createList(this.listContainer);
+		this.createList(this.listContainer, { renderStyle });
 
 		this._register(this.editorOptions.onDidChange(() => this.onDidStyleChange()));
 		this.onDidStyleChange();
@@ -168,11 +192,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			revealLastElement(this.tree);
 		}
 
-		ChatWidget.CONTRIBS.forEach(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+		this.contribs = ChatWidget.CONTRIBS.map(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+	}
+
+	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
+		return this.contribs.find(c => c.id === id) as T;
 	}
 
 	focusInput(): void {
 		this.inputPart.focus();
+	}
+
+	hasInputFocus(): boolean {
+		return this.inputPart.hasFocus();
 	}
 
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void {
@@ -192,8 +224,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.focus(responseItems[indexToFocus]);
 	}
 
-	private onDidChangeItems() {
-		if (this.tree && this.visible) {
+	clear(): void {
+		if (this._dynamicMessageLayoutData) {
+			this._dynamicMessageLayoutData.enabled = true;
+		}
+		this._onDidClear.fire();
+	}
+
+	private onDidChangeItems(skipDynamicLayout?: boolean) {
+		if (this.tree && this._visible) {
 			const treeItems = (this.viewModel?.getItems() ?? [])
 				.map(item => {
 					return <ITreeElement<ChatTreeItem>>{
@@ -208,31 +247,35 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					getId: (element) => {
 						return ((isResponseVM(element) || isRequestVM(element)) ? element.dataId : element.id) +
 							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
-							((isWelcomeVM(element) && !this.viewModel?.isInitialized) ? '_initializing' : '') +
+							((isWelcomeVM(element) && this.viewModel) ? `_${ChatModelInitState[this.viewModel.initState]}` : '') +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
 							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
-							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}`;
+							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
+							// Re-render once content references are loaded
+							(isResponseVM(element) ? `_${element.response.contentReferences.length}` : '');
 					},
 				}
 			});
 
-			if (this._dynamicMessageLayoutData) {
+			if (!skipDynamicLayout && this._dynamicMessageLayoutData) {
 				this.layoutDynamicChatTreeItemMode();
 			}
 
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
-				this.renderFollowups(lastItem.replyFollowups);
+				this.renderFollowups(lastItem.replyFollowups, lastItem);
+			} else if (lastItem && isWelcomeVM(lastItem)) {
+				this.renderFollowups(lastItem.sampleQuestions);
 			} else {
 				this.renderFollowups(undefined);
 			}
 		}
 	}
 
-	private async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
-		this.inputPart.renderFollowups(items);
+	private async renderFollowups(items: IChatReplyFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
+		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -240,7 +283,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	}
 
 	setVisible(visible: boolean): void {
-		this.visible = visible;
+		this._visible = visible;
 		this.visibleChangeCount++;
 		this.renderer.setVisible(visible);
 
@@ -248,8 +291,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._register(disposableTimeout(() => {
 				// Progressive rendering paused while hidden, so start it up again.
 				// Do it after a timeout because the container is not visible yet (it should be but offsetHeight returns 0 here)
-				if (this.visible) {
-					this.onDidChangeItems();
+				if (this._visible) {
+					this.onDidChangeItems(true);
 				}
 			}, 0));
 		}
@@ -270,16 +313,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.slashCommandsPromise;
 	}
 
-	private createList(listContainer: HTMLElement): void {
+	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
 			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
-		this.renderer = this._register(scopedInstantiationService.createInstance(ChatListItemRenderer, this.editorOptions, rendererDelegate));
+		this.renderer = this._register(scopedInstantiationService.createInstance(
+			ChatListItemRenderer,
+			this.editorOptions,
+			options,
+			rendererDelegate
+		));
 		this._register(this.renderer.onDidClickFollowup(item => {
-			this.acceptInput(item);
+			// is this used anymore?
+			this.acceptInput(item.message);
 		}));
 
 		this.tree = <WorkbenchObjectTree<ChatTreeItem>>scopedInstantiationService.createInstance(
@@ -354,12 +403,30 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.previousTreeScrollHeight = this.tree.scrollHeight;
 	}
 
-	private createInput(container: HTMLElement, options?: { renderFollowups: boolean }): void {
-		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart, { renderFollowups: options?.renderFollowups ?? true }));
+	private createInput(container: HTMLElement, options?: { renderFollowups: boolean; renderStyle?: 'default' | 'compact' }): void {
+		this.inputPart = this._register(this.instantiationService.createInstance(ChatInputPart, {
+			renderFollowups: options?.renderFollowups ?? true,
+			renderStyle: options?.renderStyle,
+		}));
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidAcceptFollowup(followup => this.acceptInput(followup)));
+		this._register(this.inputPart.onDidAcceptFollowup(e => {
+			// this.chatService.notifyUserAction
+			if (!this.viewModel) {
+				return;
+			}
+			this.chatService.notifyUserAction({
+				providerId: this.viewModel.providerId,
+				sessionId: this.viewModel.sessionId,
+				agentId: e.response?.agent?.id,
+				action: {
+					kind: 'followUp',
+					followup: e.followup
+				},
+			});
+			this.acceptInput(e.followup.message);
+		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 	}
 
@@ -416,12 +483,26 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.tree.domFocus();
 	}
 
-	async acceptInput(query?: string | IChatReplyFollowup): Promise<void> {
+	setInputPlaceholder(placeholder: string): void {
+		this.viewModel?.setInputPlaceholder(placeholder);
+	}
+
+	resetInputPlaceholder(): void {
+		this.viewModel?.resetInputPlaceholder();
+	}
+
+	updateInput(value = ''): void {
+		this.inputPart.setValue(value);
+	}
+
+	async acceptInput(query?: string): Promise<void> {
 		if (this.viewModel) {
+			this._onDidAcceptInput.fire();
+
 			const editorValue = this.inputPart.inputEditor.getValue();
 			this._chatAccessibilityService.acceptRequest();
 			const input = query ?? editorValue;
-			const usedSlashCommand = this.lookupSlashCommand(typeof input === 'string' ? input : input.message);
+			const usedSlashCommand = this.lookupSlashCommand(input);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
@@ -447,6 +528,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getCodeBlockInfoForEditor(uri: URI): IChatCodeBlockInfo | undefined {
 		return this.renderer.getCodeBlockInfoForEditor(uri);
+	}
+
+	getFileTreeInfosForResponse(response: IChatResponseViewModel): IChatFileTreeInfo[] {
+		return this.renderer.getFileTreeInfosForResponse(response);
+	}
+
+	getLastFocusedFileTreeForResponse(response: IChatResponseViewModel): IChatFileTreeInfo | undefined {
+		return this.renderer.getLastFocusedFileTreeForResponse(response);
 	}
 
 	focusLastMessage(): void {
@@ -481,23 +570,83 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listContainer.style.height = `${height - inputPartHeight}px`;
+
+		this._onDidChangeHeight.fire(height);
 	}
 
-	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number };
+	private _dynamicMessageLayoutData?: { numOfMessages: number; maxHeight: number; enabled: boolean };
 
 	// An alternative to layout, this allows you to specify the number of ChatTreeItems
 	// you want to show, and the max height of the container. It will then layout the
 	// tree to show that many items.
+	// TODO@TylerLeonhardt: This could use some refactoring to make it clear which layout strategy is being used
 	setDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
-		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight };
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
 		this._register(this.renderer.onDidChangeItemHeight(() => this.layoutDynamicChatTreeItemMode()));
+
+		const mutableDisposable = this._register(new MutableDisposable());
+		this._register(this.tree.onDidScroll((e) => {
+			// TODO@TylerLeonhardt this should probably just be disposed when this is disabled
+			// and then set up again when it is enabled again
+			if (!this._dynamicMessageLayoutData?.enabled) {
+				return;
+			}
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
+					return;
+				}
+				const renderHeight = e.height;
+				const diff = e.scrollHeight - renderHeight - e.scrollTop;
+				if (diff === 0) {
+					return;
+				}
+
+				const possibleMaxHeight = (this._dynamicMessageLayoutData?.maxHeight ?? maxHeight);
+				const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
+				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
+				this.layout(newHeight + inputPartHeight, width);
+			});
+		}));
 	}
 
-	layoutDynamicChatTreeItemMode(allowRecurse = true): void {
-		if (!this.viewModel) {
+	updateDynamicChatTreeItemLayout(numOfChatTreeItems: number, maxHeight: number) {
+		this._dynamicMessageLayoutData = { numOfMessages: numOfChatTreeItems, maxHeight, enabled: true };
+		let hasChanged = false;
+		let height = this.bodyDimension!.height;
+		let width = this.bodyDimension!.width;
+		if (maxHeight < this.bodyDimension!.height) {
+			height = maxHeight;
+			hasChanged = true;
+		}
+		const containerWidth = this.container.offsetWidth;
+		if (this.bodyDimension?.width !== containerWidth) {
+			width = containerWidth;
+			hasChanged = true;
+		}
+		if (hasChanged) {
+			this.layout(height, width);
+		}
+	}
+
+	get isDynamicChatTreeItemLayoutEnabled(): boolean {
+		return this._dynamicMessageLayoutData?.enabled ?? false;
+	}
+
+	set isDynamicChatTreeItemLayoutEnabled(value: boolean) {
+		if (!this._dynamicMessageLayoutData) {
 			return;
 		}
-		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, this.container.offsetWidth);
+		this._dynamicMessageLayoutData.enabled = value;
+	}
+
+	layoutDynamicChatTreeItemMode(): void {
+		if (!this.viewModel || !this._dynamicMessageLayoutData?.enabled) {
+			return;
+		}
+
+		const width = this.bodyDimension?.width ?? this.container.offsetWidth;
+		const inputHeight = this.inputPart.layout(this._dynamicMessageLayoutData!.maxHeight, width);
 
 		const totalMessages = this.viewModel.getItems();
 		// grab the last N messages
@@ -510,17 +659,16 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this.layout(
 			Math.min(
-				// we add an additional 25px in order to show that there is scrollable content
-				inputHeight + listHeight + (totalMessages.length > 2 ? 25 : 0),
+				// we add an additional 18px in order to show that there is scrollable content
+				inputHeight + listHeight + (totalMessages.length > 2 ? 18 : 0),
 				this._dynamicMessageLayoutData!.maxHeight
 			),
-			this.container.offsetWidth
+			width
 		);
 
-		if (needsRerender && allowRecurse) {
+		if (needsRerender || !listHeight) {
 			// TODO: figure out a better place to reveal the last element
 			revealLastElement(this.tree);
-			this.layoutDynamicChatTreeItemMode(false);
 		}
 	}
 

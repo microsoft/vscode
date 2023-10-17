@@ -54,7 +54,7 @@
             "%html.completion.attributeDefaultValue.empty%"
           ],
           "default": "doublequotes",
-          "description": "%html.completion.attributeDefaultValue%"
+          "markdownDescription": "%html.completion.attributeDefaultValue%"
         },
         "html.customData": {
           "type": "array",
@@ -258,9 +258,9 @@
     ]
   },
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.7.5",
-    "vscode-languageclient": "^8.2.0-next.1",
-    "vscode-uri": "^3.0.7"
+    "@vscode/extension-telemetry": "^0.8.5",
+    "vscode-languageclient": "^9.0.1",
+    "vscode-uri": "^3.0.8"
   },
   "devDependencies": {
     "@types/node": "18.x"

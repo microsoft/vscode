@@ -12,7 +12,7 @@ import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
 import { FileAccess, Schemas } from 'vs/base/common/network';
@@ -34,6 +34,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 //#region Editor / Resources DND
 
@@ -95,7 +96,7 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	async handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup | undefined, afterDrop: (targetGroup: IEditorGroup | undefined) => void, targetIndex?: number): Promise<void> {
+	async handleDrop(event: DragEvent, resolveTargetGroup?: () => IEditorGroup | undefined, afterDrop?: (targetGroup: IEditorGroup | undefined) => void, options?: IEditorOptions): Promise<void> {
 		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
@@ -122,19 +123,19 @@ export class ResourcesDropHandler {
 		}
 
 		// Open in Editor
-		const targetGroup = resolveTargetGroup();
+		const targetGroup = resolveTargetGroup?.();
 		await this.editorService.openEditors(editors.map(editor => ({
 			...editor,
 			resource: editor.resource,
 			options: {
 				...editor.options,
-				pinned: true,
-				index: targetIndex
+				...options,
+				pinned: true
 			}
 		})), targetGroup, { validateTrust: true });
 
 		// Finish with provided function
-		afterDrop(targetGroup);
+		afterDrop?.(targetGroup);
 	}
 
 	private async handleWorkspaceDrop(resources: URI[]): Promise<boolean> {
@@ -294,8 +295,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 						editor.encoding = textFileModel.getEncoding();
 					}
 
-					// contents (only if dirty)
-					if (typeof editor.contents !== 'string' && textFileModel.isDirty()) {
+					// contents (only if dirty and not too large)
+					if (typeof editor.contents !== 'string' && textFileModel.isDirty() && !textFileModel.textEditorModel.isTooLargeForHeapOperation()) {
 						editor.contents = textFileModel.textEditorModel.getValue();
 					}
 				}
@@ -427,6 +428,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 	static get INSTANCE(): CompositeDragAndDropObserver {
 		if (!CompositeDragAndDropObserver.instance) {
 			CompositeDragAndDropObserver.instance = new CompositeDragAndDropObserver();
+			markAsSingleton(CompositeDragAndDropObserver.instance);
 		}
 
 		return CompositeDragAndDropObserver.instance;
@@ -523,7 +525,7 @@ export class CompositeDragAndDropObserver extends Disposable {
 		if (callbacks.onDragEnd) {
 			this.onDragEnd.event(e => {
 				callbacks.onDragEnd!(e);
-			});
+			}, this, disposableStore);
 		}
 
 		return this._register(disposableStore);
@@ -657,6 +659,8 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 	}
 
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void { }
+
+	dispose(): void { }
 }
 
 //#endregion

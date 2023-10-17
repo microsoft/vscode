@@ -427,7 +427,6 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 
 		promise.then(data => {
 			this.sendResponse(<IRawResponse>{ id, data, type: ResponseType.PromiseSuccess });
-			this.activeRequests.delete(request.id);
 		}, err => {
 			if (err instanceof Error) {
 				this.sendResponse(<IRawResponse>{
@@ -440,7 +439,8 @@ export class ChannelServer<TContext = string> implements IChannelServer<TContext
 			} else {
 				this.sendResponse(<IRawResponse>{ id, data: err, type: ResponseType.PromiseErrorObj });
 			}
-
+		}).finally(() => {
+			disposable.dispose();
 			this.activeRequests.delete(request.id);
 		});
 
@@ -639,7 +639,10 @@ export class ChannelClient implements IChannelClient, IDisposable {
 			this.activeRequests.add(disposable);
 		});
 
-		return result.finally(() => { this.activeRequests.delete(disposable); });
+		return result.finally(() => {
+			disposable.dispose();
+			this.activeRequests.delete(disposable);
+		});
 	}
 
 	private requestEvent(channelName: string, name: string, arg?: any): Event<any> {
@@ -795,6 +798,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	private readonly _onDidRemoveConnection = new Emitter<Connection<TContext>>();
 	readonly onDidRemoveConnection: Event<Connection<TContext>> = this._onDidRemoveConnection.event;
 
+	private readonly disposables = new DisposableStore();
+
 	get connections(): Connection<TContext>[] {
 		const result: Connection<TContext>[] = [];
 		this._connections.forEach(ctx => result.push(ctx));
@@ -802,10 +807,10 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	}
 
 	constructor(onDidClientConnect: Event<ClientConnectionEvent>) {
-		onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
+		this.disposables.add(onDidClientConnect(({ protocol, onDidClientDisconnect }) => {
 			const onFirstMessage = Event.once(protocol.onMessage);
 
-			onFirstMessage(msg => {
+			this.disposables.add(onFirstMessage(msg => {
 				const reader = new BufferReader(msg);
 				const ctx = deserialize(reader) as TContext;
 
@@ -818,14 +823,14 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				this._connections.add(connection);
 				this._onDidAddConnection.fire(connection);
 
-				onDidClientDisconnect(() => {
+				this.disposables.add(onDidClientDisconnect(() => {
 					channelServer.dispose();
 					channelClient.dispose();
 					this._connections.delete(connection);
 					this._onDidRemoveConnection.fire(connection);
-				});
-			});
-		});
+				}));
+			}));
+		}));
 	}
 
 	/**
@@ -879,7 +884,7 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 
 	private getMulticastEvent<T extends IChannel>(channelName: string, clientFilter: (client: Client<TContext>) => boolean, eventName: string, arg: any): Event<T> {
 		const that = this;
-		let disposables = new DisposableStore();
+		let disposables: DisposableStore | undefined;
 
 		// Create an emitter which hooks up to all clients
 		// as soon as first listener is added. It also
@@ -922,7 +927,8 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 				disposables.add(eventMultiplexer);
 			},
 			onDidRemoveLastListener: () => {
-				disposables.dispose();
+				disposables?.dispose();
+				disposables = undefined;
 			}
 		});
 
@@ -932,14 +938,21 @@ export class IPCServer<TContext = string> implements IChannelServer<TContext>, I
 	registerChannel(channelName: string, channel: IServerChannel<TContext>): void {
 		this.channels.set(channelName, channel);
 
-		this._connections.forEach(connection => {
+		for (const connection of this._connections) {
 			connection.channelServer.registerChannel(channelName, channel);
-		});
+		}
 	}
 
 	dispose(): void {
-		this.channels.clear();
+		this.disposables.dispose();
+
+		for (const connection of this._connections) {
+			connection.channelClient.dispose();
+			connection.channelServer.dispose();
+		}
+
 		this._connections.clear();
+		this.channels.clear();
 		this._onDidAddConnection.dispose();
 		this._onDidRemoveConnection.dispose();
 	}
@@ -1074,7 +1087,7 @@ export namespace ProxyChannel {
 
 	export interface ICreateServiceChannelOptions extends IProxyOptions { }
 
-	export function fromService<TContext>(service: unknown, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
+	export function fromService<TContext>(service: unknown, disposables: DisposableStore, options?: ICreateServiceChannelOptions): IServerChannel<TContext> {
 		const handler = service as { [key: string]: unknown };
 		const disableMarshalling = options && options.disableMarshalling;
 
@@ -1083,7 +1096,7 @@ export namespace ProxyChannel {
 		const mapEventNameToEvent = new Map<string, Event<unknown>>();
 		for (const key in handler) {
 			if (propertyIsEvent(key)) {
-				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true));
+				mapEventNameToEvent.set(key, Event.buffer(handler[key] as Event<unknown>, true, undefined, disposables));
 			}
 		}
 
@@ -1116,7 +1129,11 @@ export namespace ProxyChannel {
 						}
 					}
 
-					return target.apply(handler, args);
+					let res = target.apply(handler, args);
+					if (!(res instanceof Promise)) {
+						res = Promise.resolve(res);
+					}
+					return res;
 				}
 
 				throw new ErrorNoTelemetry(`Method not found: ${command}`);

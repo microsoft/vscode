@@ -8,7 +8,11 @@ use base64::{engine::general_purpose as b64, Engine as _};
 use futures::{stream::FuturesUnordered, StreamExt};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
-use std::{str::FromStr, time::Duration};
+use std::{
+	net::{IpAddr, Ipv4Addr, SocketAddr},
+	str::FromStr,
+	time::Duration,
+};
 use sysinfo::Pid;
 use tokio::{
 	io::{AsyncBufReadExt, BufReader},
@@ -35,7 +39,7 @@ use crate::{
 		code_server::CodeServerArgs,
 		create_service_manager,
 		dev_tunnels::{self, DevTunnels},
-		local_forwarding, legal,
+		legal, local_forwarding,
 		paths::get_all_servers,
 		protocol, serve_stream,
 		shutdown_signal::ShutdownRequest,
@@ -47,6 +51,7 @@ use crate::{
 	},
 	util::{
 		app_lock::AppMutex,
+		command::new_std_command,
 		errors::{wrap, AnyError, CodeError},
 		prereqs::PreReqChecker,
 	},
@@ -132,6 +137,11 @@ impl ServiceContainer for TunnelServiceContainer {
 
 pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Result<i32, AnyError> {
 	let platform = PreReqChecker::new().verify().await?;
+	let mut shutdown_reqs = vec![ShutdownRequest::CtrlC];
+	if let Some(p) = args.parent_process_id.and_then(|p| Pid::from_str(&p).ok()) {
+		shutdown_reqs.push(ShutdownRequest::ParentProcessKilled(p));
+	}
+
 	let mut params = ServeStreamParams {
 		log: ctx.log,
 		launcher_paths: ctx.paths,
@@ -140,7 +150,7 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 			.require_token
 			.map(AuthRequired::VSDAWithToken)
 			.unwrap_or(AuthRequired::VSDA),
-		exit_barrier: ShutdownRequest::create_rx([ShutdownRequest::CtrlC]),
+		exit_barrier: ShutdownRequest::create_rx(shutdown_reqs),
 		code_server_args: (&ctx.args).into(),
 	};
 
@@ -157,8 +167,9 @@ pub async fn command_shell(ctx: CommandContext, args: CommandShellArgs) -> Resul
 
 			Box::new(listener)
 		}
-		(true, _) => {
-			let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+		(Some(p), _) => {
+			let addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), p);
+			let listener = tokio::net::TcpListener::bind(addr)
 				.await
 				.map_err(|e| wrap(e, "error listening on port"))?;
 
@@ -326,12 +337,12 @@ pub async fn kill(ctx: CommandContext) -> Result<i32, AnyError> {
 
 #[derive(Serialize)]
 pub struct StatusOutput {
-	pub tunnel: Option<protocol::singleton::TunnelState>,
+	pub tunnel: Option<protocol::singleton::StatusWithTunnelName>,
 	pub service_installed: bool,
 }
 
 pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
-	let tunnel_status = do_single_rpc_call::<_, protocol::singleton::Status>(
+	let tunnel = do_single_rpc_call::<_, protocol::singleton::StatusWithTunnelName>(
 		&ctx.paths.tunnel_lockfile(),
 		ctx.log.clone(),
 		protocol::singleton::METHOD_STATUS,
@@ -347,8 +358,8 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 	ctx.log.result(
 		serde_json::to_string(&StatusOutput {
 			service_installed,
-			tunnel: match tunnel_status {
-				Ok(s) => Some(s.tunnel),
+			tunnel: match tunnel {
+				Ok(s) => Some(s),
 				Err(CodeError::NoRunningTunnel) => None,
 				Err(e) => return Err(e.into()),
 			},
@@ -594,7 +605,7 @@ async fn serve_with_csa(
 				// reuse current args, but specify no-forward since tunnels will
 				// already be running in this process, and we cannot do a login
 				let args = std::env::args().skip(1).collect::<Vec<String>>();
-				let exit = std::process::Command::new(current_exe)
+				let exit = new_std_command(current_exe)
 					.args(args)
 					.spawn()
 					.map_err(|e| wrap(e, "error respawning after update"))?

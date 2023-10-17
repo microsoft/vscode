@@ -41,12 +41,42 @@ export class ElementSizeObserver extends Disposable {
 
 	public startObserving(): void {
 		if (!this._resizeObserver && this._referenceDomElement) {
-			this._resizeObserver = new ResizeObserver((entries) => {
-				if (entries && entries[0] && entries[0].contentRect) {
-					this.observe({ width: entries[0].contentRect.width, height: entries[0].contentRect.height });
+			// We want to react to the resize observer only once per animation frame
+			// The first time the resize observer fires, we will react to it immediately.
+			// Otherwise we will postpone to the next animation frame.
+			// We'll use `observeContentRect` to store the content rect we received.
+
+			let observeContentRect: DOMRectReadOnly | null = null;
+			const observeNow = () => {
+				if (observeContentRect) {
+					this.observe({ width: observeContentRect.width, height: observeContentRect.height });
 				} else {
 					this.observe();
 				}
+			};
+
+			let shouldObserve = false;
+			let alreadyObservedThisAnimationFrame = false;
+
+			const update = () => {
+				if (shouldObserve && !alreadyObservedThisAnimationFrame) {
+					try {
+						shouldObserve = false;
+						alreadyObservedThisAnimationFrame = true;
+						observeNow();
+					} finally {
+						requestAnimationFrame(() => {
+							alreadyObservedThisAnimationFrame = false;
+							update();
+						});
+					}
+				}
+			};
+
+			this._resizeObserver = new ResizeObserver((entries) => {
+				observeContentRect = (entries && entries[0] && entries[0].contentRect ? entries[0].contentRect : null);
+				shouldObserve = true;
+				update();
 			});
 			this._resizeObserver.observe(this._referenceDomElement);
 		}

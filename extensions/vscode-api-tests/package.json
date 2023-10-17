@@ -6,8 +6,11 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "chatAgents2",
+    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
@@ -19,6 +22,8 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
+    "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
     "notebookLiveShare",
@@ -27,6 +32,7 @@
     "portsAttributes",
     "quickPickSortByLabel",
     "readonlyMessage",
+    "languageStatusText",
     "resolvers",
     "saveEditor",
     "scmActionButton",
@@ -37,21 +43,17 @@
     "terminalDataWriteEvent",
     "terminalDimensions",
     "tunnels",
-    "envShellEvent",
     "testCoverage",
     "testObserver",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-    "treeItemCheckbox",
-	"treeViewActiveItem",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
     "windowActivity",
-    "interactiveUserActions",
-    "envCollectionWorkspace",
-    "envCollectionOptions"
+    "interactiveUserActions"
   ],
   "private": true,
   "activationEvents": [],
@@ -163,6 +165,12 @@
             "program": "${workspaceFolder}/file.md"
           }
         ]
+      }
+    ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
       }
     ],
     "notebooks": [

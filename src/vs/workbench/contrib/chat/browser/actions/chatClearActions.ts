@@ -7,13 +7,14 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { clearChatEditor, clearChatSession } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
+import { clearChatEditor } from 'vs/workbench/contrib/chat/browser/actions/chatClear';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
@@ -42,6 +43,7 @@ export function registerClearActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			announceChatCleared(accessor);
 			await clearChatEditor(accessor);
 		}
 	});
@@ -70,7 +72,8 @@ export function registerClearActions() {
 			});
 		}
 
-		async run(accessor: ServicesAccessor, ...args: any[]) {
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			announceChatCleared(accessor);
 			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -78,7 +81,7 @@ export function registerClearActions() {
 				return;
 			}
 
-			await clearChatSession(accessor, widget);
+			widget.clear();
 		}
 	});
 }
@@ -108,7 +111,12 @@ export function getClearAction(viewId: string, providerId: string) {
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+			announceChatCleared(accessor);
 			await view.clear();
 		}
 	};
+}
+
+function announceChatCleared(accessor: ServicesAccessor): void {
+	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
 }

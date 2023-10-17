@@ -24,7 +24,7 @@ import { Localization } from './localization';
 import { Task } from './task';
 
 export interface Commands {
-	runCommand(command: string): Promise<any>;
+	runCommand(command: string, options?: { exactLabelMatch?: boolean }): Promise<any>;
 }
 
 export class Workbench {
@@ -55,7 +55,7 @@ export class Workbench {
 		this.explorer = new Explorer(code);
 		this.activitybar = new ActivityBar(code);
 		this.search = new Search(code);
-		this.extensions = new Extensions(code);
+		this.extensions = new Extensions(code, this.quickaccess);
 		this.editor = new Editor(code, this.quickaccess);
 		this.scm = new SCM(code);
 		this.debug = new Debug(code, this.quickaccess, this.editors, this.editor);

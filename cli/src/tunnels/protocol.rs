@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 #[allow(non_camel_case_types)]
 pub enum ClientRequestMethod<'a> {
 	servermsg(RefServerMessageParams<'a>),
+	serverclose(ServerClosedParams),
 	serverlog(ServerLog<'a>),
 	makehttpreq(HttpRequestParams<'a>),
 	version(VersionResponse),
@@ -87,6 +88,11 @@ pub struct ServerMessageParams {
 	pub i: u16,
 	#[serde(with = "serde_bytes")]
 	pub body: Vec<u8>,
+}
+
+#[derive(Serialize, Debug)]
+pub struct ServerClosedParams {
+	pub i: u16,
 }
 
 #[derive(Serialize, Debug)]
@@ -249,6 +255,7 @@ pub mod forward_singleton {
 
 pub mod singleton {
 	use crate::log;
+	use chrono::{DateTime, Utc};
 	use serde::{Deserialize, Serialize};
 
 	pub const METHOD_RESTART: &str = "restart";
@@ -271,17 +278,41 @@ pub mod singleton {
 		pub message: String,
 	}
 
-	#[derive(Serialize, Deserialize)]
+	#[derive(Serialize, Deserialize, Clone, Default)]
+	pub struct StatusWithTunnelName {
+		pub name: Option<String>,
+		#[serde(flatten)]
+		pub status: Status,
+	}
+
+	#[derive(Serialize, Deserialize, Clone)]
 	pub struct Status {
+		pub started_at: DateTime<Utc>,
 		pub tunnel: TunnelState,
+		pub last_connected_at: Option<DateTime<Utc>>,
+		pub last_disconnected_at: Option<DateTime<Utc>>,
+		pub last_fail_reason: Option<String>,
+	}
+
+	impl Default for Status {
+		fn default() -> Self {
+			Self {
+				started_at: Utc::now(),
+				tunnel: TunnelState::Disconnected,
+				last_connected_at: None,
+				last_disconnected_at: None,
+				last_fail_reason: None,
+			}
+		}
 	}
 
 	#[derive(Deserialize, Serialize, Debug)]
 	pub struct LogReplayFinished {}
 
-	#[derive(Deserialize, Serialize, Debug)]
+	#[derive(Deserialize, Serialize, Debug, Default, Clone)]
 	pub enum TunnelState {
+		#[default]
 		Disconnected,
-		Connected { name: String },
+		Connected,
 	}
 }

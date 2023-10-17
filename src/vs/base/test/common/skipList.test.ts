@@ -91,6 +91,19 @@ suite('SkipList', function () {
 		assertKeys(list, [3, 6, 7, 9, 12, 17, 19, 21, 25]);
 	});
 
+	test('clear ( CPU pegged after some builds #194853)', function () {
+		const list = new SkipList<number, boolean>((a, b) => a - b);
+		list.set(1, true);
+		list.set(2, true);
+		list.set(3, true);
+		assert.strictEqual(list.size, 3);
+		list.clear();
+		assert.strictEqual(list.size, 0);
+		assert.strictEqual(list.get(1), undefined);
+		assert.strictEqual(list.get(2), undefined);
+		assert.strictEqual(list.get(3), undefined);
+	});
+
 	test('capacity max', function () {
 		const list = new SkipList<number, boolean>((a, b) => a - b, 10);
 		list.set(1, true);

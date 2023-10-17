@@ -2,63 +2,41 @@
 # yarn lockfile v1
 
 
-"@microsoft/1ds-core-js@4.0.1", "@microsoft/1ds-core-js@^4.0.1":
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-4.0.1.tgz#6fcf129276c933934d618f7fc3de49613259e3ec"
-  integrity sha512-BcTKhcRixCqLYEo1xVlQofvvZpgey9qmkzxQd1j9bBZS4iQl9IOmGBzlf/vGSITC7VXtEk2NZOlHQN0llAIfSw==
+"@microsoft/1ds-core-js@3.2.13", "@microsoft/1ds-core-js@^3.2.13":
+  version "3.2.13"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-core-js/-/1ds-core-js-3.2.13.tgz#0c105ed75091bae3f1555c0334704fa9911c58fb"
+  integrity sha512-CluYTRWcEk0ObG5EWFNWhs87e2qchJUn0p2D21ZUa3PWojPZfPSBs4//WIE0MYV8Qg1Hdif2ZTwlM7TbYUjfAg==
   dependencies:
-    "@microsoft/applicationinsights-core-js" "3.0.2"
-    "@microsoft/applicationinsights-shims" "^3.0.1"
-    "@microsoft/dynamicproto-js" "^2.0.2"
-    "@nevware21/ts-async" ">= 0.2.4 < 2.x"
-    "@nevware21/ts-utils" ">= 0.9.6 < 2.x"
+    "@microsoft/applicationinsights-core-js" "2.8.15"
+    "@microsoft/applicationinsights-shims" "^2.0.2"
+    "@microsoft/dynamicproto-js" "^1.1.7"
 
-"@microsoft/1ds-post-js@^4.0.1":
-  version "4.0.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-4.0.1.tgz#8630927d10518067686104baec98557b74317e4e"
-  integrity sha512-uyYkG9mxzzj/4HgxVJsgcz9abfakW+Rjrsnor/hXS5I5ezE3YUX+54DLvAh/c6mEgoDI7u8wGkGl3HgCtAYbDQ==
+"@microsoft/1ds-post-js@^3.2.13":
+  version "3.2.13"
+  resolved "https://registry.yarnpkg.com/@microsoft/1ds-post-js/-/1ds-post-js-3.2.13.tgz#560aacac8a92fdbb79e8c2ebcb293d56e19f51aa"
+  integrity sha512-HgS574fdD19Bo2vPguyznL4eDw7Pcm1cVNpvbvBLWiW3x4e1FCQ3VMXChWnAxCae8Hb0XqlA2sz332ZobBavTA==
   dependencies:
-    "@microsoft/1ds-core-js" "4.0.1"
-    "@microsoft/applicationinsights-shims" "^3.0.1"
-    "@microsoft/dynamicproto-js" "^2.0.2"
-    "@nevware21/ts-async" ">= 0.2.4 < 2.x"
-    "@nevware21/ts-utils" ">= 0.9.6 < 2.x"
+    "@microsoft/1ds-core-js" "3.2.13"
+    "@microsoft/applicationinsights-shims" "^2.0.2"
+    "@microsoft/dynamicproto-js" "^1.1.7"
 
-"@microsoft/applicationinsights-core-js@3.0.2":
-  version "3.0.2"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-3.0.2.tgz#108e20df8c162bec92b1f66f9de2530a25d9f51a"
-  integrity sha512-WQhVhzlRlLDrQzn3OShCW/pL3BW5WC57t0oywSknX3q7lMzI3jDg7Ihh0iuIcNTzGCTbDkuqr4d6IjEDWIMtJQ==
+"@microsoft/applicationinsights-core-js@2.8.15":
+  version "2.8.15"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-core-js/-/applicationinsights-core-js-2.8.15.tgz#8fa466474260e01967fe649f14dd9e5ff91dcdc8"
+  integrity sha512-yYAs9MyjGr2YijQdUSN9mVgT1ijI1FPMgcffpaPmYbHAVbQmF7bXudrBWHxmLzJlwl5rfep+Zgjli2e67lwUqQ==
   dependencies:
-    "@microsoft/applicationinsights-shims" "3.0.1"
-    "@microsoft/dynamicproto-js" "^2.0.2"
-    "@nevware21/ts-async" ">= 0.2.4 < 2.x"
-    "@nevware21/ts-utils" ">= 0.9.5 < 2.x"
+    "@microsoft/applicationinsights-shims" "2.0.2"
+    "@microsoft/dynamicproto-js" "^1.1.9"
 
-"@microsoft/applicationinsights-shims@3.0.1", "@microsoft/applicationinsights-shims@^3.0.1":
-  version "3.0.1"
-  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-3.0.1.tgz#3865b73ace8405b9c4618cc5c571f2fe3876f06f"
-  integrity sha512-DKwboF47H1nb33rSUfjqI6ryX29v+2QWcTrRvcQDA32AZr5Ilkr7whOOSsD1aBzwqX0RJEIP1Z81jfE3NBm/Lg==
-  dependencies:
-    "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
-
-"@microsoft/dynamicproto-js@^2.0.2":
+"@microsoft/applicationinsights-shims@2.0.2", "@microsoft/applicationinsights-shims@^2.0.2":
   version "2.0.2"
-  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-2.0.2.tgz#e57fbec2e7067d48b7e8e1e1c1d354028ef718a6"
-  integrity sha512-MB8trWaFREpmb037k/d0bB7T2BP7Ai24w1e1tbz3ASLB0/lwphsq3Nq8S9I5AsI5vs4zAQT+SB5nC5/dLYTiOg==
-  dependencies:
-    "@nevware21/ts-utils" ">= 0.9.4 < 2.x"
+  resolved "https://registry.yarnpkg.com/@microsoft/applicationinsights-shims/-/applicationinsights-shims-2.0.2.tgz#92b36a09375e2d9cb2b4203383b05772be837085"
+  integrity sha512-PoHEgsnmcqruLNHZ/amACqdJ6YYQpED0KSRe6J7gIJTtpZC1FfFU9b1fmDKDKtFoUSrPzEh1qzO3kmRZP0betg==
 
-"@nevware21/ts-async@>= 0.2.4 < 2.x":
-  version "0.2.6"
-  resolved "https://registry.yarnpkg.com/@nevware21/ts-async/-/ts-async-0.2.6.tgz#9fad1c4a56b01430b407d454817f68bb6ace92b0"
-  integrity sha512-NCUqEZSbsy7LVtKlUScd/eTst6djkWauLlzoIPVKCOxalEBdO8lrgNRIm4Xy68JNudNN5faqa2WA12X8m0BVhA==
-  dependencies:
-    "@nevware21/ts-utils" ">= 0.9.7 < 2.x"
-
-"@nevware21/ts-utils@>= 0.9.4 < 2.x", "@nevware21/ts-utils@>= 0.9.5 < 2.x", "@nevware21/ts-utils@>= 0.9.6 < 2.x", "@nevware21/ts-utils@>= 0.9.7 < 2.x":
-  version "0.9.8"
-  resolved "https://registry.yarnpkg.com/@nevware21/ts-utils/-/ts-utils-0.9.8.tgz#6db23211a5c7539d3b4362e273087effcfc7d2f8"
-  integrity sha512-kZ8s8hcn9jPVX/M7kSsBYrOGlHjqLahmxrG7QeKTk5paeVwfgKdvVCjj5Acb4UGb/ukU1G34U1Z3eb7bbVanyA==
+"@microsoft/dynamicproto-js@^1.1.7", "@microsoft/dynamicproto-js@^1.1.9":
+  version "1.1.9"
+  resolved "https://registry.yarnpkg.com/@microsoft/dynamicproto-js/-/dynamicproto-js-1.1.9.tgz#7437db7aa061162ee94e4131b69a62b8dad5dea6"
+  integrity sha512-n1VPsljTSkthsAFYdiWfC+DKzK2WwcRp83Y1YAqdX552BstvsDjft9YXppjUzp11BPsapDoO1LDgrDB0XVsfNQ==
 
 "@vscode/iconv-lite-umd@0.7.0":
   version "0.7.0"
@@ -90,32 +68,32 @@ vscode-textmate@9.0.0:
   resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-9.0.0.tgz#313c6c8792b0507aef35aeb81b6b370b37c44d6c"
   integrity sha512-Cl65diFGxz7gpwbav10HqiY/eVYTO1sjQpmRmV991Bj7wAoOAjGQ97PpQcXorDE2Uc4hnGWLY17xme+5t6MlSg==
 
-xterm-addon-canvas@0.5.0-beta.8:
-  version "0.5.0-beta.8"
-  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.5.0-beta.8.tgz#243d1161cc68441a1d531f25e9c4f1d6b3cbe79d"
-  integrity sha512-gCqoqFqfc4N8YZLlj3U5+247r3pjLc9ERRHpuBWSJF2GF623LLk4aSjexnEE0M1b7rIDa3xSKo5limHQXx2mWg==
+xterm-addon-canvas@0.6.0-beta.31:
+  version "0.6.0-beta.31"
+  resolved "https://registry.yarnpkg.com/xterm-addon-canvas/-/xterm-addon-canvas-0.6.0-beta.31.tgz#04ebde31c5e01b2595b966a2861deaec9927e1cb"
+  integrity sha512-/Dz90IF5FQqzAitKi3k/JEyyRMhSuQG8PVtB2NwOlWUcE3Ukp6gJMFdkyfOOt0Lx/8oyWR7xoDgKY3bxbzpkGQ==
 
-xterm-addon-image@0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.5.0.tgz#3c9bb332a3de55ab200dbefd3411e3b0d985314f"
-  integrity sha512-bWXUBeDzhisYh0clVKx4JgQrZjpn+/QRMRwNsfnRpjCMhgmZ+SL3Bivktd7q03O4uKMMcAOe6bSmppwP9/um0Q==
+xterm-addon-image@0.6.0-beta.21:
+  version "0.6.0-beta.21"
+  resolved "https://registry.yarnpkg.com/xterm-addon-image/-/xterm-addon-image-0.6.0-beta.21.tgz#e3708bc504c56a23ff31f12a2eeb335331a92aac"
+  integrity sha512-8/PTaXVPa4kQ0xzVeuZZk10OpbZBj2cgfwhM2B0ChSPvwrk0lX+ksnXdtDKH3tg+JYvo7fIhNXtkr4NwWt7VJQ==
 
-xterm-addon-search@0.13.0-beta.4:
-  version "0.13.0-beta.4"
-  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.13.0-beta.4.tgz#a9817600cc0a71dee524d0f025e88e013f87f14a"
-  integrity sha512-A9Ps7iqGVUSphLCVrGYrfua1ADjtm9ff5CLs8cpiZnMK45X1FTIrXxEWvFccoiwtmZINEDJPGvbfIIqu8ZkXyg==
+xterm-addon-search@0.14.0-beta.30:
+  version "0.14.0-beta.30"
+  resolved "https://registry.yarnpkg.com/xterm-addon-search/-/xterm-addon-search-0.14.0-beta.30.tgz#a84321ded127ab13a0bdbf901d2524900330f6ea"
+  integrity sha512-e5qb68lmpxQ1cG4oJKq9NC61oV2xGynRyruB2luerGeXPhqkGj9RSDeOqgCWbnQNTfBmkROzrn02MeJAsoqvGQ==
 
-xterm-addon-unicode11@0.5.0:
-  version "0.5.0"
-  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.5.0.tgz#41c0d96acc1e3bb6c6596eee64e163b6bca74be7"
-  integrity sha512-Jm4/g4QiTxiKiTbYICQgC791ubhIZyoIwxAIgOW8z8HWFNY+lwk+dwaKEaEeGBfM48Vk8fklsUW9u/PlenYEBg==
+xterm-addon-unicode11@0.7.0-beta.30:
+  version "0.7.0-beta.30"
+  resolved "https://registry.yarnpkg.com/xterm-addon-unicode11/-/xterm-addon-unicode11-0.7.0-beta.30.tgz#2de2c412d41823f31b66f68c7d8d0fb9e1a66cd3"
+  integrity sha512-pLSSBxwCOD5aShGnk6VveLHpjDwEDrIci2WnVcuWIbPaqHkB16d6l17jJ50843TaW66k1Np3ZCpDteOoC0Z6Kw==
 
-xterm-addon-webgl@0.16.0-beta.7:
-  version "0.16.0-beta.7"
-  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.16.0-beta.7.tgz#d9febd140e2020e05c39e66214dae685769144ed"
-  integrity sha512-g657v/ah5JSjeTnHL3myCxiqPx0cA1J70kWXCqP4rsb1nPPlXtbq69cH5AsV/mNN5jnXjd6vHPa7CWt3ptOSgQ==
+xterm-addon-webgl@0.17.0-beta.30:
+  version "0.17.0-beta.30"
+  resolved "https://registry.yarnpkg.com/xterm-addon-webgl/-/xterm-addon-webgl-0.17.0-beta.30.tgz#e4d7b18eb8f2b0be6ee8bf35185e91b33570e67f"
+  integrity sha512-SjdfIOmx9xunom2Bk//iQ2DoqYlvAsunEWD3nxdED0oYYf1SPlKxt3I47YHWVshacw6QPZEJHVXJ6K+kHlel/Q==
 
-xterm@5.3.0-beta.28:
-  version "5.3.0-beta.28"
-  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.3.0-beta.28.tgz#1a5176fa6d9f424913a85dd0371d7384d2f882db"
-  integrity sha512-WA7aX2nE+ptxU4EConXGf0vKwkRisaXNt8ExEw/MRnfDudpZo2J30raJ2SQV2n/xWCGoeVIE5njYmR/hhiGOQA==
+xterm@5.4.0-beta.31:
+  version "5.4.0-beta.31"
+  resolved "https://registry.yarnpkg.com/xterm/-/xterm-5.4.0-beta.31.tgz#598f66cfa49609d4e4935fbaf00aadff8e23d174"
+  integrity sha512-lAuiiWxxU8s0UaDwuJZupoBOtb9bY5ouBkOufnfpLK05ACm0046TPxs3bg05jPUI8y5y/qLgKqK0L5TxAiZ8WA==

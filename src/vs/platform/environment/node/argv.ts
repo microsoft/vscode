@@ -44,6 +44,8 @@ export type OptionDescriptions<T> = {
 	Subcommand<T[P]>
 };
 
+export const NATIVE_CLI_COMMANDS = ['tunnel', 'serve-web'] as const;
+
 export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'tunnel': {
 		type: 'subcommand',
@@ -66,6 +68,15 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 			}
 		}
 	},
+	'serve-web': {
+		type: 'subcommand',
+		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		options: {
+			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
+			'disable-telemetry': { type: 'boolean' },
+			'telemetry-level': { type: 'string' },
+		}
+	},
 
 	'diff': { type: 'boolean', cat: 'o', alias: 'd', args: ['file', 'file'], description: localize('diff', "Compare two files with each other.") },
 	'merge': { type: 'boolean', cat: 'o', alias: 'm', args: ['path1', 'path2', 'base', 'result'], description: localize('merge', "Perform a three-way merge by providing paths for two modified versions of a file, the common origin of both modified versions and the output file to save merge results.") },
@@ -77,7 +88,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'waitMarkerFilePath': { type: 'string' },
 	'locale': { type: 'string', cat: 'o', args: 'locale', description: localize('locale', "The locale to use (e.g. en-US or zh-TW).") },
 	'user-data-dir': { type: 'string', cat: 'o', args: 'dir', description: localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code.") },
-	'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created. A folder or workspace must be provided for the profile to take effect.") },
+	'profile': { type: 'string', 'cat': 'o', args: 'profileName', description: localize('profileName', "Opens the provided folder or workspace with the given profile and associates the profile with the workspace. If the profile does not exist, a new empty one is created.") },
 	'help': { type: 'boolean', cat: 'o', alias: 'h', description: localize('help', "Print usage.") },
 
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
@@ -138,7 +149,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'skip-welcome': { type: 'boolean' },
 	'disable-telemetry': { type: 'boolean' },
 	'disable-updates': { type: 'boolean' },
-	'disable-keytar': { type: 'boolean' },
+	'use-inmemory-secretstorage': { type: 'boolean', deprecates: ['disable-keytar'] },
 	'password-store': { type: 'string' },
 	'disable-workspace-trust': { type: 'boolean' },
 	'disable-crash-reporter': { type: 'boolean' },

@@ -8,7 +8,6 @@
 		"resolveJsonModule": true,
 		"outDir": "../out/vs",
 		"types": [
-			"keytar",
 			"mocha",
 			"semver",
 			"sinon",

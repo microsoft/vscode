@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
-import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShape, ITerminalDimensionsDto, ITerminalLinkDto, ExtHostTerminalIdentifier, ICommandDto, ITerminalQuickFixOpenerDto, ITerminalQuickFixExecuteTerminalCommandDto, TerminalCommandMatchResultDto, ITerminalCommandDto } from 'vs/workbench/api/common/extHost.protocol';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
@@ -24,8 +24,9 @@ import { ThemeColor } from 'vs/base/common/themables';
 import { Promises } from 'vs/base/common/async';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { TerminalQuickFix, ViewColumn } from 'vs/workbench/api/common/extHostTypeConverters';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
+import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
 
 export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, IDisposable {
 
@@ -34,13 +35,14 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	activeTerminal: vscode.Terminal | undefined;
 	terminals: vscode.Terminal[];
 
-	onDidCloseTerminal: Event<vscode.Terminal>;
-	onDidOpenTerminal: Event<vscode.Terminal>;
-	onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
-	onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
-	onDidChangeTerminalState: Event<vscode.Terminal>;
-	onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
-	onDidChangeShell: Event<string>;
+	readonly onDidCloseTerminal: Event<vscode.Terminal>;
+	readonly onDidOpenTerminal: Event<vscode.Terminal>;
+	readonly onDidChangeActiveTerminal: Event<vscode.Terminal | undefined>;
+	readonly onDidChangeTerminalDimensions: Event<vscode.TerminalDimensionsChangeEvent>;
+	readonly onDidChangeTerminalState: Event<vscode.Terminal>;
+	readonly onDidWriteTerminalData: Event<vscode.TerminalDataWriteEvent>;
+	readonly onDidExecuteTerminalCommand: Event<vscode.TerminalExecutedCommand>;
+	readonly onDidChangeShell: Event<string>;
 
 	createTerminal(name?: string, shellPath?: string, shellArgs?: readonly string[] | string): vscode.Terminal;
 	createTerminalFromOptions(options: vscode.TerminalOptions, internalOptions?: ITerminalInternalOptions): vscode.Terminal;
@@ -51,8 +53,13 @@ export interface IExtHostTerminalService extends ExtHostTerminalServiceShape, ID
 	registerLinkProvider(provider: vscode.TerminalLinkProvider): vscode.Disposable;
 	registerProfileProvider(extension: IExtensionDescription, id: string, provider: vscode.TerminalProfileProvider): vscode.Disposable;
 	registerTerminalQuickFixProvider(id: string, extensionId: string, provider: vscode.TerminalQuickFixProvider): vscode.Disposable;
-	getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
+	getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection;
 }
+
+interface IEnvironmentVariableCollection extends vscode.EnvironmentVariableCollection {
+	getScoped(scope: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection;
+}
+
 export interface ITerminalInternalOptions {
 	isFeatureTerminal?: boolean;
 	useShellEnvironment?: boolean;
@@ -388,10 +395,19 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	readonly onDidChangeTerminalDimensions = this._onDidChangeTerminalDimensions.event;
 	protected readonly _onDidChangeTerminalState = new Emitter<vscode.Terminal>();
 	readonly onDidChangeTerminalState = this._onDidChangeTerminalState.event;
-	protected readonly _onDidWriteTerminalData: Emitter<vscode.TerminalDataWriteEvent>;
-	get onDidWriteTerminalData(): Event<vscode.TerminalDataWriteEvent> { return this._onDidWriteTerminalData.event; }
 	protected readonly _onDidChangeShell = new Emitter<string>();
 	readonly onDidChangeShell = this._onDidChangeShell.event;
+
+	protected readonly _onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
+		onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
+		onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
+	});
+	readonly onDidWriteTerminalData = this._onDidWriteTerminalData.event;
+	protected readonly _onDidExecuteCommand = new Emitter<vscode.TerminalExecutedCommand>({
+		onWillAddFirstListener: () => this._proxy.$startSendingCommandEvents(),
+		onDidRemoveLastListener: () => this._proxy.$stopSendingCommandEvents()
+	});
+	readonly onDidExecuteTerminalCommand = this._onDidExecuteCommand.event;
 
 	constructor(
 		supportsProcesses: boolean,
@@ -401,11 +417,32 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		super();
 		this._proxy = extHostRpc.getProxy(MainContext.MainThreadTerminalService);
 		this._bufferer = new TerminalDataBufferer(this._proxy.$sendProcessData);
-		this._onDidWriteTerminalData = new Emitter<vscode.TerminalDataWriteEvent>({
-			onWillAddFirstListener: () => this._proxy.$startSendingDataEvents(),
-			onDidRemoveLastListener: () => this._proxy.$stopSendingDataEvents()
-		});
 		this._proxy.$registerProcessSupport(supportsProcesses);
+		this._extHostCommands.registerArgumentProcessor({
+			processArgument: arg => {
+				const deserialize = (arg: any) => {
+					const cast = arg as ISerializedTerminalInstanceContext;
+					return this._getTerminalById(cast.instanceId)?.value;
+				};
+				switch (arg?.$mid) {
+					case MarshalledId.TerminalContext: return deserialize(arg);
+					default: {
+						// Do array transformation in place as this is a hot path
+						if (Array.isArray(arg)) {
+							for (let i = 0; i < arg.length; i++) {
+								if (arg[i].$mid === MarshalledId.TerminalContext) {
+									arg[i] = deserialize(arg[i]);
+								} else {
+									// Probably something else, so exit early
+									break;
+								}
+							}
+						}
+						return arg;
+					}
+				}
+			}
+		});
 		this._register({
 			dispose: () => {
 				for (const [_, terminalProcess] of this._terminalProcesses) {
@@ -501,6 +538,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 					dimensions: terminal.value.dimensions as vscode.TerminalDimensions
 				});
 			}
+		}
+	}
+
+	public async $acceptDidExecuteCommand(id: number, command: ITerminalCommandDto): Promise<void> {
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			this._onDidExecuteCommand.fire({ terminal: terminal.value, ...command });
 		}
 	}
 
@@ -850,13 +894,13 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 		return index;
 	}
 
-	public getEnvironmentVariableCollection(extension: IExtensionDescription, scope?: vscode.EnvironmentVariableScope): vscode.EnvironmentVariableCollection {
+	public getEnvironmentVariableCollection(extension: IExtensionDescription): IEnvironmentVariableCollection {
 		let collection = this._environmentVariableCollections.get(extension.identifier.value);
 		if (!collection) {
-			collection = new UnifiedEnvironmentVariableCollection(extension);
+			collection = new UnifiedEnvironmentVariableCollection();
 			this._setEnvironmentVariableCollection(extension.identifier.value, collection);
 		}
-		return collection.getScopedEnvironmentVariableCollection(scope);
+		return collection.getScopedEnvironmentVariableCollection(undefined);
 	}
 
 	private _syncEnvironmentVariableCollection(extensionIdentifier: string, collection: UnifiedEnvironmentVariableCollection): void {
@@ -868,7 +912,7 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 	public $initEnvironmentVariableCollections(collections: [string, ISerializableEnvironmentVariableCollection][]): void {
 		collections.forEach(entry => {
 			const extensionIdentifier = entry[0];
-			const collection = new UnifiedEnvironmentVariableCollection(undefined, entry[1]);
+			const collection = new UnifiedEnvironmentVariableCollection(entry[1]);
 			this._setEnvironmentVariableCollection(extensionIdentifier, collection);
 		});
 	}
@@ -913,21 +957,12 @@ class UnifiedEnvironmentVariableCollection {
 	get onDidChangeCollection(): Event<void> { return this._onDidChangeCollection && this._onDidChangeCollection.event; }
 
 	constructor(
-		// HACK: Only check proposed options if extension is set (when the collection is not
-		// restored by serialization). This saves us from getting the extension details and
-		// shouldn't ever happen since you can only set them initially via the proposed check.
-		// TODO: This should be removed when the env var extension API(s) are stabilized
-		private readonly _extension: IExtensionDescription | undefined,
 		serialized?: ISerializableEnvironmentVariableCollection
 	) {
 		this.map = new Map(serialized);
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): vscode.EnvironmentVariableCollection {
-		if (this._extension && scope) {
-			// TODO: This should be removed when the env var extension API(s) are stabilized
-			checkProposedApiEnabled(this._extension, 'envCollectionWorkspace');
-		}
+	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined): IEnvironmentVariableCollection {
 		const scopedCollectionKey = this.getScopeKey(scope);
 		let scopedCollection = this.scopedCollections.get(scopedCollectionKey);
 		if (!scopedCollection) {
@@ -939,24 +974,15 @@ class UnifiedEnvironmentVariableCollection {
 	}
 
 	replace(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Replace, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	append(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Append, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	prepend(variable: string, value: string, options: vscode.EnvironmentVariableMutatorOptions | undefined, scope: vscode.EnvironmentVariableScope | undefined): void {
-		if (this._extension && options) {
-			checkProposedApiEnabled(this._extension, 'envCollectionOptions');
-		}
-		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? {}, scope });
+		this._setIfDiffers(variable, { value, type: EnvironmentVariableMutatorType.Prepend, options: options ?? { applyAtProcessCreation: true }, scope });
 	}
 
 	private _setIfDiffers(variable: string, mutator: vscode.EnvironmentVariableMutator & { scope: vscode.EnvironmentVariableScope | undefined }): void {
@@ -965,22 +991,25 @@ class UnifiedEnvironmentVariableCollection {
 		}
 		const key = this.getKey(variable, mutator.scope);
 		const current = this.map.get(key);
+		const newOptions = mutator.options ? {
+			applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? false,
+			applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
+		} : {
+			applyAtProcessCreation: true
+		};
 		if (
 			!current ||
 			current.value !== mutator.value ||
 			current.type !== mutator.type ||
-			current.options?.applyAtProcessCreation !== (mutator.options.applyAtProcessCreation ?? true) ||
-			current.options?.applyAtShellIntegration !== (mutator.options.applyAtShellIntegration ?? false) ||
+			current.options?.applyAtProcessCreation !== newOptions.applyAtProcessCreation ||
+			current.options?.applyAtShellIntegration !== newOptions.applyAtShellIntegration ||
 			current.scope?.workspaceFolder?.index !== mutator.scope?.workspaceFolder?.index
 		) {
 			const key = this.getKey(variable, mutator.scope);
 			const value: IEnvironmentVariableMutator = {
 				variable,
 				...mutator,
-				options: {
-					applyAtProcessCreation: mutator.options.applyAtProcessCreation ?? true,
-					applyAtShellIntegration: mutator.options.applyAtShellIntegration ?? false,
-				}
+				options: newOptions
 			};
 			this.map.set(key, value);
 			this._onDidChangeCollection.fire();
@@ -1066,7 +1095,7 @@ class UnifiedEnvironmentVariableCollection {
 	}
 }
 
-class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableCollection {
+class ScopedEnvironmentVariableCollection implements IEnvironmentVariableCollection {
 	public get persistent(): boolean { return this.collection.persistent; }
 	public set persistent(value: boolean) {
 		this.collection.persistent = value;
@@ -1081,7 +1110,7 @@ class ScopedEnvironmentVariableCollection implements vscode.EnvironmentVariableC
 	) {
 	}
 
-	getScopedEnvironmentVariableCollection(scope: vscode.EnvironmentVariableScope | undefined) {
+	getScoped(scope: vscode.EnvironmentVariableScope | undefined) {
 		return this.collection.getScopedEnvironmentVariableCollection(scope);
 	}
 

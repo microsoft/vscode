@@ -9,5 +9,6 @@ export const enum AccessibilityCommandId {
 	DisableVerbosityHint = 'editor.action.accessibleViewDisableHint',
 	GoToSymbol = 'editor.action.accessibleViewGoToSymbol',
 	ShowNext = 'editor.action.accessibleViewNext',
-	ShowPrevious = 'editor.action.accessibleViewPrevious'
+	ShowPrevious = 'editor.action.accessibleViewPrevious',
+	AccessibleViewAcceptInlineCompletion = 'editor.action.accessibleViewAcceptInlineCompletion'
 }

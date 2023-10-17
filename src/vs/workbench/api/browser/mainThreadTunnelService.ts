@@ -19,8 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { forwardedPortsViewEnabled } from 'vs/workbench/contrib/remote/browser/tunnelView';
-import { CandidatePort, TunnelCloseReason, TunnelSource, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
+import { CandidatePort, TunnelCloseReason, TunnelSource, forwardedPortsViewEnabled, makeAddress } from 'vs/workbench/services/remote/common/tunnelModel';
 
 @extHostNamedCustomer(MainContext.MainThreadTunnelService)
 export class MainThreadTunnelService extends Disposable implements MainThreadTunnelServiceShape, PortAttributesProvider {
@@ -110,19 +109,19 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 			},
 			elevateIfNeeded: false
 		});
-		if (tunnel) {
-			if (!this.elevateionRetry
-				&& (tunnelOptions.localAddressPort !== undefined)
-				&& (tunnel.tunnelLocalPort !== undefined)
-				&& this.tunnelService.isPortPrivileged(tunnelOptions.localAddressPort)
-				&& (tunnel.tunnelLocalPort !== tunnelOptions.localAddressPort)
-				&& this.tunnelService.canElevate) {
-
-				this.elevationPrompt(tunnelOptions, tunnel, source);
-			}
-			return TunnelDtoConverter.fromServiceTunnel(tunnel);
+		if (!tunnel || (typeof tunnel === 'string')) {
+			return undefined;
 		}
-		return undefined;
+		if (!this.elevateionRetry
+			&& (tunnelOptions.localAddressPort !== undefined)
+			&& (tunnel.tunnelLocalPort !== undefined)
+			&& this.tunnelService.isPortPrivileged(tunnelOptions.localAddressPort)
+			&& (tunnel.tunnelLocalPort !== tunnelOptions.localAddressPort)
+			&& this.tunnelService.canElevate) {
+
+			this.elevationPrompt(tunnelOptions, tunnel, source);
+		}
+		return TunnelDtoConverter.fromServiceTunnel(tunnel);
 	}
 
 	private async elevationPrompt(tunnelOptions: TunnelOptions, tunnel: RemoteTunnel, source: string) {
@@ -171,11 +170,15 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 		const tunnelProvider: ITunnelProvider = {
 			forwardPort: (tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions) => {
 				const forward = this._proxy.$forwardPort(tunnelOptions, tunnelCreationOptions);
-				return forward.then(tunnel => {
-					this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
-					if (!tunnel) {
+				return forward.then(tunnelOrError => {
+					if (!tunnelOrError) {
 						return undefined;
+					} else if (typeof tunnelOrError === 'string') {
+						return tunnelOrError;
 					}
+					const tunnel = tunnelOrError;
+					this.logService.trace(`ForwardedPorts: (MainThreadTunnelService) New tunnel established by tunnel provider: ${tunnel?.remoteAddress.host}:${tunnel?.remoteAddress.port}`);
+
 					return {
 						tunnelRemotePort: tunnel.remoteAddress.port,
 						tunnelRemoteHost: tunnel.remoteAddress.host,
@@ -192,10 +195,10 @@ export class MainThreadTunnelService extends Disposable implements MainThreadTun
 				});
 			}
 		};
-		this.tunnelService.setTunnelProvider(tunnelProvider);
 		if (features) {
 			this.tunnelService.setTunnelFeatures(features);
 		}
+		this.tunnelService.setTunnelProvider(tunnelProvider);
 		// At this point we clearly want the ports view/features since we have a tunnel factory
 		this.contextKeyService.createKey(forwardedPortsViewEnabled.key, true);
 	}

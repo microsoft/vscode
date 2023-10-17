@@ -934,11 +934,11 @@ export class HistoryService extends Disposable implements IHistoryService {
 			// We want to seed history from opened editors
 			// too as well as previous stored state, so we
 			// need to wait for the editor groups being ready
-			if (this.editorGroupService.isReady) {
+			if (this.editorGroupService.mainPart.isReady) {
 				this.loadHistory();
 			} else {
 				(async () => {
-					await this.editorGroupService.whenReady;
+					await this.editorGroupService.mainPart.whenReady;
 
 					this.loadHistory();
 				})();
@@ -1115,6 +1115,20 @@ export class HistoryService extends Disposable implements IHistoryService {
 	}
 
 	//#endregion
+
+	override dispose(): void {
+		super.dispose();
+
+		for (const [, stack] of this.editorGroupScopedNavigationStacks) {
+			stack.disposable.dispose();
+		}
+
+		for (const [, editors] of this.editorScopedNavigationStacks) {
+			for (const [, stack] of editors) {
+				stack.disposable.dispose();
+			}
+		}
+	}
 }
 
 registerSingleton(IHistoryService, HistoryService, InstantiationType.Eager);

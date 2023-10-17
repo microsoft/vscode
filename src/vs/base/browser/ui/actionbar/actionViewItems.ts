@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, append, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventHelper, EventLike, EventType } from 'vs/base/browser/dom';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
@@ -283,18 +283,20 @@ export class ActionViewItem extends BaseActionViewItem {
 
 	override render(container: HTMLElement): void {
 		super.render(container);
+		types.assertType(this.element);
 
-		if (this.element) {
-			this.label = append(this.element, $('a.action-label'));
-		}
+		const label = document.createElement('a');
+		label.classList.add('action-label');
+		label.setAttribute('role', this.getDefaultAriaRole());
 
-		if (this.label) {
-			this.label.setAttribute('role', this.getDefaultAriaRole());
+		this.label = label;
+		this.element.appendChild(label);
 
-		}
-
-		if (this.options.label && this.options.keybinding && this.element) {
-			append(this.element, $('span.keybinding')).textContent = this.options.keybinding;
+		if (this.options.label && this.options.keybinding) {
+			const kbLabel = document.createElement('span');
+			kbLabel.classList.add('keybinding');
+			kbLabel.textContent = this.options.keybinding;
+			this.element.appendChild(kbLabel);
 		}
 
 		this.updateClass();

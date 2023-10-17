@@ -64,6 +64,8 @@ export interface IWorkspaceFolderTaskResult extends IWorkspaceTaskResult {
 export interface ITaskService {
 	readonly _serviceBrand: undefined;
 	onDidStateChange: Event<ITaskEvent>;
+	isReconnected: boolean;
+	onDidReconnectToTasks: Event<void>;
 	supportsMultipleTaskExecutions: boolean;
 
 	configureAction(): Action;

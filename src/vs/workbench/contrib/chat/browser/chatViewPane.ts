@@ -91,6 +91,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			this._widget = this._register(scopedInstantiationService.createInstance(
 				ChatWidget,
 				{ viewId: this.id },
+				{ supportsFileReferences: true },
 				{
 					listForeground: SIDE_BAR_FOREGROUND,
 					listBackground: this.getBackgroundColor(),
@@ -100,6 +101,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			this._register(this.onDidChangeBodyVisibility(visible => {
 				this._widget.setVisible(visible);
 			}));
+			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
 
 			let sessionId: string | undefined;
@@ -167,5 +169,3 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		super.saveState();
 	}
 }
-
-

@@ -129,7 +129,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
-		super(editor, { keepEditorSelection: true });
+		super(editor, { keepEditorSelection: true, isAccessible: true });
 		this._contextKeyService = contextKeyService.createScoped(this.domNode);
 
 		this._scopedInstantiationService = instantiationService.createChild(new ServiceCollection(
@@ -141,8 +141,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
-		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._initialCollapsibleState = _pendingComment ? languages.CommentThreadCollapsibleState.Expanded : _commentThread.initialCollapsibleState;
+		_commentThread.initialCollapsibleState = this._initialCollapsibleState;
+		this._isExpanded = this._initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -195,6 +196,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 					scrollTop = this.editor.getTopForLineNumber(this._commentThread.range.startLineNumber) - height / 2 + commentCoords.top - commentThreadCoords.top;
 				}
 				this.editor.setScrollTop(scrollTop);
+				if (focus) {
+					this._commentThreadWidget.focus();
+				}
 				return;
 			}
 		}
@@ -212,11 +216,18 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 		};
 	}
 
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expand();
+		this._commentThreadWidget.setPendingComment(comment);
+	}
+
 	protected _fillContainer(container: HTMLElement): void {
 		this.setCssClass('review-widget');
 		this._commentThreadWidget = this._scopedInstantiationService.createInstance(
 			CommentThreadWidget,
 			container,
+			this.editor,
 			this._owner,
 			this.editor.getModel()!.uri,
 			this._contextKeyService,
@@ -227,7 +238,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			{ editor: this.editor, codeBlockFontSize: '', codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily },
 			this._commentOptions,
 			{
-				actionRunner: () => {
+				actionRunner: async () => {
 					if (!this._commentThread.comments || !this._commentThread.comments.length) {
 						const newPosition = this.getPosition();
 
@@ -246,7 +257,7 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 							} else {
 								range = new Range(originalRange.startLineNumber, originalRange.startColumn, originalRange.endLineNumber, originalRange.endColumn);
 							}
-							this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
+							await this.commentService.updateCommentThreadTemplate(this.owner, this._commentThread.commentThreadHandle, range);
 						}
 					}
 				},
@@ -463,8 +474,17 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 	}
 
 	override show(rangeOrPos: IRange | IPosition | undefined, heightInLines: number): void {
+		const glyphPosition = this._commentGlyph?.getPosition();
+		let range = Range.isIRange(rangeOrPos) ? rangeOrPos : (rangeOrPos ? Range.fromPositions(rangeOrPos) : undefined);
+		if (glyphPosition?.position && range && glyphPosition.position.lineNumber !== range.endLineNumber) {
+			// The widget could have moved as a result of editor changes.
+			// We need to try to calculate the new, more correct, range for the comment.
+			const distance = glyphPosition.position.lineNumber - range.endLineNumber;
+			range = new Range(range.startLineNumber + distance, range.startColumn, range.endLineNumber + distance, range.endColumn);
+		}
+
 		this._isExpanded = true;
-		super.show(rangeOrPos ?? new Range(0, 0, 0, 0), heightInLines);
+		super.show(range ?? new Range(0, 0, 0, 0), heightInLines);
 		this._commentThread.collapsibleState = languages.CommentThreadCollapsibleState.Expanded;
 		this._refresh(this._commentThreadWidget.getDimensions());
 	}

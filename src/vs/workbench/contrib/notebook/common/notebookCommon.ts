@@ -15,7 +15,7 @@ import { basename } from 'vs/base/common/path';
 import { isWindows } from 'vs/base/common/platform';
 import { ISplice } from 'vs/base/common/sequence';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Command, WorkspaceEditMetadata } from 'vs/editor/common/languages';
 import { IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -214,10 +214,15 @@ export interface ICellOutput {
 	outputs: IOutputItemDto[];
 	metadata?: Record<string, any>;
 	outputId: string;
+	/**
+	 * Alternative output id that's reused when the output is updated.
+	 */
+	alternativeOutputId: string;
 	onDidChangeData: Event<void>;
 	replaceData(items: IOutputDto): void;
 	appendData(items: IOutputItemDto[]): void;
 	appendedSinceVersion(versionId: number, mime: string): VSBuffer | undefined;
+	asDto(): IOutputDto;
 	bumpVersion(): void;
 }
 
@@ -775,6 +780,7 @@ export interface ICellEditorViewState {
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
+export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
 
 export interface INotebookLoadOptions {
 	/**
@@ -956,7 +962,10 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
-	remoteSaving: 'notebook.experimental.remoteSave'
+	remoteSaving: 'notebook.experimental.remoteSave',
+	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
+	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell'
 } as const;
 
 export const enum CellStatusbarAlignment {

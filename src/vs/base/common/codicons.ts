@@ -324,7 +324,7 @@ export const Codicon = {
 	note: register('note', 0xeb26),
 	octoface: register('octoface', 0xeb27),
 	openPreview: register('open-preview', 0xeb28),
-	package_: register('package', 0xeb29),
+	package: register('package', 0xeb29),
 	paintcan: register('paintcan', 0xeb2a),
 	pin: register('pin', 0xeb2b),
 	play: register('play', 0xeb2c),
@@ -567,6 +567,7 @@ export const Codicon = {
 	send: register('send', 0xec0f),
 	sparkle: register('sparkle', 0xec10),
 	insert: register('insert', 0xec11),
+	mic: register('mic', 0xec12),
 
 
 	// derived icons, that could become separate icons

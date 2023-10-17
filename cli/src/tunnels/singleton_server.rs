@@ -11,7 +11,7 @@ use std::{
 use super::{
 	code_server::CodeServerArgs,
 	control_server::ServerTermination,
-	dev_tunnels::ActiveTunnel,
+	dev_tunnels::{ActiveTunnel, StatusLock},
 	protocol,
 	shutdown_signal::{ShutdownRequest, ShutdownSignal},
 };
@@ -48,18 +48,28 @@ pub struct SingletonServerArgs<'a> {
 	pub log_broadcast: &'a BroadcastLogSink,
 }
 
+struct StatusInfo {
+	name: String,
+	lock: StatusLock,
+}
+
 #[derive(Clone)]
 struct SingletonServerContext {
 	log: log::Logger,
 	shutdown_tx: broadcast::Sender<ShutdownSignal>,
 	broadcast_tx: broadcast::Sender<Vec<u8>>,
-	current_name: Arc<Mutex<Option<String>>>,
+	// ugly: a lock in a lock. current_status needs to be provided only
+	// after we set up the tunnel, however the tunnel is created after the
+	// singleton server starts to avoid a gap in singleton availability.
+	// However, this should be safe, as the lock is only used for immediate
+	// data reads (in the `status` method).
+	current_status: Arc<Mutex<Option<StatusInfo>>>,
 }
 
 pub struct RpcServer {
 	fut: JoinHandle<Result<(), CodeError>>,
 	shutdown_broadcast: broadcast::Sender<ShutdownSignal>,
-	current_name: Arc<Mutex<Option<String>>>,
+	current_status: Arc<Mutex<Option<StatusInfo>>>,
 }
 
 pub fn make_singleton_server(
@@ -71,12 +81,12 @@ pub fn make_singleton_server(
 	let (shutdown_broadcast, _) = broadcast::channel(4);
 	let rpc = new_json_rpc();
 
-	let current_name = Arc::new(Mutex::new(None));
+	let current_status = Arc::new(Mutex::default());
 	let mut rpc = rpc.methods(SingletonServerContext {
 		log: log.clone(),
 		shutdown_tx: shutdown_broadcast.clone(),
 		broadcast_tx: log_broadcast.get_brocaster(),
-		current_name: current_name.clone(),
+		current_status: current_status.clone(),
 	});
 
 	rpc.register_sync(
@@ -91,12 +101,15 @@ pub fn make_singleton_server(
 	rpc.register_sync(
 		protocol::singleton::METHOD_STATUS,
 		|_: protocol::EmptyObject, c| {
-			Ok(protocol::singleton::Status {
-				tunnel: match c.current_name.lock().unwrap().clone() {
-					Some(name) => protocol::singleton::TunnelState::Connected { name },
-					None => protocol::singleton::TunnelState::Disconnected,
-				},
-			})
+			Ok(c.current_status
+				.lock()
+				.unwrap()
+				.as_ref()
+				.map(|s| protocol::singleton::StatusWithTunnelName {
+					name: Some(s.name.clone()),
+					status: s.lock.read(),
+				})
+				.unwrap_or_default())
 		},
 	);
 
@@ -124,7 +137,7 @@ pub fn make_singleton_server(
 	});
 	RpcServer {
 		shutdown_broadcast,
-		current_name,
+		current_status,
 		fut,
 	}
 }
@@ -139,8 +152,11 @@ pub async fn start_singleton_server<'a>(
 
 	{
 		print_listening(&args.log, &args.tunnel.name);
-		let mut name = args.server.current_name.lock().unwrap();
-		*name = Some(args.tunnel.name.clone())
+		let mut status = args.server.current_status.lock().unwrap();
+		*status = Some(StatusInfo {
+			name: args.tunnel.name.clone(),
+			lock: args.tunnel.status(),
+		})
 	}
 
 	let serve_fut = super::serve(

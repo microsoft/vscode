@@ -7,6 +7,7 @@ import * as assert from 'assert';
 import { tmpdir } from 'os';
 import { join } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IRecentFolder, IRecentlyOpened, IRecentWorkspace, isRecentFolder, restoreRecentlyOpened, toStoreData } from 'vs/platform/workspaces/common/workspaces';
@@ -143,4 +144,6 @@ suite('History Storage', () => {
 
 		assertEqualRecentlyOpened(windowsState, expected, 'v1_33');
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -16,7 +16,7 @@ import { timeout } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { memoize } from 'vs/base/common/decorators';
 import { Emitter, Event, EventBufferer } from 'vs/base/common/event';
-import { matchesPrefix } from 'vs/base/common/filters';
+import { matchesFuzzy2, matchesPrefix } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -293,12 +293,15 @@ class KeyboardController<T> implements IDisposable {
 
 	private readonly disposables = new DisposableStore();
 	private readonly multipleSelectionDisposables = new DisposableStore();
+	private multipleSelectionSupport: boolean | undefined;
 
 	@memoize
-	private get onKeyDown(): Event.IChainableEvent<StandardKeyboardEvent> {
-		return this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event)
-			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e)));
+	private get onKeyDown(): Event<StandardKeyboardEvent> {
+		return Event.chain(
+			this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event, $ =>
+			$.filter(e => !isInputElement(e.target as HTMLElement))
+				.map(e => new StandardKeyboardEvent(e))
+		);
 	}
 
 	constructor(
@@ -306,25 +309,32 @@ class KeyboardController<T> implements IDisposable {
 		private view: IListView<T>,
 		options: IListOptions<T>
 	) {
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
-		this.onKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(this.onEscape, this, this.disposables);
-
-		if (options.multipleSelectionSupport !== false) {
-			this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KeyA).on(this.onCtrlA, this, this.multipleSelectionDisposables);
-		}
+		this.multipleSelectionSupport = options.multipleSelectionSupport;
+		this.disposables.add(this.onKeyDown(e => {
+			switch (e.keyCode) {
+				case KeyCode.Enter:
+					return this.onEnter(e);
+				case KeyCode.UpArrow:
+					return this.onUpArrow(e);
+				case KeyCode.DownArrow:
+					return this.onDownArrow(e);
+				case KeyCode.PageUp:
+					return this.onPageUpArrow(e);
+				case KeyCode.PageDown:
+					return this.onPageDownArrow(e);
+				case KeyCode.Escape:
+					return this.onEscape(e);
+				case KeyCode.KeyA:
+					if (this.multipleSelectionSupport && (platform.isMacintosh ? e.metaKey : e.ctrlKey)) {
+						this.onCtrlA(e);
+					}
+			}
+		}));
 	}
 
 	updateOptions(optionsUpdate: IListOptionsUpdate): void {
 		if (optionsUpdate.multipleSelectionSupport !== undefined) {
-			this.multipleSelectionDisposables.clear();
-
-			if (optionsUpdate.multipleSelectionSupport) {
-				this.onKeyDown.filter(e => (platform.isMacintosh ? e.metaKey : e.ctrlKey) && e.keyCode === KeyCode.KeyA).on(this.onCtrlA, this, this.multipleSelectionDisposables);
-			}
+			this.multipleSelectionSupport = optionsUpdate.multipleSelectionSupport;
 		}
 	}
 
@@ -464,15 +474,15 @@ class TypeNavigationController<T> implements IDisposable {
 
 		let typing = false;
 
-		const onChar = this.enabledDisposables.add(Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
-			.filter(e => !isInputElement(e.target as HTMLElement))
-			.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
-			.map(event => new StandardKeyboardEvent(event))
-			.filter(e => typing || this.keyboardNavigationEventFilter(e))
-			.filter(e => this.delegate.mightProducePrintableCharacter(e))
-			.forEach(e => EventHelper.stop(e, true))
-			.map(event => event.browserEvent.key)
-			.event;
+		const onChar = Event.chain(this.enabledDisposables.add(new DomEmitter(this.view.domNode, 'keydown')).event, $ =>
+			$.filter(e => !isInputElement(e.target as HTMLElement))
+				.filter(() => this.mode === TypeNavigationMode.Automatic || this.triggered)
+				.map(event => new StandardKeyboardEvent(event))
+				.filter(e => typing || this.keyboardNavigationEventFilter(e))
+				.filter(e => this.delegate.mightProducePrintableCharacter(e))
+				.forEach(e => EventHelper.stop(e, true))
+				.map(event => event.browserEvent.key)
+		);
 
 		const onClear = Event.debounce<string, null>(onChar, () => null, 800, undefined, undefined, undefined, this.enabledDisposables);
 		const onInput = Event.reduce<string | null, string | null>(Event.any(onChar, onClear), (r, i) => i === null ? null : ((r || '') + i), undefined, this.enabledDisposables);
@@ -527,7 +537,31 @@ class TypeNavigationController<T> implements IDisposable {
 			const label = this.keyboardNavigationLabelProvider.getKeyboardNavigationLabel(this.view.element(index));
 			const labelStr = label && label.toString();
 
-			if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
+			if (this.list.options.typeNavigationEnabled) {
+				if (typeof labelStr !== 'undefined') {
+
+					// If prefix is found, focus and return early
+					if (matchesPrefix(word, labelStr)) {
+						this.previouslyFocused = start;
+						this.list.setFocus([index]);
+						this.list.reveal(index);
+						return;
+					}
+
+					const fuzzy = matchesFuzzy2(word, labelStr);
+
+					if (fuzzy) {
+						const fuzzyScore = fuzzy[0].end - fuzzy[0].start;
+						// ensures that when fuzzy matching, doesn't clash with prefix matching (1 input vs 1+ should be prefix and fuzzy respecitvely). Also makes sure that exact matches are prioritized.
+						if (fuzzyScore > 1 && fuzzy.length === 1) {
+							this.previouslyFocused = start;
+							this.list.setFocus([index]);
+							this.list.reveal(index);
+							return;
+						}
+					}
+				}
+			} else if (typeof labelStr === 'undefined' || matchesPrefix(word, labelStr)) {
 				this.previouslyFocused = start;
 				this.list.setFocus([index]);
 				this.list.reveal(index);
@@ -551,12 +585,14 @@ class DOMFocusController<T> implements IDisposable {
 		private list: List<T>,
 		private view: IListView<T>
 	) {
-		const onKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event))
+		const onKeyDown = Event.chain(this.disposables.add(new DomEmitter(view.domNode, 'keydown')).event, $ => $
 			.filter(e => !isInputElement(e.target as HTMLElement))
-			.map(e => new StandardKeyboardEvent(e));
+			.map(e => new StandardKeyboardEvent(e))
+		);
 
-		onKeyDown.filter(e => e.keyCode === KeyCode.Tab && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey)
-			.on(this.onTab, this, this.disposables);
+		const onTab = Event.chain(onKeyDown, $ => $.filter(e => e.keyCode === KeyCode.Tab && !e.ctrlKey && !e.metaKey && !e.shiftKey && !e.altKey));
+
+		onTab(this.onTab, this, this.disposables);
 	}
 
 	private onTab(e: StandardKeyboardEvent): void {
@@ -606,7 +642,7 @@ export function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListT
 }
 
 function isMouseRightClick(event: UIEvent): boolean {
-	return event instanceof MouseEvent && event.button === 2;
+	return isMouseEvent(event) && event.button === 2;
 }
 
 const DefaultMultipleSelectionController = {
@@ -676,7 +712,7 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (document.activeElement !== e.browserEvent.target) {
+		if (getActiveElement() !== e.browserEvent.target) {
 			this.list.domFocus();
 		}
 	}
@@ -711,10 +747,6 @@ export class MouseController<T> implements IDisposable {
 			this.list.setSelection([], e.browserEvent);
 			this.list.setAnchor(undefined);
 			return;
-		}
-
-		if (this.isSelectionRangeChangeEvent(e)) {
-			return this.changeSelection(e);
 		}
 
 		if (this.isSelectionChangeEvent(e)) {
@@ -1065,7 +1097,8 @@ const DefaultOptions: IListOptions<any> = {
 		getDragURI() { return null; },
 		onDragStart(): void { },
 		onDragOver() { return false; },
-		drop() { }
+		drop() { },
+		dispose() { }
 	}
 };
 
@@ -1266,6 +1299,10 @@ class ListViewDragAndDrop<T> implements IListViewDragAndDrop<T> {
 	drop(data: IDragAndDropData, targetElement: T, targetIndex: number, originalEvent: DragEvent): void {
 		this.dnd.drop(data, targetElement, targetIndex, originalEvent);
 	}
+
+	dispose(): void {
+		this.dnd.dispose();
+	}
 }
 
 /**
@@ -1332,31 +1369,29 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	@memoize get onContextMenu(): Event<IListContextMenuEvent<T>> {
 		let didJustPressContextMenuKey = false;
 
-		const fromKeyDown = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event))
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(e => EventHelper.stop(e, true))
-			.filter(() => false)
-			.event as Event<any>;
+		const fromKeyDown: Event<any> = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keydown')).event, $ =>
+			$.map(e => new StandardKeyboardEvent(e))
+				.filter(e => didJustPressContextMenuKey = e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+				.map(e => EventHelper.stop(e, true))
+				.filter(() => false));
 
-		const fromKeyUp = this.disposables.add(Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event))
-			.forEach(() => didJustPressContextMenuKey = false)
-			.map(e => new StandardKeyboardEvent(e))
-			.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
-			.map(e => EventHelper.stop(e, true))
-			.map(({ browserEvent }) => {
-				const focus = this.getFocus();
-				const index = focus.length ? focus[0] : undefined;
-				const element = typeof index !== 'undefined' ? this.view.element(index) : undefined;
-				const anchor = typeof index !== 'undefined' ? this.view.domElement(index) as HTMLElement : this.view.domNode;
-				return { index, element, anchor, browserEvent };
-			})
-			.event;
+		const fromKeyUp = Event.chain(this.disposables.add(new DomEmitter(this.view.domNode, 'keyup')).event, $ =>
+			$.forEach(() => didJustPressContextMenuKey = false)
+				.map(e => new StandardKeyboardEvent(e))
+				.filter(e => e.keyCode === KeyCode.ContextMenu || (e.shiftKey && e.keyCode === KeyCode.F10))
+				.map(e => EventHelper.stop(e, true))
+				.map(({ browserEvent }) => {
+					const focus = this.getFocus();
+					const index = focus.length ? focus[0] : undefined;
+					const element = typeof index !== 'undefined' ? this.view.element(index) : undefined;
+					const anchor = typeof index !== 'undefined' ? this.view.domElement(index) as HTMLElement : this.view.domNode;
+					return { index, element, anchor, browserEvent };
+				}));
 
-		const fromMouse = this.disposables.add(Event.chain(this.view.onContextMenu))
-			.filter(_ => !didJustPressContextMenuKey)
-			.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
-			.event;
+		const fromMouse = Event.chain(this.view.onContextMenu, $ =>
+			$.filter(_ => !didJustPressContextMenuKey)
+				.map(({ element, index, browserEvent }) => ({ element, index, anchor: new StandardMouseEvent(browserEvent), browserEvent }))
+		);
 
 		return Event.any<IListContextMenuEvent<T>>(fromKeyDown, fromKeyUp, fromMouse);
 	}
@@ -1845,7 +1880,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.view.domNode === document.activeElement;
+		return isActiveElement(this.view.domNode);
 	}
 
 	getHTMLElement(): HTMLElement {
