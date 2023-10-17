@@ -303,11 +303,11 @@ export class TerminalViewPane extends ViewPane {
 		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
 			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
 			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+			const activeElement = this.element.ownerDocument.activeElement;
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
 				// TODO hack
-				if (document.activeElement === activeElement) {
+				if (this.element.ownerDocument.activeElement === activeElement) {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
