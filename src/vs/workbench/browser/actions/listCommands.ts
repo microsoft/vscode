@@ -18,6 +18,7 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
@@ -25,7 +26,7 @@ function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// list/tree item. therefor we should ensure that the
 	// list/tree has DOM focus again after the command ran.
 	const element = widget?.getHTMLElement();
-	if (element && element !== element.ownerDocument.activeElement) {
+	if (element && !isActiveElement(element)) {
 		widget?.domFocus();
 	}
 }
