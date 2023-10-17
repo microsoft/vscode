@@ -17,7 +17,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { GutterMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_VISIBLE, GutterMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -26,6 +27,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private gutterDecorationID: string | undefined;
 	private cursorChangeListener: IDisposable | undefined;
 	private clickChangeListener: IDisposable | undefined;
+	private inlineChatLine: number | undefined;
 
 	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
 	private static readonly gutterIconClassName = 'codicon-inline-chat';
@@ -41,6 +43,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		private readonly editor: ICodeEditor,
 		@IInlineChatService inlineChatService: IInlineChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		const numberOfProviders = [...inlineChatService.getAllProvider()].length;
 		if (numberOfProviders > 0) {
@@ -78,9 +81,15 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			this.updateGutterDecoration(e.selection);
 		});
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
-				InlineChatController.get(this.editor)?.run();
+			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
+				return;
 			}
+			const sameLine = this.editor.getSelection()?.startLineNumber === this.inlineChatLine;
+			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
+			if (sameLine && inlineChatVisible) {
+				return;
+			}
+			InlineChatController.get(this.editor)?.run();
 		});
 		this.updateGutterDecoration(this.editor.getSelection());
 	}
@@ -105,6 +114,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private addDecoration(lineNumber: number) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			this.inlineChatLine = lineNumber;
 			this.gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
@@ -112,6 +122,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private removePreviousGutterDecoration() {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
 			if (this.gutterDecorationID) {
+				this.inlineChatLine = undefined;
 				accessor.removeDecoration(this.gutterDecorationID);
 			}
 		});
@@ -123,7 +134,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.clickChangeListener?.dispose();
 		this.cursorChangeListener = undefined;
 		this.clickChangeListener = undefined;
-		this.gutterDecorationID = undefined;
 	}
 }
 
