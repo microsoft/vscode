@@ -760,6 +760,10 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
+	hasProviders(): boolean {
+		return this._providers.size > 0;
+	}
+
 	getProviderInfos(): IChatProviderInfo[] {
 		return Array.from(this._providers.values()).map(provider => {
 			return {
