@@ -14,7 +14,7 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { UntitledTextEditorInput } from 'vs/workbench/services/untitled/common/untitledTextEditorInput';
-import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { IUntitledTextEditorModel, UntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -22,6 +22,7 @@ import { isReadable, isReadableStream } from 'vs/base/common/stream';
 import { readableToBuffer, streamToBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
 import { LanguageDetectionLanguageEventSource } from 'vs/workbench/services/languageDetection/common/languageDetectionWorkerService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { timeout } from 'vs/base/common/async';
 
 suite('Untitled text editors', () => {
 
@@ -571,6 +572,33 @@ suite('Untitled text editors', () => {
 		await model.setEncoding('utf16');
 
 		assert.strictEqual(counter, 1, 'Another change to same encoding does not fire event');
+	});
+
+	test('canDispose with dirty model', async function () {
+		const service = accessor.untitledTextEditorService;
+		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, service.create()));
+
+		const model = disposables.add(await input.resolve());
+
+		model.textEditorModel?.setValue('foo');
+
+		const canDisposePromise = service.canDispose(model as UntitledTextEditorModel);
+		assert.ok(canDisposePromise instanceof Promise);
+
+		let canDispose = false;
+		(async () => {
+			canDispose = await canDisposePromise;
+		})();
+
+		assert.strictEqual(canDispose, false);
+		model.revert({ soft: true });
+
+		await timeout(0);
+
+		assert.strictEqual(canDispose, true);
+
+		const canDispose2 = service.canDispose(model as UntitledTextEditorModel);
+		assert.strictEqual(canDispose2, true);
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

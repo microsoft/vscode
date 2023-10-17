@@ -117,6 +117,13 @@ export interface IUntitledTextEditorModelManager {
 	 * Figures out if the given resource has an associated resource or not.
 	 */
 	isUntitledWithAssociatedResource(resource: URI): boolean;
+
+	/**
+	 * Waits for the model to be ready to be disposed. There may be conditions
+	 * under which the model cannot be disposed, e.g. when it is dirty. Once the
+	 * promise is settled, it is safe to dispose the model.
+	 */
+	canDispose(model: IUntitledTextEditorModel): true | Promise<true>;
 }
 
 export interface IUntitledTextEditorService extends IUntitledTextEditorModelManager {
@@ -269,6 +276,29 @@ export class UntitledTextEditorService extends Disposable implements IUntitledTe
 
 	isUntitledWithAssociatedResource(resource: URI): boolean {
 		return resource.scheme === Schemas.untitled && resource.path.length > 1 && !UntitledTextEditorService.UNTITLED_WITHOUT_ASSOCIATED_RESOURCE_REGEX.test(resource.path);
+	}
+
+	canDispose(model: UntitledTextEditorModel): true | Promise<true> {
+		if (model.isDisposed()) {
+			return true; // quick return if model already disposed
+		}
+
+		// promise based return in all other cases
+		return this.doCanDispose(model);
+	}
+
+	private async doCanDispose(model: UntitledTextEditorModel): Promise<true> {
+
+		// dirty model: we do not allow to dispose dirty models to prevent
+		// data loss cases. dirty models can only be disposed when they are
+		// either saved or reverted
+		if (model.isDirty()) {
+			await Event.toPromise(model.onDidChangeDirty);
+
+			return this.canDispose(model);
+		}
+
+		return true;
 	}
 }
 
