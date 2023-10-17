@@ -142,10 +142,10 @@ steps:
     displayName: Make folder for SBOM
 
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
-        displayName: Generate SBOM
-        inputs:
-          BuildDropPath: $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)
-          PackageName: Visual Studio Code Server
+    displayName: Generate SBOM
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Server
 
   - publish: $(agent.builddirectory)/vscode-alpine-$(VSCODE_ARCH)/_manifest
     displayName: Publish SBOM

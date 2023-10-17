@@ -126,6 +126,6 @@ steps:
         BuildDropPath: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
         PackageName: Visual Studio Code CLI
 
-    - publish: $(Build.ArtifactStagingDirectory)//sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}/_manifest
+    - publish: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}/_manifest
       displayName: Publish SBOM
       artifact: sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
