@@ -113,93 +113,83 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			}),
 		};
 
-		const response = await window.fetch(this.productService.entitlement!.entitlementUrl, init);
+		const response = await fetch(this.productService.entitlement!.entitlementUrl, init);
 		if (!response.ok) {
 			return;
 		}
+		const parsedResult = await response.json();
+		if (!parsedResult) {
+			return;
+		}
 
-		const item = await response.blob();
-		const reader = new FileReader();
 		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
-		reader.addEventListener('load', async () => {
-			const result = reader.result;
-			try {
-				const parsedResult = JSON.parse(result as string);
 
-				if (parsedResult) {
-					const orgs = parsedResult['organization_login_list'] as any[];
-					if (orgs.length === 0) {
-						return;
+		const orgs = parsedResult['organization_login_list'] as any[];
+		if (orgs.length === 0) {
+			return;
+		}
+
+		this.contextKey.set(true);
+		const badge = new NumberBadge(1, () => menuTitle);
+		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
+
+		const menuTitle = this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1])!;
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.entitlementAction',
+					title: menuTitle,
+					f1: false,
+					menu: {
+						id: MenuId.AccountsContext,
+						group: '5_AccountsEntitlements',
+						when: ContextKeyExpr.equals(configurationKey, true),
 					}
+				});
+			}
 
-					this.contextKey.set(true);
-					const badge = new NumberBadge(1, () => menuTitle);
-					accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
-
-					const menuTitle = this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1])!;
-
-					registerAction2(class extends Action2 {
-						constructor() {
-							super({
-								id: 'workbench.action.entitlementAction',
-								title: menuTitle,
-								f1: false,
-								menu: {
-									id: MenuId.AccountsContext,
-									group: '5_AccountsEntitlements',
-									when: ContextKeyExpr.equals(configurationKey, true),
-								}
-							});
-						}
-
-						public async run(
-							accessor: ServicesAccessor
-						) {
-							const productService = accessor.get(IProductService);
-							const commandService = accessor.get(ICommandService);
-							const contextKeyService = accessor.get(IContextKeyService);
-							const storageService = accessor.get(IStorageService);
-							commandService.executeCommand(productService.entitlement!.command.action, productService.entitlement!.extensionId!);
-							accountsMenuBadgeDisposable.clear();
-							const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
-							contextKey.set(false);
-							storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-						}
-					});
-
-					const altMenuTitle = this.productService.entitlement!.altCommand.title!;
-					const altContextKey = this.productService.entitlement!.altCommand.when;
-
-					registerAction2(class extends Action2 {
-						constructor() {
-							super({
-								id: 'workbench.action.entitlementAltAction',
-								title: altMenuTitle,
-								f1: false,
-								toggled: ContextKeyTrueExpr.INSTANCE,
-								menu: {
-									id: MenuId.AccountsContext,
-									group: '5_AccountsEntitlements',
-									when: ContextKeyExpr.equals(altContextKey, true),
-								}
-							});
-						}
-
-						public async run(
-							accessor: ServicesAccessor
-						) {
-							const productService = accessor.get(IProductService);
-							const commandService = accessor.get(ICommandService);
-							commandService.executeCommand(productService.entitlement!.altCommand.action, productService.entitlement!.extensionId!);
-						}
-					});
-				}
-			} catch (e) {
-				console.error(e);
+			public async run(
+				accessor: ServicesAccessor
+			) {
+				const productService = accessor.get(IProductService);
+				const commandService = accessor.get(ICommandService);
+				const contextKeyService = accessor.get(IContextKeyService);
+				const storageService = accessor.get(IStorageService);
+				commandService.executeCommand(productService.entitlement!.command.action, productService.entitlement!.extensionId!);
+				accountsMenuBadgeDisposable.clear();
+				const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
+				contextKey.set(false);
+				storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 			}
 		});
 
-		reader.readAsText(item);
+		const altMenuTitle = this.productService.entitlement!.altCommand.title!;
+		const altContextKey = this.productService.entitlement!.altCommand.when;
+
+		registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: 'workbench.action.entitlementAltAction',
+					title: altMenuTitle,
+					f1: false,
+					toggled: ContextKeyTrueExpr.INSTANCE,
+					menu: {
+						id: MenuId.AccountsContext,
+						group: '5_AccountsEntitlements',
+						when: ContextKeyExpr.equals(altContextKey, true),
+					}
+				});
+			}
+
+			public async run(
+				accessor: ServicesAccessor
+			) {
+				const productService = accessor.get(IProductService);
+				const commandService = accessor.get(ICommandService);
+				commandService.executeCommand(productService.entitlement!.altCommand.action, productService.entitlement!.extensionId!);
+			}
+		});
 	}
 }
 
