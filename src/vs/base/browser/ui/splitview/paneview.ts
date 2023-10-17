@@ -372,9 +372,9 @@ class PaneDraggable extends Disposable {
 			e.dataTransfer?.setData(DataTransfers.TEXT, this.pane.draggableElement.textContent || '');
 		}
 
-		const dragImage = append(document.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
+		const dragImage = append(this.pane.element.ownerDocument.body, $('.monaco-drag-image', {}, this.pane.draggableElement.textContent || ''));
 		e.dataTransfer.setDragImage(dragImage, -10, -10);
-		setTimeout(() => document.body.removeChild(dragImage), 0);
+		setTimeout(() => this.pane.element.ownerDocument.body.removeChild(dragImage), 0);
 
 		this.context.draggable = this;
 	}
@@ -645,7 +645,7 @@ export class PaneView extends Disposable {
 
 	private focusPrevious(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;
@@ -656,7 +656,7 @@ export class PaneView extends Disposable {
 
 	private focusNext(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;

@@ -248,7 +248,7 @@ export class ActionList<T> extends Disposable {
 
 		// For finding width dynamically (not using resize observer)
 		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this._list.getElementID(index));
+			const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 			if (element) {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
@@ -262,7 +262,7 @@ export class ActionList<T> extends Disposable {
 		const width = Math.max(...itemWidths, minWidth);
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
 		this._list.layout(height, width);
 
 		this.domNode.style.height = `${height}px`;

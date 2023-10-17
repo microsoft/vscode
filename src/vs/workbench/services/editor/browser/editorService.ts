@@ -33,7 +33,6 @@ import { IWorkspaceTrustRequestService, WorkspaceTrustUriResponse } from 'vs/pla
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { ITextEditorService } from 'vs/workbench/services/textfile/common/textEditorService';
-import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorService extends Disposable implements EditorServiceImpl {
 
@@ -71,8 +70,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IHostService private readonly hostService: IHostService,
-		@ITextEditorService private readonly textEditorService: ITextEditorService,
-		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
+		@ITextEditorService private readonly textEditorService: ITextEditorService
 	) {
 		super();
 
@@ -84,7 +82,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerListeners(): void {
 
 		// Editor & group changes
-		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
+		this.editorGroupService.mainPart.whenReady.then(() => this.onEditorGroupsReady());
 		this._register(this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group)));
 		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView)));
 		this._register(this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire()));
@@ -974,12 +972,8 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 		}
-		const success = saveResults.every(result => !!result);
-		if (success) {
-			this.accessibleNotificationService.notifySaved(options?.reason === SaveReason.EXPLICIT);
-		}
 		return {
-			success,
+			success: saveResults.every(result => !!result),
 			editors: coalesce(saveResults)
 		};
 	}
