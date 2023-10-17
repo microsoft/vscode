@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, clearNode, EventHelper, EventType, hide, isAncestor, show } from 'vs/base/browser/dom';
+import { $, addDisposableListener, clearNode, EventHelper, EventType, getWindow, hide, isAncestor, show } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar, ButtonWithDescription, IButtonStyles } from 'vs/base/browser/ui/button/button';
@@ -198,7 +198,8 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<IDialogResult> {
-		this.focusToReturn = document.activeElement as HTMLElement;
+		const window = getWindow(this.container);
+		this.focusToReturn = window.document.activeElement as HTMLElement;
 
 		return new Promise<IDialogResult>((resolve) => {
 			clearNode(this.buttonsContainer);
@@ -472,7 +473,7 @@ export class Dialog extends Disposable {
 			this.modalElement = undefined;
 		}
 
-		if (this.focusToReturn && isAncestor(this.focusToReturn, document.body)) {
+		if (this.focusToReturn && isAncestor(this.focusToReturn, getWindow(this.container).document.body)) {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}
