@@ -50,6 +50,9 @@ steps:
       echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
     displayName: Prepare for publish
 
+  - script: mkdir -p $(agent.builddirectory)/vscode-snap-linux-$(VSCODE_ARCH)
+    displayName: Make folder for SBOM
+
   - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
     displayName: Generate SBOM
     inputs:
