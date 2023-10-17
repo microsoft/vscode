@@ -529,9 +529,7 @@ export class ChatService extends Disposable implements IChatService {
 						requestProps.message = varResult.prompt;
 					}
 
-					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, new Progress<IChatProgress>(p => {
-						progressCallback(p);
-					}), history, token);
+					const agentResult = await this.chatAgentService.invokeAgent(agent.id, requestProps, progressCallback, history, token);
 					rawResponse = {
 						session: model.session!,
 						errorDetails: agentResult.errorDetails,
