@@ -1574,7 +1574,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		const active = document.activeElement;
+		const active = this.container.ownerDocument.activeElement;
 
 		let parent = this.container.parentElement;
 		while (parent && parent !== active) {

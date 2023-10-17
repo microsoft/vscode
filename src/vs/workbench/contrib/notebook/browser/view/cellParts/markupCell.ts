@@ -512,7 +512,7 @@ export class MarkupCell extends Disposable {
 			// this is for a special case:
 			// users click the status bar empty space, which we will then focus the editor
 			// so we don't want to update the focus state too eagerly
-			if (document.activeElement?.contains(this.templateData.container)) {
+			if (this.templateData.container.ownerDocument.activeElement?.contains(this.templateData.container)) {
 				this.focusSwitchDisposable.value = disposableTimeout(() => updateFocusMode(), 300);
 			} else {
 				updateFocusMode();

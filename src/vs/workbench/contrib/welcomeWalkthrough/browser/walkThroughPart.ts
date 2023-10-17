@@ -224,7 +224,7 @@ export class WalkThroughPart extends EditorPane {
 	}
 
 	override focus(): void {
-		let active = document.activeElement;
+		let active = this.content.ownerDocument.activeElement;
 		while (active && active !== this.content) {
 			active = active.parentElement;
 		}

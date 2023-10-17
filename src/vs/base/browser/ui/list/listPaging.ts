@@ -144,7 +144,8 @@ export class PagedList<T> implements IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.list.getHTMLElement() === document.activeElement;
+		const element = this.getHTMLElement();
+		return element === element.ownerDocument.activeElement;
 	}
 
 	domFocus(): void {

@@ -490,7 +490,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		options.sticky = this.model.isSticky(activeEditor);	// preserve sticky state
 		options.preserveFocus = true;						// handle focus after editor is opened
 
-		const activeElement = document.activeElement;
+		const activeElement = this.editorContainer.ownerDocument.activeElement;
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
@@ -501,7 +501,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
 
-			if (this.groupsView.activeGroup === this && activeElement === document.activeElement) {
+			if (this.groupsView.activeGroup === this && activeElement === this.editorContainer.ownerDocument.activeElement) {
 				this.focus();
 			}
 		});

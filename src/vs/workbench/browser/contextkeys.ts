@@ -235,7 +235,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => disposableStore.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(), true)), { window, disposableStore: this._store }));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => disposableStore.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window, disposableStore: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -329,17 +329,17 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.activeEditorGroupLocked.set(activeGroup.isLocked);
 	}
 
-	private updateInputContextKeys(): void {
+	private updateInputContextKeys(ownerDocument: Document): void {
 
 		function activeElementIsInput(): boolean {
-			return !!document.activeElement && (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA');
+			return !!ownerDocument.activeElement && (ownerDocument.activeElement.tagName === 'INPUT' || ownerDocument.activeElement.tagName === 'TEXTAREA');
 		}
 
 		const isInputFocused = activeElementIsInput();
 		this.inputFocusedContext.set(isInputFocused);
 
 		if (isInputFocused) {
-			const tracker = trackFocus(document.activeElement as HTMLElement);
+			const tracker = trackFocus(ownerDocument.activeElement as HTMLElement);
 			Event.once(tracker.onDidBlur)(() => {
 				this.inputFocusedContext.set(activeElementIsInput());
 

@@ -174,7 +174,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private getFocusedEntry(): IStatusbarViewModelEntry | undefined {
-		return this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		return this._entries.find(entry => isAncestor(entry.container.ownerDocument.activeElement, entry.container));
 	}
 
 	private focusEntry(delta: number, restartPosition: number): void {

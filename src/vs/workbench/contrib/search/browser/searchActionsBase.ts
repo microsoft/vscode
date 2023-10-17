@@ -16,7 +16,7 @@ export const category = { value: nls.localize('search', "Search"), original: 'Se
 
 export function isSearchViewFocused(viewsService: IViewsService): boolean {
 	const searchView = getSearchView(viewsService);
-	const activeElement = document.activeElement;
+	const activeElement = searchView?.getContainer().ownerDocument.activeElement;
 	return !!(searchView && activeElement && DOM.isAncestor(activeElement, searchView.getContainer()));
 }
 

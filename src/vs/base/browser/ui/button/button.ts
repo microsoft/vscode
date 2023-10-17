@@ -281,7 +281,7 @@ export class Button extends Disposable implements IButton {
 	}
 
 	hasFocus(): boolean {
-		return this._element === document.activeElement;
+		return this._element === this._element.ownerDocument.activeElement;
 	}
 }
 
