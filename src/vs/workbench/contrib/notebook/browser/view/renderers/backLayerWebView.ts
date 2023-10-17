@@ -920,7 +920,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			}
 		}
 
-		const executionMatch = /(?:^|&)execution=([^&]+)/.exec(uri.query);
+		const executionMatch = /(?:^|&)execution_count=([^&]+)/.exec(uri.query);
 		const notebookResource = uri.path.length > 0 ? uri : this.documentUri;
 		if (executionMatch) {
 			const executionCount = parseInt(executionMatch[1], 10);
