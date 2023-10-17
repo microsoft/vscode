@@ -169,7 +169,7 @@
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
-	font-size: 11px;
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
 	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
