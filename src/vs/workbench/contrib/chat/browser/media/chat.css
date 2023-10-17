@@ -169,7 +169,11 @@
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
 }
 
 .interactive-item-container.interactive-item-compact {
@@ -336,6 +340,7 @@
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
 	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
