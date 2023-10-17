@@ -473,7 +473,7 @@ export class Dialog extends Disposable {
 			this.modalElement = undefined;
 		}
 
-		if (this.focusToReturn && isAncestor(this.focusToReturn, getWindow(this.container).document.body)) {
+		if (this.focusToReturn && isAncestor(this.focusToReturn, this.container.ownerDocument.body)) {
 			this.focusToReturn.focus();
 			this.focusToReturn = undefined;
 		}
