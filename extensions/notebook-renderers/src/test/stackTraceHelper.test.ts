@@ -32,8 +32,8 @@ suite('StackTraceHelper', () => {
 			'\u001b[1;31mException\u001b[0m\n:';
 
 		const formatted = formatStackTrace(stack);
-		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=3\'>Cell In[3]</a>') > 0, formatted);
-		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=3&line=2\'>2</a>') > 0, formatted);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3\'>Cell In[3]</a>') > 0, formatted);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=3&line=2\'>2</a>') > 0, formatted);
 		assert.ok(formatted.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, formatted);
 	});
 
@@ -46,8 +46,8 @@ suite('StackTraceHelper', () => {
 			'\u001b[1;32m----> 2\u001b[0m \u001b[43mmyLib\u001b[49m\u001b[38;5;241;43m.\u001b[39;49m\u001b[43mthrowEx\u001b[49m\u001b[43m(\u001b[49m\u001b[43m)\u001b[49m\n';
 
 		const formatted = formatStackTrace(stack);
-		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=2\'>Input In [2]</a>') > 0, formatted);
-		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution=2&line=2\'>2</a>') > 0, formatted);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=2\'>Input In [2]</a>') > 0, formatted);
+		assert.ok(formatted.indexOf('<a href=\'vscode-notebook-cell:?execution_count=2&line=2\'>2</a>') > 0, formatted);
 	});
 
 	test('IPython stack trace lines without associated location are not linkified', () => {

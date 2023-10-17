@@ -57,29 +57,29 @@ function linkifyStack(stack: string) {
 	for (const i in lines) {
 
 		const original = lines[i];
-		console.log(`linkify ${original}`); // REMOVE
 		if (fileRegex.test(original)) {
 			const fileMatch = lines[i].match(fileRegex);
 			fileOrCell = { kind: 'file', path: stripFormatting(fileMatch![1]) };
-			console.log(`matched file ${fileOrCell}`); // REMOVE
+
 			continue;
 		} else if (cellRegex.test(original)) {
 			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}` };
+				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
 				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
-			console.log(`matched cell ${fileOrCell}`); // REMOVE
+
 			continue;
 		} else if (inputRegex.test(original)) {
 			lines[i] = original.replace(inputRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}` };
+				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
 				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
-			console.log(`matched cell ${fileOrCell}`); // REMOVE
+
 			continue;
 		} else if (!fileOrCell || original.trim() === '') {
 			// we don't have a location, so don't linkify anything
 			fileOrCell = undefined;
+
 			continue;
 		} else if (lineNumberRegex.test(original)) {
 			lines[i] = original.replace(lineNumberRegex, (_s, prefix, num, suffix) => {
@@ -87,7 +87,7 @@ function linkifyStack(stack: string) {
 					`${prefix}<a href='${fileOrCell?.path}:${num}'>${num}</a>${suffix}` :
 					`${prefix}<a href='${fileOrCell?.path}&line=${num}'>${num}</a>${suffix}`;
 			});
-			console.log(`matched line ${lines[i]}`); // REMOVE
+
 			continue;
 		}
 	}
