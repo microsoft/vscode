@@ -166,9 +166,9 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onSelectionChange = this._register(new DomEmitter(container.ownerDocument, 'selectionchange'));
 			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
-				const selection = document.getSelection();
+				const selection = container.ownerDocument.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
