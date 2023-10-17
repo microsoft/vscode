@@ -64,10 +64,9 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 				return;
 			}
 			const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
+			this.dispose();
 			if (gutterIconMode !== GutterMode.Never) {
 				this.activateGutterDecoration();
-			} else {
-				this.dispose();
 			}
 		});
 		const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
