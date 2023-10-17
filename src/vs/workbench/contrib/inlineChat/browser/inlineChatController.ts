@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderMarkdown } from 'vs/base/browser/markdownRenderer';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -35,11 +34,12 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -237,7 +237,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let widgetPosition: Position;
 		if (initialRender) {
-			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getEndPosition().delta(-1);
+			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getStartPosition().delta(-1);
 			this._zone.value.setContainerMargins();
 			this._zone.value.setWidgetMargins(widgetPosition);
 		} else {
@@ -251,6 +251,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 		if (this._activeSession) {
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
+			widgetPosition = this._strategy?.getWidgetPosition() ?? widgetPosition;
 		}
 		this._zone.value.show(widgetPosition);
 	}
@@ -336,10 +337,16 @@ export class InlineChatController implements IEditorContribution {
 
 		const wholeRangeDecoration = this._editor.createDecorationsCollection();
 		const updateWholeRangeDecoration = () => {
-			wholeRangeDecoration.set([{
-				range: this._activeSession!.wholeRange.value,
-				options: InlineChatController._decoBlock
-			}]);
+
+			const range = this._activeSession!.wholeRange.value;
+			const decorations: IModelDeltaDecoration[] = [];
+			if (!range.isEmpty()) {
+				decorations.push({
+					range,
+					options: InlineChatController._decoBlock
+				});
+			}
+			wholeRangeDecoration.set(decorations);
 		};
 		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
 		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
@@ -549,7 +556,7 @@ export class InlineChatController implements IEditorContribution {
 		this._chatAccessibilityService.acceptRequest();
 
 		const progressEdits: TextEdit[][] = [];
-		const progress = new Progress<IInlineChatProgressItem>(async data => {
+		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
 			if (data.message) {
 				this._zone.value.widget.updateToolbar(false);
@@ -567,8 +574,9 @@ export class InlineChatController implements IEditorContribution {
 				}
 				progressEdits.push(data.edits);
 				await this._makeChanges(progressEdits, false);
+				await this._strategy?.renderProgressChanges();
 			}
-		}, { async: true });
+		});
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
 
@@ -721,11 +729,10 @@ export class InlineChatController implements IEditorContribution {
 
 		} else if (response instanceof MarkdownResponse) {
 			// clear status, show MD message
-			const renderedMarkdown = renderMarkdown(response.raw.message, { inline: true });
+
 			this._zone.value.widget.updateStatus('');
-			this._zone.value.widget.updateMarkdownMessage(renderedMarkdown.element);
+			const content = this._zone.value.widget.updateMarkdownMessage(response.raw.message);
 			this._zone.value.widget.updateToolbar(true);
-			const content = renderedMarkdown.element.textContent;
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
 			}
