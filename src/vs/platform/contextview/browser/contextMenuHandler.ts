@@ -45,7 +45,7 @@ export class ContextMenuHandler {
 			return; // Don't render an empty context menu
 		}
 
-		this.focusToReturn = document.activeElement as HTMLElement;
+		this.focusToReturn = getActiveElement() as HTMLElement;
 
 		let menu: Menu | undefined;
 

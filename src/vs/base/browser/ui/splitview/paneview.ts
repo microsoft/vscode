@@ -645,7 +645,7 @@ export class PaneView extends Disposable {
 
 	private focusPrevious(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;
@@ -656,7 +656,7 @@ export class PaneView extends Disposable {
 
 	private focusNext(): void {
 		const headers = this.getPaneHeaderElements();
-		const index = headers.indexOf(document.activeElement as HTMLElement);
+		const index = headers.indexOf(this.element.ownerDocument.activeElement as HTMLElement);
 
 		if (index === -1) {
 			return;

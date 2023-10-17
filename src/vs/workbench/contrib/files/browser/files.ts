@@ -62,7 +62,8 @@ export interface IExplorerView {
 
 function getFocus(listService: IListService): unknown | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && element === element.ownerDocument.activeElement) {
 		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -101,7 +102,8 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && element === element.ownerDocument.activeElement) {
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
@@ -136,7 +138,8 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 
 export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && element === element.ownerDocument.activeElement) {
 		// Open editors view
 		if (list instanceof List) {
 			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));

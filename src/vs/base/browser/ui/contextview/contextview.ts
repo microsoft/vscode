@@ -373,7 +373,7 @@ export class ContextView extends Disposable {
 	private onDOMEvent(e: Event, onCapture: boolean): void {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {
-				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
+				this.delegate.onDOMEvent(e, <HTMLElement>this.view.ownerDocument.activeElement);
 			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.container)) {
 				this.hide();
 			}

@@ -52,7 +52,7 @@ export function registerAndCreateHistoryNavigationContext(scopedContextKeyServic
 	};
 
 	// Check for currently being focused
-	if (widget.element === document.activeElement) {
+	if (widget.element === widget.element.ownerDocument.activeElement) {
 		onDidFocus();
 	}
 

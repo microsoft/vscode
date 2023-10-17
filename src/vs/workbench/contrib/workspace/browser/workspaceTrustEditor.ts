@@ -716,7 +716,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const navOrder = [this.headerContainer, this.trustedContainer, this.untrustedContainer, this.configurationContainer];
 				const currentIndex = navOrder.findIndex(element => {
-					return isAncestor(document.activeElement, element);
+					return isAncestor(element.ownerDocument.activeElement, element);
 				});
 
 				let newIndex = currentIndex;

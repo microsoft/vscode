@@ -252,7 +252,7 @@ export class Checkbox extends Widget {
 	}
 
 	hasFocus(): boolean {
-		return this.domNode === document.activeElement;
+		return this.domNode === this.domNode.ownerDocument.activeElement;
 	}
 
 	protected applyStyles(): void {

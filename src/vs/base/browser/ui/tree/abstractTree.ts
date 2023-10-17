@@ -1781,7 +1781,8 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	isDOMFocused(): boolean {
-		return this.getHTMLElement() === document.activeElement;
+		const element = this.getHTMLElement();
+		return element === element.ownerDocument.activeElement;
 	}
 
 	layout(height?: number, width?: number): void {

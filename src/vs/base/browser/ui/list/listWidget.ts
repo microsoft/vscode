@@ -1880,7 +1880,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.view.domNode === document.activeElement;
+		return this.view.domNode === this.view.domNode.ownerDocument.activeElement;
 	}
 
 	getHTMLElement(): HTMLElement {

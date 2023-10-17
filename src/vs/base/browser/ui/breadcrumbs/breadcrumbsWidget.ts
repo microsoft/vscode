@@ -177,7 +177,7 @@ export class BreadcrumbsWidget {
 	}
 
 	isDOMFocused(): boolean {
-		let candidate = document.activeElement;
+		let candidate = this._domNode.ownerDocument.activeElement;
 		while (candidate) {
 			if (this._domNode === candidate) {
 				return true;

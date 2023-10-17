@@ -1752,7 +1752,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const element = this.viewModel.cellAt(focusRange.start);
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
-					const editorFocused = element.getEditState() === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+					const editorFocused = element.getEditState() === CellEditState.Editing && !!(itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement));
 
 					state.editorFocused = editorFocused;
 					state.focus = focusRange.start;
@@ -1959,7 +1959,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private editorHasDomFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.getDomNode());
+		return DOM.isAncestor(this.getDomNode().ownerDocument.activeElement, this.getDomNode());
 	}
 
 	updateEditorFocus() {
@@ -2370,8 +2370,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else {
 			// focus container
 			const itemDOM = this._list.domElementOfElement(cell);
-			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
-				(document.activeElement as HTMLElement).blur();
+			if (itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement)) {
+				(itemDOM.ownerDocument.activeElement as HTMLElement).blur();
 			}
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
