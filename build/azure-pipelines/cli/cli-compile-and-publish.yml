@@ -122,6 +122,7 @@ steps:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM
       inputs:
+        BuildComponentPath: $(Build.SourcesDirectory)/cli
         BuildDropPath: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
         PackageName: Visual Studio Code CLI
 
