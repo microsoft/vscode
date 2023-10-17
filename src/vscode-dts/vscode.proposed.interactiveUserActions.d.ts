@@ -67,7 +67,7 @@ declare module 'vscode' {
 		followup: InteractiveSessionFollowup;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;

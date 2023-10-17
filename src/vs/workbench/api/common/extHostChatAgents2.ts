@@ -173,7 +173,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			// handled by $acceptFeedback
 			return;
 		}
-		agent.acceptAction(Object.freeze({ action: action.action as any, result }));
+		agent.acceptAction(Object.freeze({ action: action.action, result }));
 	}
 }
 
