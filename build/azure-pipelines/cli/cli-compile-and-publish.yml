@@ -109,16 +109,13 @@ steps:
 
     # The if cases above are for different OSes,
     # but we're still in the branch where the cli is being published in general.
-    # Generate and publish an SBOM here.
-    - script: mkdir $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
-      displayName: Create directory for SBOM
-
+    # Generate and publish an SBOM.
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM
       inputs:
-        BuildDropPath: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
+        BuildDropPath: $(Build.ArtifactStagingDirectory)
         PackageName: Visual Studio Code CLI
 
-    - publish: $(Build.ArtifactStagingDirectory)/sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}/_manifest
+    - publish: $(Build.ArtifactStagingDirectory)/_manifest
       displayName: Publish SBOM
       artifact: sbom_${{ parameters.VSCODE_CLI_ARTIFACT }}
