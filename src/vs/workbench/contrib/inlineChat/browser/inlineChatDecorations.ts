@@ -84,11 +84,13 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				return;
 			}
-			const sameLine = this.editor.getSelection()?.startLineNumber === this.inlineChatLine;
+			const selectionStartLine = this.editor.getSelection()?.startLineNumber;
+			const sameLine = selectionStartLine === this.inlineChatLine;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
 			if (sameLine && inlineChatVisible) {
 				return;
 			}
+			this.inlineChatLine = selectionStartLine;
 			InlineChatController.get(this.editor)?.run();
 		});
 		this.updateGutterDecoration(this.editor.getSelection());
@@ -114,7 +116,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private addDecoration(lineNumber: number) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this.inlineChatLine = lineNumber;
 			this.gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
@@ -122,7 +123,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private removePreviousGutterDecoration() {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
 			if (this.gutterDecorationID) {
-				this.inlineChatLine = undefined;
 				accessor.removeDecoration(this.gutterDecorationID);
 			}
 		});
@@ -134,6 +134,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.clickChangeListener?.dispose();
 		this.cursorChangeListener = undefined;
 		this.clickChangeListener = undefined;
+		this.inlineChatLine = undefined;
 	}
 }
 
