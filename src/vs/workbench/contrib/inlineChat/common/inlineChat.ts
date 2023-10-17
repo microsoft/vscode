@@ -209,7 +209,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean'
 		},
 		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Define how to show a gutter icon which on click spawns the inline chat."),
+			description: localize('showGutterIcon', "Enable/disable showing the gutter icon for spawning inline chat."),
 			default: true,
 			type: 'boolean'
 		}
