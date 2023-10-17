@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { Delayer, IntervalTimer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -360,7 +360,6 @@ export class SettingsEditor2 extends EditorPane {
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
-		await timeout(0); // Force setInput to be async
 		if (!this.input) {
 			return;
 		}
@@ -963,7 +962,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			const classList = document.activeElement?.classList;
+			const classList = container.ownerDocument.activeElement?.classList;
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
@@ -1407,8 +1406,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private getActiveControlInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
-			<HTMLElement>document.activeElement :
+		const element = this.settingsTree.getHTMLElement();
+		const activeElement = element.ownerDocument.activeElement;
+		return (activeElement && DOM.isAncestorOfActiveElement(element)) ?
+			<HTMLElement>activeElement :
 			null;
 	}
 
@@ -1468,7 +1469,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshTree(): void {

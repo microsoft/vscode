@@ -7,7 +7,12 @@ declare module 'vscode' {
 
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
-		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
+		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
+	}
+
+	export interface ChatAgentContent {
+		// TODO@API This is an awkward way to describe this but this is temporary until inline references are fully supported and adopted
+		markdownContent: MarkdownString;
 	}
 
 	export interface ChatAgent2 {

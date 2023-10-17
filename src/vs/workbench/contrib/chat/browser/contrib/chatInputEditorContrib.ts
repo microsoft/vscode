@@ -5,7 +5,7 @@
 
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
@@ -43,9 +43,11 @@ const variableTextDecorationType = 'chat-variable-text';
 
 class InputEditorDecorations extends Disposable {
 
-	private _previouslyUsedSlashCommands = new Set<string>();
-
 	public readonly id = 'inputEditorDecorations';
+
+	private readonly previouslyUsedSlashCommands = new Set<string>();
+
+	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly widget: IChatWidget,
@@ -64,14 +66,25 @@ class InputEditorDecorations extends Disposable {
 		this.updateInputEditorDecorations();
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
-			this._previouslyUsedSlashCommands.clear();
+			this.registerViewModelListeners();
+			this.previouslyUsedSlashCommands.clear();
 			this.updateInputEditorDecorations();
 		}));
 		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
-			if (e.sessionId === this.widget.viewModel?.sessionId && !this._previouslyUsedSlashCommands.has(e.slashCommand)) {
-				this._previouslyUsedSlashCommands.add(e.slashCommand);
+			if (e.sessionId === this.widget.viewModel?.sessionId && !this.previouslyUsedSlashCommands.has(e.slashCommand)) {
+				this.previouslyUsedSlashCommands.add(e.slashCommand);
 			}
 		}));
+
+		this.registerViewModelListeners();
+	}
+
+	private registerViewModelListeners(): void {
+		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
+			if (e?.kind === 'changePlaceholder') {
+				this.updateInputEditorDecorations();
+			}
+		});
 	}
 
 	private updateRegisteredDecorationTypes() {
@@ -114,11 +127,11 @@ class InputEditorDecorations extends Disposable {
 		}
 
 		if (!inputValue) {
-			const extensionPlaceholder = this.widget.viewModel?.inputPlaceholder;
+			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
 			const defaultPlaceholder = slashCommands?.length ?
 				localize('interactive.input.placeholderWithCommands', "Ask a question or type '@' or '/'") :
 				localize('interactive.input.placeholderNoCommands', "Ask a question");
-			const placeholder = extensionPlaceholder ?? defaultPlaceholder;
+			const placeholder = viewModelPlaceholder ?? defaultPlaceholder;
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -170,7 +183,7 @@ class InputEditorDecorations extends Disposable {
 		const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
 		if (onlySlashCommandAndWhitespace) {
 			// Command reference with no other text - show the placeholder
-			const isFollowupSlashCommand = this._previouslyUsedSlashCommands.has(slashCommandPart.slashCommand.command);
+			const isFollowupSlashCommand = this.previouslyUsedSlashCommands.has(slashCommandPart.slashCommand.command);
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && slashCommandPart.slashCommand.followupPlaceholder;
 			if (shouldRenderFollowupPlaceholder || slashCommandPart.slashCommand.detail) {
 				placeholderDecoration = [{
@@ -361,8 +374,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
-				const usedAgent = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-				if (!usedAgent) {
+				const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+				if (usedAgentIdx < 0) {
 					return;
 				}
 
@@ -372,6 +385,14 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
+					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.match(/^\s+(\/\w*)?$/)) {
+						// No text allowed between agent and subcommand
+						return;
+					}
+				}
+
+				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				const commands = await usedAgent.agent.provideSlashCommands(token);
 
 				return <CompletionList>{

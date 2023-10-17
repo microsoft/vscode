@@ -1327,7 +1327,7 @@ begin
   #endif
 
   #if "user" == InstallTarget
-    #if "ia32" == Arch || "arm64" == Arch
+    #if "arm64" == Arch
       #define IncompatibleArchRootKey "HKLM32"
     #else
       #define IncompatibleArchRootKey "HKLM64"
@@ -1343,24 +1343,6 @@ begin
       end;
     end;
   #endif
-
-  if Result and IsWin64 then begin
-    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleArchAppId}', 2, 38) + '_is1';
-
-    if '{#Arch}' = 'ia32' then begin
-      Result := not RegKeyExists({#Uninstall64RootKey}, RegKey);
-      ThisArch := '32';
-      AltArch := '64';
-    end else begin
-      Result := not RegKeyExists({#Uninstall32RootKey}, RegKey);
-      ThisArch := '64';
-      AltArch := '32';
-    end;
-
-    if not Result and not WizardSilent() then begin
-      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version. Uninstalling will not delete settings.', mbInformation, MB_OK);
-    end;
-  end;
 
 end;
 

@@ -195,7 +195,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionVi
 	}
 
 	private getCumulativeNumberBadge(activityCache: IActivity[], priority: number): NumberBadge {
-		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && (activity.priority ?? 0) === priority);
 		const number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
 		const descriptorFn = (): string => {
 			return numberActivities.reduce((result, activity, index) => {

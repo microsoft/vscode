@@ -14,7 +14,7 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 0px 20px;
+	padding: 16px 20px 16px 20px;
 	display: flex;
 	flex-direction: column;
 	gap: 6px;
@@ -131,18 +131,11 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	min-height: 36px;
 	word-wrap: break-word;
 }
 
-.interactive-item-container .value > :last-child:not(.rendered-markdown) {
-	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
-		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
-	margin-bottom: 16px;
-}
-
-.interactive-item-container .value > .interactive-response-error-details:not(:last-child) {
-	margin-bottom: 8px;
+.interactive-item-container .value > :last-child.rendered-markdown > :last-child {
+	margin-bottom: 0px;
 }
 
 .interactive-item-container .value .rendered-markdown h1 {
@@ -264,70 +257,25 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper {
-	position: relative;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar {
-	display: none;
-	position: absolute;
-	top: -13px;
-	right: 10px;
-	height: 26px;
-	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
-	border: 1px solid var(--vscode-chat-requestBorder);
-	z-index: 100;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item {
-	height: 24px;
-	width: 24px;
-	margin: 1px 2px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
-	margin: 1px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar:focus-within,
-.interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
-	display: initial;
-	border-radius: 2px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper {
-	margin: 16px 0;
-}
-
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor,
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .margin,
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .monaco-editor-background {
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
 	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
-	border: 1px solid var(--vscode-input-border, transparent);
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
-	border-color: var(--vscode-focusBorder, transparent);
-}
-
-.interactive-item-container .interactive-result-editor-wrapper,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
-	border-radius: 4px;
-}
-
-.interactive-item-container.interactive-item-compact .interactive-result-editor-wrapper {
+.interactive-item-compact .interactive-result-code-block {
 	margin: 0 0 8px 0;
 }
+
 
 .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
 	gap: 6px;
+}
+
+.interactive-response .interactive-response-error-details .rendered-markdown :last-child {
+	margin-bottom: 0px;
 }
 
 .interactive-response .interactive-response-error-details .codicon {
@@ -486,7 +434,7 @@
 
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 3px;
+	border-radius: 4px;
 	padding: 4px;
 }
 

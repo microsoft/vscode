@@ -6,8 +6,8 @@
 declare module 'vscode' {
 
 	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
+		Down = 0,
+		Up = 1
 	}
 
 	export interface InteractiveSessionVoteAction {
@@ -59,6 +59,12 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
 		command: InteractiveResponseCommand;
+	}
+
+	export interface InteractiveSessionFollowupAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'followUp';
+		followup: InteractiveSessionFollowup;
 	}
 
 	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
