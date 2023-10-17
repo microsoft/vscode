@@ -14,7 +14,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
 import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -24,12 +24,12 @@ const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, locali
 
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
+	private disposableStore = new DisposableStore();
+	private onProvidersChange: IDisposable;
 	private gutterDecorationID: string | undefined;
-	private cursorChangeListener: IDisposable | undefined;
-	private clickChangeListener: IDisposable | undefined;
-
 	private inlineChatLineNumber: number | undefined;
 	private decorationLineNumber: number | undefined;
+	private numberOfProviders: number;
 
 	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
 	private static readonly gutterIconClassName = 'codicon-inline-chat';
@@ -47,31 +47,35 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		const numberOfProviders = [...inlineChatService.getAllProvider()].length;
-		if (numberOfProviders > 0) {
-			this.setupGutterDecoration();
-		}
-		inlineChatService.onDidChangeProviders(() => {
-			this.dispose();
+		this.onProvidersChange = inlineChatService.onDidChangeProviders(() => {
 			const numberOfProviders = [...inlineChatService.getAllProvider()].length;
-			if (numberOfProviders > 0) {
+			// If there were no providers and now there are providers, setup the contribution
+			if (!this.numberOfProviders && numberOfProviders > 0) {
 				this.setupGutterDecoration();
 			}
+			// If there were providers and now there are no providers, dispose the contribution
+			if (this.numberOfProviders > 0 && !numberOfProviders) {
+				this.clearState();
+			}
+			this.numberOfProviders = numberOfProviders;
 		});
+		this.numberOfProviders = [...inlineChatService.getAllProvider()].length;
+		if (this.numberOfProviders > 0) {
+			this.setupGutterDecoration();
+		}
 	}
 
 	private setupGutterDecoration() {
-		this.configurationService.onDidChangeConfiguration(e => {
+		this.disposableStore.add(this.configurationService.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
 			}
-			this.dispose();
 			const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
 			if (!gutterIconEnabled) {
 				return;
 			}
 			this.activateGutterDecoration();
-		});
+		}));
 		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
 		if (!gutterIconEnabled) {
 			return;
@@ -80,48 +84,51 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private activateGutterDecoration() {
-		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => {
-			this.updateGutterDecoration(e.selection);
-			this.decorationLineNumber = e.selection.startLineNumber;
-		});
-		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+		this.disposableStore.add(this.editor.onDidChangeCursorSelection(e => this.updateGutterDecoration(e.selection)));
+		this.disposableStore.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				return;
 			}
-			const selectionStartLine = this.editor.getSelection()?.startLineNumber;
-			const sameLinePosition = selectionStartLine === this.inlineChatLineNumber;
+			const startLineNumber = this.editor.getSelection()?.startLineNumber;
+			const sameLineNumber = startLineNumber === this.inlineChatLineNumber;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
-			if (sameLinePosition && inlineChatVisible) {
+			if (sameLineNumber && inlineChatVisible) {
 				return;
 			}
-			this.inlineChatLineNumber = selectionStartLine;
+			this.inlineChatLineNumber = startLineNumber;
 			InlineChatController.get(this.editor)?.run();
-		});
-		const selection = this.editor.getSelection();
-		this.updateGutterDecoration(selection);
-		this.decorationLineNumber = selection?.startLineNumber ?? undefined;
+		}));
+		this.updateGutterDecoration(this.editor.getSelection());
 	}
 
 	private updateGutterDecoration(selection: Selection | null) {
-		console.log('Inside of updateGutterDecoration : ', selection);
 		if (!selection) {
 			this.removePreviousGutterDecoration();
+			this.decorationLineNumber = undefined;
 			return;
 		}
 		const startLineNumber = selection.startLineNumber;
-		const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
-		const sameSelectionLine = this.decorationLineNumber === selection.startLineNumber;
-		const selectionLineIsEmpty = selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine);
-		if (sameSelectionLine) {
+		const textAtLineNumber = this.editor.getModel()?.getLineContent(selection.startLineNumber);
+		const selectionLineIsEmpty = selection.isEmpty() && textAtLineNumber !== undefined && /^\s*$/g.test(textAtLineNumber);
+		const sameLineNumber = this.decorationLineNumber === selection.startLineNumber;
+		if (sameLineNumber) {
 			if (selectionLineIsEmpty) {
+				// Suppose there is already a decoration on the current line and the line is empty, then do not do anything
 				return;
 			}
+			// Else the current line is not empty, then remove the decoration
 			this.removePreviousGutterDecoration();
+			this.decorationLineNumber = undefined;
 		} else {
+			// Suppose we are on a different line than where previous decoration was placed, then remove the previous decoration
 			this.removePreviousGutterDecoration();
 			if (selectionLineIsEmpty) {
+				// If current selection line is empty, add the decoration
 				this.addDecoration(startLineNumber);
+				this.decorationLineNumber = startLineNumber;
+				return;
 			}
+			this.decorationLineNumber = undefined;
 		}
 	}
 
@@ -139,13 +146,16 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		});
 	}
 
-	dispose() {
+	private clearState() {
+		this.disposableStore.dispose();
 		this.removePreviousGutterDecoration();
-		this.cursorChangeListener?.dispose();
-		this.clickChangeListener?.dispose();
-		this.cursorChangeListener = undefined;
-		this.clickChangeListener = undefined;
 		this.inlineChatLineNumber = undefined;
+		this.decorationLineNumber = undefined;
+	}
+
+	dispose() {
+		this.onProvidersChange.dispose();
+		this.clearState();
 	}
 }
 
