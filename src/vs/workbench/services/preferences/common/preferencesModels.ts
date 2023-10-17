@@ -687,7 +687,6 @@ export class DefaultSettings extends Disposable {
 					}
 				}
 
-
 				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
 					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
 				}
