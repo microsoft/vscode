@@ -264,7 +264,7 @@
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
 .interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-interactive-result-editor-background-color);
+	background-color: var(--vscode-interactive-result-editor-background-color) !important;
 }
 
 .interactive-item-compact .interactive-result-code-block {
