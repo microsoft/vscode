@@ -19,17 +19,20 @@ import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/e
 import { Action } from 'vs/base/common/actions';
 import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ResourceMap } from 'vs/base/common/map';
+import { URI } from 'vs/base/common/uri';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private disposableStore = new DisposableStore();
+
 	private onProvidersChange: IDisposable;
-	private gutterDecorationID: string | undefined;
-	private inlineChatLineNumber: number | undefined;
-	private decorationLineNumber: number | undefined;
 	private numberOfProviders: number;
+
+	private gutterDecorationsMap = new ResourceMap<{ id: string; lineNumber: number } | undefined>();
+	private inlineChatLineNumber: number | undefined;
 
 	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
 	private static readonly gutterIconClassName = 'codicon-inline-chat';
@@ -84,7 +87,12 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private activateGutterDecoration() {
-		this.disposableStore.add(this.editor.onDidChangeCursorSelection(e => this.updateGutterDecoration(e.selection)));
+		this.disposableStore.add(this.editor.onDidChangeCursorSelection(e => {
+			if (!this.editor.hasModel()) {
+				return;
+			}
+			this.updateGutterDecoration(this.editor.getModel().uri, e.selection);
+		}));
 		this.disposableStore.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				return;
@@ -98,59 +106,65 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			this.inlineChatLineNumber = startLineNumber;
 			InlineChatController.get(this.editor)?.run();
 		}));
-		this.updateGutterDecoration(this.editor.getSelection());
+		if (!this.editor.hasModel()) {
+			return;
+		}
+		this.updateGutterDecoration(this.editor.getModel().uri, this.editor.getSelection());
 	}
 
-	private updateGutterDecoration(selection: Selection | null) {
+	private updateGutterDecoration(uri: URI, selection: Selection | null) {
 		if (!selection) {
-			this.removePreviousGutterDecoration();
-			this.decorationLineNumber = undefined;
+			this.removePreviousGutterDecoration(uri);
+			this.gutterDecorationsMap.set(uri, undefined);
 			return;
 		}
 		const startLineNumber = selection.startLineNumber;
 		const textAtLineNumber = this.editor.getModel()?.getLineContent(selection.startLineNumber);
 		const selectionLineIsEmpty = selection.isEmpty() && textAtLineNumber !== undefined && /^\s*$/g.test(textAtLineNumber);
-		const sameLineNumber = this.decorationLineNumber === selection.startLineNumber;
+		const decorationData = this.gutterDecorationsMap.get(uri);
+		if (!decorationData) {
+			return;
+		}
+		const sameLineNumber = decorationData.lineNumber === selection.startLineNumber;
 		if (sameLineNumber) {
 			if (selectionLineIsEmpty) {
 				// Suppose there is already a decoration on the current line and the line is empty, then do not do anything
 				return;
 			}
 			// Else the current line is not empty, then remove the decoration
-			this.removePreviousGutterDecoration();
-			this.decorationLineNumber = undefined;
+			this.removePreviousGutterDecoration(uri);
+			this.gutterDecorationsMap.set(uri, undefined);
 		} else {
 			// Suppose we are on a different line than where previous decoration was placed, then remove the previous decoration
-			this.removePreviousGutterDecoration();
+			this.removePreviousGutterDecoration(uri);
 			if (selectionLineIsEmpty) {
 				// If current selection line is empty, add the decoration
-				this.addDecoration(startLineNumber);
-				this.decorationLineNumber = startLineNumber;
+				this.addDecoration(uri, startLineNumber);
 				return;
 			}
-			this.decorationLineNumber = undefined;
+			this.gutterDecorationsMap.set(uri, undefined);
 		}
 	}
 
-	private addDecoration(lineNumber: number) {
+	private addDecoration(uri: URI, lineNumber: number) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this.gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
+			const id = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
+			this.gutterDecorationsMap.set(uri, { lineNumber, id });
 		});
 	}
 
-	private removePreviousGutterDecoration() {
+	private removePreviousGutterDecoration(uri: URI) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			if (this.gutterDecorationID) {
-				accessor.removeDecoration(this.gutterDecorationID);
+			const id = this.gutterDecorationsMap.get(uri)?.id;
+			if (id) {
+				accessor.removeDecoration(id);
 			}
 		});
 	}
 
 	private clearState() {
 		this.disposableStore.dispose();
-		this.removePreviousGutterDecoration();
 		this.inlineChatLineNumber = undefined;
-		this.decorationLineNumber = undefined;
 	}
 
 	dispose() {
