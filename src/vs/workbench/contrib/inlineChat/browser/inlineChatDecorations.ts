@@ -27,7 +27,8 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private gutterDecorationID: string | undefined;
 	private cursorChangeListener: IDisposable | undefined;
 	private clickChangeListener: IDisposable | undefined;
-	private inlineChatLine: number | undefined;
+	private inlineChatLinePosition: number | undefined;
+	private selection: Selection | undefined;
 
 	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
 	private static readonly gutterIconClassName = 'codicon-inline-chat';
@@ -80,36 +81,45 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private activateGutterDecoration() {
 		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => {
 			this.updateGutterDecoration(e.selection);
+			this.selection = e.selection;
 		});
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				return;
 			}
 			const selectionStartLine = this.editor.getSelection()?.startLineNumber;
-			const sameLine = selectionStartLine === this.inlineChatLine;
+			const sameLinePosition = selectionStartLine === this.inlineChatLinePosition;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
-			if (sameLine && inlineChatVisible) {
+			if (sameLinePosition && inlineChatVisible) {
 				return;
 			}
-			this.inlineChatLine = selectionStartLine;
+			this.inlineChatLinePosition = selectionStartLine;
 			InlineChatController.get(this.editor)?.run();
 		});
-		this.updateGutterDecoration(this.editor.getSelection());
+		const selection = this.editor.getSelection();
+		this.updateGutterDecoration(selection);
+		this.selection = selection ?? undefined;
 	}
 
 	private updateGutterDecoration(selection: Selection | null) {
-		this.removePreviousGutterDecoration();
 		if (!selection) {
+			this.removePreviousGutterDecoration();
 			return;
 		}
 		const startLineNumber = selection.startLineNumber;
-		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
-		if (!gutterIconEnabled) {
-			return;
-		}
 		const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
-		if (selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine)) {
-			this.addDecoration(startLineNumber);
+		const sameSelectionLine = this.selection?.startLineNumber === selection.startLineNumber;
+		const selectionLineIsEmpty = selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine);
+		if (sameSelectionLine) {
+			if (selectionLineIsEmpty) {
+				return;
+			}
+			this.removePreviousGutterDecoration();
+		} else {
+			this.removePreviousGutterDecoration();
+			if (selectionLineIsEmpty) {
+				this.addDecoration(startLineNumber);
+			}
 		}
 	}
 
@@ -133,7 +143,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.clickChangeListener?.dispose();
 		this.cursorChangeListener = undefined;
 		this.clickChangeListener = undefined;
-		this.inlineChatLine = undefined;
+		this.inlineChatLinePosition = undefined;
 	}
 }
 
