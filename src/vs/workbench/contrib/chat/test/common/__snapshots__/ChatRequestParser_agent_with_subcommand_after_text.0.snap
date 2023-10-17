@@ -21,43 +21,15 @@
     {
       range: {
         start: 6,
-        endExclusive: 17
+        endExclusive: 35
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 7,
         endLineNumber: 1,
-        endColumn: 18
-      },
-      text: " Please do ",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 17,
-        endExclusive: 28
-      },
-      editorRange: {
-        startLineNumber: 1,
-        startColumn: 18,
-        endLineNumber: 1,
-        endColumn: 29
-      },
-      text: "/subCommand",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 28,
-        endExclusive: 35
-      },
-      editorRange: {
-        startLineNumber: 1,
-        startColumn: 29,
-        endLineNumber: 1,
         endColumn: 36
       },
-      text: " thanks",
+      text: " Please do /subCommand thanks",
       kind: "text"
     }
   ],
