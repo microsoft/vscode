@@ -526,7 +526,8 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
-			if (document.activeElement !== this._toolbar.getElement()) {
+			const element = this._toolbar.getElement();
+			if (element.ownerDocument.activeElement !== element) {
 				this._contextViewService.hideContextView();
 			}
 		}));

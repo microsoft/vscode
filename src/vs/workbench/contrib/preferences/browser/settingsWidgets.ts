@@ -193,7 +193,7 @@ export abstract class AbstractListSettingWidget<TDataItem extends object> extend
 	}
 
 	protected renderList(): void {
-		const focused = DOM.isAncestor(document.activeElement, this.listElement);
+		const focused = DOM.isAncestor(this.listElement.ownerDocument.activeElement, this.listElement);
 
 		DOM.clearNode(this.listElement);
 		this.listDisposables.clear();

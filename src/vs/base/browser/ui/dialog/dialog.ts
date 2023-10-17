@@ -198,8 +198,7 @@ export class Dialog extends Disposable {
 	}
 
 	async show(): Promise<IDialogResult> {
-		const window = getWindow(this.container);
-		this.focusToReturn = window.document.activeElement as HTMLElement;
+		this.focusToReturn = this.container.ownerDocument.activeElement as HTMLElement;
 
 		return new Promise<IDialogResult>((resolve) => {
 			clearNode(this.buttonsContainer);
@@ -229,6 +228,7 @@ export class Dialog extends Disposable {
 			});
 
 			// Handle keyboard events globally: Tab, Arrow-Left/Right
+			const window = getWindow(this.container);
 			this._register(addDisposableListener(window, 'keydown', e => {
 				const evt = new StandardKeyboardEvent(e);
 
@@ -269,7 +269,7 @@ export class Dialog extends Disposable {
 						const links = this.messageContainer.querySelectorAll('a');
 						for (const link of links) {
 							focusableElements.push(link);
-							if (link === document.activeElement) {
+							if (link === link.ownerDocument.activeElement) {
 								focusedIndex = focusableElements.length - 1;
 							}
 						}

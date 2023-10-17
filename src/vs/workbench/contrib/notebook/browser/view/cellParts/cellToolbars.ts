@@ -243,7 +243,8 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 
 	private updateActions(toolbar: ToolBar, actions: { primary: IAction[]; secondary: IAction[] }) {
-		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
+		const element = toolbar.getElement();
+		const hadFocus = DOM.isAncestor(element.ownerDocument.activeElement, element);
 		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
 			this._notebookEditor.focus();
