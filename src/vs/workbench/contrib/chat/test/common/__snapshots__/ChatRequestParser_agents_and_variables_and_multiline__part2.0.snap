@@ -21,43 +21,15 @@
     {
       range: {
         start: 6,
-        endExclusive: 18
+        endExclusive: 35
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 7,
         endLineNumber: 2,
-        endColumn: 4
-      },
-      text: " Please \ndo ",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 18,
-        endExclusive: 29
-      },
-      editorRange: {
-        startLineNumber: 2,
-        startColumn: 4,
-        endLineNumber: 2,
-        endColumn: 15
-      },
-      text: "/subCommand",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 29,
-        endExclusive: 35
-      },
-      editorRange: {
-        startLineNumber: 2,
-        startColumn: 15,
-        endLineNumber: 2,
         endColumn: 21
       },
-      text: " with ",
+      text: " Please \ndo /subCommand with ",
       kind: "text"
     },
     {
