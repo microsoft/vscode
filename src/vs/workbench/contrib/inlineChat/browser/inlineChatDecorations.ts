@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { GutterMode } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { GutterMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -39,8 +39,24 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	constructor(
 		private readonly editor: ICodeEditor,
+		@IInlineChatService inlineChatService: IInlineChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
+		const numberOfProviders = [...inlineChatService.getAllProvider()].length;
+		if (numberOfProviders > 0) {
+			this.setupGutterDecoration();
+		}
+		inlineChatService.onDidChangeProviders(() => {
+			const numberOfProviders = [...inlineChatService.getAllProvider()].length;
+			if (numberOfProviders > 0) {
+				this.setupGutterDecoration();
+			} else {
+				this.dispose();
+			}
+		});
+	}
+
+	private setupGutterDecoration() {
 		this.configurationService.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
