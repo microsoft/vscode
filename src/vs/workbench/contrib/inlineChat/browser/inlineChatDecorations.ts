@@ -27,8 +27,8 @@ const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, locali
 export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	private disposableStore = new DisposableStore();
-
 	private onProvidersChange: IDisposable;
+	private onConfigurationChange: IDisposable | undefined;
 	private numberOfProviders: number;
 
 	private gutterDecorationsMap = new ResourceMap<{ id: string; lineNumber: number } | undefined>();
@@ -69,7 +69,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private setupGutterDecoration() {
-		this.disposableStore.add(this.configurationService.onDidChangeConfiguration(e => {
+		this.onConfigurationChange = this.configurationService.onDidChangeConfiguration(e => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
 			}
@@ -80,7 +80,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 				return;
 			}
 			this.activateGutterDecoration();
-		}));
+		});
 		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
 		if (!gutterIconEnabled) {
 			return;
@@ -171,13 +171,15 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private clearState() {
-		this.disposableStore.dispose();
+		this.disposableStore.clear();
 		this.inlineChatLineNumber = undefined;
 	}
 
 	dispose() {
+		this.inlineChatLineNumber = undefined;
 		this.onProvidersChange.dispose();
-		this.clearState();
+		this.onConfigurationChange?.dispose();
+		this.disposableStore.dispose();
 	}
 }
 
