@@ -173,6 +173,10 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private clearState() {
 		this.disposableStore.clear();
 		this.inlineChatLineNumber = undefined;
+		[...this.gutterDecorationsMap.keys()].forEach((uri: URI) => {
+			this.removePreviousGutterDecoration(uri);
+		});
+		this.gutterDecorationsMap.clear();
 	}
 
 	dispose() {
