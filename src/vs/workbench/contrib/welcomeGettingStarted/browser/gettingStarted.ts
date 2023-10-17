@@ -1225,9 +1225,9 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.groupsService.contentDimension;
+		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
 
-		if (toSide && fullSize.width > 700) {
+		if (toSide && fullSize && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
 				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
 				this.groupsService.activateGroup(sideGroup);
