@@ -131,7 +131,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		}
 		const startLineNumber = selection.startLineNumber;
 		const textAtLineNumber = this.editor.getModel()?.getLineContent(startLineNumber);
-		if (!textAtLineNumber) {
+		if (textAtLineNumber === undefined) {
 			return;
 		}
 		const isSelectionLineEmpty = selection.isEmpty() && /^\s*$/g.test(textAtLineNumber);
