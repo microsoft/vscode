@@ -385,7 +385,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.onDidScroll(e => {
+		this._register(editorGroupsService.activePart.onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}

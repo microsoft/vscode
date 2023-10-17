@@ -64,10 +64,10 @@ export class WebviewEditor extends EditorPane {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
 		this._register(Event.any(
-			_editorGroupsService.onDidScroll,
-			_editorGroupsService.onDidAddGroup,
-			_editorGroupsService.onDidRemoveGroup,
-			_editorGroupsService.onDidMoveGroup,
+			_editorGroupsService.activePart.onDidScroll,
+			_editorGroupsService.activePart.onDidAddGroup,
+			_editorGroupsService.activePart.onDidRemoveGroup,
+			_editorGroupsService.activePart.onDidMoveGroup,
 		)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);

@@ -172,10 +172,11 @@ export interface IEditorDropTargetDelegate {
 }
 
 /**
- * An editor part is a viewer of editor groups. There can be multiple editor
- * parts opened in multiple windows.
+ * The basic primitive to work with editor groups. This interface is both implemented
+ * by editor part component as well as the editor groups service that operates across
+ * all opened editor parts.
  */
-export interface IEditorPart {
+export interface IEditorGroupsContainer {
 
 	/**
 	 * An event for when the active editor group changes. The active editor
@@ -204,16 +205,6 @@ export interface IEditorPart {
 	readonly onDidActivateGroup: Event<IEditorGroup>;
 
 	/**
-	 * An event for when the group container is layed out.
-	 */
-	readonly onDidLayout: Event<IDimension>;
-
-	/**
-	 * An event for when the group container is scrolled.
-	 */
-	readonly onDidScroll: Event<void>;
-
-	/**
 	 * An event for when the index of a group changes.
 	 */
 	readonly onDidChangeGroupIndex: Event<IEditorGroup>;
@@ -222,11 +213,6 @@ export interface IEditorPart {
 	 * An event for when the locked state of a group changes.
 	 */
 	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
-
-	/**
-	 * The size of the editor groups area.
-	 */
-	readonly contentDimension: IDimension;
 
 	/**
 	 * An active group is the default location for new editors to open.
@@ -240,13 +226,14 @@ export interface IEditorPart {
 	readonly sideGroup: IEditorSideGroup;
 
 	/**
-	 * All groups that are currently visible in the editor area in the
-	 * order of their creation (oldest first).
+	 * All groups that are currently visible in the container in the order
+	 * of their creation (oldest first).
 	 */
 	readonly groups: readonly IEditorGroup[];
 
 	/**
-	 * The number of editor groups that are currently opened.
+	 * The number of editor groups that are currently opened in the
+	 * container.
 	 */
 	readonly count: number;
 
@@ -256,42 +243,7 @@ export interface IEditorPart {
 	readonly orientation: GroupOrientation;
 
 	/**
-	 * A property that indicates when groups have been created
-	 * and are ready to be used.
-	 */
-	readonly isReady: boolean;
-
-	/**
-	 * A promise that resolves when groups have been created
-	 * and are ready to be used.
-	 *
-	 * Await this promise to safely work on the editor groups model
-	 * (for example, install editor group listeners).
-	 *
-	 * Use the `whenRestored` property to await visible editors
-	 * having fully resolved.
-	 */
-	readonly whenReady: Promise<void>;
-
-	/**
-	 * A promise that resolves when groups have been restored.
-	 *
-	 * For groups with active editor, the promise will resolve
-	 * when the visible editor has finished to resolve.
-	 *
-	 * Use the `whenReady` property to not await editors to
-	 * resolve.
-	 */
-	readonly whenRestored: Promise<void>;
-
-	/**
-	 * Find out if the editor group service has UI state to restore
-	 * from a previous session.
-	 */
-	readonly hasRestorableState: boolean;
-
-	/**
-	 * Get all groups that are currently visible in the editor area.
+	 * Get all groups that are currently visible in the container.
 	 *
 	 * @param order the order of the editors to use
 	 */
@@ -318,7 +270,7 @@ export interface IEditorPart {
 	setSize(group: IEditorGroup | GroupIdentifier, size: { width: number; height: number }): void;
 
 	/**
-	 * Arrange all groups according to the provided arrangement.
+	 * Arrange all groups in the container according to the provided arrangement.
 	 */
 	arrangeGroups(arrangement: GroupsArrangement): void;
 
@@ -328,7 +280,7 @@ export interface IEditorPart {
 	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
-	 * Returns an editor layout describing the current grid
+	 * Returns an editor layout of the container.
 	 */
 	getLayout(): EditorGroupLayout;
 
@@ -365,7 +317,7 @@ export interface IEditorPart {
 	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier, wrap?: boolean): IEditorGroup | undefined;
 
 	/**
-	 * Add a new group to the editor area. A new group is added by splitting a provided one in
+	 * Add a new group to the container. A new group is added by splitting a provided one in
 	 * one of the four directions.
 	 *
 	 * @param location the group from which to split to add a new group
@@ -374,12 +326,12 @@ export interface IEditorPart {
 	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
-	 * Remove a group from the editor area.
+	 * Remove a group from the container.
 	 */
 	removeGroup(group: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Move a group to a new group in the editor area.
+	 * Move a group to a new group in the container.
 	 *
 	 * @param group the group to move
 	 * @param location the group from which to split to add the moved group
@@ -407,7 +359,7 @@ export interface IEditorPart {
 	mergeAllGroups(): IEditorGroup;
 
 	/**
-	 * Copy a group to a new group in the editor area.
+	 * Copy a group to a new group in the container.
 	 *
 	 * @param group the group to copy
 	 * @param location the group from which to split to add the copied group
@@ -437,6 +389,64 @@ export interface IEditorPart {
 	createEditorDropTarget(container: unknown /* HTMLElement */, delegate: IEditorDropTargetDelegate): IDisposable;
 }
 
+/**
+ * An editor part is a viewer of editor groups. There can be multiple editor
+ * parts opened in multiple windows.
+ */
+export interface IEditorPart extends IEditorGroupsContainer {
+
+	/**
+	 * An event for when the editor part is layed out.
+	 */
+	readonly onDidLayout: Event<IDimension>;
+
+	/**
+	 * An event for when the editor part is scrolled.
+	 */
+	readonly onDidScroll: Event<void>;
+
+	/**
+	 * The size of the editor part.
+	 */
+	readonly contentDimension: IDimension;
+
+	/**
+	 * A property that indicates when groups have been created
+	 * and are ready to be used in the editor part.
+	 */
+	readonly isReady: boolean;
+
+	/**
+	 * A promise that resolves when groups have been created
+	 * and are ready to be used in the editor part.
+	 *
+	 * Await this promise to safely work on the editor groups model
+	 * (for example, install editor group listeners).
+	 *
+	 * Use the `whenRestored` property to await visible editors
+	 * having fully resolved.
+	 */
+	readonly whenReady: Promise<void>;
+
+	/**
+	 * A promise that resolves when groups have been restored in
+	 * the editor part.
+	 *
+	 * For groups with active editor, the promise will resolve
+	 * when the visible editor has finished to resolve.
+	 *
+	 * Use the `whenReady` property to not await editors to
+	 * resolve.
+	 */
+	readonly whenRestored: Promise<void>;
+
+	/**
+	 * Find out if the editor part has UI state to restore
+	 * from a previous session.
+	 */
+	readonly hasRestorableState: boolean;
+}
+
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
@@ -448,7 +458,7 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 /**
  * The main service to interact with editor groups across all opened editor parts.
  */
-export interface IEditorGroupsService extends IEditorPart {
+export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;
 
@@ -456,6 +466,16 @@ export interface IEditorGroupsService extends IEditorPart {
 	 * Provides access to the currently active editor part.
 	 */
 	readonly activePart: IEditorPart;
+
+	/**
+	 * Provides access to the main window editor part.
+	 */
+	readonly mainPart: IEditorPart;
+
+	/**
+	 * Get the editor part that contains the group with the provided identifier.
+	 */
+	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 
 	/**
 	 * Opens a new window with a full editor part instantiated
