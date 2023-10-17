@@ -54,6 +54,8 @@
 }
 
 .accessible-view.hide {
-	visibility: hidden;
+	position: fixed;
+	top: -2000px;
+	left:-2000px;
 	pointer-events: none;
 }

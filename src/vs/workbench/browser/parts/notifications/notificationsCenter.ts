@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -53,6 +54,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super(themeService);
 
@@ -329,6 +331,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
+			this.accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 		}
 	}
 }
