@@ -37,8 +37,7 @@ const cellRegex = /(Cell\s+(?:\u001b\[.+?m)?In\s*\[(\d+)\])(,\s*line \d+)/;
 const inputRegex = /(Input\s+?(?:\u001b\[.+?m)In\s*\[(\d+)\])(.*?)/;
 
 function isIpythonStackTrace(stack: string) {
-	// at least one group will point to the Cell within the notebook
-	return cellRegex.test(stack);
+	return cellRegex.test(stack) || inputRegex.test(stack) || fileRegex.test(stack);
 }
 
 function stripFormatting(text: string) {
