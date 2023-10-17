@@ -44,10 +44,15 @@ function stripFormatting(text: string) {
 	return text.replace(formatSequence, '');
 }
 
+type cellLocation = { kind: 'cell'; path: string };
+type fileLocation = { kind: 'file'; path: string };
+
+type location = cellLocation | fileLocation;
+
 function linkifyStack(stack: string) {
 	const lines = stack.split('\n');
 
-	let fileOrCell: string | undefined;
+	let fileOrCell: location | undefined;
 
 	for (const i in lines) {
 
@@ -55,20 +60,20 @@ function linkifyStack(stack: string) {
 		console.log(`linkify ${original}`); // REMOVE
 		if (fileRegex.test(original)) {
 			const fileMatch = lines[i].match(fileRegex);
-			fileOrCell = stripFormatting(fileMatch![1]);
+			fileOrCell = { kind: 'file', path: stripFormatting(fileMatch![1]) };
 			console.log(`matched file ${fileOrCell}`); // REMOVE
 			continue;
 		} else if (cellRegex.test(original)) {
 			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}`;
-				return `<a href='${fileOrCell}'>${stripFormatting(cellLabel)}</a>${suffix}`;
+				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}` };
+				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
 			console.log(`matched cell ${fileOrCell}`); // REMOVE
 			continue;
 		} else if (inputRegex.test(original)) {
 			lines[i] = original.replace(inputRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}`;
-				return `<a href='${fileOrCell}'>${stripFormatting(cellLabel)}</a>${suffix}`;
+				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution=${stripFormatting(executionCount)}` };
+				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
 			console.log(`matched cell ${fileOrCell}`); // REMOVE
 			continue;
@@ -77,9 +82,10 @@ function linkifyStack(stack: string) {
 			fileOrCell = undefined;
 			continue;
 		} else if (lineNumberRegex.test(original)) {
-
 			lines[i] = original.replace(lineNumberRegex, (_s, prefix, num, suffix) => {
-				return `${prefix}<a href='${fileOrCell}:${num}'>${num}</a>${suffix}`;
+				return fileOrCell?.kind === 'file' ?
+					`${prefix}<a href='${fileOrCell?.path}:${num}'>${num}</a>${suffix}` :
+					`${prefix}<a href='${fileOrCell?.path}&line=${num}'>${num}</a>${suffix}`;
 			});
 			console.log(`matched line ${lines[i]}`); // REMOVE
 			continue;
