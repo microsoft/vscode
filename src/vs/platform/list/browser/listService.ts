@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createStyleSheet, isKeyboardEvent } from 'vs/base/browser/dom';
+import { createStyleSheet, isActiveElement, isKeyboardEvent } from 'vs/base/browser/dom';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { IListMouseEvent, IListRenderer, IListTouchEvent, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IPagedListOptions, IPagedRenderer, PagedList } from 'vs/base/browser/ui/list/listPaging';
@@ -92,8 +92,7 @@ export class ListService implements IListService {
 		this.lists.push(registeredList);
 
 		// Check for currently being focused
-		const element = widget.getHTMLElement();
-		if (element === element.ownerDocument.activeElement) {
+		if (isActiveElement(widget.getHTMLElement())) {
 			this.setLastFocusedList(widget);
 		}
 

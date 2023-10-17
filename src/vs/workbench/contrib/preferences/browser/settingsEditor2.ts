@@ -1408,7 +1408,7 @@ export class SettingsEditor2 extends EditorPane {
 	private getActiveControlInSettingsTree(): HTMLElement | null {
 		const element = this.settingsTree.getHTMLElement();
 		const activeElement = element.ownerDocument.activeElement;
-		return (activeElement && DOM.isAncestor(activeElement, element)) ?
+		return (activeElement && DOM.isAncestorOfActiveElement(element)) ?
 			<HTMLElement>activeElement :
 			null;
 	}

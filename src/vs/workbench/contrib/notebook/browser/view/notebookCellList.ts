@@ -522,7 +522,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			return;
 		}
 
-		const focusInside = DOM.isAncestor(this.rowsContainer.ownerDocument.activeElement, this.rowsContainer);
+		const focusInside = DOM.isAncestorOfActiveElement(this.rowsContainer);
 		super.splice(start, deleteCount, elements);
 		if (focusInside) {
 			this.domFocus();

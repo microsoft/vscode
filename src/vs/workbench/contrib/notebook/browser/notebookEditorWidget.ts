@@ -1959,7 +1959,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private editorHasDomFocus(): boolean {
-		return DOM.isAncestor(this.getDomNode().ownerDocument.activeElement, this.getDomNode());
+		return DOM.isAncestorOfActiveElement(this.getDomNode());
 	}
 
 	updateEditorFocus() {

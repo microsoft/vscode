@@ -587,7 +587,7 @@ export class QuickInputController extends Disposable {
 		}
 
 		const container = this.ui?.container;
-		const focusChanged = container && !dom.isAncestor(container.ownerDocument.activeElement, container);
+		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		this.getUI().container.style.display = 'none';
