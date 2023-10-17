@@ -41,6 +41,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -71,7 +74,9 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 	}
 
@@ -90,6 +95,33 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 				content.push(AccessibilityHelpNLS.readonlyEditor);
 			} else {
 				content.push(AccessibilityHelpNLS.editableEditor);
+			}
+		}
+		const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		const saveAudioCue = this._configurationService.getValue(AudioCue.save.settingsKey);
+		const formatAudioCue = this._configurationService.getValue(AudioCue.format.settingsKey);
+		if (screenReaderOptimized) {
+			switch (saveAudioCue) {
+				case 'never':
+					content.push(AccessibilityHelpNLS.saveAudioCueDisabled);
+					break;
+				case 'always':
+					content.push(AccessibilityHelpNLS.saveAudioCueAlways);
+					break;
+				case 'userGesture':
+					content.push(AccessibilityHelpNLS.saveAudioCueUserGesture);
+					break;
+			}
+			switch (formatAudioCue) {
+				case 'never':
+					content.push(AccessibilityHelpNLS.formatAudioCueDisabled);
+					break;
+				case 'always':
+					content.push(AccessibilityHelpNLS.formatAudioCueAlways);
+					break;
+				case 'userGesture':
+					content.push(AccessibilityHelpNLS.formatAudioCueUserGesture);
+					break;
 			}
 		}
 
