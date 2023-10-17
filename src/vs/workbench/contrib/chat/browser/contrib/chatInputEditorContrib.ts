@@ -374,8 +374,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
-				const usedAgent = parsedRequest.find((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
-				if (!usedAgent) {
+				const usedAgentIdx = parsedRequest.findIndex((p): p is ChatRequestAgentPart => p instanceof ChatRequestAgentPart);
+				if (usedAgentIdx < 0) {
 					return;
 				}
 
@@ -385,6 +385,14 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
+				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
+					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.match(/^\s+(\/\w*)?$/)) {
+						// No text allowed between agent and subcommand
+						return;
+					}
+				}
+
+				const usedAgent = parsedRequest[usedAgentIdx] as ChatRequestAgentPart;
 				const commands = await usedAgent.agent.provideSlashCommands(token);
 
 				return <CompletionList>{

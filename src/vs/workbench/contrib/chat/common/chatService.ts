@@ -210,7 +210,12 @@ export interface IChatCommandAction {
 	command: IChatResponseCommandFollowup;
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction;
+export interface IChatFollowupAction {
+	kind: 'followUp';
+	followup: IChatFollowup;
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;
