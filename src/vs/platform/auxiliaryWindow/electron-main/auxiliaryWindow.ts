@@ -78,4 +78,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			this._lastFocusTime = Date.now();
 		});
 	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this._win = null!; // Important to dereference the window object to allow for GC
+	}
 }
