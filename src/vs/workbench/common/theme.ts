@@ -911,7 +911,7 @@ export const COMMAND_CENTER_ACTIVEBACKGROUND = registerColor(
 );
 // border: active and inactive. defaults to active background
 export const COMMAND_CENTER_BORDER = registerColor(
-	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
+	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: contrastBorder, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: contrastBorder },
 	localize('commandCenter-border', "Border color of the command center"),
 	false
 );
