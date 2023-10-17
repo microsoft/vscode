@@ -47,11 +47,10 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			this.setupGutterDecoration();
 		}
 		inlineChatService.onDidChangeProviders(() => {
+			this.dispose();
 			const numberOfProviders = [...inlineChatService.getAllProvider()].length;
 			if (numberOfProviders > 0) {
 				this.setupGutterDecoration();
-			} else {
-				this.dispose();
 			}
 		});
 	}
@@ -65,7 +64,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			if (gutterIconMode !== GutterMode.Never) {
 				this.activateGutterDecoration();
 			} else {
-				this.deactivateGutterDecoration();
+				this.dispose();
 			}
 		});
 		const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
@@ -84,11 +83,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			}
 		});
 		this.updateGutterDecoration(this.editor.getSelection());
-	}
-
-	private deactivateGutterDecoration() {
-		this.removePreviousGutterDecoration();
-		this.dispose();
 	}
 
 	private updateGutterDecoration(selection: Selection | null) {
@@ -124,6 +118,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	dispose() {
+		this.removePreviousGutterDecoration();
 		this.cursorChangeListener?.dispose();
 		this.clickChangeListener?.dispose();
 		this.cursorChangeListener = undefined;
