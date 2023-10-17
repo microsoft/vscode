@@ -27,8 +27,9 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private gutterDecorationID: string | undefined;
 	private cursorChangeListener: IDisposable | undefined;
 	private clickChangeListener: IDisposable | undefined;
-	private inlineChatLinePosition: number | undefined;
-	private selection: Selection | undefined;
+
+	private inlineChatLineNumber: number | undefined;
+	private decorationLineNumber: number | undefined;
 
 	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
 	private static readonly gutterIconClassName = 'codicon-inline-chat';
@@ -81,34 +82,35 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private activateGutterDecoration() {
 		this.cursorChangeListener = this.editor.onDidChangeCursorSelection(e => {
 			this.updateGutterDecoration(e.selection);
-			this.selection = e.selection;
+			this.decorationLineNumber = e.selection.startLineNumber;
 		});
 		this.clickChangeListener = this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
 				return;
 			}
 			const selectionStartLine = this.editor.getSelection()?.startLineNumber;
-			const sameLinePosition = selectionStartLine === this.inlineChatLinePosition;
+			const sameLinePosition = selectionStartLine === this.inlineChatLineNumber;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
 			if (sameLinePosition && inlineChatVisible) {
 				return;
 			}
-			this.inlineChatLinePosition = selectionStartLine;
+			this.inlineChatLineNumber = selectionStartLine;
 			InlineChatController.get(this.editor)?.run();
 		});
 		const selection = this.editor.getSelection();
 		this.updateGutterDecoration(selection);
-		this.selection = selection ?? undefined;
+		this.decorationLineNumber = selection?.startLineNumber ?? undefined;
 	}
 
 	private updateGutterDecoration(selection: Selection | null) {
+		console.log('Inside of updateGutterDecoration : ', selection);
 		if (!selection) {
 			this.removePreviousGutterDecoration();
 			return;
 		}
 		const startLineNumber = selection.startLineNumber;
 		const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
-		const sameSelectionLine = this.selection?.startLineNumber === selection.startLineNumber;
+		const sameSelectionLine = this.decorationLineNumber === selection.startLineNumber;
 		const selectionLineIsEmpty = selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine);
 		if (sameSelectionLine) {
 			if (selectionLineIsEmpty) {
@@ -143,7 +145,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.clickChangeListener?.dispose();
 		this.cursorChangeListener = undefined;
 		this.clickChangeListener = undefined;
-		this.inlineChatLinePosition = undefined;
+		this.inlineChatLineNumber = undefined;
 	}
 }
 
