@@ -17,7 +17,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { CTX_INLINE_CHAT_VISIBLE, GutterMode, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
@@ -63,16 +63,18 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
 			}
-			const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
 			this.dispose();
-			if (gutterIconMode !== GutterMode.Never) {
-				this.activateGutterDecoration();
+			const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
+			if (!gutterIconEnabled) {
+				return;
 			}
-		});
-		const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
-		if (gutterIconMode !== GutterMode.Never) {
 			this.activateGutterDecoration();
+		});
+		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
+		if (!gutterIconEnabled) {
+			return;
 		}
+		this.activateGutterDecoration();
 	}
 
 	private activateGutterDecoration() {
@@ -101,15 +103,13 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			return;
 		}
 		const startLineNumber = selection.startLineNumber;
-		const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
-		if (gutterIconMode === GutterMode.Always) {
-			this.addDecoration(startLineNumber);
+		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
+		if (!gutterIconEnabled) {
+			return;
 		}
-		if (gutterIconMode === GutterMode.OnEmptyLine) {
-			const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
-			if (selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine)) {
-				this.addDecoration(startLineNumber);
-			}
+		const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
+		if (selection.isEmpty() && textAtLine !== undefined && /^\s*$/g.test(textAtLine)) {
+			this.addDecoration(startLineNumber);
 		}
 	}
 

@@ -181,12 +181,6 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
-export const enum GutterMode {
-	Always = 'always',
-	OnEmptyLine = 'onEmptyLine',
-	Never = 'never'
-}
-
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -216,14 +210,8 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		'inlineChat.showGutterIcon': {
 			description: localize('showGutterIcon', "Define how to show a gutter icon which on click spawns the inline chat."),
-			default: GutterMode.OnEmptyLine,
-			type: 'string',
-			enum: [GutterMode.OnEmptyLine, GutterMode.Always, GutterMode.Never],
-			markdownEnumDescriptions: [
-				localize('showGutterIcon.onEmptyLines', "Show the gutter icon when the selection is on an empty line."),
-				localize('showGutterIcon.always', "Always show the gutter icon."),
-				localize('showGutterIcon.never', "Never show the gutter icon."),
-			]
+			default: true,
+			type: 'boolean'
 		}
 	}
 });
