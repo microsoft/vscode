@@ -1460,8 +1460,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(Math.abs(sizeChangeWidth));
-		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(Math.abs(sizeChangeHeight));
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(window, Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(window, Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 

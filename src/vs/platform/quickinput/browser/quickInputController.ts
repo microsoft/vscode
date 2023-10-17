@@ -12,7 +12,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -58,17 +58,18 @@ export class QuickInputController extends Disposable {
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
 		this.styles = options.styles;
-		this.registerKeyModsListeners();
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposableStore }) => this.registerKeyModsListeners(window, disposableStore), { window, disposableStore: this._store }));
 	}
 
-	private registerKeyModsListeners() {
+	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
 		const listener = (e: KeyboardEvent | MouseEvent) => {
 			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
 			this.keyMods.alt = e.altKey;
 		};
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.MOUSE_DOWN, listener, true));
+
+		for (const event of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP, dom.EventType.MOUSE_DOWN]) {
+			disposables.add(dom.addDisposableListener(window, event, listener, true));
+		}
 	}
 
 	private getUI() {
