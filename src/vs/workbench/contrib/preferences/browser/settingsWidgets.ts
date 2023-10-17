@@ -484,9 +484,9 @@ export class ListSettingWidget extends AbstractListSettingWidget<IListDataItem> 
 			if (ev.dataTransfer) {
 				ev.dataTransfer.dropEffect = 'move';
 				const dragImage = this.getDragImage(item);
-				document.body.appendChild(dragImage);
+				rowElement.ownerDocument.body.appendChild(dragImage);
 				ev.dataTransfer.setDragImage(dragImage, -10, -10);
-				setTimeout(() => document.body.removeChild(dragImage), 0);
+				setTimeout(() => rowElement.ownerDocument.body.removeChild(dragImage), 0);
 			}
 		}));
 		this.listDisposables.add(DOM.addDisposableListener(rowElement, DOM.EventType.DRAG_OVER, (ev) => {
