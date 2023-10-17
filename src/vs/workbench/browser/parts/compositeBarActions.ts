@@ -10,7 +10,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { toDisposable, DisposableStore, disposeIfDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { TextBadge, NumberBadge, IBadge, IActivity, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
+import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -314,15 +314,15 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 				classes.push('progress-badge');
 			}
 
-			else if (this.options.compact) {
-				show(this.badge);
-			}
-
 			// Number
 			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (badge.number > 999) {
+					if (this.options.compact) {
+						if (badge.number > 99) {
+							number = '';
+						}
+					} else if (badge.number > 999) {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
@@ -334,19 +334,6 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 					this.badgeContent.textContent = number;
 					show(this.badge);
 				}
-			}
-
-			// Text
-			else if (badge instanceof TextBadge) {
-				this.badgeContent.textContent = badge.text;
-				show(this.badge);
-			}
-
-			// Icon
-			else if (badge instanceof IconBadge) {
-				const clazzList = ThemeIcon.asClassNameArray(badge.icon);
-				this.badgeContent.classList.add(...clazzList);
-				show(this.badge);
 			}
 
 			if (classes.length) {
@@ -518,8 +505,6 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 			let suffix: string | number | undefined;
 			if (badge instanceof NumberBadge) {
 				suffix = badge.number;
-			} else if (badge instanceof TextBadge) {
-				suffix = badge.text;
 			}
 
 			if (suffix) {

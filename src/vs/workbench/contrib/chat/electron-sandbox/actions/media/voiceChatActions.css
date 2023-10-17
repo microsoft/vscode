@@ -4,31 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 /*
- * Show a "microphone" icon when recording is in progress that glows via outline.
- */
-.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled),
-.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled) {
-	color: var(--vscode-voiceRecording-background);
-	outline: 1px solid var(--vscode-voiceRecording-background);
-	outline-offset: -1px;
-	animation: pulseAnimation 1s infinite;
-	border-radius: 50%;
-}
-
-@keyframes pulseAnimation {
-	0% {
-		outline-width: 1px;
-	}
-	50% {
-		outline-width: 3px;
-		outline-color: var(--vscode-voiceRecording-dimmedBackground);
-	}
-	100% {
-		outline-width: 1px;
-	}
-}
-
-/*
  * Replace with "microphone" icon.
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled)::before,
@@ -41,10 +16,7 @@
  */
 .monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover,
 .monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):hover {
-	color: inherit;
-	outline: none;
 	animation: none;
-	border-radius: 5px;
 }
 
 /*

@@ -164,6 +164,10 @@
 	margin: unset;
 }
 
+.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
+	margin: 16px 0;
+}
+
 .monaco-editor .inline-chat .markdownMessage .message {
 	-webkit-line-clamp: initial;
 	-webkit-box-orient: vertical;

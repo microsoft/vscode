@@ -34,6 +34,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	static readonly activePanelSettingsKey = 'workbench.auxiliarybar.activepanelid';
 	static readonly pinnedPanelsKey = 'workbench.auxiliarybar.pinnedPanels';
 	static readonly placeholdeViewContainersKey = 'workbench.auxiliarybar.placeholderPanels';
+	static readonly viewContainersWorkspaceStateKey = 'workbench.auxiliarybar.viewContainersWorkspaceState';
 
 	// Use the side bar dimensions
 	override readonly minimumWidth: number = 170;
@@ -127,6 +128,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			partContainerClass: 'auxiliarybar',
 			pinnedViewContainersKey: AuxiliaryBarPart.pinnedPanelsKey,
 			placeholderViewContainersKey: AuxiliaryBarPart.placeholdeViewContainersKey,
+			viewContainersWorkspaceStateKey: AuxiliaryBarPart.viewContainersWorkspaceStateKey,
 			icon: true,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,

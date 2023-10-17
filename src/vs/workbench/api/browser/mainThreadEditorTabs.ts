@@ -69,7 +69,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
 
 		// Once everything is read go ahead and initialize the model
-		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
+		this._editorGroupsService.mainPart.whenReady.then(() => this._createTabsModel());
 	}
 
 	dispose(): void {

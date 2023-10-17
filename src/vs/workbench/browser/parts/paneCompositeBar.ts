@@ -30,7 +30,6 @@ import { GestureEvent } from 'vs/base/browser/touch';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IExtensionBisectService } from 'vs/workbench/services/extensionManagement/browser/extensionBisect';
 
 interface IPlaceholderViewContainer {
 	readonly id: string;
@@ -39,6 +38,7 @@ interface IPlaceholderViewContainer {
 	readonly themeIcon?: ThemeIcon;
 	readonly isBuiltin?: boolean;
 	readonly views?: { when?: string }[];
+	// TODO @sandy081: Remove this after a while. Migrated to visible in IViewContainerWorkspaceState
 	readonly visible?: boolean;
 }
 
@@ -46,7 +46,12 @@ interface IPinnedViewContainer {
 	readonly id: string;
 	readonly pinned: boolean;
 	readonly order?: number;
-	// TODO @sandy081: Remove this after a while. Migrated to visible in IPlaceholderViewContainer
+	// TODO @sandy081: Remove this after a while. Migrated to visible in IViewContainerWorkspaceState
+	readonly visible: boolean;
+}
+
+interface IViewContainerWorkspaceState {
+	readonly id: string;
 	readonly visible: boolean;
 }
 
@@ -65,6 +70,7 @@ export interface IPaneCompositeBarOptions {
 	readonly partContainerClass: string;
 	readonly pinnedViewContainersKey: string;
 	readonly placeholderViewContainersKey: string;
+	readonly viewContainersWorkspaceStateKey: string;
 	readonly icon: boolean;
 	readonly compact?: boolean;
 	readonly iconSize: number;
@@ -97,7 +103,6 @@ export class PaneCompositeBar extends Disposable {
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IExtensionService private readonly extensionService: IExtensionService,
-		@IExtensionBisectService private readonly extensionBisectService: IExtensionBisectService,
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
@@ -219,16 +224,12 @@ export class PaneCompositeBar extends Disposable {
 		this.hasExtensionsRegistered = true;
 
 		// show/hide/remove composites
-		const shouldRemoveNotExsitingComposite = !(this.extensionBisectService.isActive
-			|| this.environmentService.disableExtensions === true
-			|| (Array.isArray(this.environmentService.disableExtensions) && this.environmentService.disableExtensions.length > 0));
-
 		for (const { id } of this.cachedViewContainers) {
 			const viewContainer = this.getViewContainer(id);
 			if (viewContainer) {
 				this.showOrHideViewContainer(viewContainer);
 			} else {
-				if (shouldRemoveNotExsitingComposite) {
+				if (this.viewDescriptorService.isViewContainerRemovedPermanently(id)) {
 					this.removeComposite(id);
 				} else {
 					this.hideComposite(id);
@@ -497,14 +498,25 @@ export class PaneCompositeBar extends Disposable {
 			for (const viewContainer of this.getViewContainers()) {
 				// Add missing view containers
 				if (!newCompositeItems.some(({ id }) => id === viewContainer.id)) {
-					const compositeItem = compositeItems.find(({ id }) => id === viewContainer.id);
-					newCompositeItems.push({
-						id: viewContainer.id,
-						name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
-						order: viewContainer.order,
-						pinned: e.external ? true : compositeItem?.pinned ?? true,
-						visible: e.external ? !this.shouldBeHidden(viewContainer) : compositeItem?.visible ?? true,
-					});
+					const index = compositeItems.findIndex(({ id }) => id === viewContainer.id);
+					if (index !== -1) {
+						const compositeItem = compositeItems[index];
+						newCompositeItems.splice(index, 0, {
+							id: viewContainer.id,
+							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+							order: compositeItem.order,
+							pinned: compositeItem.pinned,
+							visible: compositeItem.visible,
+						});
+					} else {
+						newCompositeItems.push({
+							id: viewContainer.id,
+							name: typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value,
+							order: viewContainer.order,
+							pinned: true,
+							visible: !this.shouldBeHidden(viewContainer),
+						});
+					}
 				}
 			}
 
@@ -560,6 +572,12 @@ export class PaneCompositeBar extends Disposable {
 					cachedViewContainer.isBuiltin = placeholderViewContainer.isBuiltin;
 				}
 			}
+			for (const viewContainerWorkspaceState of this.getViewContainersWorkspaceState()) {
+				const cachedViewContainer = this._cachedViewContainers.find(cached => cached.id === viewContainerWorkspaceState.id);
+				if (cachedViewContainer) {
+					cachedViewContainer.visible = viewContainerWorkspaceState.visible ?? cachedViewContainer.visible;
+				}
+			}
 		}
 
 		return this._cachedViewContainers;
@@ -574,14 +592,18 @@ export class PaneCompositeBar extends Disposable {
 			order
 		})));
 
-		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, visible, isBuiltin }) => (<IPlaceholderViewContainer>{
+		this.setPlaceholderViewContainers(cachedViewContainers.map(({ id, icon, name, views, isBuiltin }) => (<IPlaceholderViewContainer>{
 			id,
 			iconUrl: URI.isUri(icon) ? icon : undefined,
 			themeIcon: ThemeIcon.isThemeIcon(icon) ? icon : undefined,
 			name,
 			isBuiltin,
-			visible,
 			views
+		})));
+
+		this.setViewContainersWorkspaceState(cachedViewContainers.map(({ id, visible }) => (<IViewContainerWorkspaceState>{
+			id,
+			visible,
 		})));
 	}
 
@@ -647,6 +669,38 @@ export class PaneCompositeBar extends Disposable {
 
 	private setStoredPlaceholderViewContainersValue(value: string): void {
 		this.storageService.store(this.options.placeholderViewContainersKey, value, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private getViewContainersWorkspaceState(): IViewContainerWorkspaceState[] {
+		return JSON.parse(this.viewContainersWorkspaceStateValue);
+	}
+
+	private setViewContainersWorkspaceState(viewContainersWorkspaceState: IViewContainerWorkspaceState[]): void {
+		this.viewContainersWorkspaceStateValue = JSON.stringify(viewContainersWorkspaceState);
+	}
+
+	private _viewContainersWorkspaceStateValue: string | undefined;
+	private get viewContainersWorkspaceStateValue(): string {
+		if (!this._viewContainersWorkspaceStateValue) {
+			this._viewContainersWorkspaceStateValue = this.getStoredViewContainersWorkspaceStateValue();
+		}
+
+		return this._viewContainersWorkspaceStateValue;
+	}
+
+	private set viewContainersWorkspaceStateValue(viewContainersWorkspaceStateValue: string) {
+		if (this.viewContainersWorkspaceStateValue !== viewContainersWorkspaceStateValue) {
+			this._viewContainersWorkspaceStateValue = viewContainersWorkspaceStateValue;
+			this.setStoredViewContainersWorkspaceStateValue(viewContainersWorkspaceStateValue);
+		}
+	}
+
+	private getStoredViewContainersWorkspaceStateValue(): string {
+		return this.storageService.get(this.options.viewContainersWorkspaceStateKey, StorageScope.WORKSPACE, '[]');
+	}
+
+	private setStoredViewContainersWorkspaceStateValue(value: string): void {
+		this.storageService.store(this.options.viewContainersWorkspaceStateKey, value, StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 }
 

@@ -48,7 +48,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.apiAgent;
 	}
 
-	async $invokeAgent(handle: number, sessionId: string, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+	async $invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -78,10 +78,21 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					slashCommand
 				},
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
-				new Progress<vscode.ChatAgentProgress>(p => {
+				new Progress<vscode.ChatAgentProgress>(progress => {
 					throwIfDone();
-					const convertedProgress = typeConvert.ChatResponseProgress.from(p);
-					this._proxy.$handleProgressChunk(requestId, convertedProgress);
+					const convertedProgress = typeConvert.ChatResponseProgress.from(progress);
+					if ('placeholder' in progress && 'resolvedContent' in progress) {
+						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(requestId, convertedProgress), progress.resolvedContent]);
+						raceCancellation(resolvedContent, token).then(res => {
+							if (!res) {
+								return; /* Cancelled */
+							}
+							const [progressHandle, progressContent] = res;
+							this._proxy.$handleProgressChunk(requestId, progressContent, progressHandle ?? undefined);
+						});
+					} else {
+						this._proxy.$handleProgressChunk(requestId, convertedProgress);
+					}
 				}),
 				token
 			);

@@ -177,14 +177,7 @@ export class BreadcrumbsWidget {
 	}
 
 	isDOMFocused(): boolean {
-		let candidate = document.activeElement;
-		while (candidate) {
-			if (this._domNode === candidate) {
-				return true;
-			}
-			candidate = candidate.parentElement;
-		}
-		return false;
+		return dom.isAncestorOfActiveElement(this._domNode);
 	}
 
 	getFocused(): BreadcrumbsItem {
