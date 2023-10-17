@@ -57,7 +57,7 @@ export interface IAccessibleContentProvider {
 	actions?: IAction[];
 	provideContent(): string;
 	onClose(): void;
-	onKeyUp?(e: IKeyboardEvent): void;
+	onKeyDown?(e: IKeyboardEvent): void;
 	previous?(): void;
 	next?(): void;
 	/**
@@ -507,7 +507,6 @@ export class AccessibleView extends Disposable {
 			setTimeout(() => provider.onClose(), 100);
 		};
 		const disposableStore = new DisposableStore();
-		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyUp?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				handleEscape(e);
@@ -518,6 +517,7 @@ export class AccessibleView extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 			}
+			provider.onKeyDown?.(e);
 		}));
 		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
