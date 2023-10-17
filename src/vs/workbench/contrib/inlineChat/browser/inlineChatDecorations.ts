@@ -87,11 +87,18 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private activateGutterDecoration() {
+		this.disposableStore.add(this.editor.onDidChangeModel(e => {
+			const newUri = e.newModelUrl;
+			if (!newUri) {
+				return;
+			}
+			this.onModelChange(newUri, this.editor.getSelection());
+		}));
 		this.disposableStore.add(this.editor.onDidChangeCursorSelection(e => {
 			if (!this.editor.hasModel()) {
 				return;
 			}
-			this.updateGutterDecoration(this.editor.getModel().uri, e.selection);
+			this.onCursorSelectionChange(this.editor.getModel().uri, e.selection);
 		}));
 		this.disposableStore.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName)) {
@@ -109,10 +116,19 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		if (!this.editor.hasModel()) {
 			return;
 		}
-		this.updateGutterDecoration(this.editor.getModel().uri, this.editor.getSelection());
+		this.onCursorSelectionChange(this.editor.getModel().uri, this.editor.getSelection());
 	}
 
-	private updateGutterDecoration(uri: URI, selection: Selection | null) {
+	private onModelChange(uri: URI, selection: Selection | null) {
+		if (!selection) {
+			this.gutterDecorationsMap.set(uri, undefined);
+			return;
+		}
+		const selectionStartLineNumber = selection.startLineNumber;
+		this.addDecoration(uri, selectionStartLineNumber);
+	}
+
+	private onCursorSelectionChange(uri: URI, selection: Selection | null) {
 		if (!selection) {
 			this.removePreviousGutterDecoration(uri);
 			this.gutterDecorationsMap.set(uri, undefined);
@@ -122,10 +138,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		const textAtLineNumber = this.editor.getModel()?.getLineContent(selection.startLineNumber);
 		const selectionLineIsEmpty = selection.isEmpty() && textAtLineNumber !== undefined && /^\s*$/g.test(textAtLineNumber);
 		const decorationData = this.gutterDecorationsMap.get(uri);
-		if (!decorationData) {
-			return;
-		}
-		const sameLineNumber = decorationData.lineNumber === selection.startLineNumber;
+		const sameLineNumber = decorationData?.lineNumber === selection.startLineNumber;
 		if (sameLineNumber) {
 			if (selectionLineIsEmpty) {
 				// Suppose there is already a decoration on the current line and the line is empty, then do not do anything
