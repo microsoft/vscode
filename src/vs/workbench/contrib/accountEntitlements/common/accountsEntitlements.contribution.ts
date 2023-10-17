@@ -95,7 +95,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === this.productService.entitlement?.providerId && !this.isInitialized) {
+			if (e.id === this.productService.entitlement!.providerId && !this.isInitialized) {
 				const session = await this.authenticationService.getSessions(e.id);
 				this.onSessionChange(session[0]);
 			}
@@ -136,7 +136,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 					const badge = new NumberBadge(1, () => menuTitle);
 					accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
 
-					const menuTitle = this.productService.entitlement?.command.title.replace('{{org}}', orgs[orgs.length - 1])!;
+					const menuTitle = this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1])!;
 
 					registerAction2(class extends Action2 {
 						constructor() {
@@ -159,7 +159,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 							const commandService = accessor.get(ICommandService);
 							const contextKeyService = accessor.get(IContextKeyService);
 							const storageService = accessor.get(IStorageService);
-							commandService.executeCommand(productService.entitlement!.command.action, productService.entitlement?.extensionId!);
+							commandService.executeCommand(productService.entitlement!.command.action, productService.entitlement!.extensionId!);
 							accountsMenuBadgeDisposable.clear();
 							const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
 							contextKey.set(false);
