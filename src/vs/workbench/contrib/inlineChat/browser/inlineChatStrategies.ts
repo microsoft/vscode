@@ -238,7 +238,6 @@ export class LiveStrategy extends EditModeStrategy {
 		protected readonly _session: Session,
 		protected readonly _editor: ICodeEditor,
 		protected readonly _widget: InlineChatWidget,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configService: IConfigurationService,
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
@@ -390,14 +389,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 		session: Session,
 		editor: ICodeEditor,
 		widget: InlineChatWidget,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IConfigurationService configService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IBulkEditService bulkEditService: IBulkEditService,
 		@IEditorWorkerService editorWorkerService: IEditorWorkerService,
 		@IInstantiationService instaService: IInstantiationService,
 	) {
-		super(session, editor, widget, contextKeyService, configService, storageService, bulkEditService, editorWorkerService, instaService);
+		super(session, editor, widget, configService, storageService, bulkEditService, editorWorkerService, instaService);
 
 		this._diffZone = new Lazy(() => instaService.createInstance(InlineChatLivePreviewWidget, editor, session));
 		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
@@ -431,11 +429,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override async undoChanges(response: EditResponse): Promise<void> {
-		this._diffZone.value.lockToDiff();
-		super.undoChanges(response);
-	}
-
 	protected override _doToggleDiff(): void {
 		const scrollState = StableEditorScrollState.capture(this._editor);
 		if (this._diffEnabled) {
@@ -447,7 +440,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override hasFocus(): boolean {
-		return super.hasFocus() || this._diffZone.value.hasFocus() || this._previewZone.value.hasFocus();
+		return super.hasFocus() || Boolean(this._diffZone.rawValue?.hasFocus()) || Boolean(this._previewZone.rawValue?.hasFocus());
 	}
 
 	override getWidgetPosition(): Position | undefined {
