@@ -80,21 +80,22 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		if (!selection) {
 			return;
 		}
+		const startLineNumber = selection.startLineNumber;
 		const gutterIconMode = this.configurationService.getValue<GutterMode>(InlineChatDecorationsContribution.gutterSettingID);
 		if (gutterIconMode === GutterMode.Always) {
-			this.addDecoration(selection);
+			this.addDecoration(startLineNumber);
 		}
 		if (gutterIconMode === GutterMode.OnEmptyLine) {
 			const textAtLine = this.editor.getModel()?.getLineContent(selection.startLineNumber);
 			if (selection.isEmpty() && textAtLine && /^\s*$/g.test(textAtLine)) {
-				this.addDecoration(selection);
+				this.addDecoration(startLineNumber);
 			}
 		}
 	}
 
-	private addDecoration(selection: Selection) {
+	private addDecoration(lineNumber: number) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this.gutterDecorationID = accessor.addDecoration(selection, InlineChatDecorationsContribution.GUTTER_DECORATION);
+			this.gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
 
