@@ -22,6 +22,16 @@ declare module 'vscode' {
 		errorDetails?: ChatAgentErrorDetails;
 	}
 
+	export enum ChatAgentResultFeedbackKind {
+		Unhelpful = 0,
+		Helpful = 1,
+	}
+
+	export interface ChatAgentResult2Feedback {
+		readonly result: ChatAgentResult2;
+		readonly kind: ChatAgentResultFeedbackKind;
+	}
+
 	export interface ChatAgentSlashCommand {
 
 		/**
@@ -51,6 +61,8 @@ declare module 'vscode' {
 		provideSlashCommands(token: CancellationToken): ProviderResult<ChatAgentSlashCommand[]>;
 	}
 
+	// TODO@API is this just a vscode.Command?
+	// TODO@API what's the when-property for? how about not returning it in the first place?
 	export interface ChatAgentCommandFollowup {
 		commandId: string;
 		args?: any[];
@@ -96,9 +108,14 @@ declare module 'vscode' {
 
 		followupProvider?: FollowupProvider;
 
-		// TODO@API We need this- can't handle telemetry on the vscode side yet
-		// onDidPerformAction: Event<{ action: InteractiveSessionUserAction }>;
-
+		/**
+		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes
+		 * a result.
+		 *
+		 * The passed {@link ChatAgentResult2Feedback.result result} is guaranteed to be the same instance that was
+		 * previously returned from this chat agent.
+		 */
+		onDidReceiveFeedback: Event<ChatAgentResult2Feedback>;
 
 		// TODO@API Something like prepareSession from the interactive chat provider might be needed.Probably nobody needs it right now.
 		// prepareSession();
@@ -129,8 +146,110 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API InteractiveProgress is a lot to inline...
-	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<InteractiveProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+	// TODO@API should these each be prefixed ChatAgentProgress*?
+	export type ChatAgentProgress =
+		| ChatAgentContent
+		| ChatAgentTask
+		| ChatAgentFileTree
+		| ChatAgentUsedContext
+		| ChatAgentContentReference
+		| ChatAgentInlineContentReference;
+
+	/**
+	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.
+	 */
+	export interface ChatAgentContentReference {
+		/**
+		 * The resource that was referenced.
+		 */
+		reference: Uri | Location;
+	}
+
+	/**
+	 * A reference to a piece of content that will be rendered inline with the markdown content.
+	 */
+	export interface ChatAgentInlineContentReference {
+		/**
+		 * The resource being referenced.
+		 */
+		inlineReference: Uri | Location;
+
+		/**
+		 * An alternate title for the resource.
+		 */
+		title?: string;
+	}
+
+	/**
+	 * A piece of the chat response's content. Will be merged with other progress pieces as needed, and rendered as markdown.
+	 */
+	export interface ChatAgentContent {
+		/**
+		 * The content as a string of markdown source.
+		 */
+		content: string;
+	}
+
+	/**
+	 * Represents a piece of the chat response's content that is resolved asynchronously. It is rendered immediately with a placeholder,
+	 * which is replaced once the full content is available.
+	 */
+	export interface ChatAgentTask {
+		/**
+		 * The markdown string to be rendered immediately.
+		 */
+		placeholder: string;
+
+		/**
+		 * A Thenable resolving to the real content. The placeholder will be replaced with this content once it's available.
+		 */
+		resolvedContent: Thenable<ChatAgentContent | ChatAgentFileTree>;
+	}
+
+	/**
+	 * Represents a tree, such as a file and directory structure, rendered in the chat response.
+	 */
+	export interface ChatAgentFileTree {
+		/**
+		 * The root node of the tree.
+		 */
+		treeData: ChatAgentFileTreeData;
+	}
+
+	/**
+	 * Represents a node in a chat response tree.
+	 */
+	export interface ChatAgentFileTreeData {
+		/**
+		 * A human-readable string describing this node.
+		 */
+		label: string;
+
+		/**
+		 * A Uri for this node, opened when it's clicked.
+		 */
+		uri: Uri;
+
+		/**
+		 * The children of this node.
+		 */
+		children?: ChatAgentFileTreeData[];
+	}
+
+	export interface ChatAgentDocumentContext {
+		uri: Uri;
+		version: number;
+		ranges: Range[];
+	}
+
+	/**
+	 * Document references that should be used by the MappedEditsProvider.
+	 */
+	export interface ChatAgentUsedContext {
+		documents: ChatAgentDocumentContext[];
+	}
+
+	export type ChatAgentHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
 
 	export namespace chat {
 

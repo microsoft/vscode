@@ -972,7 +972,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 		}
-
 		return {
 			success: saveResults.every(result => !!result),
 			editors: coalesce(saveResults)

@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
-import { Progress } from 'vs/platform/progress/common/progress';
+import { AsyncProgress } from 'vs/platform/progress/common/progress';
 
 suite('Progress', () => {
 	test('multiple report calls are processed in sequence', async () => {
@@ -28,7 +28,7 @@ suite('Progress', () => {
 				}
 				executionOrder.push(`end ${value}`);
 			};
-			const progress = new Progress<number>(executor, { async: true });
+			const progress = new AsyncProgress<number>(executor);
 
 			progress.report(1);
 			progress.report(2);

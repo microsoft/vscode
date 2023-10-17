@@ -224,7 +224,6 @@ export interface IFilePathCondition extends IExtensionRecommendationCondition {
 export type IFileContentCondition = (IFileLanguageCondition | IFilePathCondition) & { readonly contentPattern: string };
 
 export interface IAppCenterConfiguration {
-	readonly 'win32-ia32': string;
 	readonly 'win32-x64': string;
 	readonly 'linux-x64': string;
 	readonly 'darwin': string;

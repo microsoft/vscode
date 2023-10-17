@@ -4083,8 +4083,8 @@ export class InteractiveWindowInput {
 //#region Interactive session
 
 export enum InteractiveSessionVoteDirection {
-	Up = 1,
-	Down = 2
+	Down = 0,
+	Up = 1
 }
 
 export enum InteractiveSessionCopyKind {
@@ -4126,6 +4126,11 @@ export class ChatMessage implements vscode.ChatMessage {
 		this.role = role;
 		this.content = content;
 	}
+}
+
+export enum ChatAgentResultFeedbackKind {
+	Unhelpful = 0,
+	Helpful = 1,
 }
 
 //#endregion

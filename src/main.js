@@ -411,9 +411,6 @@ function configureCrashReporter() {
 			if (uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
 						case 'x64':
 							submitURL = appCenter['win32-x64'];
 							break;

@@ -52,3 +52,8 @@
 	background-repeat: no-repeat;
 	padding: 2px;
 }
+
+.accessible-view.hide {
+	visibility: hidden;
+	pointer-events: none;
+}
