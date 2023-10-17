@@ -82,6 +82,10 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		this.viewState.sessionId = model.sessionId;
 	}
 
+	override shouldShowWelcome(): boolean {
+		return !this.chatService.hasProviders();
+	}
+
 	protected override renderBody(parent: HTMLElement): void {
 		try {
 			super.renderBody(parent);
