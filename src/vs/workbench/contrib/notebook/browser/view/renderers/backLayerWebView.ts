@@ -907,18 +907,54 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
-		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		const lineMatch = /(?:^|&)line=([^&]+)/.exec(uri.query);
+		let editorOptions: ITextEditorOptions | undefined = undefined;
 		if (lineMatch) {
 			const parsedLineNumber = parseInt(lineMatch[1], 10);
 			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber;
+
+				editorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1 }
+				};
+			}
+		}
+
+		const executionMatch = /(?:^|&)execution=([^&]+)/.exec(uri.query);
+		const notebookResource = uri.path.length > 0 ? uri : this.documentUri;
+		if (executionMatch) {
+			const executionCount = parseInt(executionMatch[1], 10);
+			if (!isNaN(executionCount)) {
+				const notebookModel = this.notebookService.getNotebookTextModel(notebookResource);
+				const cell = notebookModel?.cells.find(cell => {
+					return cell.internalMetadata.executionOrder === executionCount;
+				});
+				if (cell?.uri) {
+					this.openerService.open(cell.uri, {
+						fromUserGesture: true,
+						fromWorkspace: true,
+						editorOptions: editorOptions
+					});
+					return;
+				}
+			}
+		}
+
+		// URLs built by the jupyter extension put the line query param in the fragment
+		// They also have the cell fragment pre-calculated
+		const fragmentLineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (fragmentLineMatch) {
+			const parsedLineNumber = parseInt(fragmentLineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
 				const lineNumber = parsedLineNumber + 1;
-				const fragment = uri.fragment.substring(0, lineMatch.index);
+				const fragment = uri.fragment.substring(0, fragmentLineMatch.index);
 
 				// open the uri with selection
 				const editorOptions: ITextEditorOptions = {
 					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
 				};
-				this.openerService.open(uri.with({ fragment }), {
+
+				this.openerService.open(notebookResource.with({ fragment }), {
 					fromUserGesture: true,
 					fromWorkspace: true,
 					editorOptions: editorOptions
@@ -927,8 +963,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			}
 		}
 
-		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
-		return uri;
+		this.openerService.open(notebookResource, { fromUserGesture: true, fromWorkspace: true });
 	}
 
 	private _handleResourceOpening(href: string) {
