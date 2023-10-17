@@ -188,6 +188,7 @@ export interface IProductConfiguration {
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
+	readonly entitlement?: IEntitlement;
 }
 
 export interface ITunnelApplicationConfig {
@@ -287,4 +288,12 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly trustOption: string;
 	readonly dontTrustOption: string;
 	readonly startupTrustRequestLearnMore: string;
+}
+
+export interface IEntitlement {
+	providerId: string;
+	command: { title: string; action: string; when: string };
+	altCommand: { title: string; action: string; when: string };
+	entitlementUrl: string;
+	extensionId: string;
 }

@@ -378,4 +378,7 @@ import 'vs/workbench/contrib/accessibility/browser/accessibility.contribution';
 // Share
 import 'vs/workbench/contrib/share/browser/share.contribution';
 
+// Account Entitlements
+import 'vs/workbench/contrib/accountEntitlements/common/accountsEntitlements.contribution';
+
 //#endregion
