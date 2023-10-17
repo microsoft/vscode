@@ -993,12 +993,6 @@ export interface ITerminalInstance {
 	 * Gets a terminal contribution by its ID.
 	 */
 	getContribution<T extends ITerminalContribution>(id: string): T | null;
-
-	/**
-	 * Whether the event should be handled by xterm.js or the workbench.
-	 * @param event the event to process
-	 */
-	shouldProcessKeyEvent(event: KeyboardEvent): boolean;
 }
 
 export const enum XtermTerminalConstants {
