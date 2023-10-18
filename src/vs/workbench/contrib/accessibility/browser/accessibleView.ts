@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener, isActiveElement } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getActiveWindow, isActiveElement } from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -264,7 +264,7 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (window.innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
 				return this._render(provider!, container, showAccessibleViewHelp);

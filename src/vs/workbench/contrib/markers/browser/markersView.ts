@@ -236,7 +236,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public override focus(): void {
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			return;
 		}
 
@@ -772,7 +772,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private updateRangeHighlights() {
 		this.rangeHighlightDecorations.removeHighlightRange();
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			this.highlightCurrentSelectedMarkerRange();
 		}
 	}
