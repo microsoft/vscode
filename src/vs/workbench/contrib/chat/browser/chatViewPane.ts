@@ -67,7 +67,9 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatService.onDidRegisterProvider(({ providerId }) => {
-			if (providerId === this.chatViewOptions.providerId) { this.updateModel(); }
+			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
+				this.updateModel();
+			}
 		}));
 	}
 
@@ -86,7 +88,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return !this.chatService.hasProviders();
+		return !this.chatService.hasSessions(this.chatViewOptions.providerId) && !this._widget?.viewModel;
 	}
 
 	protected override renderBody(parent: HTMLElement): void {

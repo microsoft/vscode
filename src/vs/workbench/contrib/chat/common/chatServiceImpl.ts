@@ -763,8 +763,8 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	hasProviders(): boolean {
-		return this._providers.size > 0;
+	public hasSessions(providerId: string): boolean {
+		return !!Object.values(this._persistedSessions).find((session) => session.providerId === providerId);
 	}
 
 	getProviderInfos(): IChatProviderInfo[] {

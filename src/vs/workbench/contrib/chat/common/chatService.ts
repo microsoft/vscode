@@ -267,7 +267,7 @@ export interface IChatService {
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
-	hasProviders(): boolean;
+	hasSessions(providerId: string): boolean;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;
