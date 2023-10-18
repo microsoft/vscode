@@ -622,7 +622,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const container = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.append(iconElement);
-
+		collapseButton.element.ariaLabel = element.usedReferencesExpanded ? localize('usedReferencesExpanded', "{0}, expanded", referencesLabel) : localize('usedReferencesCollapsed', "{0}, collapsed", referencesLabel);
 		container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 		listDisposables.add(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
@@ -630,6 +630,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			collapseButton.element.ariaLabel = element.usedReferencesExpanded ? localize('usedReferencesExpandedLabel', "{0}, expanded", referencesLabel) : localize('usedReferencesCollapsedLabel', "{0}, collapsed", referencesLabel);
 		}));
 
 		const ref = listDisposables.add(this._contentReferencesListPool.get());
