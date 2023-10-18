@@ -53,6 +53,7 @@ export interface IChatResponseModel {
 	readonly id: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
+	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
@@ -294,6 +295,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
 		public readonly session: ChatModel,
 		public readonly agent: IChatAgent | undefined,
+		public readonly requestId: string,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
@@ -565,7 +567,7 @@ export class ChatModel extends Disposable implements IChatModel {
 				const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
 				if (raw.response || raw.responseErrorDetails) {
 					const agent = raw.agent && this.chatAgentService.getAgents().find(a => a.id === raw.agent!.id); // TODO do something reasonable if this agent has disappeared since the last session
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.updateContent(raw.usedContext);
 					}
@@ -652,7 +654,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		const request = new ChatRequestModel(this, message);
-		request.response = new ChatResponseModel([], this, chatAgent);
+		request.response = new ChatResponseModel([], this, chatAgent, request.id);
 
 		this._requests.push(request);
 		this._onDidChange.fire({ kind: 'addRequest', request });
@@ -665,7 +667,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel([], this, undefined);
+			request.response = new ChatResponseModel([], this, undefined, request.id);
 		}
 
 		if (request.response.isComplete) {
@@ -710,7 +712,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		if (!request.response) {
-			request.response = new ChatResponseModel([], this, undefined);
+			request.response = new ChatResponseModel([], this, undefined, request.id);
 		}
 
 		request.response.setErrorDetails(rawResponse.errorDetails);
