@@ -120,6 +120,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			partContainerClass: 'panel',
 			pinnedViewContainersKey: 'workbench.panel.pinnedPanels',
 			placeholderViewContainersKey: 'workbench.panel.placeholderPanels',
+			viewContainersWorkspaceStateKey: 'workbench.panel.viewContainersWorkspaceState',
 			icon: false,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,

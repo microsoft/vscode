@@ -34,6 +34,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
+import { getActiveDocument } from 'vs/base/browser/dom';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -2276,7 +2277,8 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 		// of an editor having keyboard focus in an inactive editor group
 		// (see https://github.com/microsoft/vscode/issues/189256)
 
-		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || document.activeElement === document.body;
+		const activeDocument = getActiveDocument();
+		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || activeDocument.activeElement === activeDocument.body;
 
 		const group = editorGroupService.addGroup(editorGroupService.activeGroup, this.direction);
 		editorGroupService.activateGroup(group);
@@ -2441,17 +2443,13 @@ export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		const activeEditor = editorService.activeEditor;
-		if (!activeEditor) {
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
 			return;
 		}
 
 		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
 
-		await auxiliaryEditorPart.activeGroup.openEditor(activeEditor, {
-			pinned: true,
-			viewState: activeEditor.toUntyped({ preserveViewState: editorGroupService.activeGroup.id })?.options?.viewState,
-		});
-		await editorGroupService.activeGroup.closeEditor(activeEditor);
+		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
 	}
 }

@@ -10,7 +10,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { toDisposable, DisposableStore, disposeIfDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
-import { TextBadge, NumberBadge, IBadge, IActivity, IconBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
+import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -140,6 +140,7 @@ export interface ICompositeBarActionViewItemOptions extends IActionViewItemOptio
 
 	readonly hoverOptions: IActivityHoverOptions;
 	readonly hasPopup?: boolean;
+	readonly compact?: boolean;
 }
 
 export class CompoisteBarActionViewItem extends BaseActionViewItem {
@@ -300,13 +301,28 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 
 		if (activity && shouldRenderBadges) {
 
-			const { badge, clazz } = activity;
+			const { badge } = activity;
+			const classes: string[] = [];
+
+			if (this.options.compact) {
+				classes.push('compact');
+			}
+
+			// Progress
+			if (badge instanceof ProgressBadge) {
+				show(this.badge);
+				classes.push('progress-badge');
+			}
 
 			// Number
-			if (badge instanceof NumberBadge) {
+			else if (badge instanceof NumberBadge) {
 				if (badge.number) {
 					let number = badge.number.toString();
-					if (badge.number > 999) {
+					if (this.options.compact) {
+						if (badge.number > 99) {
+							number = '';
+						}
+					} else if (badge.number > 999) {
 						const noOfThousands = badge.number / 1000;
 						const floor = Math.floor(noOfThousands);
 						if (noOfThousands > floor) {
@@ -320,29 +336,11 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 				}
 			}
 
-			// Text
-			else if (badge instanceof TextBadge) {
-				this.badgeContent.textContent = badge.text;
-				show(this.badge);
+			if (classes.length) {
+				this.badge.classList.add(...classes);
+				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classes));
 			}
 
-			// Icon
-			else if (badge instanceof IconBadge) {
-				const clazzList = ThemeIcon.asClassNameArray(badge.icon);
-				this.badgeContent.classList.add(...clazzList);
-				show(this.badge);
-			}
-
-			// Progress
-			else if (badge instanceof ProgressBadge) {
-				show(this.badge);
-			}
-
-			if (clazz) {
-				const classNames = clazz.split(' ');
-				this.badge.classList.add(...classNames);
-				this.badgeDisposable.value = toDisposable(() => this.badge.classList.remove(...classNames));
-			}
 		}
 
 		this.updateTitle();
@@ -507,8 +505,6 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 			let suffix: string | number | undefined;
 			if (badge instanceof NumberBadge) {
 				suffix = badge.number;
-			} else if (badge instanceof TextBadge) {
-				suffix = badge.text;
 			}
 
 			if (suffix) {

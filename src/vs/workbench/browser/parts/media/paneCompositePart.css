@@ -48,9 +48,13 @@
 	display: flex;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	padding-left: 2px;
-	padding-right: 2px;
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	height: 24px;
+	padding: 0 5px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
+	font-size: 18px;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label:not(.codicon) {
@@ -154,7 +158,7 @@
 	position: relative;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact {
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -166,24 +170,23 @@
 	z-index: 2;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content {
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 13px;
-	right: 2px;
+	top: 12px;
+	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
-	min-width: 10px;
-	height: 10px;
-	line-height: 10px;
-	padding: 0 4px;
+	min-width: 12px;
+	height: 11px;
+	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content::before {
-	mask-size: 10px;
-	-webkit-mask-size: 10px;
-	top: 4px;
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
+	mask-size: 12px;
+	-webkit-mask-size: 12px;
+	top: 2px;
 }
 
 /* active item indicator */

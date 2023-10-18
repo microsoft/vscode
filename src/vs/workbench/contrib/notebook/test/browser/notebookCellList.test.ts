@@ -242,7 +242,12 @@ suite('NotebookCellList', () => {
 				cellList.updateElementHeight2(viewModel.cellAt(0)!, 100);
 				assert.deepStrictEqual(cellList.scrollHeight, 400);
 
-				// the first cell grows, but we anchor to the focused cell, so the notebook will scroll down
+				// the first cell grows, and the focused cell will remain fully visible, so we don't scroll
+				assert.deepStrictEqual(cellList.scrollTop, 5);
+				assert.deepStrictEqual(cellList.getViewScrollBottom(), 215);
+
+				cellList.updateElementHeight2(viewModel.cellAt(0)!, 150);
+				// the first cell grows, and the focused cell will be pushed out of view, so we scroll down
 				assert.deepStrictEqual(cellList.scrollTop, 55);
 				assert.deepStrictEqual(cellList.getViewScrollBottom(), 265);
 

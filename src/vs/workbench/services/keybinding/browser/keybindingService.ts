@@ -238,10 +238,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateKeybindingsJsonSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
-		this._register(this._registerKeyListeners(window));
-		this._register(dom.onDidRegisterWindow(({ window, disposableStore }) => {
-			disposableStore.add(this._registerKeyListeners(window));
-		}));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposableStore }) => disposableStore.add(this._registerKeyListeners(window)), { window, disposableStore: this._store }));
 
 		this._register(browser.onDidChangeFullscreen(() => {
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;

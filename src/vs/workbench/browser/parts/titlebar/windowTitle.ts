@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -45,6 +46,7 @@ export class WindowTitle extends Disposable {
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
 	private title: string | undefined;
+	private titleIncludesFocusedView: boolean = false;
 
 	constructor(
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -58,6 +60,8 @@ export class WindowTitle extends Disposable {
 		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
+
+		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
 	}
 
@@ -77,13 +81,26 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
-		this._register(this.viewsService.onDidChangeFocusedView(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => {
+			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration(WindowSettingNames.title)) {
+			this.updateTitleIncludesFocusedView();
+		}
+
 		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
+	}
+
+	private updateTitleIncludesFocusedView(): void {
+		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
+		this.titleIncludesFocusedView = typeof titleTemplate === 'string' && titleTemplate.includes('${focusedView}');
 	}
 
 	private onActiveEditorChange(): void {
@@ -99,6 +116,22 @@ export class WindowTitle extends Disposable {
 		if (activeEditor) {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
+		}
+
+		// Apply listeners for tracking focused code editor
+		if (this.titleIncludesFocusedView) {
+			const activeTextEditorControl = this.editorService.activeTextEditorControl;
+			const textEditorControls: ICodeEditor[] = [];
+			if (isCodeEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl);
+			} else if (isDiffEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl.getOriginalEditor(), activeTextEditorControl.getModifiedEditor());
+			}
+
+			for (const textEditorControl of textEditorControls) {
+				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+			}
 		}
 	}
 
@@ -189,7 +222,7 @@ export class WindowTitle extends Disposable {
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
-	 * {focusedView}L e.g. Terminal
+	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
 	 */
 	getWindowTitle(): string {
@@ -277,6 +310,7 @@ export class WindowTitle extends Disposable {
 	isCustomTitleFormat(): boolean {
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
+
 		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
 	}
 }

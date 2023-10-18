@@ -34,6 +34,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -406,10 +407,9 @@ class BlurAction extends Action2 {
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (el instanceof HTMLElement) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
 		}
 	}
 }
