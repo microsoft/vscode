@@ -265,7 +265,6 @@ export interface IChatService {
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
-	onDidRegisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	hasProviders(): boolean;
 	getProviderInfos(): IChatProviderInfo[];
