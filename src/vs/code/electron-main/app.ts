@@ -165,10 +165,6 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInMainFrame = new Set(
-			this.productService.quality === 'stable' ? [] : ['media']
-		);
-
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
@@ -179,20 +175,12 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return callback(allowedPermissionsInMainFrame.has(permission));
-			}
-
 			return callback(false);
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
-			}
-
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
