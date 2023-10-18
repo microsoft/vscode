@@ -569,7 +569,7 @@ export class InlineChatController implements IEditorContribution {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
 				progressEdits.push(data.edits);
-				await this._makeChanges(data.edits, false);
+				await this._makeChanges(data.edits, true);
 				await this._strategy?.renderProgressChanges();
 			}
 		});
@@ -650,9 +650,14 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		// make changes from modelN -> modelN+1
-		const moreMinimalEdits = computeMoreMinimalEdits ? await this._editorWorkerService.computeHumanReadableDiff(this._activeSession.textModelN.uri, lastEdits) : undefined;
+		const moreMinimalEdits = computeMoreMinimalEdits ? await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, lastEdits) : undefined;
 		const editOperations = (moreMinimalEdits ?? lastEdits).map(TextEdit.asEditOperation);
 		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, lastEdits, moreMinimalEdits);
+
+		if (editOperations.length === 0) {
+			// nothing left to do
+			return;
+		}
 
 		try {
 			this._ignoreModelContentChanged = true;
