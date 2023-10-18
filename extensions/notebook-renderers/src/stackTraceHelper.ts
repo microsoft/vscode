@@ -34,7 +34,7 @@ const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
 const lineNumberRegex = /((?:\u001b\[.+?m)?[ ->]*?)(\d+)(.*)/;
 const cellRegex = /(Cell\s+(?:\u001b\[.+?m)?In\s*\[(\d+)\])(,\s*line \d+)/;
 // older versions of IPython ~8.3.0
-const inputRegex = /(Input\s+?(?:\u001b\[.+?m)In\s*\[(\d+)\])(.*?)/;
+const inputRegex = /(Input\s+?(?:\u001b\[.+?m)In\s*\[(\d+)\])(.*)/;
 
 function isIpythonStackTrace(stack: string) {
 	return cellRegex.test(stack) || inputRegex.test(stack) || fileRegex.test(stack);
@@ -65,6 +65,10 @@ function linkifyStack(stack: string) {
 		} else if (cellRegex.test(original)) {
 			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
 				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
+				const lineNumberMatch = /line (\d+)/i.exec(suffix);
+				if (lineNumberMatch) {
+					suffix = `, <a href='${fileOrCell.path}&line=${lineNumberMatch[1]}'>line ${lineNumberMatch[1]}</a>`;
+				}
 				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
 
@@ -72,6 +76,10 @@ function linkifyStack(stack: string) {
 		} else if (inputRegex.test(original)) {
 			lines[i] = original.replace(inputRegex, (_s, cellLabel, executionCount, suffix) => {
 				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
+				const lineNumberMatch = /<cell line: (\d+)>/i.exec(suffix);
+				if (lineNumberMatch) {
+					suffix = `, <a href='${fileOrCell.path}&line=${lineNumberMatch[1]}'>line ${lineNumberMatch[1]}</a>`;
+				}
 				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
 			});
 
