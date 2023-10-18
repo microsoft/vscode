@@ -32,9 +32,9 @@ export function formatStackTrace(stack: string) {
 const formatSequence = /\u001b\[.+?m/g;
 const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
 const lineNumberRegex = /((?:\u001b\[.+?m)?[ ->]*?)(\d+)(.*)/;
-const cellRegex = /(Cell\s+(?:\u001b\[.+?m)?In\s*\[(\d+)\])(,\s*line \d+)/;
+const cellRegex = /(?<prefix>Cell\s+(?:\u001b\[.+?m)?In\s*\[(?<executionCount>\d+)\],\s*)(?<lineLabel>line (?<lineNumber>\d+)).*/;
 // older versions of IPython ~8.3.0
-const inputRegex = /(Input\s+?(?:\u001b\[.+?m)In\s*\[(\d+)\])(.*)/;
+const inputRegex = /(?<prefix>Input\s+?(?:\u001b\[.+?m)(?<cellLabel>In\s*\[(?<executionCount>\d+)\]))(?<postfix>.*)/;
 
 function isIpythonStackTrace(stack: string) {
 	return cellRegex.test(stack) || inputRegex.test(stack) || fileRegex.test(stack);
@@ -63,25 +63,19 @@ function linkifyStack(stack: string) {
 
 			continue;
 		} else if (cellRegex.test(original)) {
-			lines[i] = original.replace(cellRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
-				const lineNumberMatch = /line (\d+)/i.exec(suffix);
-				if (lineNumberMatch) {
-					suffix = `, <a href='${fileOrCell.path}&line=${lineNumberMatch[1]}'>line ${lineNumberMatch[1]}</a>`;
-				}
-				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
-			});
+			fileOrCell = {
+				kind: 'cell',
+				path: stripFormatting(original.replace(cellRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
+			};
+			lines[i] = original.replace(cellRegex, `$<prefix><a href=\'${fileOrCell.path}&line=$<lineNumber>\'>line $<lineNumber></a>`);
 
 			continue;
 		} else if (inputRegex.test(original)) {
-			lines[i] = original.replace(inputRegex, (_s, cellLabel, executionCount, suffix) => {
-				fileOrCell = { kind: 'cell', path: `vscode-notebook-cell:?execution_count=${stripFormatting(executionCount)}` };
-				const lineNumberMatch = /<cell line: (\d+)>/i.exec(suffix);
-				if (lineNumberMatch) {
-					suffix = `, <a href='${fileOrCell.path}&line=${lineNumberMatch[1]}'>line ${lineNumberMatch[1]}</a>`;
-				}
-				return `<a href='${fileOrCell.path}'>${stripFormatting(cellLabel)}</a>${suffix}`;
-			});
+			fileOrCell = {
+				kind: 'cell',
+				path: stripFormatting(original.replace(inputRegex, 'vscode-notebook-cell:?execution_count=$<executionCount>'))
+			};
+			lines[i] = original.replace(inputRegex, `Input <a href=\'${fileOrCell.path}>\'>$<cellLabel></a>$<postfix>`);
 
 			continue;
 		} else if (!fileOrCell || original.trim() === '') {
