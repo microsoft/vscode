@@ -353,6 +353,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						providerId: element.providerId,
 						agentId: element.agent?.id,
 						sessionId: element.sessionId,
+						requestId: element.requestId,
 						action: {
 							kind: 'command',
 							command: followup,
