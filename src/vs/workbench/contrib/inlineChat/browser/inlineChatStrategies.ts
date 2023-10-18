@@ -12,7 +12,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -377,7 +377,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
 	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
-	private _currentLineRangeGroups: DetailedLineRangeMapping[][] = [];
+	private _currentLineRangeGroups: LineRangeMapping[][] = [];
 
 	constructor(
 		session: Session,
@@ -411,22 +411,36 @@ export class LivePreviewStrategy extends LiveStrategy {
 			return;
 		}
 
-		const groups: DetailedLineRangeMapping[][] = [];
-		let group = [diff.changes[0]];
-		groups.push(group);
+		const originalStartLineNumber = this._session.session.wholeRange?.startLineNumber ?? 1;
 
-		for (let i = 1; i < diff.changes.length; i++) {
-			const last = tail(group);
-			const next = diff.changes[i];
+		const mainGroup: LineRangeMapping[] = [];
+		let lastGroup: LineRangeMapping[] | undefined;
+		const groups: LineRangeMapping[][] = [mainGroup];
+
+		for (let i = 0; i < diff.changes.length; i++) {
+			const change = diff.changes[i];
+
+			// everything below the original start line is one group
+			if (change.original.startLineNumber >= originalStartLineNumber) {
+				mainGroup.push(change);
+				continue;
+			}
+
+			if (!lastGroup) {
+				lastGroup = [change];
+				groups.push(lastGroup);
+				continue;
+			}
 
 			// when the distance between the two changes is less than 75% of the total number of lines changed
 			// they get merged into the same group
-			const treshold = Math.ceil((next.modified.length + last.modified.length) * .75);
-			if (next.modified.startLineNumber - last.modified.endLineNumberExclusive <= treshold) {
-				group.push(next);
+			const last = tail(lastGroup);
+			const treshold = Math.ceil((change.modified.length + last.modified.length) * .75);
+			if (change.modified.startLineNumber - last.modified.endLineNumberExclusive <= treshold) {
+				lastGroup.push(change);
 			} else {
-				group = [next];
-				groups.push(group);
+				lastGroup = [change];
+				groups.push(lastGroup);
 			}
 		}
 
