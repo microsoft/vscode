@@ -12,7 +12,7 @@ import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { DetailedLineRangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -133,7 +133,7 @@ export class PreviewStrategy extends EditModeStrategy {
 	override async renderChanges(response: EditResponse): Promise<void> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
-			this._widget.showEditsPreview(this._session.textModel0, allEditOperation, this._session.lastTextModelChanges);
+			await this._widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
 		} else {
 			this._widget.hideEditsPreview();
 		}
@@ -327,9 +327,9 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	override async renderChanges(response: EditResponse) {
-
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		this._updateSummaryMessage(diff?.changes ?? []);
 		this._inlineDiffDecorations.update();
-		this._updateSummaryMessage();
 
 		if (response.singleCreateFileEdit) {
 			this._widget.showCreatePreview(response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
@@ -344,9 +344,9 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	protected _updateSummaryMessage() {
+	protected _updateSummaryMessage(mappings: readonly LineRangeMapping[]) {
 		let linesChanged = 0;
-		for (const change of this._session.lastTextModelChanges) {
+		for (const change of mappings) {
 			linesChanged += change.changedLineCount;
 		}
 		let message: string;
@@ -440,6 +440,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			return;
 		}
 
+		this._updateSummaryMessage(diff.changes);
 		this._currentLineRangeGroups = groups;
 
 		const handleDiff = () => {
@@ -465,7 +466,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override async renderChanges(response: EditResponse) {
 
-		this._updateSummaryMessage();
 		await this._renderDiffZones();
 
 		if (response.singleCreateFileEdit) {
