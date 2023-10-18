@@ -648,7 +648,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
-			const selection = window.getSelection();
+			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
 				// only focus the input if the user is not currently selecting.
 				this.replInput.focus();
@@ -1070,7 +1070,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
-		const nativeSelection = window.getSelection();
+		const nativeSelection = dom.getActiveWindow().getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);

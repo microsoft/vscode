@@ -1072,7 +1072,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
