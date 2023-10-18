@@ -8,6 +8,7 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { IExtensionRecommendations } from 'vs/base/common/product';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
@@ -95,15 +96,20 @@ export const ENABLE_LANGUAGE_FILTER = true;
 
 export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
 
-type ExtensionToggleData = {
+export type ExtensionToggleData = {
 	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
+	recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension>;
 	commonlyUsed: string[];
 };
 
 let cachedExtensionToggleData: ExtensionToggleData | undefined;
 
-export async function getExperimentalExtensionToggleData(workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, workbenchAssignmentService: IWorkbenchAssignmentService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
 	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
+		return undefined;
+	}
+
+	if (!extensionGalleryService.isEnabled()) {
 		return undefined;
 	}
 
@@ -113,15 +119,33 @@ export async function getExperimentalExtensionToggleData(workbenchAssignmentServ
 
 	const isTreatment = await workbenchAssignmentService.getTreatment<boolean>('ExtensionToggleSettings');
 	if ((isTreatment || !environmentService.isBuilt) && productService.extensionRecommendations && productService.commonlyUsedSettings) {
-		const settingsEditorRecommendedExtensions: Record<string, IExtensionRecommendations> = {};
+		const settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations> = {};
 		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
 			const extensionInfo = productService.extensionRecommendations![extensionId];
 			if (extensionInfo.onSettingsEditorOpen) {
 				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
 			}
 		});
+
+		const recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension> = {};
+		for (const key in settingsEditorRecommendedExtensions) {
+			const extensionId = key;
+			// Recommend prerelease if not on Stable.
+			const isStable = productService.quality === 'stable';
+			try {
+				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
+				if (extension) {
+					recommendedExtensionsGalleryInfo[key] = extension;
+				}
+			} catch (e) {
+				// Network connection fail. Return nothing rather than partial data.
+				return undefined;
+			}
+		}
+
 		cachedExtensionToggleData = {
 			settingsEditorRecommendedExtensions,
+			recommendedExtensionsGalleryInfo,
 			commonlyUsed: productService.commonlyUsedSettings
 		};
 		return cachedExtensionToggleData;
