@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -60,22 +60,18 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		const model = this.editor.getModel();
-		if (!model || !this._isSettingEnabled() || !this._hasProvider()) {
+		if (!this._isSettingEnabled() || !this._hasProvider()) {
 			return;
 		}
-		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(model), 200);
+		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(), 200);
 		this._localToDispose.add(decorationUpdateScheduler);
 		this._localToDispose.add(this.editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this.editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
+			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME) || !this.editor.hasModel()) {
 				return;
 			}
 			const selection = this.editor.getSelection();
-			if (!selection) {
-				return;
-			}
 			const startLineNumber = selection.startLineNumber;
 			const inlineChatPositionUnchanged = startLineNumber === this._inlineChatLineNumber;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
@@ -89,11 +85,12 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		decorationUpdateScheduler.schedule();
 	}
 
-	private _onSelectionOrContentChanged(model: ITextModel): void {
-		const selection = this.editor.getSelection();
-		if (!selection) {
+	private _onSelectionOrContentChanged(): void {
+		if (!this.editor.hasModel()) {
 			return;
 		}
+		const model = this.editor.getModel();
+		const selection = this.editor.getSelection();
 		// If no existing decoration, add a decoration
 		if (this._gutterDecorationLine === undefined || this._gutterDecorationID === undefined) {
 			this._addDecoration(selection.startLineNumber);
