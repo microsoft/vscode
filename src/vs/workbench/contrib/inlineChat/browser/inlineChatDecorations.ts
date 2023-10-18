@@ -22,21 +22,20 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterable } from 'vs/base/common/iterator';
 
-const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
+const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
-	private localToDispose = new DisposableStore();
-	private inlineChatLineNumber: number | undefined;
-	private gutterDecorationID: string | undefined;
-	private gutterDecorationLine: number | undefined;
+	private _localToDispose = new DisposableStore();
+	private _inlineChatLineNumber: number | undefined;
+	private _gutterDecorationID: string | undefined;
+	private _gutterDecorationLine: number | undefined;
 
-	public static readonly gutterSettingID = 'inlineChat.showGutterIcon';
-	private static readonly gutterIconClassName = 'codicon-inline-chat';
-
+	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
+	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
 	private static readonly GUTTER_DECORATION = ModelDecorationOptions.register({
 		description: 'inline-chat-decoration',
-		glyphMarginClassName: ThemeIcon.asClassName(gutterInlineChatIcon),
+		glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
@@ -49,51 +48,51 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	) {
 		super();
 		this._register(this.configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
-			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
+			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
 			}
-			this.onEnablementOrModelChanged();
+			this._onEnablementOrModelChanged();
 		}));
-		this._register(this.inlineChatService.onDidChangeProviders(() => this.onEnablementOrModelChanged()));
-		this._register(this.editor.onDidChangeModel(() => this.onEnablementOrModelChanged()));
+		this._register(this.inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
+		this._register(this.editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
 	}
 
-	private onEnablementOrModelChanged(): void {
+	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
-		this.localToDispose.clear();
+		this._localToDispose.clear();
 		const model = this.editor.getModel();
-		if (!model || !this.isSettingEnabled() || !this.hasProvider()) {
+		if (!model || !this._isSettingEnabled() || !this._hasProvider()) {
 			return;
 		}
-		const decorationUpdateScheduler = new RunOnceScheduler(() => this.onSelectionOrContentChanged(model), 200);
-		this.localToDispose.add(decorationUpdateScheduler);
-		this.localToDispose.add(this.editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
-		this.localToDispose.add(this.editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
-		this.localToDispose.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName) || !this.editor.hasModel()) {
+		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(model), 200);
+		this._localToDispose.add(decorationUpdateScheduler);
+		this._localToDispose.add(this.editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
+		this._localToDispose.add(this.editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
+		this._localToDispose.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME) || !this.editor.hasModel()) {
 				return;
 			}
 			const startLineNumber = this.editor.getSelection().startLineNumber;
-			const inlineChatPositionUnchanged = startLineNumber === this.inlineChatLineNumber;
+			const inlineChatPositionUnchanged = startLineNumber === this._inlineChatLineNumber;
 			const inlineChatVisible = this.contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
 			if (inlineChatPositionUnchanged && inlineChatVisible) {
 				return;
 			}
-			this.inlineChatLineNumber = startLineNumber;
+			this._inlineChatLineNumber = startLineNumber;
 			InlineChatController.get(this.editor)?.run();
 		}));
-		this.localToDispose.add({ dispose: () => this.clearDecorations() });
+		this._localToDispose.add({ dispose: () => this._clearDecorations() });
 		decorationUpdateScheduler.schedule();
 	}
 
-	private onSelectionOrContentChanged(model: ITextModel): void {
+	private _onSelectionOrContentChanged(model: ITextModel): void {
 		const selection = this.editor.getSelection();
 		if (!selection) {
 			return;
 		}
 		// If no existing decoration, add a decoration
-		if (this.gutterDecorationLine === undefined || this.gutterDecorationID === undefined) {
-			this.addDecoration(selection.startLineNumber);
+		if (this._gutterDecorationLine === undefined || this._gutterDecorationID === undefined) {
+			this._addDecoration(selection.startLineNumber);
 			return;
 		}
 		// Else if there is an existing decoration
@@ -102,63 +101,63 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		const shouldBeEnabled = selectionIsEmpty && selectionLineIsEmpty;
 
 		// If the new selection starts at the same line number
-		if (selection.startLineNumber === this.gutterDecorationLine) {
+		if (selection.startLineNumber === this._gutterDecorationLine) {
 			if (shouldBeEnabled) {
 				// already enabled
 				return;
 			} else {
 				// remove decoration
-				this.removePreviousGutterDecoration();
+				this._removePreviousGutterDecoration();
 				return;
 			}
 		}
 		// Else if the new selection does not start on the same line number
-		this.removePreviousGutterDecoration();
+		this._removePreviousGutterDecoration();
 		if (shouldBeEnabled) {
-			this.addDecoration(selection.startLineNumber);
+			this._addDecoration(selection.startLineNumber);
 		}
 	}
 
-	private isSettingEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
+	private _isSettingEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID);
 	}
 
-	private hasProvider(): boolean {
+	private _hasProvider(): boolean {
 		return !Iterable.isEmpty(this.inlineChatService.getAllProvider());
 	}
 
-	private addDecoration(lineNumber: number) {
+	private _addDecoration(lineNumber: number) {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this.gutterDecorationLine = lineNumber;
-			this.gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
+			this._gutterDecorationLine = lineNumber;
+			this._gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
 
-	private removePreviousGutterDecoration() {
+	private _removePreviousGutterDecoration() {
 		this.editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			if (this.gutterDecorationID) {
-				accessor.removeDecoration(this.gutterDecorationID);
-				this.resetDecorationData();
+			if (this._gutterDecorationID) {
+				accessor.removeDecoration(this._gutterDecorationID);
+				this._resetDecorationData();
 			}
 		});
 	}
 
-	private resetDecorationData() {
-		this.gutterDecorationID = undefined;
-		this.gutterDecorationLine = undefined;
+	private _resetDecorationData() {
+		this._gutterDecorationID = undefined;
+		this._gutterDecorationLine = undefined;
 	}
 
-	private clearDecorations() {
-		this.inlineChatLineNumber = undefined;
-		this.removePreviousGutterDecoration();
+	private _clearDecorations() {
+		this._inlineChatLineNumber = undefined;
+		this._removePreviousGutterDecoration();
 		// Needed for when moving from model to settings
-		this.resetDecorationData();
+		this._resetDecorationData();
 	}
 
 	override dispose() {
 		super.dispose();
-		this.localToDispose.dispose();
-		this.inlineChatLineNumber = undefined;
+		this._localToDispose.dispose();
+		this._inlineChatLineNumber = undefined;
 	}
 }
 
@@ -169,6 +168,6 @@ GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, acce
 		localize('toggleShowGutterIcon', "Toggle Inline Chat Icon"),
 		undefined,
 		true,
-		() => { configurationService.updateValue(InlineChatDecorationsContribution.gutterSettingID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID)); }
+		() => { configurationService.updateValue(InlineChatDecorationsContribution.GUTTER_SETTING_ID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID)); }
 	));
 });
