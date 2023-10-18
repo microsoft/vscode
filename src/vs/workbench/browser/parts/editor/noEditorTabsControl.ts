@@ -11,11 +11,7 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 
 export class NoEditorTabsControl extends EditorTabsControl {
 
-	protected override create(parent: HTMLElement): void {
-		super.create(parent);
-	}
-
-	protected override prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
+	protected prepareEditorActions(editorActions: IToolbarActions): IToolbarActions {
 		return {
 			primary: [],
 			secondary: []
@@ -49,8 +45,6 @@ export class NoEditorTabsControl extends EditorTabsControl {
 	updateEditorLabel(editor: EditorInput): void { }
 
 	updateEditorDirty(editor: EditorInput): void { }
-
-	override updateStyles(): void { }
 
 	getHeight(): number {
 		return 0;
