@@ -212,7 +212,7 @@ export interface IChatCommandAction {
 
 export interface IChatFollowupAction {
 	kind: 'followUp';
-	followup: IChatFollowup;
+	followup: IChatReplyFollowup;
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction;
