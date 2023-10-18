@@ -1086,10 +1086,7 @@ const getNativeFileUri = (file: File) => {
 	return URI.file(file.path);
 };
 
-const getNativeFileUris = (files: FileList | undefined): readonly URI[] => {
-	if (!files) {
-		return [];
-	}
+const getNativeFileUris = (files: FileList): readonly URI[] => {
 	const filesArray = [...files];
 	return filesArray.map(getNativeFileUri);
 };
@@ -1101,7 +1098,6 @@ const getFilesToPaste = async (fileList: FileList | undefined, clipboardService:
 		return nativeFiles;
 	}
 	return resources.distinctParents(await clipboardService.readResources(), r => r);
-
 };
 
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
