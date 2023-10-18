@@ -222,6 +222,7 @@ export interface IChatUserActionEvent {
 	providerId: string;
 	agentId: string | undefined;
 	sessionId: string;
+	requestId: string;
 }
 
 export interface IChatDynamicRequest {
