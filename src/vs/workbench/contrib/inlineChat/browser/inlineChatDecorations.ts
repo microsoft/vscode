@@ -5,31 +5,28 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
-import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Iterable } from 'vs/base/common/iterator';
+import { Range } from 'vs/editor/common/core/range';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
 	private _localToDispose = new DisposableStore();
-	private _inlineChatLineNumber: number | undefined;
 	private _gutterDecorationID: string | undefined;
-	private _gutterDecorationLine: number | undefined;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
@@ -43,8 +40,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
@@ -60,67 +56,43 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._isSettingEnabled() || !this._hasProvider()) {
+		if (!this._editor.hasModel() || !this._isSettingEnabled() || !this._hasProvider()) {
 			return;
 		}
-		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(), 200);
+		const editor = this._editor;
+		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(editor), 200);
 		this._localToDispose.add(decorationUpdateScheduler);
 		this._localToDispose.add(this._editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME) || !this._editor.hasModel()) {
+			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
 				return;
 			}
-			const selection = this._editor.getSelection();
-			const startLineNumber = selection.startLineNumber;
-			const inlineChatPositionUnchanged = startLineNumber === this._inlineChatLineNumber;
-			const inlineChatVisible = this._contextKeyService.getContextKeyValue<boolean>(CTX_INLINE_CHAT_VISIBLE.key);
-			if (inlineChatPositionUnchanged && inlineChatVisible) {
-				return;
-			}
-			this._inlineChatLineNumber = startLineNumber;
 			InlineChatController.get(this._editor)?.run();
 		}));
-		this._localToDispose.add({ dispose: () => this._clearDecorations() });
-		decorationUpdateScheduler.schedule();
+		this._localToDispose.add({
+			dispose: () => {
+				if (this._gutterDecorationID) {
+					this._removeGutterDecoration(this._gutterDecorationID);
+				}
+			}
+		});
 	}
 
-	private _onSelectionOrContentChanged(): void {
-		if (!this._editor.hasModel()) {
-			return;
-		}
-		const model = this._editor.getModel();
-		const selection = this._editor.getSelection();
-		// If no existing decoration, add a decoration
-		if (this._gutterDecorationLine === undefined || this._gutterDecorationID === undefined) {
-			this._addDecoration(selection.startLineNumber);
-			return;
-		}
-		// Else if there is an existing decoration
-		const selectionIsEmpty = selection.isEmpty();
-		const selectionLineIsEmpty = /^\s*$/g.test(model.getLineContent(selection.startLineNumber));
-		const shouldBeEnabled = selectionIsEmpty && selectionLineIsEmpty;
-
-		// If the new selection starts at the same line number
-		const decorationRange = model.getDecorationRange(this._gutterDecorationID);
-		if (!decorationRange) {
-			return;
-		}
-		this._gutterDecorationLine = decorationRange.startLineNumber;
-		if (selection.startLineNumber === this._gutterDecorationLine) {
-			if (shouldBeEnabled) {
-				// already enabled
-				return;
+	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
+		const selection = editor.getSelection();
+		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
+		if (isEnabled) {
+			if (this._gutterDecorationID === undefined) {
+				this._addGutterDecoration(selection.startLineNumber);
 			} else {
-				// remove decoration
-				this._removePreviousGutterDecoration();
-				return;
+				const decorationRange = editor.getModel().getDecorationRange(this._gutterDecorationID);
+				if (decorationRange?.startLineNumber !== selection.startLineNumber) {
+					this._updateGutterDecoration(this._gutterDecorationID, selection.startLineNumber);
+				}
 			}
-		}
-		// Else if the new selection does not start on the same line number
-		this._removePreviousGutterDecoration();
-		if (shouldBeEnabled) {
-			this._addDecoration(selection.startLineNumber);
+		} else if (this._gutterDecorationID) {
+			this._removeGutterDecoration(this._gutterDecorationID);
 		}
 	}
 
@@ -132,38 +104,28 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		return !Iterable.isEmpty(this._inlineChatService.getAllProvider());
 	}
 
-	private _addDecoration(lineNumber: number) {
+	private _addGutterDecoration(lineNumber: number) {
 		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this._gutterDecorationLine = lineNumber;
-			this._gutterDecorationID = accessor.addDecoration(new Selection(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
+			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), InlineChatDecorationsContribution.GUTTER_DECORATION);
 		});
 	}
 
-	private _removePreviousGutterDecoration() {
+	private _removeGutterDecoration(decorationId: string) {
 		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			if (this._gutterDecorationID) {
-				accessor.removeDecoration(this._gutterDecorationID);
-				this._resetDecorationData();
-			}
+			accessor.removeDecoration(decorationId);
+			this._gutterDecorationID = undefined;
 		});
 	}
 
-	private _resetDecorationData() {
-		this._gutterDecorationID = undefined;
-		this._gutterDecorationLine = undefined;
-	}
-
-	private _clearDecorations() {
-		this._inlineChatLineNumber = undefined;
-		this._removePreviousGutterDecoration();
-		// Needed for when moving from model to settings
-		this._resetDecorationData();
+	private _updateGutterDecoration(decorationId: string, lineNumber: number) {
+		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			accessor.changeDecoration(decorationId, new Range(lineNumber, 0, lineNumber, 0));
+		});
 	}
 
 	override dispose() {
 		super.dispose();
 		this._localToDispose.dispose();
-		this._inlineChatLineNumber = undefined;
 	}
 }
 
