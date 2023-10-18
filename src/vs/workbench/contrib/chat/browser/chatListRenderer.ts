@@ -620,7 +620,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 		const container = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
-		collapseButton.element.prepend(iconElement);
+		collapseButton.element.append(iconElement);
 
 		container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 		listDisposables.add(collapseButton.onDidClick(() => {
