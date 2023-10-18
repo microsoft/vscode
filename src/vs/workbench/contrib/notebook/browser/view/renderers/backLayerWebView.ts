@@ -765,7 +765,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
 						const uri = URI.parse(data.href);
-						this._handleNotebookCellResource(uri);
+						await this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						// Uri without scheme, such as a file path
 						this._handleResourceOpening(tryDecodeURIComponent(data.href));
@@ -907,6 +907,8 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
+		const notebookResource = uri.path.length > 0 ? uri : this.documentUri;
+
 		const lineMatch = /(?:^|&)line=([^&]+)/.exec(uri.query);
 		let editorOptions: ITextEditorOptions | undefined = undefined;
 		if (lineMatch) {
@@ -921,23 +923,22 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		const executionMatch = /(?:^|&)execution_count=([^&]+)/.exec(uri.query);
-		const notebookResource = uri.path.length > 0 ? uri : this.documentUri;
 		if (executionMatch) {
 			const executionCount = parseInt(executionMatch[1], 10);
 			if (!isNaN(executionCount)) {
 				const notebookModel = this.notebookService.getNotebookTextModel(notebookResource);
-				// look for the most recently added cell with the matching execution count
-				// more likely to be correct in notebooks, an much more likely for the interactive window
+				// multiple cells with the same execution count can exist if the kernel is restarted
+				// so look for the most recently added cell with the matching execution count.
+				// Somewhat more likely to be correct in notebooks, an much more likely for the interactive window
 				const cell = notebookModel?.cells.slice().reverse().find(cell => {
 					return cell.internalMetadata.executionOrder === executionCount;
 				});
 				if (cell?.uri) {
-					this.openerService.open(cell.uri, {
+					return this.openerService.open(cell.uri, {
 						fromUserGesture: true,
 						fromWorkspace: true,
 						editorOptions: editorOptions
 					});
-					return;
 				}
 			}
 		}
@@ -956,16 +957,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
 				};
 
-				this.openerService.open(notebookResource.with({ fragment }), {
+				return this.openerService.open(notebookResource.with({ fragment }), {
 					fromUserGesture: true,
 					fromWorkspace: true,
 					editorOptions: editorOptions
 				});
-				return;
 			}
 		}
 
-		this.openerService.open(notebookResource, { fromUserGesture: true, fromWorkspace: true });
+		return this.openerService.open(notebookResource, { fromUserGesture: true, fromWorkspace: true });
 	}
 
 	private _handleResourceOpening(href: string) {
