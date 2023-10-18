@@ -313,6 +313,13 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.selectActiveFile(true);
 			}
 		}));
+
+		this._register(DOM.addDisposableListener(window, 'paste', async event => {
+			if (!this.hasFocus() || this.readonlyContext.get()) {
+				return;
+			}
+			await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+		}));
 	}
 
 	override focus(): void {

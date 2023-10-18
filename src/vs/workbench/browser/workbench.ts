@@ -150,7 +150,6 @@ export class Workbench extends Layout {
 				const hostService = accessor.get(IHostService);
 				const dialogService = accessor.get(IDialogService);
 				const notificationService = accessor.get(INotificationService) as NotificationService;
-				const commandService = accessor.get(ICommandService);
 
 				// Layout
 				this.initLayout(accessor);
@@ -176,12 +175,6 @@ export class Workbench extends Layout {
 
 				// Restore
 				this.restore(lifecycleService);
-
-				// Paste
-				const handlePaste = (event: ClipboardEvent) => {
-					commandService.executeCommand('_files.executePaste', event.clipboardData?.files);
-				};
-				window.addEventListener('paste', handlePaste);
 			});
 
 			return instantiationService;
