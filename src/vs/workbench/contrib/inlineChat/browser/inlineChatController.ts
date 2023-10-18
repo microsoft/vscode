@@ -591,8 +591,7 @@ export class InlineChatController implements IEditorContribution {
 				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
 			} else if (reply) {
 				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
-				const offset = editResponse.allLocalEdits.length - progressEdits.length;
-				for (let i = offset; i < editResponse.allLocalEdits.length; i++) {
+				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(editResponse.allLocalEdits[i], true);
 				}
 				response = editResponse;
