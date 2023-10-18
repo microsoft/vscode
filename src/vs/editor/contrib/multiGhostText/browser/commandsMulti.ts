@@ -105,7 +105,7 @@ export class AcceptSelectedGhostTextMulti extends EditorAction {
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				weight: KeybindingWeight.EditorContrib + 1,
-				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Equal,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyU,
 				kbExpr: EditorContextKeys.writable,
 			},
 		});
