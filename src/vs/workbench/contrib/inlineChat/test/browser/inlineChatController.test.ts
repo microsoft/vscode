@@ -173,7 +173,7 @@ suite('InteractiveChatController', function () {
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 
 		await run;
 
@@ -205,7 +205,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -235,7 +235,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -298,7 +298,7 @@ suite('InteractiveChatController', function () {
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		await r;
 	});
 
