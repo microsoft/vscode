@@ -91,17 +91,30 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		if (!selection) {
 			return;
 		}
-		const selectionIsEmpty = selection.isEmpty();
-		if (selectionIsEmpty && selection.startLineNumber === this.gutterDecorationLine) {
+		// If no existing decoration, add a decoration
+		if (this.gutterDecorationLine === undefined || this.gutterDecorationID === undefined) {
+			this.addDecoration(selection.startLineNumber);
 			return;
 		}
-		const isEnabled = selectionIsEmpty && /^\s*$/g.test(model.getLineContent(selection.startLineNumber));
-		if (isEnabled && this.gutterDecorationID === undefined) {
-			this.addDecoration(selection.startLineNumber);
-		} else if (!isEnabled && this.gutterDecorationID !== undefined) {
-			this.removePreviousGutterDecoration();
-		} else if (isEnabled && selection.startLineNumber !== this.gutterDecorationLine) {
-			this.removePreviousGutterDecoration();
+		// Else if there is an existing decoration
+		const selectionIsEmpty = selection.isEmpty();
+		const selectionLineIsEmpty = /^\s*$/g.test(model.getLineContent(selection.startLineNumber));
+		const shouldBeEnabled = selectionIsEmpty && selectionLineIsEmpty;
+
+		// If the new selection starts at the same line number
+		if (selection.startLineNumber === this.gutterDecorationLine) {
+			if (shouldBeEnabled) {
+				// already enabled
+				return;
+			} else {
+				// remove decoration
+				this.removePreviousGutterDecoration();
+				return;
+			}
+		}
+		// Else if the new selection does not start on the same line number
+		this.removePreviousGutterDecoration();
+		if (shouldBeEnabled) {
 			this.addDecoration(selection.startLineNumber);
 		}
 	}
