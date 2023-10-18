@@ -21,7 +21,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -43,7 +43,9 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
+	private readonly _decorationCollection: IEditorDecorationsCollection;
 	private readonly _diffEditor: IDiffEditor;
+
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
 
@@ -59,6 +61,8 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
 		super.create();
 		assertType(editor.hasModel());
+
+		this._decorationCollection = editor.createDecorationsCollection();
 
 		const diffContributions = EditorExtensionsRegistry
 			.getEditorContributions()
@@ -137,6 +141,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	}
 
 	override hide(): void {
+		this._decorationCollection.clear();
 		this._cleanupFullDiff();
 		super.hide();
 		this._isVisible = false;
@@ -150,13 +155,17 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		const hasFocus = this._diffEditor.hasTextFocus();
 		this._isVisible = true;
 
-		if (changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
+		const onlyInserts = changes.every(change => change.original.isEmpty);
+
+		if (onlyInserts || changes.length === 0 || this._session.textModel0.getValueLength() === 0) {
 			// no change or changes to an empty file
 			this._logService.debug('[IE] livePreview-mode: no diff');
 			this._cleanupFullDiff();
+			this._renderInsertWithHighlight(changes);
 		} else {
 			// complex changes
 			this._logService.debug('[IE] livePreview-mode: full diff');
+			this._decorationCollection.clear();
 			this._renderChangesWithFullDiff(changes);
 		}
 
@@ -169,6 +178,22 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		}
 	}
 
+
+	private _renderInsertWithHighlight(changes: readonly DetailedLineRangeMapping[]) {
+		assertType(this.editor.hasModel());
+
+		const ranges = this._computeHiddenRanges(this.editor.getModel(), changes);
+
+		this._decorationCollection.set([{
+			range: lineRangeAsRange(ranges.modifiedHidden),
+			options: {
+				description: 'inline-chat-insert',
+				showIfCollapsed: false,
+				isWholeLine: true,
+				className: 'inline-chat-lines-inserted-range',
+			}
+		}]);
+	}
 
 	// --- full diff
 
