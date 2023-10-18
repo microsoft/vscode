@@ -138,6 +138,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private clearDecorations() {
 		this.inlineChatLineNumber = undefined;
 		this.removePreviousGutterDecoration();
+		// Needed for when moving from model to settings
 		this.resetDecorationData();
 	}
 
