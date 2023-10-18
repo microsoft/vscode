@@ -110,6 +110,7 @@ export function registerChatCodeBlockActions() {
 					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
 					action: <IChatCopyAction>{
 						kind: 'copy',
 						responseId: context.element.providerResponseId,
@@ -154,6 +155,7 @@ export function registerChatCodeBlockActions() {
 				providerId: context.element.providerId,
 				agentId: context.element.agent?.id,
 				sessionId: context.element.sessionId,
+				requestId: context.element.requestId,
 				action: {
 					kind: 'copy',
 					codeBlockIndex: context.codeBlockIndex,

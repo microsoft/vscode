@@ -281,7 +281,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
-		this.editorGroupService.whenRestored.then(() => {
+		this.editorGroupService.mainPart.whenRestored.then(() => {
 
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
@@ -404,7 +404,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.updateMenubarVisibility(!!skipLayout);
 
 		// Centered Layout
-		this.editorGroupService.whenRestored.then(() => {
+		this.editorGroupService.mainPart.whenRestored.then(() => {
 			this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
 		});
 	}
@@ -688,7 +688,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Empty workbench configured to open untitled file if empty
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
-			if (this.editorGroupService.hasRestorableState) {
+			if (this.editorGroupService.mainPart.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
 
@@ -761,7 +761,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is ready
-			await this.editorGroupService.whenReady;
+			await this.editorGroupService.mainPart.whenReady;
 			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
@@ -817,7 +817,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			layoutRestoredPromises.push(
 				Promise.all([
 					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
-					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
+					this.editorGroupService.mainPart.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
@@ -1001,14 +1001,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	hasFocus(part: Parts): boolean {
-		const activeElement = document.activeElement;
+		const container = this.getContainer(part);
+		if (!container) {
+			return false;
+		}
+
+		const activeElement = container.ownerDocument.activeElement;
 		if (!activeElement) {
 			return false;
 		}
 
-		const container = this.getContainer(part);
-
-		return !!container && isAncestorUsingFlowTo(activeElement, container);
+		return isAncestorUsingFlowTo(activeElement, container);
 	}
 
 	focusPart(part: Parts): void {
@@ -1460,8 +1463,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(Math.abs(sizeChangeWidth));
-		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(Math.abs(sizeChangeHeight));
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(window, Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(window, Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 

@@ -840,6 +840,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	get sideGroup(): IEditorGroup { return this.groups[0]; }
 	get count(): number { return this.groups.length; }
 
+	getPart(group: number | IEditorGroup): IEditorPart { return this; }
 	getGroups(_order?: GroupsOrder): readonly IEditorGroup[] { return this.groups; }
 	getGroup(identifier: number): IEditorGroup | undefined { return this.groups.find(group => group.id === identifier); }
 	getLabel(_identifier: number): string { return 'Group 1'; }
@@ -866,6 +867,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	enforcePartOptions(options: IEditorPartOptions): IDisposable { return Disposable.None; }
 
 	readonly activePart = this;
+	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
 	createAuxiliaryEditorPart(): IAuxiliaryEditorPart { throw new Error('Method not implemented.'); }
 }
@@ -1729,6 +1731,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	declare readonly _serviceBrand: undefined;
 
 	readonly activePart = this;
+	readonly mainPart = this;
 
 	testSaveState(): void {
 		return super.saveState();
@@ -1753,6 +1756,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
 		throw new Error('Method not implemented.');
 	}
+
+	getPart(group: number | IEditorGroup): IEditorPart { return this; }
 }
 
 export async function createEditorPart(instantiationService: IInstantiationService, disposables: DisposableStore): Promise<TestEditorPart> {

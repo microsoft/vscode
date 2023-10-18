@@ -412,13 +412,20 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
 		this._register(this.inputPart.onDidAcceptFollowup(e => {
-			// this.chatService.notifyUserAction
 			if (!this.viewModel) {
 				return;
 			}
+
+			if (!e.response) {
+				// Followups can be shown by the welcome message, then there is no response associated.
+				// At some point we probably want telemetry for these too.
+				return;
+			}
+
 			this.chatService.notifyUserAction({
 				providerId: this.viewModel.providerId,
 				sessionId: this.viewModel.sessionId,
+				requestId: e.response.requestId,
 				agentId: e.response?.agent?.id,
 				action: {
 					kind: 'followUp',

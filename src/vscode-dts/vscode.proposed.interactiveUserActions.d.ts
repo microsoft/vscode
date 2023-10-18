@@ -64,10 +64,10 @@ declare module 'vscode' {
 	export interface InteractiveSessionFollowupAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'followUp';
-		followup: InteractiveSessionFollowup;
+		followup: InteractiveSessionReplyFollowup;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;

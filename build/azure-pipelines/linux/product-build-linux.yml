@@ -331,6 +331,7 @@ steps:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
+        BuildComponentPath: $(Build.SourcesDirectory)/remote
         BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
