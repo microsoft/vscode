@@ -21,6 +21,7 @@ import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contri
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
+import { Iterable } from 'vs/base/common/iterator';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -29,7 +30,7 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	private disposableStore = new DisposableStore();
 	private onProvidersChange: IDisposable;
 	private onConfigurationChange: IDisposable | undefined;
-	private numberOfProviders: number;
+	private emptyProviders: boolean;
 
 	private gutterDecorationsMap = new ResourceMap<{ id: string; lineNumber: number } | undefined>();
 	private inlineChatLineNumber: number | undefined;
@@ -51,19 +52,19 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		this.onProvidersChange = inlineChatService.onDidChangeProviders(() => {
-			const numberOfProviders = [...inlineChatService.getAllProvider()].length;
+			const emptyProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
 			// If there were no providers and now there are providers, setup the decoration
-			if (!this.numberOfProviders && numberOfProviders > 0) {
+			if (this.emptyProviders && !emptyProviders) {
 				this.setupGutterDecoration();
 			}
 			// If there were providers and now there are no providers, clear the state
-			if (this.numberOfProviders > 0 && !numberOfProviders) {
+			if (!this.emptyProviders && emptyProviders) {
 				this.clearState();
 			}
-			this.numberOfProviders = numberOfProviders;
+			this.emptyProviders = emptyProviders;
 		});
-		this.numberOfProviders = [...inlineChatService.getAllProvider()].length;
-		if (this.numberOfProviders > 0) {
+		this.emptyProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
+		if (!this.emptyProviders) {
 			this.setupGutterDecoration();
 		}
 	}
