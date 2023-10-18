@@ -992,8 +992,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor && this.tabsModel.isPinned(editor)) {
-					if (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes) {
-						this.groupsView.toggleGroupArrangement();
+					if (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes === 'maximize') {
+						this.groupsView.toggleMaximizeGroup(this.groupView);
+					} else if (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes === 'expand') {
+						this.groupsView.toggleExpandGroup(this.groupView);
 					}
 				} else {
 					this.groupView.pinEditor(editor);

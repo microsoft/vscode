@@ -600,8 +600,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
-	isChildSizeMaximized(index: number): boolean {
-		return this.splitview.isViewSizeMaximized(index);
+	isChildExpanded(index: number): boolean {
+		return this.splitview.isViewExpanded(index);
 	}
 
 	distributeViewSizes(recursive = false): void {
@@ -1486,7 +1486,7 @@ export class GridView implements IDisposable {
 	 *
 	 * @param location The {@link GridLocation location} of the view.
 	 */
-	maximizeViewSize(location: GridLocation): void {
+	expandView(location: GridLocation): void {
 		const [ancestors, node] = this.getNode(location);
 
 		if (!(node instanceof LeafNode)) {
@@ -1503,7 +1503,7 @@ export class GridView implements IDisposable {
 	 *
 	 * @param location The {@link GridLocation location} of the view.
 	 */
-	isViewSizeMaximized(location: GridLocation): boolean {
+	isViewExpanded(location: GridLocation): boolean {
 		const [ancestors, node] = this.getNode(location);
 
 		if (!(node instanceof LeafNode)) {
@@ -1511,7 +1511,7 @@ export class GridView implements IDisposable {
 		}
 
 		for (let i = 0; i < ancestors.length; i++) {
-			if (!ancestors[i].isChildSizeMaximized(location[i])) {
+			if (!ancestors[i].isChildExpanded(location[i])) {
 				return false;
 			}
 		}

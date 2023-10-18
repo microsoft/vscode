@@ -225,7 +225,7 @@ export interface IEditorPart {
 	/**
 	 * An event for when the locked state of a group changes.
 	 */
-	readonly onDidChangeMaximizeGroup: Event<{ group: IEditorGroup; maximized: boolean }>;
+	readonly onDidMaximizeGroup: Event<{ group: IEditorGroup; maximized: boolean }>;
 
 	/**
 	 * The size of the editor groups area.
@@ -327,9 +327,14 @@ export interface IEditorPart {
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Toggles the arrangement of all groups.
+	 * Toggles the target goup size to maximize/unmaximize.
 	 */
-	toggleGroupArrangement(): void;
+	toggleMaximizeGroup(group?: IEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Toggles the target goup size to expand/distribute even.
+	 */
+	toggleExpandGroup(group?: IEditorGroup | GroupIdentifier): void;
 
 	/**
 	 * Returns true if the group is maximized

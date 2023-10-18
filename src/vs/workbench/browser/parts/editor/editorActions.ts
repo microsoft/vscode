@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, EXIT_MAXIMIZE_EDITOR_GROUP, MAXIMIZE_EDITOR_GROUP, resolveCommandsContext, getCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, UNMAXIMIZE_EDITOR_GROUP, MAXIMIZE_EDITOR_GROUP, resolveCommandsContext, getCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1059,7 +1059,7 @@ export class ToggleGroupSizesAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.toggleGroupArrangement();
+		editorGroupService.toggleExpandGroup();
 	}
 }
 
@@ -1115,7 +1115,7 @@ export class UnmaximizeEditorGroupAction extends Action2 {
 
 	constructor() {
 		super({
-			id: EXIT_MAXIMIZE_EDITOR_GROUP,
+			id: UNMAXIMIZE_EDITOR_GROUP,
 			title: { value: localize('UnmaximizeEditorGroup', "Unmaximize Editor Group"), original: 'Unmaximize Editor Group' },
 			f1: true,
 			category: Categories.View,
@@ -1137,7 +1137,7 @@ export class UnmaximizeEditorGroupAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
-		editorGroupService.toggleGroupArrangement();
+		editorGroupService.toggleMaximizeGroup();
 	}
 }
 

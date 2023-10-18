@@ -1734,7 +1734,7 @@ suite('EditorGroupsService', () => {
 
 		let maxmizedGroup;
 		let maximizedValue;
-		const maxiizeGroupEventDisposable = part.onDidChangeMaximizeGroup(({ group, maximized }) => {
+		const maxiizeGroupEventDisposable = part.onDidMaximizeGroup(({ group, maximized }) => {
 			maxmizedGroup = group;
 			maximizedValue = maximized;
 		});
@@ -1759,7 +1759,7 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(maxmizedGroup, rootGroup);
 		assert.deepStrictEqual(maximizedValue, true);
 
-		part.toggleGroupArrangement();
+		part.toggleMaximizeGroup();
 
 		// Size is restored
 		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);

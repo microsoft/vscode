@@ -32,7 +32,6 @@ import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -102,8 +101,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
-	private readonly _onDidChangeMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
-	readonly onDidChangeMaximizeGroup = this._onDidChangeMaximizeGroup.event;
+	private readonly _onDidMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	readonly onDidMaximizeGroup = this._onDidMaximizeGroup.event;
 
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
@@ -171,7 +170,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private showActiveEditorGroupsIfHidden(): void {
 		for (const group of this.groups) {
 			if (this.activeGroup !== group && this.isGroupMaximized(group)) {
-				this.toggleGroupArrangement();
+				this.toggleMaximizeGroup(group);
 				break;
 			}
 		}
@@ -348,6 +347,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
 
@@ -397,31 +397,35 @@ export class EditorPart extends Part implements IEditorPart {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.gridWidget.setViewsVisible(false, target);
-				this._onDidChangeMaximizeGroup.fire({ group: target, maximized: true });
+				this.gridWidget.maximizeView(target);
 				if (this.activeGroup !== target) {
 					this.activateGroup(target);
 				}
 				break;
 			case GroupsArrangement.EXPAND:
-				this.gridWidget.maximizeViewSize(target);
+				this.gridWidget.expandView(target);
 				break;
 		}
 	}
 
-	toggleGroupArrangement(): void {
-		if (this.isGroupMaximized(this.activeGroup)) {
+	toggleMaximizeGroup(target: IEditorGroupView = this.activeGroup): void {
+		if (this.isGroupMaximized(target)) {
 			this.unmaximizeGroup();
-		} else if (this.isGroupExpanded(this.activeGroup)) {
+		} else {
+			this.arrangeGroups(GroupsArrangement.MAXIMIZE, target);
+		}
+	}
+
+	toggleExpandGroup(target: IEditorGroupView = this.activeGroup): void {
+		if (this.isGroupExpanded(this.activeGroup)) {
 			this.arrangeGroups(GroupsArrangement.EVEN);
 		} else {
-			this.arrangeGroups(GroupsArrangement.MAXIMIZE, this.activeGroup);
+			this.arrangeGroups(GroupsArrangement.EXPAND, target);
 		}
 	}
 
 	private unmaximizeGroup(): void {
-		this.gridWidget.setViewsVisible(true);
-		this._onDidChangeMaximizeGroup.fire({ group: this.activeGroup, maximized: false });
+		this.gridWidget.unmaximizeView();
 	}
 
 	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
@@ -445,7 +449,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
-		return this.gridWidget.isViewSizeMaximized(targetGroup) && !this.isGroupMaximized(targetGroup);
+		return this.gridWidget.isViewExpanded(targetGroup) && !this.isGroupMaximized(targetGroup);
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -579,9 +583,6 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
-
-		this.onWillGroupsChange();
-
 		const locationView = this.assertGroupView(location);
 
 		const restoreFocus = this.shouldRestoreFocus(locationView.element);
@@ -690,6 +691,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doSetGroupActive(group: IEditorGroupView): void {
 		if (this._activeGroup !== group) {
+			if (this.isGroupMaximized(this.activeGroup)) {
+				this.unmaximizeGroup();
+			}
+
 			const previousActiveGroup = this._activeGroup;
 			this._activeGroup = group;
 
@@ -757,13 +762,6 @@ export class EditorPart extends Part implements IEditorPart {
 		return fallback;
 	}
 
-	private onWillGroupsChange() {
-		// If editor group is maximized, restore all views before a change occurs to the groups
-		if (this.isGroupMaximized(this.activeGroup)) {
-			this.unmaximizeGroup();
-		}
-	}
-
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1) {
@@ -774,8 +772,6 @@ export class EditorPart extends Part implements IEditorPart {
 		if (groupView.isEmpty) {
 			return this.doRemoveEmptyGroup(groupView);
 		}
-
-		this.onWillGroupsChange();
 
 		// Remove group with editors
 		this.doRemoveGroupWithEditors(groupView);
@@ -840,7 +836,6 @@ export class EditorPart extends Part implements IEditorPart {
 			throw new Error('Cannot move group into its own');
 		}
 
-		this.onWillGroupsChange();
 		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
 
 		// Move through grid widget API
@@ -866,7 +861,6 @@ export class EditorPart extends Part implements IEditorPart {
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
-		this.onWillGroupsChange();
 		const restoreFocus = this.shouldRestoreFocus(groupView.element);
 
 		// Copy the group view
@@ -883,8 +877,6 @@ export class EditorPart extends Part implements IEditorPart {
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
-
-		this.onWillGroupsChange();
 
 		// Collect editors to move/copy
 		const editors: EditorInputWithOptions[] = [];
@@ -915,8 +907,6 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	mergeAllGroups(target = this.activeGroup): IEditorGroupView {
-		this.onWillGroupsChange();
-
 		for (const group of this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE)) {
 			if (group === target) {
 				continue; // keep target
@@ -1098,7 +1088,9 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	centerLayout(active: boolean): void {
-		this.onWillGroupsChange();
+		if (this.isGroupMaximized(this.activeGroup)) {
+			this.unmaximizeGroup();
+		}
 
 		this.centeredLayoutWidget.activate(active);
 
@@ -1226,6 +1218,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
+		this._register(this.gridWidget.onDidMaximizeGroup(e => {
+			this._onDidMaximizeGroup.fire({ group: e.view, maximized: e.maximized });
+		}));
 
 		this._onDidSetGridWidget.fire(undefined);
 	}
@@ -1357,8 +1352,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);

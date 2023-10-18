@@ -1052,7 +1052,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	/**
 	 * Returns whether all other {@link IView views} are at their minimum size.
 	 */
-	isViewSizeMaximized(index: number): boolean {
+	isViewExpanded(index: number): boolean {
 		if (index < 0 || index >= this.viewItems.length) {
 			return false;
 		}
