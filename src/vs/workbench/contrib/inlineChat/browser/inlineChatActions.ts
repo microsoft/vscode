@@ -331,7 +331,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 	}
 }
 
@@ -357,7 +357,7 @@ export class DiscardToClipboardAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			clipboardService.writeText(changedText);
 		}
@@ -381,7 +381,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
 			editorService.openEditor(input, SIDE_GROUP);

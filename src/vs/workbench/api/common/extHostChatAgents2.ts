@@ -30,6 +30,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	private readonly _proxy: MainThreadChatAgentsShape2;
 
 	private readonly _previousResultMap: Map<string, vscode.ChatAgentResult2> = new Map();
+	private readonly _resultsBySessionAndRequestId: Map<string, Map<string, vscode.ChatAgentResult2>> = new Map();
 
 	constructor(
 		mainContext: IMainContext,
@@ -49,6 +50,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 	}
 
 	async $invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined> {
+		// Clear the previous result so that $acceptFeedback or $acceptAction during a request will be ignored.
+		// We may want to support sending those during a request.
+		this._previousResultMap.delete(sessionId);
+
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			throw new Error(`[CHAT](${handle}) CANNOT invoke agent because the agent is not registered`);
@@ -100,6 +105,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return await raceCancellation(Promise.resolve(task).then((result) => {
 				if (result) {
 					this._previousResultMap.set(sessionId, result);
+					let sessionResults = this._resultsBySessionAndRequestId.get(sessionId);
+					if (!sessionResults) {
+						sessionResults = new Map();
+						this._resultsBySessionAndRequestId.set(sessionId, sessionResults);
+					}
+					sessionResults.set(requestId, result);
+
 					return { errorDetails: result.errorDetails }; // TODO timings here
 				} else {
 					this._previousResultMap.delete(sessionId);
@@ -124,6 +136,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	$releaseSession(sessionId: string): void {
 		this._previousResultMap.delete(sessionId);
+		this._resultsBySessionAndRequestId.delete(sessionId);
 	}
 
 	async $provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]> {
@@ -149,12 +162,12 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideFollowups(result, token);
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, vote: InteractiveSessionVoteDirection): void {
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		const result = this._previousResultMap.get(sessionId);
+		const result = this._resultsBySessionAndRequestId.get(sessionId)?.get(requestId);
 		if (!result) {
 			return;
 		}
@@ -171,12 +184,12 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		agent.acceptFeedback(Object.freeze({ result, kind }));
 	}
 
-	$acceptAction(handle: number, sessionId: string, action: IChatUserActionEvent): void {
+	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
 		}
-		const result = this._previousResultMap.get(sessionId);
+		const result = this._resultsBySessionAndRequestId.get(sessionId)?.get(requestId);
 		if (!result) {
 			return;
 		}
@@ -302,7 +315,6 @@ class ExtHostChatAgent {
 				that._iconPath = v;
 				updateMetadataSoon();
 			},
-			// onDidPerformAction
 			get slashCommandProvider() {
 				return that._slashCommandProvider;
 			},

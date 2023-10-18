@@ -35,7 +35,7 @@ import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowCon
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -82,7 +82,7 @@ const enum ReadyState {
 	READY
 }
 
-export abstract class BaseWindow extends Disposable {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected abstract getWin(): BrowserWindow | null;
 

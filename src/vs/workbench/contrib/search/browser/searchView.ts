@@ -1073,7 +1073,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
@@ -1276,7 +1276,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
 			return null;
 		}
 

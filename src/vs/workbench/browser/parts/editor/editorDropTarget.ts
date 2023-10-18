@@ -530,7 +530,7 @@ class DropOverlay extends Themable {
 	private getOverlayOffsetHeight(): number {
 
 		// With tabs and opened editors: use the area below tabs as drop target
-		if (!this.groupView.isEmpty && this.editorGroupService.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.editorGroupService.partOptions.showTabs === 'multiple') {
 			return this.groupView.titleHeight.offset;
 		}
 

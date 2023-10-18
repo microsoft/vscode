@@ -32,9 +32,13 @@ class VoiceChatActionsContributor extends Disposable implements IWorkbenchContri
 	constructor(@ISpeechService speechService: ISpeechService) {
 		super();
 
-		this._register(Event.once(speechService.onDidRegisterSpeechProvider)(() => {
+		if (speechService.hasSpeechProvider) {
 			registerVoiceChatActions();
-		}));
+		} else {
+			this._register(Event.once(speechService.onDidRegisterSpeechProvider)(() => {
+				registerVoiceChatActions();
+			}));
+		}
 	}
 }
 

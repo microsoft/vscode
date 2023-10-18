@@ -47,6 +47,8 @@ export interface ISpeechService {
 	readonly onDidRegisterSpeechProvider: Event<ISpeechProvider>;
 	readonly onDidUnregisterSpeechProvider: Event<ISpeechProvider>;
 
+	readonly hasSpeechProvider: boolean;
+
 	registerSpeechProvider(identifier: string, provider: ISpeechProvider): IDisposable;
 
 	createSpeechToTextSession(token: CancellationToken): ISpeechToTextSession;
@@ -61,6 +63,8 @@ export class SpeechService implements ISpeechService {
 
 	private readonly _onDidUnregisterSpeechProvider = new Emitter<ISpeechProvider>();
 	readonly onDidUnregisterSpeechProvider = this._onDidUnregisterSpeechProvider.event;
+
+	get hasSpeechProvider(): boolean { return this.providers.size > 0; }
 
 	private readonly providers = new Map<string, ISpeechProvider>();
 
