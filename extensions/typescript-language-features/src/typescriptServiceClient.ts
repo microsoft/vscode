@@ -21,7 +21,7 @@ import { TypeScriptVersionManager } from './tsServer/versionManager';
 import { ITypeScriptVersionProvider, TypeScriptVersion } from './tsServer/versionProvider';
 import { ClientCapabilities, ClientCapability, ExecConfig, ITypeScriptServiceClient, ServerResponse, TypeScriptRequests } from './typescriptService';
 import { ServiceConfigurationProvider, SyntaxServerConfiguration, TsServerLogLevel, TypeScriptServiceConfiguration, areServiceConfigurationsEqual } from './configuration/configuration';
-import { Disposable } from './utils/dispose';
+import { Disposable, disposeAll } from './utils/dispose';
 import * as fileSchemes from './configuration/fileSchemes';
 import { Logger } from './logging/logger';
 import { isWeb, isWebAndHasSharedArrayBuffers } from './utils/platform';
@@ -300,6 +300,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		}
 
 		this.loadingIndicator.reset();
+
+		this.resetWatchers();
 	}
 
 	public restartTsServer(fromUserAction = false): void {
@@ -403,6 +405,8 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 			this.info(`Using Node installation from ${nodePath} to run TS Server`);
 		}
 
+		this.resetWatchers();
+
 		const apiVersion = version.apiVersion || API.defaultVersion;
 		const mytoken = ++this.token;
 		const handle = this.typescriptServerSpawner.spawn(version, this.capabilities, this.configuration, this.pluginManager, this.cancellerFactory, {
@@ -493,6 +497,11 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 		this._onTsServerStarted.fire({ version: version, usedApiVersion: apiVersion });
 		this._onDidChangeCapabilities.fire();
 		return this.serverState;
+	}
+
+	private resetWatchers() {
+		disposeAll(this.watches.values());
+		this.watches.clear();
 	}
 
 	public async showVersionPicker(): Promise<void> {
@@ -596,6 +605,7 @@ export default class TypeScriptServiceClient extends Disposable implements IType
 	}
 
 	private serviceExited(restart: boolean): void {
+		this.resetWatchers();
 		this.loadingIndicator.reset();
 
 		const previousState = this.serverState;

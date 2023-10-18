@@ -5,10 +5,9 @@
 
 import * as vscode from 'vscode';
 
-export function disposeAll(disposables: vscode.Disposable[]) {
-	while (disposables.length) {
-		const item = disposables.pop();
-		item?.dispose();
+export function disposeAll(disposables: Iterable<vscode.Disposable>) {
+	for (const disposable of disposables) {
+		disposable.dispose();
 	}
 }
 

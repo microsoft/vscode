@@ -270,7 +270,10 @@ export class TypeScriptServerSpawner {
 		args.push('--locale', TypeScriptServerSpawner.getTsLocale(configuration));
 
 		args.push('--noGetErrOnBackgroundUpdate');
-		args.push('--canUseWatchEvents'); // TODO check ts version
+
+		if (apiVersion.gte(API.v350) && configuration.useVsCodeWatcher) {
+			args.push('--canUseWatchEvents');
+		}
 
 		args.push('--validateDefaultNpmLocation');
 

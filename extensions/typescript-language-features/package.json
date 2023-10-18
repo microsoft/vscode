@@ -1193,6 +1193,11 @@
             "experimental"
           ]
         },
+        "typescript.tsserver.experimental.useVsCodeWatcher": {
+          "type": "boolean",
+          "description": "%configuration.tsserver.useVsCodeWatcher%",
+          "default": true
+        },
         "typescript.tsserver.watchOptions": {
           "type": "object",
           "description": "%configuration.tsserver.watchOptions%",
