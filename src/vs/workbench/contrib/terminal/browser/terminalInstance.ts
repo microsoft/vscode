@@ -88,7 +88,6 @@ import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser
 import type { IMarker, Terminal as XTermTerminal } from 'xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const enum Constants {
 	/**
@@ -356,12 +355,11 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
-		@ILayoutService layoutService: ILayoutService
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
-		this._wrapperElement = layoutService.container.ownerDocument.createElement('div');
+		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
 
 		this._widgetManager = this._register(instantiationService.createInstance(TerminalWidgetManager));
