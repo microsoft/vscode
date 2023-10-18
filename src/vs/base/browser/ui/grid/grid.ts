@@ -620,7 +620,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 */
 	maximizeView(view: T): void {
 		if (this.views.size < 2) {
-			throw new Error('Can\'t maximize when there is only one view');
+			throw new Error('At least two views are required to maximize a view');
 		}
 		if (this.maximizedView === view) {
 			return;

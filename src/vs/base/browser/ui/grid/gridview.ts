@@ -514,6 +514,7 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	addChild(node: Node, size: number | Sizing, index: number, skipLayout?: boolean): void {
 		index = validateIndex(index, this.children.length);
+		const oldVisibleChildrenCount = this.visibleChildrenCount();
 
 		this.splitview.addView(node, size, index, skipLayout);
 		this.children.splice(index, 0, node);
@@ -522,13 +523,15 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.onDidChildrenChange();
 
 		// If the splitview is hidden and a child is added, show the splitview
-		if (this.visibleChildrenCount() === 1 && this.children.length > 1) {
+		const newVisibleChildrenCount = this.visibleChildrenCount();
+		if (oldVisibleChildrenCount === 0 && newVisibleChildrenCount > 0) {
 			this._onDidVisibilityChange.fire(true);
 		}
 	}
 
 	removeChild(index: number, sizing?: Sizing): Node {
 		index = validateIndex(index, this.children.length);
+		const oldVisibleChildrenCount = this.visibleChildrenCount();
 
 		const result = this.splitview.removeView(index, sizing);
 		this.children.splice(index, 1);
@@ -537,7 +540,8 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 		this.onDidChildrenChange();
 
 		// If the splitview is visible and the only visible child is removed, hide the splitview
-		if (this.visibleChildrenCount() === 0 && this.children.length > 0) {
+		const newVisibleChildrenCount = this.visibleChildrenCount();
+		if (newVisibleChildrenCount === 0 && oldVisibleChildrenCount > 0) {
 			this._onDidVisibilityChange.fire(false);
 		}
 
@@ -635,12 +639,14 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			return;
 		}
 
+		const oldChildrenVisibleCount = this.visibleChildrenCount();
+
 		this.splitview.setViewVisible(index, visible);
 
 		// If all children are hidden then the parent should hide the entire splitview
 		// If the entire splitview is hidden then the parent should show the splitview when a child is shown
-		const childrenVisible = this.visibleChildrenCount();
-		if ((visible && childrenVisible === 1) || (!visible && childrenVisible === 0)) {
+		const newChildrenVisibleCount = this.visibleChildrenCount();
+		if ((visible && oldChildrenVisibleCount === 0) || (!visible && newChildrenVisibleCount === 0)) {
 			this._onDidVisibilityChange.fire(visible);
 		}
 	}
