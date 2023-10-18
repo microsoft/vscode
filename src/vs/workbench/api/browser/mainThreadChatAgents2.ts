@@ -8,7 +8,6 @@ import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatResponseProgressDto, IChatResponseProgressFileTreeData, IExtensionChatAgentMetadata, ILocationDto, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -44,13 +43,13 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			this._proxy.$releaseSession(e.sessionId);
 		}));
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			if (e.agentId) {
+			if (typeof e.agentId === 'string') {
 				for (const [handle, agent] of this._agents) {
 					if (agent.name === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.action.direction);
+							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
 						} else {
-							this._proxy.$acceptAction(handle, e.sessionId, e);
+							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
 						}
 						break;
 					}
@@ -68,12 +67,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			id: name,
 			metadata: revive(metadata),
 			invoke: async (request, progress, history, token) => {
-				const requestId = generateUuid();
-				this._pendingProgress.set(requestId, progress);
+				this._pendingProgress.set(request.requestId, progress);
 				try {
-					return await this._proxy.$invokeAgent(handle, request.sessionId, requestId, request, { history }, token) ?? {};
+					return await this._proxy.$invokeAgent(handle, request.sessionId, request.requestId, request, { history }, token) ?? {};
 				} finally {
-					this._pendingProgress.delete(requestId);
+					this._pendingProgress.delete(request.requestId);
 				}
 			},
 			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
