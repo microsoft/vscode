@@ -926,7 +926,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			const executionCount = parseInt(executionMatch[1], 10);
 			if (!isNaN(executionCount)) {
 				const notebookModel = this.notebookService.getNotebookTextModel(notebookResource);
-				const cell = notebookModel?.cells.find(cell => {
+				// look for the most recently added cell with the matching execution count
+				// more likely to be correct in notebooks, an much more likely for the interactive window
+				const cell = notebookModel?.cells.slice().reverse().find(cell => {
 					return cell.internalMetadata.executionOrder === executionCount;
 				});
 				if (cell?.uri) {
