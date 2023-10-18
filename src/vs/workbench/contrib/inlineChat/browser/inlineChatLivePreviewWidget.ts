@@ -80,6 +80,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			minimap: { enabled: false },
 			isInEmbeddedEditor: true,
+			useInlineViewWhenSpaceIsLimited: false,
 			overflowWidgetsDomNode: editor.getOverflowWidgetsDomNode(),
 			onlyShowAccessibleDiffViewer: this.accessibilityService.isScreenReaderOptimized(),
 		}, {
