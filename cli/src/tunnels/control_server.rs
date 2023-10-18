@@ -1037,7 +1037,14 @@ where
 
 	let futs = FuturesUnordered::new();
 	if let (Some(mut a), Some(mut b)) = (p.stdout.take(), stdout) {
-		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
+		futs.push(
+			async move {
+				let r = tokio::io::copy(&mut a, &mut b).await;
+				// println!("copy exited with {:?}", r);
+				r
+			}
+			.boxed(),
+		);
 	}
 	if let (Some(mut a), Some(mut b)) = (p.stderr.take(), stderr) {
 		futs.push(async move { tokio::io::copy(&mut a, &mut b).await }.boxed());
@@ -1110,13 +1117,7 @@ async fn wait_for_process_exit(
 	mut process: tokio::process::Child,
 	futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
 ) -> Result<SpawnResult, AnyError> {
-	let closed = process.wait();
-	pin!(closed);
-
-	let r = tokio::select! {
-		_ = futures::future::join_all(futs) => closed.await,
-		r = &mut closed => r
-	};
+	let (_, r) = tokio::join!(futures::future::join_all(futs), process.wait());
 
 	let r = match r {
 		Ok(e) => SpawnResult {
