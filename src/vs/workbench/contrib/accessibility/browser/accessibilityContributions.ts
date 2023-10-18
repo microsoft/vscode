@@ -98,9 +98,8 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 			}
 		}
 		const screenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
-		const saveAudioCue = this._configurationService.getValue(AudioCue.save.settingsKey);
-		const formatAudioCue = this._configurationService.getValue(AudioCue.format.settingsKey);
 		if (screenReaderOptimized) {
+			const saveAudioCue = this._configurationService.getValue(AudioCue.save.settingsKey);
 			switch (saveAudioCue) {
 				case 'never':
 					content.push(AccessibilityHelpNLS.saveAudioCueDisabled);
@@ -112,6 +111,7 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 					content.push(AccessibilityHelpNLS.saveAudioCueUserGesture);
 					break;
 			}
+			const formatAudioCue = this._configurationService.getValue(AudioCue.format.settingsKey);
 			switch (formatAudioCue) {
 				case 'never':
 					content.push(AccessibilityHelpNLS.formatAudioCueDisabled);
