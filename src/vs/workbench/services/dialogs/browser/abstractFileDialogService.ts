@@ -57,14 +57,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		@ILogService private readonly logService: ILogService
 	) { }
 
-	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+	async defaultFilePath(schemeFilter = this.getSchemeFilterForWindow(), authorityFilter = this.getAuthorityFilterForWindow()): Promise<URI> {
 
 		// Check for last active file first...
-		let candidate = this.historyService.getLastActiveFile(schemeFilter);
+		let candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
 
 		// ...then for last active file root
 		if (!candidate) {
-			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+			candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter, authorityFilter);
 		} else {
 			candidate = resources.dirname(candidate);
 		}
@@ -76,14 +76,14 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 		return candidate;
 	}
 
-	async defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow()): Promise<URI> {
+	async defaultFolderPath(schemeFilter = this.getSchemeFilterForWindow(), authorityFilter = this.getAuthorityFilterForWindow()): Promise<URI> {
 
 		// Check for last active file root first...
-		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter);
+		let candidate = this.historyService.getLastActiveWorkspaceRoot(schemeFilter, authorityFilter);
 
 		// ...then for last active file
 		if (!candidate) {
-			candidate = this.historyService.getLastActiveFile(schemeFilter);
+			candidate = this.historyService.getLastActiveFile(schemeFilter, authorityFilter);
 		}
 
 		if (!candidate) {
@@ -301,6 +301,10 @@ export abstract class AbstractFileDialogService implements IFileDialogService {
 
 	private getSchemeFilterForWindow(defaultUriScheme?: string): string {
 		return defaultUriScheme ?? this.pathService.defaultUriScheme;
+	}
+
+	private getAuthorityFilterForWindow(): string | undefined {
+		return this.environmentService.remoteAuthority;
 	}
 
 	protected getFileSystemSchema(options: { availableFileSystems?: readonly string[]; defaultUri?: URI }): string {
