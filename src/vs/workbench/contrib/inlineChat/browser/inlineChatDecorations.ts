@@ -7,17 +7,18 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationsChangeAccessor, ITextModel, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Selection } from 'vs/editor/common/core/selection';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
 import { CTX_INLINE_CHAT_VISIBLE, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ResourceMap } from 'vs/base/common/map';
 import { URI } from 'vs/base/common/uri';
@@ -25,12 +26,9 @@ import { Iterable } from 'vs/base/common/iterator';
 
 const gutterInlineChatIcon = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
-export class InlineChatDecorationsContribution implements IEditorContribution {
+export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
-	private disposableStore = new DisposableStore();
-	private onProvidersChange: IDisposable;
-	private onConfigurationChange: IDisposable | undefined;
-	private emptyProviders: boolean;
+	private localToDispose = new DisposableStore();
 
 	private gutterDecorationsMap = new ResourceMap<{ id: string; lineNumber: number } | undefined>();
 	private inlineChatLineNumber: number | undefined;
@@ -47,52 +45,32 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		@IInlineChatService inlineChatService: IInlineChatService,
+		@IInlineChatService private readonly inlineChatService: IInlineChatService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
-		this.onProvidersChange = inlineChatService.onDidChangeProviders(() => {
-			const emptyProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
-			// If there were no providers and now there are providers, setup the decoration
-			if (this.emptyProviders && !emptyProviders) {
-				this.setupGutterDecoration();
-			}
-			// If there were providers and now there are no providers, clear the state
-			if (!this.emptyProviders && emptyProviders) {
-				this.clearState();
-			}
-			this.emptyProviders = emptyProviders;
-		});
-		this.emptyProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
-		if (!this.emptyProviders) {
-			this.setupGutterDecoration();
-		}
-	}
-
-	private setupGutterDecoration() {
-		this.onConfigurationChange = this.configurationService.onDidChangeConfiguration(e => {
+		super();
+		this._register(this.configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.gutterSettingID)) {
 				return;
 			}
-			const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
-			if (!gutterIconEnabled) {
-				// The gutter icon has been disabled, clear the state
-				this.clearState();
-				return;
-			}
-			this.activateGutterDecoration();
-		});
-		const gutterIconEnabled = this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
-		if (!gutterIconEnabled) {
-			return;
-		}
-		this.activateGutterDecoration();
+			this.onEnablementOrModelChanged();
+		}));
+		this._register(this.inlineChatService.onDidChangeProviders(() => this.onEnablementOrModelChanged()));
+		this._register(this.editor.onDidChangeModel(() => this.onEnablementOrModelChanged()));
 	}
 
-	private activateGutterDecoration() {
-		this.disposableStore.add(this.editor.onDidChangeModel(e => this.onModelChange(e.newModelUrl, this.editor.getSelection())));
-		this.disposableStore.add(this.editor.onDidChangeCursorSelection(e => this.onCursorSelectionChange(this.editor.getModel()?.uri, e.selection)));
-		this.disposableStore.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
+	private onEnablementOrModelChanged(): void {
+		this.localToDispose.clear(); // cancels the scheduler, removes editor listeners / removes decoration
+		const model = this.editor.getModel();
+		if (!model || !this.isSettingEnabled() || !this.hasProvider()) {
+			return;
+		}
+		const decorationUpdateScheduler = new RunOnceScheduler(() => this.onSelectionOrContentChanged(model), 200);
+		this.localToDispose.add(decorationUpdateScheduler);
+		this.localToDispose.add(this.editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
+		this.localToDispose.add(this.editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
+		this.localToDispose.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.gutterIconClassName) || !this.editor.hasModel()) {
 				return;
 			}
@@ -105,53 +83,40 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 			this.inlineChatLineNumber = startLineNumber;
 			InlineChatController.get(this.editor)?.run();
 		}));
-		this.onCursorSelectionChange(this.editor.getModel()?.uri, this.editor.getSelection());
+		this.localToDispose.add({ dispose: () => { this.clearState(); } });
+		decorationUpdateScheduler.schedule();
 	}
 
-	private onModelChange(uri: URI | null, selection: Selection | null) {
-		// Gutter decorations disappear on model change, hence they need to be reset
-		if (!uri) {
-			return;
-		}
+	private onSelectionOrContentChanged(model: ITextModel): void {
+		const uri = model.uri;
+		const selection = this.editor.getSelection();
 		if (!selection) {
-			this.gutterDecorationsMap.set(uri, undefined);
 			return;
 		}
-		this.inlineChatLineNumber = undefined;
-		this.addDecoration(uri, selection.startLineNumber);
+		const selectionIsEmpty = selection.isEmpty();
+		const decorationData = this.gutterDecorationsMap.get(uri);
+		const lastDecorationLine = decorationData?.lineNumber;
+		const lastDecorationID = decorationData?.id;
+		if (selectionIsEmpty && selection.startLineNumber === lastDecorationLine) {
+			return;
+		}
+		const isEnabled = selectionIsEmpty && /^\s*$/g.test(model.getLineContent(selection.startLineNumber));
+		if (isEnabled && lastDecorationID === undefined) {
+			this.addDecoration(uri, selection.startLineNumber);
+		} else if (!isEnabled && lastDecorationID !== undefined) {
+			this.removePreviousGutterDecoration(uri);
+		} else if (isEnabled && selection.startLineNumber !== lastDecorationLine) {
+			this.removePreviousGutterDecoration(uri);
+			this.addDecoration(uri, selection.startLineNumber);
+		}
 	}
 
-	private onCursorSelectionChange(uri: URI | undefined, selection: Selection | null) {
-		// On cursor selection change, remove the existing decoration (if it exists) and add a new decoration (if needed)
-		if (!uri) {
-			return;
-		}
-		if (!selection) {
-			this.removePreviousGutterDecoration(uri);
-			return;
-		}
-		const startLineNumber = selection.startLineNumber;
-		const textAtLineNumber = this.editor.getModel()?.getLineContent(startLineNumber);
-		if (textAtLineNumber === undefined) {
-			return;
-		}
-		const isSelectionLineEmpty = selection.isEmpty() && /^\s*$/g.test(textAtLineNumber);
-		const isSameLineNumber = this.gutterDecorationsMap.get(uri)?.lineNumber === startLineNumber;
-		if (isSameLineNumber) {
-			if (isSelectionLineEmpty) {
-				// Suppose there is already a decoration on the current line and the line is empty, then do not do anything
-				return;
-			}
-			// Else the current line is not empty, then remove the decoration
-			this.removePreviousGutterDecoration(uri);
-		} else {
-			// Suppose we are on a different line than where previous decoration was placed, then remove the previous decoration
-			this.removePreviousGutterDecoration(uri);
-			if (isSelectionLineEmpty) {
-				// If current selection line is empty, add the decoration
-				this.addDecoration(uri, startLineNumber);
-			}
-		}
+	private isSettingEnabled(): boolean {
+		return this.configurationService.getValue<boolean>(InlineChatDecorationsContribution.gutterSettingID);
+	}
+
+	private hasProvider(): boolean {
+		return !Iterable.isEmpty(this.inlineChatService.getAllProvider());
 	}
 
 	private addDecoration(uri: URI, lineNumber: number) {
@@ -172,7 +137,6 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 	}
 
 	private clearState() {
-		this.disposableStore.clear();
 		this.inlineChatLineNumber = undefined;
 		[...this.gutterDecorationsMap.keys()].forEach((uri: URI) => {
 			this.removePreviousGutterDecoration(uri);
@@ -180,11 +144,10 @@ export class InlineChatDecorationsContribution implements IEditorContribution {
 		this.gutterDecorationsMap.clear();
 	}
 
-	dispose() {
+	override dispose() {
+		super.dispose();
 		this.inlineChatLineNumber = undefined;
-		this.onProvidersChange.dispose();
-		this.onConfigurationChange?.dispose();
-		this.disposableStore.dispose();
+		this.localToDispose.dispose();
 	}
 }
 
