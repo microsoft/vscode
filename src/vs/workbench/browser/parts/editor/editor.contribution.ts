@@ -66,7 +66,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
-import { ToggleSeparatePinnedTabsAction, ToggleTabsVisibilityAction } from 'vs/workbench/browser/actions/layoutActions';
+import { HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction, ToggleSeparatePinnedTabsAction } from 'vs/workbench/browser/actions/layoutActions';
 import product from 'vs/platform/product/common/product';
 
 //#region Editor Registrations
@@ -355,7 +355,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_DOWN, title: localize('splitDown', "Split Down") }, group: '2_split', order: 20 });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
-MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: ToggleTabsVisibilityAction.ID, title: localize('toggleTabs', "Editor Tabs"), toggled: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple') }, group: '3_config', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: ShowSingleEditorTabAction.ID, title: localize('showSingleTab', "Show Single Tab") }, group: '3_config', order: 10, when: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple') });
+MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: HideEditorTabsAction.ID, title: localize('hideTabBar', "Hide Tab Bar") }, group: '3_config', order: 15, when: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate() });
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: ToggleSeparatePinnedTabsAction.ID, title: localize('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"), toggled: ContextKeyExpr.has('config.workbench.editor.pinnedTabsOnSeparateRow') }, when: EditorPinnedAndUnpinnedTabsContext, group: '3_config', order: 20 });
 
 // Editor Title Context Menu
@@ -374,6 +375,8 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_ED
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '5_split', order: 40 });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: SPLIT_EDITOR_IN_GROUP, title: localize('splitInGroup', "Split in Group") }, group: '6_split_in_group', order: 10, when: ActiveEditorCanSplitInGroupContext });
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: JOIN_EDITOR_IN_GROUP, title: localize('joinInGroup', "Join in Group") }, group: '6_split_in_group', order: 10, when: SideBySideEditorActiveContext });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: ShowMultipleEditorTabsAction.ID, title: localize('showMultipleTabs', "Show Multiple Tabs") }, group: '7_config', order: 10, when: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single') });
+MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: HideEditorTabsAction.ID, title: localize('hideTabBar', "Hide Tab Bar") }, group: '7_config', order: 20, when: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate() });
 
 // Editor Title Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: TOGGLE_DIFF_SIDE_BY_SIDE, title: localize('inlineView', "Inline View"), toggled: ContextKeyExpr.equals('config.diffEditor.renderSideBySide', false) }, group: '1_diff', order: 10, when: ContextKeyExpr.has('isInDiffEditor') });
