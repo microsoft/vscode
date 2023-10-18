@@ -484,7 +484,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			const zone = this._diffZonePool[i];
 			if (zone.isVisible && zone.position) {
 				// above last view zone
-				return zone.position.delta(-1);
+				return zone.position;
 			}
 		}
 		return undefined;
