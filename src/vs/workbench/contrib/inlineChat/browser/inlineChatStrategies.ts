@@ -361,19 +361,11 @@ export class LiveStrategy extends EditModeStrategy {
 	}
 
 	override getWidgetPosition(): Position | undefined {
-		const lastTextModelChanges = this._session.lastTextModelChanges;
-		let lastLineOfLocalEdits: number | undefined;
-		for (const change of lastTextModelChanges) {
-			const changeEndLineNumber = change.modified.endLineNumberExclusive - 1;
-			if (typeof lastLineOfLocalEdits === 'undefined' || lastLineOfLocalEdits < changeEndLineNumber) {
-				lastLineOfLocalEdits = changeEndLineNumber;
-			}
-		}
-		return lastLineOfLocalEdits ? new Position(lastLineOfLocalEdits, 1) : undefined;
+		return undefined;
 	}
 
 	override needsMargin(): boolean {
-		return !Boolean(this._session.lastTextModelChanges.length);
+		return true;
 	}
 
 	hasFocus(): boolean {
@@ -488,6 +480,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override getWidgetPosition(): Position | undefined {
+		for (let i = this._diffZonePool.length - 1; i >= 0; i--) {
+			const zone = this._diffZonePool[i];
+			if (zone.isVisible && zone.position) {
+				// above last view zone
+				return zone.position.delta(-1);
+			}
+		}
 		return undefined;
 	}
 }

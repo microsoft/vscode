@@ -687,7 +687,6 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		this._showWidget(false);
 
 		let status: string | undefined;
 
@@ -751,6 +750,7 @@ export class InlineChatController implements IEditorContribution {
 			await this._strategy.renderChanges(response);
 		}
 		this._chatAccessibilityService.acceptResponse(status);
+		this._showWidget(false);
 
 		return State.WAIT_FOR_INPUT;
 	}
