@@ -271,7 +271,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	}
 
 	private updateEditorAreaContextKeys(): void {
-		this.editorTabsVisibleContext.set(!!this.editorGroupService.partOptions.showTabs);
+		this.editorTabsVisibleContext.set(this.editorGroupService.partOptions.showTabs === 'multiple');
 	}
 
 	private updateEditorContextKeys(): void {
