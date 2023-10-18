@@ -23,9 +23,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
+import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 
 export type Recording = {
 	when: Date;
@@ -112,7 +112,6 @@ export class Session {
 
 	private _lastInput: SessionPrompt | undefined;
 	private _lastExpansionState: ExpansionState | undefined;
-	private _lastTextModelChanges: readonly DetailedLineRangeMapping[] | undefined;
 	private _isUnstashed: boolean = false;
 	private readonly _exchange: SessionExchange[] = [];
 	private readonly _startTime = new Date();
@@ -187,26 +186,18 @@ export class Session {
 		return this._exchange[this._exchange.length - 1];
 	}
 
-	get lastTextModelChanges() {
-		return this._lastTextModelChanges ?? [];
-	}
-
-	set lastTextModelChanges(changes: readonly DetailedLineRangeMapping[]) {
-		this._lastTextModelChanges = changes;
-	}
-
 	get hasChangedText(): boolean {
 		return !this.textModel0.equalsTextBuffer(this.textModelN.getTextBuffer());
 	}
 
-	asChangedText(): string | undefined {
-		if (!this._lastTextModelChanges || this._lastTextModelChanges.length === 0) {
+	asChangedText(changes: readonly LineRangeMapping[]): string | undefined {
+		if (changes.length === 0) {
 			return undefined;
 		}
 
 		let startLine = Number.MAX_VALUE;
 		let endLine = Number.MIN_VALUE;
-		for (const change of this._lastTextModelChanges) {
+		for (const change of changes) {
 			startLine = Math.min(startLine, change.modified.startLineNumber);
 			endLine = Math.max(endLine, change.modified.endLineNumberExclusive);
 		}
