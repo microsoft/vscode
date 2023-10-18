@@ -325,7 +325,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	hasFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.container);
+		return DOM.isAncestorOfActiveElement(this.container);
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
