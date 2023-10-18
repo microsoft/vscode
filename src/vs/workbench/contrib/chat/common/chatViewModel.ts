@@ -88,6 +88,8 @@ export interface IChatResponseViewModel {
 	readonly dataId: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
+	/** The ID of the associated IChatRequestViewModel */
+	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly agent?: IChatAgent;
@@ -324,6 +326,10 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get vote() {
 		return this._model.vote;
+	}
+
+	get requestId() {
+		return this._model.requestId;
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;

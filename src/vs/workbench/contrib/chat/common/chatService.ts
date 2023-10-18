@@ -212,7 +212,7 @@ export interface IChatCommandAction {
 
 export interface IChatFollowupAction {
 	kind: 'followUp';
-	followup: IChatFollowup;
+	followup: IChatReplyFollowup;
 }
 
 export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction;
@@ -222,6 +222,7 @@ export interface IChatUserActionEvent {
 	providerId: string;
 	agentId: string | undefined;
 	sessionId: string;
+	requestId: string;
 }
 
 export interface IChatDynamicRequest {
@@ -265,6 +266,7 @@ export interface IChatService {
 
 	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
+	hasProviders(): boolean;
 	getProviderInfos(): IChatProviderInfo[];
 	startSession(providerId: string, token: CancellationToken): ChatModel | undefined;
 	getSession(sessionId: string): IChatModel | undefined;

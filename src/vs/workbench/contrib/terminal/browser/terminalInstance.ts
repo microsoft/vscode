@@ -865,6 +865,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+
+		// If xterm is already attached, call open again to pick up any changes to the window.
+		if (this.xterm?.raw.element) {
+			this.xterm.raw.open(this.xterm.raw.element);
+		}
+
 		this.xterm?.refresh();
 
 		setTimeout(() => this._initDragAndDrop(container));

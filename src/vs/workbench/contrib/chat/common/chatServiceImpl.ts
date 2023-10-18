@@ -12,7 +12,6 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { revive } from 'vs/base/common/marshalling';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { generateUuid } from 'vs/base/common/uuid';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -518,7 +517,7 @@ export class ChatService extends Disposable implements IChatService {
 					request = model.addRequest(parsedRequest, agent);
 					const requestProps: IChatAgentRequest = {
 						sessionId,
-						requestId: generateUuid(),
+						requestId: request.id,
 						message,
 						variables: {},
 						command: agentSlashCommandPart?.command.name ?? '',
@@ -758,6 +757,10 @@ export class ChatService extends Disposable implements IChatService {
 				.filter(model => model.providerId === provider.id)
 				.forEach(model => model.deinitialize());
 		});
+	}
+
+	hasProviders(): boolean {
+		return this._providers.size > 0;
 	}
 
 	getProviderInfos(): IChatProviderInfo[] {

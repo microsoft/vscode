@@ -30,7 +30,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
-import { getActiveElement } from 'vs/base/browser/dom';
+import { getActiveElement, getWindow } from 'vs/base/browser/dom';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -309,7 +309,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
-		const windowSelection = window.getSelection();
+		const windowSelection = getWindow(editor.getDomNode()).getSelection();
 
 		if (windowSelection?.rangeCount !== 1) {
 			return false;

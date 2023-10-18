@@ -602,14 +602,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
-		}
-		testChild = testChild.parentNode;
-	}
-
-	return false;
+	return Boolean(testAncestor?.contains(testChild));
 }
 
 const parentFlowToDataKey = 'parentFlowToElementId';
