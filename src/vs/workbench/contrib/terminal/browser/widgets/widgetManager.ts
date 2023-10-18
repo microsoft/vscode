@@ -4,21 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ITerminalWidget } from 'vs/workbench/contrib/terminal/browser/widgets/widgets';
 
 export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement | undefined;
 	private _attached: Map<string, ITerminalWidget> = new Map();
 
-	constructor(
-		@ILayoutService private readonly _layoutService: ILayoutService,
-	) {
-	}
-
 	attachToElement(terminalWrapper: HTMLElement) {
 		if (!this._container) {
-			this._container = this._layoutService.container.ownerDocument.createElement('div');
+			this._container = document.createElement('div');
 			this._container.classList.add('terminal-widget-container');
 			terminalWrapper.appendChild(this._container);
 		}
