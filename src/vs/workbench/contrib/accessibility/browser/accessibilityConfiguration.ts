@@ -125,10 +125,10 @@ const configuration: IConfigurationNode = {
 			...baseProperty
 		},
 		[AccessibilityAlertSettingId.Save]: {
-			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Also see {0}", '`#audioCues.save#`'),
+			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Note that this will be ignored when {0} is enabled.", '`#audioCues.save#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
-			'default': 'never',
+			'default': 'always',
 			'enumDescriptions': [
 				localize('alert.save.userGesture', "Alerts when a file is saved via user gesture."),
 				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
@@ -137,10 +137,10 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityAlertSettingId.Format]: {
-			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Also see {0}", '`#audioCues.format#`'),
+			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Note that this will be ignored when {0} is enabled.", '`#audioCues.format#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
-			'default': 'never',
+			'default': 'always',
 			'enumDescriptions': [
 				localize('alert.format.userGesture', "Alerts when a file is formatted via user gesture."),
 				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
