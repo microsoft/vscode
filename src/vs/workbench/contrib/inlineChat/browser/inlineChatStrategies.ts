@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { equals, tail } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
@@ -242,7 +243,7 @@ export class LiveStrategy extends EditModeStrategy {
 		@IStorageService protected _storageService: IStorageService,
 		@IBulkEditService protected readonly _bulkEditService: IBulkEditService,
 		@IEditorWorkerService protected readonly _editorWorkerService: IEditorWorkerService,
-		@IInstantiationService private readonly _instaService: IInstantiationService,
+		@IInstantiationService protected readonly _instaService: IInstantiationService,
 	) {
 		super();
 		this._diffEnabled = configService.getValue<boolean>('inlineChat.showDiff');
@@ -382,8 +383,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 export class LivePreviewStrategy extends LiveStrategy {
 
-	private readonly _diffZone: Lazy<InlineChatLivePreviewWidget>;
 	private readonly _previewZone: Lazy<InlineChatFileCreatePreviewWidget>;
+	private readonly _diffZonePool: InlineChatLivePreviewWidget[] = [];
+	private _currentLineRangeGroups: DetailedLineRangeMapping[][] = [];
 
 	constructor(
 		session: Session,
@@ -397,30 +399,82 @@ export class LivePreviewStrategy extends LiveStrategy {
 	) {
 		super(session, editor, widget, configService, storageService, bulkEditService, editorWorkerService, instaService);
 
-		this._diffZone = new Lazy(() => instaService.createInstance(InlineChatLivePreviewWidget, editor, session));
 		this._previewZone = new Lazy(() => instaService.createInstance(InlineChatFileCreatePreviewWidget, editor));
 	}
 
 	override dispose(): void {
-		this._diffZone.rawValue?.hide();
-		this._diffZone.rawValue?.dispose();
+		for (const zone of this._diffZonePool) {
+			zone.hide();
+			zone.dispose();
+		}
 		this._previewZone.rawValue?.hide();
 		this._previewZone.rawValue?.dispose();
 		super.dispose();
 	}
 
-	override async renderProgressChanges(): Promise<void> {
-		if (!this._diffZone.value.isVisible) {
-			this._diffZone.value.show();
+
+	private async _renderDiffZones() {
+		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		if (!diff || diff.changes.length === 0) {
+			return;
 		}
+
+		const groups: DetailedLineRangeMapping[][] = [];
+		let group = [diff.changes[0]];
+		groups.push(group);
+
+		for (let i = 1; i < diff.changes.length; i++) {
+			const last = tail(group);
+			const next = diff.changes[i];
+
+			// when the distance between the two changes is less than 75% of the total number of lines changed
+			// they get merged into the same group
+			const treshold = Math.ceil((next.modified.length + last.modified.length) * .75);
+			if (next.modified.startLineNumber - last.modified.endLineNumberExclusive <= treshold) {
+				group.push(next);
+			} else {
+				group = [next];
+				groups.push(group);
+			}
+		}
+
+		const beforeAndNowAreEqual = equals(this._currentLineRangeGroups, groups, (groupA, groupB) => {
+			return equals(groupA, groupB, (mappingA, mappingB) => {
+				return mappingA.original.equals(mappingB.original) && mappingA.modified.equals(mappingB.modified);
+			});
+		});
+
+		if (beforeAndNowAreEqual) {
+			return;
+		}
+
+		this._currentLineRangeGroups = groups;
+
+		const handleDiff = () => {
+			this._renderDiffZones();
+		};
+
+		// create enough zones
+		while (groups.length > this._diffZonePool.length) {
+			this._diffZonePool.push(this._instaService.createInstance(InlineChatLivePreviewWidget, this._editor, this._session, this._diffZonePool.length === 0 ? handleDiff : undefined));
+		}
+		for (let i = 0; i < groups.length; i++) {
+			this._diffZonePool[i].showForChanges(groups[i]);
+		}
+		// hide unused zones
+		for (let i = groups.length; i < this._diffZonePool.length; i++) {
+			this._diffZonePool[i].hide();
+		}
+	}
+
+	override async renderProgressChanges(): Promise<void> {
+		return this._renderDiffZones();
 	}
 
 	override async renderChanges(response: EditResponse) {
 
 		this._updateSummaryMessage();
-		if (this._diffEnabled) {
-			this._diffZone.value.show();
-		}
+		await this._renderDiffZones();
 
 		if (response.singleCreateFileEdit) {
 			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
@@ -429,25 +483,12 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	protected override _doToggleDiff(): void {
-		const scrollState = StableEditorScrollState.capture(this._editor);
-		if (this._diffEnabled) {
-			this._diffZone.value.show();
-		} else {
-			this._diffZone.value.hide();
-		}
-		scrollState.restore(this._editor);
-	}
-
 	override hasFocus(): boolean {
-		return super.hasFocus() || Boolean(this._diffZone.rawValue?.hasFocus()) || Boolean(this._previewZone.rawValue?.hasFocus());
+		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
 	}
 
 	override getWidgetPosition(): Position | undefined {
-		if (this._session.lastTextModelChanges.length) {
-			return this._session.wholeRange.value.getStartPosition().delta(-1);
-		}
-		return this._session.wholeRange.value.getStartPosition().delta(-1);
+		return undefined;
 	}
 }
 

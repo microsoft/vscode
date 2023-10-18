@@ -8,14 +8,14 @@ import { Barrier, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
-import { ModelDecorationOptions, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IModelService } from 'vs/editor/common/services/model';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
@@ -39,7 +39,6 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -93,12 +92,12 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
 
-	private static _decoBlock = ModelDecorationOptions.register({
-		description: 'inline-chat',
-		showIfCollapsed: false,
-		isWholeLine: true,
-		className: 'inline-chat-block-selection',
-	});
+	// private static _decoBlock = ModelDecorationOptions.register({
+	// 	description: 'inline-chat',
+	// 	showIfCollapsed: false,
+	// 	isWholeLine: true,
+	// 	className: 'inline-chat-block-selection',
+	// });
 
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
@@ -335,22 +334,22 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
-		const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		const updateWholeRangeDecoration = () => {
+		// const wholeRangeDecoration = this._editor.createDecorationsCollection();
+		// const updateWholeRangeDecoration = () => {
 
-			const range = this._activeSession!.wholeRange.value;
-			const decorations: IModelDeltaDecoration[] = [];
-			if (!range.isEmpty()) {
-				decorations.push({
-					range,
-					options: InlineChatController._decoBlock
-				});
-			}
-			wholeRangeDecoration.set(decorations);
-		};
-		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
-		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
-		updateWholeRangeDecoration();
+		// 	const range = this._activeSession!.wholeRange.value;
+		// 	const decorations: IModelDeltaDecoration[] = [];
+		// 	if (!range.isEmpty()) {
+		// 		decorations.push({
+		// 			range,
+		// 			options: InlineChatController._decoBlock
+		// 		});
+		// 	}
+		// 	wholeRangeDecoration.set(decorations);
+		// };
+		// this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
+		// this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
+		// updateWholeRangeDecoration();
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._updatePlaceholder();
