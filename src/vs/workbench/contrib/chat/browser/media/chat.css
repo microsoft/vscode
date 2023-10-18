@@ -162,6 +162,14 @@
 	line-height: 1.5em;
 }
 
+.interactive-item-container .value .rendered-markdown ul {
+	padding-inline-start: 24px;
+}
+
+.interactive-item-container .value .rendered-markdown ol {
+	padding-inline-start: 28px;
+}
+
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
 }
