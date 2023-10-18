@@ -66,6 +66,11 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		// View state for the ViewPane is currently global per-provider basically, but some other strictly per-model state will require a separate memento.
 		this.memento = new Memento('interactive-session-view-' + this.chatViewOptions.providerId, this.storageService);
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
+		this._register(this.chatService.onDidRegisterProvider(({ providerId }) => {
+			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
+				this.updateModel();
+			}
+		}));
 	}
 
 	private updateModel(model?: IChatModel | undefined): void {
@@ -83,7 +88,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	}
 
 	override shouldShowWelcome(): boolean {
-		return !this.chatService.hasProviders();
+		return !this.chatService.hasSessions(this.chatViewOptions.providerId) && !this._widget?.viewModel;
 	}
 
 	protected override renderBody(parent: HTMLElement): void {

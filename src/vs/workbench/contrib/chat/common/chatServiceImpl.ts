@@ -149,6 +149,9 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
+	private readonly _onDidRegisterProvider = this._register(new Emitter<{ providerId: string }>());
+	public readonly onDidRegisterProvider = this._onDidRegisterProvider.event;
+
 	constructor(
 		@IStorageService private readonly storageService: IStorageService,
 		@ILogService private readonly logService: ILogService,
@@ -742,6 +745,7 @@ export class ChatService extends Disposable implements IChatService {
 
 		this._providers.set(provider.id, provider);
 		this._hasProvider.set(true);
+		this._onDidRegisterProvider.fire({ providerId: provider.id });
 
 		Array.from(this._sessionModels.values())
 			.filter(model => model.providerId === provider.id)
@@ -759,8 +763,8 @@ export class ChatService extends Disposable implements IChatService {
 		});
 	}
 
-	hasProviders(): boolean {
-		return this._providers.size > 0;
+	public hasSessions(providerId: string): boolean {
+		return !!Object.values(this._persistedSessions).find((session) => session.providerId === providerId);
 	}
 
 	getProviderInfos(): IChatProviderInfo[] {
