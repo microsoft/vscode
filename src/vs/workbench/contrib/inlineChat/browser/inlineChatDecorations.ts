@@ -69,7 +69,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._localToDispose.add(this.editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this.editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this.editor.onMouseDown(async (e: IEditorMouseEvent) => {
-			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME) || !model) {
+			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
 				return;
 			}
 			const selection = this.editor.getSelection();
