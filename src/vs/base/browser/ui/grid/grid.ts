@@ -589,6 +589,15 @@ export class Grid<T extends IView = IView> extends Disposable {
 	}
 
 	/**
+	 * Returns whether the {@link IView view} is maximized.
+	 *
+	 * @param view The reference {@link IView view}.
+	 */
+	isViewMaximized(view: T): boolean {
+		return view === this.maximizedView;
+	}
+
+	/**
 	 * Get the size of a {@link IView view}.
 	 *
 	 * @param view The {@link IView view}. Provide `undefined` to get the size

@@ -347,7 +347,6 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
-
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
 
@@ -382,13 +381,6 @@ export class EditorPart extends Part implements IEditorPart {
 			return; // we have not been created yet
 		}
 
-		if (this.isGroupMaximized(target)) {
-			if (arrangement === GroupsArrangement.MAXIMIZE && this.activeGroup === target) {
-				return; // already maximized
-			}
-			this.unmaximizeGroup();
-		}
-
 		switch (arrangement) {
 			case GroupsArrangement.EVEN:
 				this.gridWidget.distributeViewSizes();
@@ -398,9 +390,6 @@ export class EditorPart extends Part implements IEditorPart {
 					return; // need at least 2 groups to be maximized
 				}
 				this.gridWidget.maximizeView(target);
-				if (this.activeGroup !== target) {
-					this.activateGroup(target);
-				}
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -429,27 +418,11 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
-		if (this.groups.length < 2) {
-			return false; // need at least 2 groups to be maximized
-		}
-
-		const targetVisible = this.gridWidget.isViewVisible(targetGroup);
-		if (!targetVisible) {
-			return false;
-		}
-
-		// All other groups need to be minimized for the target group to be maximized
-		for (const group of this.groups) {
-			if (group !== targetGroup && this.gridWidget.isViewVisible(group)) {
-				return false;
-			}
-		}
-
-		return true;
+		return this.gridWidget.isViewMaximized(targetGroup);
 	}
 
 	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
-		return this.gridWidget.isViewExpanded(targetGroup) && !this.isGroupMaximized(targetGroup);
+		return !this.isGroupMaximized(targetGroup) && this.gridWidget.isViewExpanded(targetGroup);
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -1219,6 +1192,9 @@ export class EditorPart extends Part implements IEditorPart {
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
 		this._register(this.gridWidget.onDidMaximizeGroup(e => {
+			if (this.activeGroup !== e.view) {
+				this.activateGroup(e.view);
+			}
 			this._onDidMaximizeGroup.fire({ group: e.view, maximized: e.maximized });
 		}));
 
