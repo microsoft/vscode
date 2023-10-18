@@ -570,16 +570,18 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(registerNavigableContainer({
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.filterWidget.hasFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focus();
 				}
 			},
 			focusPreviousWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.replInput.hasTextFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focusFilter();
 				}
 			}
