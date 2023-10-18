@@ -416,6 +416,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				return;
 			}
 
+			this.acceptInput(e.followup.message);
+
 			if (!e.response) {
 				// Followups can be shown by the welcome message, then there is no response associated.
 				// At some point we probably want telemetry for these too.
@@ -432,7 +434,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					followup: e.followup
 				},
 			});
-			this.acceptInput(e.followup.message);
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 	}
