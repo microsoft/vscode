@@ -962,7 +962,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			const classList = document.activeElement?.classList;
+			const classList = container.ownerDocument.activeElement?.classList;
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
@@ -1406,8 +1406,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private getActiveControlInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
-			<HTMLElement>document.activeElement :
+		const element = this.settingsTree.getHTMLElement();
+		const activeElement = element.ownerDocument.activeElement;
+		return (activeElement && DOM.isAncestorOfActiveElement(element)) ?
+			<HTMLElement>activeElement :
 			null;
 	}
 
@@ -1467,7 +1469,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshTree(): void {

@@ -264,7 +264,7 @@ export class EditorPanes extends Disposable {
 		const pane = this.doShowEditorPane(descriptor);
 
 		// Remember current active element for deciding to restore focus later
-		const activeElement = document.activeElement;
+		const activeElement = this.editorPanesParent.ownerDocument.activeElement;
 
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
@@ -296,9 +296,8 @@ export class EditorPanes extends Disposable {
 			return true; // restore focus if nothing was focused
 		}
 
-		const activeElement = document.activeElement;
-
-		if (!activeElement || activeElement === document.body) {
+		const activeElement = expectedActiveElement.ownerDocument.activeElement;
+		if (!activeElement || activeElement === expectedActiveElement.ownerDocument.body) {
 			return true; // restore focus if nothing is focused currently
 		}
 

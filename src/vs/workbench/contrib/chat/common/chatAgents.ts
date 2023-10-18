@@ -9,7 +9,6 @@ import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IProgress } from 'vs/platform/progress/common/progress';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatProgress, IChatResponseErrorDetails, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -19,7 +18,7 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 export interface IChatAgent {
 	id: string;
 	metadata: IChatAgentMetadata;
-	invoke(request: IChatAgentRequest, progress: IProgress<IChatProgress>, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
+	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
 }
@@ -66,7 +65,7 @@ export interface IChatAgentService {
 	_serviceBrand: undefined;
 	readonly onDidChangeAgents: Event<void>;
 	registerAgent(agent: IChatAgent): IDisposable;
-	invokeAgent(id: string, request: IChatAgentRequest, progress: IProgress<IChatProgress>, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
+	invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
 	getFollowups(id: string, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
@@ -131,7 +130,7 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 		return data?.agent;
 	}
 
-	async invokeAgent(id: string, request: IChatAgentRequest, progress: IProgress<IChatProgress>, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult> {
+	async invokeAgent(id: string, request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult> {
 		const data = this._agents.get(id);
 		if (!data) {
 			throw new Error(`No agent with id ${id}`);

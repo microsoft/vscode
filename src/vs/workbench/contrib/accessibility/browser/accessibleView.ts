@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { EventType, addDisposableListener } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, isActiveElement } from 'vs/base/browser/dom';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { alert } from 'vs/base/browser/ui/aria/aria';
@@ -57,7 +57,7 @@ export interface IAccessibleContentProvider {
 	actions?: IAction[];
 	provideContent(): string;
 	onClose(): void;
-	onKeyUp?(e: IKeyboardEvent): void;
+	onKeyDown?(e: IKeyboardEvent): void;
 	previous?(): void;
 	next?(): void;
 	/**
@@ -507,7 +507,6 @@ export class AccessibleView extends Disposable {
 			setTimeout(() => provider.onClose(), 100);
 		};
 		const disposableStore = new DisposableStore();
-		disposableStore.add(this._editorWidget.onKeyUp((e) => provider.onKeyUp?.(e)));
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
 			if (e.keyCode === KeyCode.Escape) {
 				handleEscape(e);
@@ -518,6 +517,7 @@ export class AccessibleView extends Disposable {
 				e.preventDefault();
 				e.stopPropagation();
 			}
+			provider.onKeyDown?.(e);
 		}));
 		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
@@ -526,7 +526,7 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
-			if (document.activeElement !== this._toolbar.getElement()) {
+			if (!isActiveElement(this._toolbar.getElement())) {
 				this._contextViewService.hideContextView();
 			}
 		}));
