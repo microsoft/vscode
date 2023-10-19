@@ -127,6 +127,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
+			input: session.input,
 			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message

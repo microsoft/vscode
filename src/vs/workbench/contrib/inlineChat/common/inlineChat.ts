@@ -31,6 +31,7 @@ export interface IInlineChatSlashCommand {
 export interface IInlineChatSession {
 	id: number;
 	placeholder?: string;
+	input?: string;
 	message?: string;
 	slashCommands?: IInlineChatSlashCommand[];
 	wholeRange?: IRange;
