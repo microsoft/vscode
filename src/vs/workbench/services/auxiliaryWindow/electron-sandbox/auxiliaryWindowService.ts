@@ -12,6 +12,7 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	readonly vscodeWindowId: Promise<number>;
@@ -30,9 +31,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(layoutService);
+		super(layoutService, dialogService);
 	}
 
 	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {

@@ -3,16 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getClientArea, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getActiveWindow, getClientArea, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { assertIsDefined } from 'vs/base/common/types';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
 import { IRectangle } from 'vs/platform/window/common/window';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import Severity from 'vs/base/common/severity';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -20,7 +22,7 @@ export interface IAuxiliaryWindowService {
 
 	readonly _serviceBrand: undefined;
 
-	open(options?: { position?: IRectangle }): IAuxiliaryWindow;
+	open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow>;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -39,14 +41,21 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
 
+	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
+
 	constructor(
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IDialogService private readonly dialogService: IDialogService
 	) { }
 
-	open(options?: { position?: IRectangle }): IAuxiliaryWindow {
+	async open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow> {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = this.doOpen(options);
+		const auxiliaryWindow = await this.doOpen(options);
+		if (!auxiliaryWindow) {
+			throw new Error(localize('unableToOpenWindowError', "Unable to open a new window."));
+		}
+
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
@@ -61,15 +70,35 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		};
 	}
 
-	private doOpen(options?: { position?: IRectangle }): AuxiliaryWindow {
-		let auxiliaryWindow: Window | null;
-		if (options?.position) {
-			auxiliaryWindow = window.open('about:blank', undefined, `left=${options.position.x},top=${options.position.y},width=${options.position.width},height=${options.position.height}`);
-		} else {
-			auxiliaryWindow = window.open('about:blank');
+	private async doOpen(options?: { position?: IRectangle }): Promise<AuxiliaryWindow | undefined> {
+		let position: IRectangle | undefined = options?.position;
+		if (!position) {
+			const activeWindow = getActiveWindow();
+			position = {
+				x: activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
+				y: activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
+				width: BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
+				height: BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+			};
 		}
 
-		return assertIsDefined(auxiliaryWindow).window as AuxiliaryWindow;
+		const auxiliaryWindow = window.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
+		if (!auxiliaryWindow && isWeb) {
+			return (await this.dialogService.prompt({
+				type: Severity.Warning,
+				message: localize('unableToOpenWindow', "The browser interrupted the opening of a new window. Press 'Retry' to try again."),
+				detail: localize('unableToOpenWindowDetail', "To avoid this problem in the future, please ensure to allow popups for this website."),
+				buttons: [
+					{
+						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
+						run: () => this.doOpen(options)
+					}
+				],
+				cancelButton: true
+			})).result;
+		}
+
+		return auxiliaryWindow?.window;
 	}
 
 	protected create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {

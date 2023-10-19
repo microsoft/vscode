@@ -38,10 +38,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Auxiliary Editor Parts
 
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): IAuxiliaryEditorPart {
+	async createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart> {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = disposables.add(this.auxiliaryWindowService.open(options));
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
 		disposables.add(Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose()));
 
 		const partContainer = document.createElement('div');
