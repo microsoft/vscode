@@ -54,7 +54,7 @@ export interface IChatAgentResult {
 	followUp?: IChatFollowup[];
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
-		firstProgress: number;
+		firstProgress?: number;
 		totalElapsed: number;
 	};
 }
