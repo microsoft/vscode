@@ -642,12 +642,13 @@ export class Grid<T extends IView = IView> extends Disposable {
 			this.unmaximizeView();
 		}
 
-		this.maximizedView = view;
 		for (const otherView of this.views.keys()) {
 			if (view !== otherView) {
 				this.setViewVisible(otherView, false);
 			}
 		}
+
+		this.maximizedView = view;
 		this._onDidMaximizeGroup.fire({ view, maximized: true });
 	}
 
@@ -659,13 +660,15 @@ export class Grid<T extends IView = IView> extends Disposable {
 			return;
 		}
 
+		const previousMaximizedView = this.maximizedView;
+		this.maximizedView = undefined;
+
 		// When hiding a view, it's previous size is cached.
 		// To restore the sizes of all views, they need to be made visible in reverse order.
 		for (const view of [...this.views.keys()].reverse()) {
 			this.setViewVisible(view, true);
 		}
-		const previousMaximizedView = this.maximizedView;
-		this.maximizedView = undefined;
+
 		this._onDidMaximizeGroup.fire({ view: previousMaximizedView, maximized: false });
 	}
 
@@ -712,6 +715,10 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The {@link IView view}.
 	 */
 	setViewVisible(view: T, visible: boolean): void {
+		if (this.maximizedView) {
+			this.unmaximizeView();
+			return;
+		}
 		const location = this.getViewLocation(view);
 		this.gridview.setViewVisible(location, visible);
 	}

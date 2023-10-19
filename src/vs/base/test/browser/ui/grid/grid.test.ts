@@ -598,6 +598,16 @@ suite('Grid', function () {
 		assert.deepStrictEqual(grid.isViewVisible(view1), true);
 		assert.deepStrictEqual(grid.isViewVisible(view2), true);
 		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+
+		// Changing the visibility of any view while a view is maximized, unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.setViewVisible(view3, true);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
 	});
 
 	test('Changes to the grid sizing unmaximize the view', function () {
