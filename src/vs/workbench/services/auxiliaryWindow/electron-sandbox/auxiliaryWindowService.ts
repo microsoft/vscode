@@ -14,13 +14,15 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
+	readonly vscodeWindowId: Promise<number>;
+
 	moveTop: () => void;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return typeof candidate?.moveTop === 'function';
+	return candidate?.vscodeWindowId instanceof Promise && typeof candidate?.moveTop === 'function';
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -51,6 +53,14 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		(async () => {
 			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
 		})();
+
+		// Add a `windowId` property
+		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
+			value: windowId.p,
+			writable: false,
+			enumerable: false,
+			configurable: false
+		});
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.

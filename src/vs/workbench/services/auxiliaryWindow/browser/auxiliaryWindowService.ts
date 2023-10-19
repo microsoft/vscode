@@ -12,6 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
+import { IRectangle } from 'vs/platform/window/common/window';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -19,7 +20,7 @@ export interface IAuxiliaryWindowService {
 
 	readonly _serviceBrand: undefined;
 
-	open(): IAuxiliaryWindow;
+	open(options?: { position?: IRectangle }): IAuxiliaryWindow;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -42,10 +43,10 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
 	) { }
 
-	open(): IAuxiliaryWindow {
+	open(options?: { position?: IRectangle }): IAuxiliaryWindow {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = assertIsDefined(window.open('about:blank')?.window) as AuxiliaryWindow;
+		const auxiliaryWindow = this.doOpen(options);
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
@@ -58,6 +59,17 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 			layout: () => onWillLayout.fire(getClientArea(container)),
 			dispose: () => disposables.dispose()
 		};
+	}
+
+	private doOpen(options?: { position?: IRectangle }): AuxiliaryWindow {
+		let auxiliaryWindow: Window | null;
+		if (options?.position) {
+			auxiliaryWindow = window.open('about:blank', undefined, `left=${options.position.x},top=${options.position.y},width=${options.position.width},height=${options.position.height}`);
+		} else {
+			auxiliaryWindow = window.open('about:blank');
+		}
+
+		return assertIsDefined(auxiliaryWindow).window as AuxiliaryWindow;
 	}
 
 	protected create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
