@@ -514,36 +514,22 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 
 	addChild(node: Node, size: number | Sizing, index: number, skipLayout?: boolean): void {
 		index = validateIndex(index, this.children.length);
-		const oldVisibleChildrenCount = this.visibleChildrenCount();
 
 		this.splitview.addView(node, size, index, skipLayout);
 		this.children.splice(index, 0, node);
 
 		this.updateBoundarySashes();
 		this.onDidChildrenChange();
-
-		// If the splitview is hidden and a child is added, show the splitview
-		const newVisibleChildrenCount = this.visibleChildrenCount();
-		if (oldVisibleChildrenCount === 0 && newVisibleChildrenCount > 0) {
-			this._onDidVisibilityChange.fire(true);
-		}
 	}
 
 	removeChild(index: number, sizing?: Sizing): Node {
 		index = validateIndex(index, this.children.length);
-		const oldVisibleChildrenCount = this.visibleChildrenCount();
 
 		const result = this.splitview.removeView(index, sizing);
 		this.children.splice(index, 1);
 
 		this.updateBoundarySashes();
 		this.onDidChildrenChange();
-
-		// If the splitview is visible and the only visible child is removed, hide the splitview
-		const newVisibleChildrenCount = this.visibleChildrenCount();
-		if (newVisibleChildrenCount === 0 && oldVisibleChildrenCount > 0) {
-			this._onDidVisibilityChange.fire(false);
-		}
 
 		return result;
 	}
