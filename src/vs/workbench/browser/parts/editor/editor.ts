@@ -25,7 +25,7 @@ export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
+	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
@@ -85,7 +85,19 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
+	validateEditorPartOptions(options);
+
 	return options;
+}
+
+function validateEditorPartOptions(options: IEditorPartOptions) {
+	// showTabs ensure correct enum value
+	if (typeof options.showTabs === 'boolean') {
+		// Migration service kicks in very late and can cause a flicker otherwise
+		options.showTabs = options.showTabs ? 'multiple' : 'single';
+	} else if (options.showTabs !== 'multiple' && options.showTabs !== 'single' && options.showTabs !== 'none') {
+		options.showTabs = 'multiple';
+	}
 }
 
 /**
@@ -236,6 +248,12 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * When set to `true`, pass DOM focus into the tab control.
 	 */
 	readonly focusTabControl?: boolean;
+
+	/**
+	 * When set to `true`, will not attempt to move the window to
+	 * the top that the editor opens in.
+	 */
+	readonly preserveWindowOrder?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

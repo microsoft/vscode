@@ -50,7 +50,7 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		if (!widget) {
 			return false;
 		}
-		return dom.isAncestor(document.activeElement, widget);
+		return dom.isAncestorOfActiveElement(widget);
 	}
 
 	toggle(providerId?: string, query?: string | undefined): void {

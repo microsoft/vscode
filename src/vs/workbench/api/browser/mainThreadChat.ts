@@ -38,7 +38,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			this._proxy.$onDidPerformUserAction(e);
+			if (!e.agentId) {
+				this._proxy.$onDidPerformUserAction(e);
+			}
 		}));
 	}
 
@@ -108,6 +110,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			},
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
+			provideSampleQuestions: (token) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
 			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);

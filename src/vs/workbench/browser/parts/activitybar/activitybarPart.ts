@@ -36,7 +36,7 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IViewDescriptorService, ViewContainerLocation, ViewContainerLocationToString } from 'vs/workbench/common/views';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 
@@ -46,6 +46,7 @@ export class ActivitybarPart extends Part {
 
 	static readonly pinnedViewContainersKey = 'workbench.activity.pinnedViewlets2';
 	static readonly placeholderViewContainersKey = 'workbench.activity.placeholderViewlets';
+	static readonly viewContainersWorkspaceStateKey = 'workbench.activity.viewletsWorkspaceState';
 
 	//#region IView
 
@@ -74,6 +75,7 @@ export class ActivitybarPart extends Part {
 			partContainerClass: 'activitybar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
+			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			orientation: ActionsOrientation.VERTICAL,
 			icon: true,
 			iconSize: 24,
@@ -387,11 +389,11 @@ registerAction2(class extends Action2 {
 			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
-				when: TitleBarVisibleContext.isEqualTo(true),
+				when: TitleBarStyleContext.notEqualsTo('native'),
 				order: 2
 			}, {
 				id: MenuId.CommandPalette,
-				when: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarVisibleContext.isEqualTo(true)),
+				when: ContextKeyExpr.and(ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarStyleContext.notEqualsTo('native')),
 			}]
 		});
 	}

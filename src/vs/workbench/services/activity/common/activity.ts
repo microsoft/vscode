@@ -11,7 +11,6 @@ import { ViewContainer } from 'vs/workbench/common/views';
 
 export interface IActivity {
 	readonly badge: IBadge;
-	readonly clazz?: string;
 	readonly priority?: number;
 }
 
@@ -82,13 +81,6 @@ export class NumberBadge extends BaseBadge {
 
 	override getDescription(): string {
 		return this.descriptorFn(this.number);
-	}
-}
-
-export class TextBadge extends BaseBadge {
-
-	constructor(readonly text: string, descriptorFn: () => string) {
-		super(descriptorFn);
 	}
 }
 

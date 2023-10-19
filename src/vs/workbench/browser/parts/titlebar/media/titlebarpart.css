@@ -422,10 +422,9 @@
 	display: inline-block;
 	box-sizing: border-box;
 	position: relative;
-
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact {
 	position: absolute;
 	top: 0;
 	bottom: 0;
@@ -437,22 +436,22 @@
 	z-index: 2;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content::before {
-	mask-size: 10px;
-	-webkit-mask-size: 10px;
-	top: 4px;
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content::before {
+	mask-size: 12px;
+	-webkit-mask-size: 12px;
+	top: 2px;
 }
 
-.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.progress-badge .badge-content {
+.monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 12px;
+	top: 10px;
 	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
-	min-width: 10px;
-	height: 10px;
-	line-height: 10px;
-	padding: 0 4px;
+	min-width: 12px;
+	height: 12px;
+	line-height: 12px;
+	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
 }

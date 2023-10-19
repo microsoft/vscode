@@ -64,17 +64,10 @@
 	flex: 1;
 }
 
-.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
-	height: 24px;
-	padding: 0 5px;
+.monaco-workbench .sidebar.part.pane-composite-part > .composite.title.has-composite-bar > .title-actions {
+	flex: inherit;
 }
 
-.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
-	font-size: 18px;
-}
-
-.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .badge .badge-content {
-	font-size: 9px;
-	min-width: 11px;
-	height: 16px;
+.monaco-workbench .sidebar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
+	max-width: 150px;
 }

@@ -3,8 +3,6 @@ parameters:
     type: boolean
   - name: VSCODE_BUILD_WIN32_ARM64
     type: boolean
-  - name: VSCODE_BUILD_WIN32_32BIT
-    type: boolean
 
 steps:
   - task: NodeTool@0
@@ -52,5 +50,3 @@ steps:
           - unsigned_vscode_cli_win32_x64_cli
         - ${{ if eq(parameters.VSCODE_BUILD_WIN32_ARM64, true) }}:
           - unsigned_vscode_cli_win32_arm64_cli
-        - ${{ if eq(parameters.VSCODE_BUILD_WIN32_32BIT, true) }}:
-          - unsigned_vscode_cli_win32_ia32_cli

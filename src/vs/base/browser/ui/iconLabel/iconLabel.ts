@@ -138,7 +138,11 @@ export class IconLabel extends Disposable {
 				containerClasses.push('disabled');
 			}
 			if (options.title) {
-				ariaLabel += options.title;
+				if (typeof options.title === 'string') {
+					ariaLabel += options.title;
+				} else {
+					ariaLabel += label;
+				}
 			}
 		}
 

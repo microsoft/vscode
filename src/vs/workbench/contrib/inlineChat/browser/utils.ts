@@ -12,8 +12,12 @@ export function invertLineRange(range: LineRange, model: ITextModel): LineRange[
 		return [];
 	}
 	const result: LineRange[] = [];
-	result.push(new LineRange(1, range.startLineNumber));
-	result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
+	if (range.startLineNumber > 1) {
+		result.push(new LineRange(1, range.startLineNumber));
+	}
+	if (range.endLineNumberExclusive < model.getLineCount() + 1) {
+		result.push(new LineRange(range.endLineNumberExclusive, model.getLineCount() + 1));
+	}
 	return result.filter(r => !r.isEmpty);
 }
 

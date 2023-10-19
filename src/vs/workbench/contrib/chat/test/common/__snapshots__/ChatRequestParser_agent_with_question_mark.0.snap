@@ -3,51 +3,35 @@
     {
       range: {
         start: 0,
-        endExclusive: 14
+        endExclusive: 6
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 1,
         endLineNumber: 1,
-        endColumn: 15
-      },
-      text: "Are you there ",
-      kind: "text"
-    },
-    {
-      range: {
-        start: 14,
-        endExclusive: 20
-      },
-      editorRange: {
-        startLineNumber: 1,
-        startColumn: 15,
-        endLineNumber: 1,
-        endColumn: 21
+        endColumn: 7
       },
       agent: {
         id: "agent",
-        metadata: {
-          description: "",
-          subCommands: [ { name: "subCommand" } ]
-        }
+        metadata: { description: "" },
+        provideSlashCommands: [Function provideSlashCommands]
       },
       kind: "agent"
     },
     {
       range: {
-        start: 20,
+        start: 6,
         endExclusive: 21
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 21,
+        startColumn: 7,
         endLineNumber: 1,
         endColumn: 22
       },
-      text: "?",
+      text: "? Are you there",
       kind: "text"
     }
   ],
-  text: "Are you there @agent?"
+  text: "@agent? Are you there"
 }

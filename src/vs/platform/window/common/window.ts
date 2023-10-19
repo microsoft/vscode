@@ -24,6 +24,13 @@ export const WindowMinimumSize = {
 	HEIGHT: 270
 };
 
+export interface IRectangle {
+	readonly x: number;
+	readonly y: number;
+	readonly width: number;
+	readonly height: number;
+}
+
 export interface IBaseOpenWindowsOptions {
 
 	/**
@@ -280,6 +287,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	mainPid: number;
 
 	machineId: string;
+	sqmId: string;
 
 	execPath: string;
 	backupPath?: string;

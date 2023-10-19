@@ -1552,7 +1552,7 @@ declare module 'vscode' {
 		 */
 		with(change: {
 			/**
-			 * The new scheme, defauls to this Uri's scheme.
+			 * The new scheme, defaults to this Uri's scheme.
 			 */
 			scheme?: string;
 			/**
@@ -17609,6 +17609,37 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+
+		/**
+		 * Context value of the test item. This can be used to contribute message-
+		 * specific actions to the test peek view. The value set here can be found
+		 * in the `testMessage` property of the following `menus` contribution points:
+		 *
+		 * - `testing/message/context` - context menu for the message in the results tree
+		 * - `testing/message/content` - a prominent button overlaying editor content where
+		 *    the message is displayed.
+		 *
+		 * For example:
+		 *
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "testing/message/content": [
+		 *       {
+		 *         "command": "extension.deleteCommentThread",
+		 *         "when": "testMessage == canApplyRichDiff"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 *
+		 * The command will be called with an object containing:
+		 * - `test`: the {@link TestItem} the message is associated with, *if* it
+		 *    is still present in the {@link TestController.items} collection.
+		 * - `message`: the {@link TestMessage} instance.
+		 */
+		contextValue?: string;
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.

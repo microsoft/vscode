@@ -37,6 +37,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -241,7 +242,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		const contextService = accessor.get(IContextKeyService).getContext(getActiveElement());
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
 			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
 		}
