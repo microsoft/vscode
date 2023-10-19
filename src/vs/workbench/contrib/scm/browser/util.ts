@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -21,6 +21,10 @@ export function isSCMRepositoryArray(element: any): element is ISCMRepository[] 
 	return Array.isArray(element) && element.every(r => isSCMRepository(r));
 }
 
+export function isSCMViewService(element: any): element is ISCMViewService {
+	return Array.isArray((element as ISCMViewService).repositories) && Array.isArray((element as ISCMViewService).visibleRepositories);
+}
+
 export function isSCMRepository(element: any): element is ISCMRepository {
 	return !!(element as ISCMRepository).provider && !!(element as ISCMRepository).input;
 }
@@ -34,7 +38,7 @@ export function isSCMActionButton(element: any): element is ISCMActionButton {
 }
 
 export function isSCMResourceGroup(element: any): element is ISCMResourceGroup {
-	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).elements;
+	return !!(element as ISCMResourceGroup).provider && !!(element as ISCMResourceGroup).resources;
 }
 
 export function isSCMResource(element: any): element is ISCMResource {

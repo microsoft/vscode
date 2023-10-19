@@ -12,7 +12,6 @@ import { IAction } from 'vs/base/common/actions';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { ISCMResource, ISCMResourceGroup, ISCMProvider, ISCMRepository, ISCMService, ISCMMenus, ISCMRepositoryMenus } from 'vs/workbench/contrib/scm/common/scm';
 import { equals } from 'vs/base/common/arrays';
-import { ISplice } from 'vs/base/common/sequence';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { localize } from 'vs/nls';
@@ -148,7 +147,6 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private contextKeyService: IContextKeyService;
 
 	readonly titleMenu: SCMTitleMenu;
-	private readonly resourceGroups: ISCMResourceGroup[] = [];
 	private readonly resourceGroupMenusItems = new Map<ISCMResourceGroup, SCMMenusItem>();
 
 	private _repositoryMenu: IMenu | undefined;
@@ -174,7 +172,7 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		provider: ISCMProvider,
+		private readonly provider: ISCMProvider,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService
@@ -189,8 +187,8 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		instantiationService = instantiationService.createChild(serviceCollection);
 		this.titleMenu = instantiationService.createInstance(SCMTitleMenu);
 
-		provider.groups.onDidSplice(this.onDidSpliceGroups, this, this.disposables);
-		this.onDidSpliceGroups({ start: 0, deleteCount: 0, toInsert: provider.groups.elements });
+		provider.onDidChangeResourceGroups(this.onDidChangeResourceGroups, this, this.disposables);
+		this.onDidChangeResourceGroups();
 	}
 
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu {
@@ -220,13 +218,12 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		return result;
 	}
 
-	private onDidSpliceGroups({ start, deleteCount, toInsert }: ISplice<ISCMResourceGroup>): void {
-		const deleted = this.resourceGroups.splice(start, deleteCount, ...toInsert);
-
-		for (const group of deleted) {
-			const item = this.resourceGroupMenusItems.get(group);
-			item?.dispose();
-			this.resourceGroupMenusItems.delete(group);
+	private onDidChangeResourceGroups(): void {
+		for (const resourceGroup of this.resourceGroupMenusItems.keys()) {
+			if (!this.provider.groups.includes(resourceGroup)) {
+				this.resourceGroupMenusItems.get(resourceGroup)?.dispose();
+				this.resourceGroupMenusItems.delete(resourceGroup);
+			}
 		}
 	}
 

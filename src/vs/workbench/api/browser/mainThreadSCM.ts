@@ -10,13 +10,14 @@ import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGr
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { ISplice, Sequence } from 'vs/base/common/sequence';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ResourceTree } from 'vs/base/common/resourceTree';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!historyItem.icon) {
@@ -33,15 +34,28 @@ function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: U
 
 class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 
-	readonly elements: ISCMResource[] = [];
+	readonly resources: ISCMResource[] = [];
 
-	private readonly _onDidSplice = new Emitter<ISplice<ISCMResource>>();
-	readonly onDidSplice = this._onDidSplice.event;
+	private _resourceTree: ResourceTree<ISCMResource, ISCMResourceGroup> | undefined;
+	get resourceTree(): ResourceTree<ISCMResource, ISCMResourceGroup> {
+		if (!this._resourceTree) {
+			const rootUri = this.provider.rootUri ?? URI.file('/');
+			this._resourceTree = new ResourceTree<ISCMResource, ISCMResourceGroup>(this, rootUri, this._uriIdentService.extUri);
+			for (const resource of this.resources) {
+				this._resourceTree.add(resource.sourceUri, resource);
+			}
+		}
 
-	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
+		return this._resourceTree;
+	}
 
 	private readonly _onDidChange = new Emitter<void>();
 	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly _onDidChangeResources = new Emitter<void>();
+	readonly onDidChangeResources = this._onDidChangeResources.event;
+
+	get hideWhenEmpty(): boolean { return !!this.features.hideWhenEmpty; }
 
 	constructor(
 		private readonly sourceControlHandle: number,
@@ -49,7 +63,8 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 		public provider: ISCMProvider,
 		public features: SCMGroupFeatures,
 		public label: string,
-		public id: string
+		public id: string,
+		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
 	toJSON(): any {
@@ -61,8 +76,10 @@ class MainThreadSCMResourceGroup implements ISCMResourceGroup {
 	}
 
 	splice(start: number, deleteCount: number, toInsert: ISCMResource[]) {
-		this.elements.splice(start, deleteCount, ...toInsert);
-		this._onDidSplice.fire({ start, deleteCount, toInsert });
+		this.resources.splice(start, deleteCount, ...toInsert);
+		this._resourceTree = undefined;
+
+		this._onDidChangeResources.fire();
 	}
 
 	$updateGroup(features: SCMGroupFeatures): void {
@@ -159,7 +176,13 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	private _id = `scm${MainThreadSCMProvider.ID_HANDLE++}`;
 	get id(): string { return this._id; }
 
-	readonly groups = new Sequence<MainThreadSCMResourceGroup>();
+	readonly groups: MainThreadSCMResourceGroup[] = [];
+	private readonly _onDidChangeResourceGroups = new Emitter<void>();
+	readonly onDidChangeResourceGroups = this._onDidChangeResourceGroups.event;
+
+	private readonly _onDidChangeResources = new Emitter<void>();
+	readonly onDidChangeResources = this._onDidChangeResources.event;
+
 	private readonly _groupsByHandle: { [handle: number]: MainThreadSCMResourceGroup } = Object.create(null);
 
 	// get groups(): ISequence<ISCMResourceGroup> {
@@ -172,8 +195,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	// 	// 	.filter(g => g.resources.elements.length > 0 || !g.features.hideWhenEmpty);
 	// }
 
-	private readonly _onDidChangeResources = new Emitter<void>();
-	readonly onDidChangeResources: Event<void> = this._onDidChangeResources.event;
 
 	private features: SCMProviderFeatures = {};
 
@@ -214,7 +235,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _inputBoxDocumentUri: URI,
-		private readonly _quickDiffService: IQuickDiffService
+		private readonly _quickDiffService: IQuickDiffService,
+		private readonly _uriIdentService: IUriIdentityService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -258,14 +280,16 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				this,
 				features,
 				label,
-				id
+				id,
+				this._uriIdentService
 			);
 
 			this._groupsByHandle[handle] = group;
 			return group;
 		});
 
-		this.groups.splice(this.groups.elements.length, 0, groups);
+		this.groups.splice(this.groups.length, 0, ...groups);
+		this._onDidChangeResourceGroups.fire();
 	}
 
 	$updateGroup(handle: number, features: SCMGroupFeatures): void {
@@ -344,8 +368,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		}
 
 		delete this._groupsByHandle[handle];
-		this.groups.splice(this.groups.elements.indexOf(group), 1);
-		this._onDidChangeResources.fire();
+		this.groups.splice(this.groups.indexOf(group), 1);
+		this._onDidChangeResourceGroups.fire();
 	}
 
 	async getOriginalResource(uri: URI): Promise<URI | null> {
@@ -397,7 +421,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
+		@IUriIdentityService private readonly _uriIdentService: IUriIdentityService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -413,7 +438,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this._uriIdentService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 
