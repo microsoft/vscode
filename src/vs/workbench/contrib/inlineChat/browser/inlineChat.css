@@ -328,3 +328,17 @@
 	justify-content: space-between;
 	padding: 3px 6px 3px 0;
 }
+
+/* gutter decoration */
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
+	display: block;
+	cursor: pointer;
+	opacity: 0.5;
+	transition: opacity .2s ease-in-out;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
+	opacity: 1;
+}
+
