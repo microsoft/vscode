@@ -231,7 +231,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $startSendingCommandEvents(): void {
-		this._logService.info('$startSendingCommandEvents');
 		if (this._sendCommandEventListener.value) {
 			return;
 		}
@@ -250,7 +249,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $stopSendingCommandEvents(): void {
-		this._logService.info('$stopSendingCommandEvents');
 		this._sendCommandEventListener.clear();
 	}
 

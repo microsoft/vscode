@@ -152,7 +152,7 @@ steps:
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Transpile
+      displayName: Transpile client and extensions
 
   - ${{ else }}:
     - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
@@ -241,7 +241,7 @@ steps:
         displayName: Find ESRP CLI
 
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
-        displayName: Codesign
+        displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
@@ -322,17 +322,18 @@ steps:
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
         inputs:
+          BuildComponentPath: $(Build.SourcesDirectory)/remote
           BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (client)
-        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_win32_$(VSCODE_ARCH)
 
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
-        artifact: $(ARTIFACT_PREFIX)sbom_server_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_win32_$(VSCODE_ARCH)
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(CLIENT_PATH)

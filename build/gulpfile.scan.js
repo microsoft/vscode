@@ -18,7 +18,6 @@ const { existsSync, readdirSync } = require('fs');
 const root = path.dirname(__dirname);
 
 const BUILD_TARGETS = [
-	{ platform: 'win32', arch: 'ia32' },
 	{ platform: 'win32', arch: 'x64' },
 	{ platform: 'win32', arch: 'arm64' },
 	{ platform: 'darwin', arch: null, opts: { stats: true } },
