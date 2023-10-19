@@ -15,6 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { isLinux } from 'vs/base/common/platform';
 
 //#region < --- Workbench --- >
 
@@ -99,6 +100,7 @@ export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', f
 
 //#region < --- Title Bar --- >
 
+export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
 export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
 
 //#endregion
