@@ -490,7 +490,7 @@ export class InlineChatController implements IEditorContribution {
 			if (lastExchange.response instanceof EditResponse) {
 				try {
 					this._ignoreModelContentChanged = true;
-					await this._strategy.undoChanges(lastExchange.response);
+					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
 				} finally {
 					this._ignoreModelContentChanged = false;
 				}
@@ -552,6 +552,7 @@ export class InlineChatController implements IEditorContribution {
 		};
 		this._chatAccessibilityService.acceptRequest();
 
+		const modelAltVersionIdNow = this._activeSession.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
@@ -598,7 +599,7 @@ export class InlineChatController implements IEditorContribution {
 				markdownContents.appendMarkdown(reply.message.value);
 				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply, markdownContents);
 			} else if (reply) {
-				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
+				const editResponse = new EditResponse(this._activeSession.textModelN.uri, modelAltVersionIdNow, reply, progressEdits);
 				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(editResponse.allLocalEdits[i], true);
 				}
@@ -609,14 +610,16 @@ export class InlineChatController implements IEditorContribution {
 
 		} catch (e) {
 			response = new ErrorResponse(e);
-
 		} finally {
 			this._ctxHasActiveRequest.set(false);
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
 			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
+		}
 
+		if (request.live && !(response instanceof EditResponse)) {
+			this._strategy?.undoChanges(modelAltVersionIdNow);
 		}
 
 		requestCts.dispose();
