@@ -5610,7 +5610,7 @@ export const EditorOptions = {
 	)),
 	multiDocumentOccurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.multiDocumentOccurrencesHighlight, 'multiDocumentOccurrencesHighlight', false,
-		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Controls whether the editor should highlight word occurrences accross multiple open editors.") }
+		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Experimental: Controls whether the editor should highlight word occurrences accross multiple open editors.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

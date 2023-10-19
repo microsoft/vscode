@@ -264,6 +264,7 @@ class WordHighlighter {
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
 	private occurrencesHighlight: boolean;
+	private multiDocumentOccurrencesHighlight: boolean;
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
@@ -290,9 +291,9 @@ class WordHighlighter {
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
+		this.multiDocumentOccurrencesHighlight = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
 		this.model = this.editor.getModel();
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
-
 			if (this._ignorePositionChangeEvent) {
 				// We are changing the position => ignore this event
 				return;
@@ -313,6 +314,12 @@ class WordHighlighter {
 			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
 				this.occurrencesHighlight = newValue;
+				this._stopAll();
+			}
+
+			const newMultiDocumentValue = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
+			if (this.multiDocumentOccurrencesHighlight !== newMultiDocumentValue) {
+				this.multiDocumentOccurrencesHighlight = newMultiDocumentValue;
 				this._stopAll();
 			}
 		}));
@@ -524,7 +531,8 @@ class WordHighlighter {
 					currentModels.push(model);
 				}
 			}
-			if (currentModels && currentModels.length > 1) {
+
+			if (currentModels && currentModels.length > 1 && this.multiDocumentOccurrencesHighlight) { // todo @Yoyokrazy -- should ignore setting if editor is a notebook.
 				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators), currentModels);
 			} else {
 				this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
