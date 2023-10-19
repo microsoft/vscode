@@ -45,6 +45,9 @@ export class WindowTitle extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
+	get value() { return this.title ?? ''; }
+	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
 
@@ -63,14 +66,6 @@ export class WindowTitle extends Disposable {
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
-	}
-
-	get value() {
-		return this.title ?? '';
-	}
-
-	get workspaceName() {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	private registerListeners(): void {
@@ -138,11 +133,13 @@ export class WindowTitle extends Disposable {
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
 		if (title !== this.title) {
+
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
+
 			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
@@ -153,24 +150,28 @@ export class WindowTitle extends Disposable {
 				// See: https://github.com/microsoft/vscode/issues/191288
 				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
+
 			window.document.title = nativeTitle;
 			this.title = title;
+
 			this.onDidChangeEmitter.fire();
 		}
 	}
 
 	private getFullWindowTitle(): string {
-		let title = this.getWindowTitle() || this.productService.nameLong;
 		const { prefix, suffix } = this.getTitleDecorations();
+
+		let title = this.getWindowTitle() || this.productService.nameLong;
 		if (prefix) {
 			title = `${prefix} ${title}`;
 		}
+
 		if (suffix) {
 			title = `${title} ${suffix}`;
 		}
+
 		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
-		return title;
+		return title.replace(/[^\S ]/g, ' ');
 	}
 
 	getTitleDecorations() {
@@ -180,6 +181,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.prefix) {
 			prefix = this.properties.prefix;
 		}
+
 		if (this.environmentService.isExtensionDevelopment) {
 			prefix = !prefix
 				? WindowTitle.NLS_EXTENSION_HOST
@@ -189,6 +191,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.isAdmin) {
 			suffix = WindowTitle.NLS_USER_IS_ADMIN;
 		}
+
 		return { prefix, suffix };
 	}
 
