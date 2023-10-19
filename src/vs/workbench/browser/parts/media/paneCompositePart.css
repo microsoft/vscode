@@ -177,7 +177,8 @@
 	font-size: 9px;
 	font-weight: 600;
 	min-width: 12px;
-	height: 11px;
+	height: 12px;
+	line-height: 12px;
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
