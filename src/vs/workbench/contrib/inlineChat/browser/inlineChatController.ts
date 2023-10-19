@@ -37,6 +37,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -552,6 +553,8 @@ export class InlineChatController implements IEditorContribution {
 		this._chatAccessibilityService.acceptRequest();
 
 		const progressEdits: TextEdit[][] = [];
+		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
 			if (data.message) {
@@ -572,6 +575,10 @@ export class InlineChatController implements IEditorContribution {
 				await this._makeChanges(data.edits, true);
 				await this._strategy?.renderProgressChanges();
 			}
+			if (data.markdownFragment) {
+				markdownContents.appendMarkdown(data.markdownFragment);
+				this._zone.value.widget.updateMarkdownMessage(markdownContents);
+			}
 		});
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
@@ -588,7 +595,8 @@ export class InlineChatController implements IEditorContribution {
 			await progress.drain();
 
 			if (reply?.type === InlineChatResponseType.Message) {
-				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
+				markdownContents.appendMarkdown(reply.message.value);
+				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply, markdownContents);
 			} else if (reply) {
 				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
 				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
@@ -716,7 +724,7 @@ export class InlineChatController implements IEditorContribution {
 			// clear status, show MD message
 
 			this._zone.value.widget.updateStatus('');
-			const content = this._zone.value.widget.updateMarkdownMessage(response.raw.message);
+			const content = this._zone.value.widget.updateMarkdownMessage(response.mdContent);
 			this._zone.value.widget.updateToolbar(true);
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
@@ -862,7 +870,7 @@ export class InlineChatController implements IEditorContribution {
 
 	viewInChat() {
 		if (this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
-			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt.value, this._activeSession.lastExchange.response.raw.message.value);
+			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt.value, this._activeSession.lastExchange.response.mdContent.value);
 		}
 	}
 
