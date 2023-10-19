@@ -3,15 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -34,9 +30,7 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		@IModelService _modelService: IModelService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
 		this.options.customHelp = customHelp;
@@ -54,14 +48,6 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 				this._focusedInstance = _terminalService.activeInstance;
 			}
 		}));
-	}
-
-	onKeyDown(e: IKeyboardEvent): void {
-		if (!shouldFocusTerminal(e.browserEvent, this._keybindingService)) {
-			return;
-		}
-		this._contextViewService.hideContextView();
-		this._instance.focus();
 	}
 
 	onClose() {
@@ -130,13 +116,3 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
 
-function shouldFocusTerminal(event: KeyboardEvent, keybindingService: IKeybindingService): boolean {
-	const standardKeyboardEvent = new StandardKeyboardEvent(event);
-	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
-
-	const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded;
-	if (keybindingService.inChordMode || isValidChord) {
-		return false;
-	}
-	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
-}

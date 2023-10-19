@@ -34,6 +34,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IContextViewDelegate, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickerQuickAccessItem } from 'vs/platform/quickinput/browser/pickerQuickAccess';
@@ -499,7 +500,7 @@ export class AccessibleView extends Disposable {
 		});
 		this._updateToolbar(provider.actions, provider.options.type);
 
-		const handleEscape = (e: KeyboardEvent | IKeyboardEvent): void => {
+		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
@@ -508,8 +509,8 @@ export class AccessibleView extends Disposable {
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
-			if (e.keyCode === KeyCode.Escape) {
-				handleEscape(e);
+			if (e.keyCode === KeyCode.Escape || shouldHide(e.browserEvent, this._keybindingService)) {
+				hide(e);
 			} else if (e.keyCode === KeyCode.KeyH && provider.options.readMoreUrl) {
 				const url: string = provider.options.readMoreUrl!;
 				alert(AccessibilityHelpNLS.openingDocs);
@@ -522,7 +523,7 @@ export class AccessibleView extends Disposable {
 		disposableStore.add(addDisposableListener(this._toolbar.getElement(), EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const keyboardEvent = new StandardKeyboardEvent(e);
 			if (keyboardEvent.equals(KeyCode.Escape)) {
-				handleEscape(e);
+				hide(e);
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidBlurEditorWidget(() => {
@@ -764,4 +765,15 @@ export interface IAccessibleViewSymbol extends IPickerQuickAccessItem {
 	markdownToParse?: string;
 	firstListItem?: string;
 	lineNumber?: number;
+}
+
+function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService): boolean {
+	const standardKeyboardEvent = new StandardKeyboardEvent(event);
+	const resolveResult = keybindingService.softDispatch(standardKeyboardEvent, standardKeyboardEvent.target);
+
+	const isValidChord = resolveResult.kind === ResultKind.MoreChordsNeeded;
+	if (keybindingService.inChordMode || isValidChord) {
+		return false;
+	}
+	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
 }
