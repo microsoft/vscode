@@ -53,7 +53,6 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		const audioCueSetting: NotificationSetting = this._configurationService.getValue(audioCue.settingsKey);
 		if (this._shouldNotify(audioCueSetting, userGesture)) {
 			this._logService.debug('AccessibleNotificationService playing sound: ', audioCue.name);
-			console.log('AccessibleNotificationService playing sound: ', audioCue.name);
 			// Play sound bypasses the usual audio cue checks IE screen reader optimized, auto, etc.
 			this._audioCueService.playSound(audioCue.sound.getSound(), true);
 			return;
@@ -61,7 +60,6 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 		const alertSettingValue: NotificationSetting = this._configurationService.getValue(alertSetting);
 		if (this._shouldNotify(alertSettingValue, userGesture)) {
 			this._logService.debug('AccessibleNotificationService alerting: ', alertMessage);
-			console.log('AccessibleNotificationService alerting: ', alertMessage);
 			this._accessibilityService.alert(alertMessage);
 		}
 	}
