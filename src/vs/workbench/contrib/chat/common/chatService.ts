@@ -42,7 +42,7 @@ export interface IChatResponse {
 	session: IChat;
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
-		firstProgress: number;
+		firstProgress?: number;
 		totalElapsed: number;
 	};
 }

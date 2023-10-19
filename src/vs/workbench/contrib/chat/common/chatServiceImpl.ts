@@ -45,8 +45,8 @@ const SESSION_TRANSFER_EXPIRATION_IN_MILLISECONDS = 1000 * 60;
 
 type ChatProviderInvokedEvent = {
 	providerId: string;
-	timeToFirstProgress: number;
-	totalTime: number;
+	timeToFirstProgress: number | undefined;
+	totalTime: number | undefined;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
 	slashCommand: string | undefined;
@@ -482,7 +482,7 @@ export class ChatService extends Disposable implements IChatService {
 				this.trace('sendRequest', `Request for session ${model.sessionId} was cancelled`);
 				this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 					providerId: provider.id,
-					timeToFirstProgress: -1,
+					timeToFirstProgress: undefined,
 					// Normally timings happen inside the EH around the actual provider. For cancellation we can measure how long the user waited before cancelling
 					totalTime: stopWatch.elapsed(),
 					result: 'cancelled',
@@ -586,8 +586,8 @@ export class ChatService extends Disposable implements IChatService {
 								'success';
 					this.telemetryService.publicLog2<ChatProviderInvokedEvent, ChatProviderInvokedClassification>('interactiveSessionProviderInvoked', {
 						providerId: provider.id,
-						timeToFirstProgress: rawResponse.timings?.firstProgress ?? 0,
-						totalTime: rawResponse.timings?.totalElapsed ?? 0,
+						timeToFirstProgress: rawResponse.timings?.firstProgress,
+						totalTime: rawResponse.timings?.totalElapsed,
 						result,
 						requestType,
 						slashCommand: usedSlashCommand?.command
