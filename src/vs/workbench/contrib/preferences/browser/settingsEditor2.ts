@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer, timeout } from 'vs/base/common/async';
+import { Delayer, IntervalTimer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -94,6 +94,7 @@ interface IFocusEventFromScroll extends KeyboardEvent {
 }
 
 const searchBoxLabel = localize('SearchSettings.AriaLabel', "Search settings");
+const SEARCH_TOC_BEHAVIOR_KEY = 'workbench.settings.settingsSearchTocBehavior';
 
 const SETTINGS_EDITOR_STATE_KEY = 'settingsEditorState';
 export class SettingsEditor2 extends EditorPane {
@@ -359,7 +360,6 @@ export class SettingsEditor2 extends EditorPane {
 	override async setInput(input: SettingsEditor2Input, options: ISettingsEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		this.inSettingsEditorContextKey.set(true);
 		await super.setInput(input, options, context, token);
-		await timeout(0); // Force setInput to be async
 		if (!this.input) {
 			return;
 		}
@@ -962,7 +962,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			const classList = document.activeElement?.classList;
+			const classList = container.ownerDocument.activeElement?.classList;
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
@@ -1181,13 +1181,6 @@ export class SettingsEditor2 extends EditorPane {
 		};
 
 		this.telemetryService.publicLog2<SettingsEditorModifiedSettingEvent, SettingsEditorModifiedSettingClassification>('settingsEditor.settingModified', data);
-	}
-
-	private onSearchModeToggled(): void {
-		this.rootElement.classList.remove('no-toc-search');
-		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
-			this.rootElement.classList.toggle('no-toc-search', !!this.searchResultModel);
-		}
 	}
 
 	private scheduleRefresh(element: HTMLElement, key = ''): void {
@@ -1413,8 +1406,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private getActiveControlInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
-			<HTMLElement>document.activeElement :
+		const element = this.settingsTree.getHTMLElement();
+		const activeElement = element.ownerDocument.activeElement;
+		return (activeElement && DOM.isAncestorOfActiveElement(element)) ?
+			<HTMLElement>activeElement :
 			null;
 	}
 
@@ -1474,7 +1469,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshTree(): void {
@@ -1520,7 +1515,27 @@ export class SettingsEditor2 extends EditorPane {
 		return match && match[1];
 	}
 
-	private triggerSearch(query: string): Promise<void> {
+	/**
+	 * Toggles the visibility of the Settings editor table of contents during a search
+	 * depending on the behavior.
+	 */
+	private toggleTocBySearchBehaviorType() {
+		const tocBehavior = this.configurationService.getValue<'filter' | 'hide'>(SEARCH_TOC_BEHAVIOR_KEY);
+		const hideToc = tocBehavior === 'hide';
+		if (hideToc) {
+			this.splitView.setViewVisible(0, false);
+			this.splitView.style({
+				separatorBorder: Color.transparent
+			});
+		} else {
+			this.splitView.setViewVisible(0, true);
+			this.splitView.style({
+				separatorBorder: this.theme.getColor(settingsSashBorder)!
+			});
+		}
+	}
+
+	private async triggerSearch(query: string): Promise<void> {
 		this.viewState.tagFilters = new Set<string>();
 		this.viewState.extensionFilters = new Set<string>();
 		this.viewState.featureFilters = new Set<string>();
@@ -1540,7 +1555,8 @@ export class SettingsEditor2 extends EditorPane {
 
 		if (query && query !== '@') {
 			query = this.parseSettingFromJSON(query) || query;
-			return this.triggerFilterPreferences(query);
+			await this.triggerFilterPreferences(query);
+			this.toggleTocBySearchBehaviorType();
 		} else {
 			if (this.viewState.tagFilters.size || this.viewState.extensionFilters.size || this.viewState.featureFilters.size || this.viewState.idFilters.size || this.viewState.languageFilter) {
 				this.searchResultModel = this.createFilterModel();
@@ -1559,7 +1575,6 @@ export class SettingsEditor2 extends EditorPane {
 			this.tocTree.setFocus([]);
 			this.viewState.filterToCategory = undefined;
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-			this.onSearchModeToggled();
 
 			if (this.searchResultModel) {
 				// Added a filter model
@@ -1568,16 +1583,17 @@ export class SettingsEditor2 extends EditorPane {
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
+				this.toggleTocBySearchBehaviorType();
 			} else if (!this.tocTreeDisposed) {
 				// Leaving search mode
 				this.tocTree.collapseAll();
 				this.refreshTOCTree();
 				this.renderResultCountMessages();
 				this.refreshTree();
+				// Always show the ToC when leaving search mode
+				this.splitView.setViewVisible(0, true);
 			}
 		}
-
-		return Promise.resolve();
 	}
 
 	/**
@@ -1598,7 +1614,6 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		filterModel.setResult(0, fullResult);
-
 		return filterModel;
 	}
 
@@ -1693,7 +1708,6 @@ export class SettingsEditor2 extends EditorPane {
 			// to make sure the search results count is set.
 			this.searchResultModel.setResult(type, result);
 			this.tocTreeModel.currentSearchModel = this.searchResultModel;
-			this.onSearchModeToggled();
 		} else {
 			this.searchResultModel.setResult(type, result);
 			this.tocTreeModel.update();
@@ -1791,18 +1805,22 @@ export class SettingsEditor2 extends EditorPane {
 		// opens for the first time.
 		this.splitView.layout(this.bodyContainer.clientWidth, listHeight);
 
-		const firstViewWasVisible = this.splitView.isViewVisible(0);
-		const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;
+		const tocBehavior = this.configurationService.getValue<'filter' | 'hide'>(SEARCH_TOC_BEHAVIOR_KEY);
+		const hideTocForSearch = tocBehavior === 'hide' && this.searchResultModel;
+		if (!hideTocForSearch) {
+			const firstViewWasVisible = this.splitView.isViewVisible(0);
+			const firstViewVisible = this.bodyContainer.clientWidth >= SettingsEditor2.NARROW_TOTAL_WIDTH;
 
-		this.splitView.setViewVisible(0, firstViewVisible);
-		// If the first view is again visible, and we have enough space, immediately set the
-		// editor to use the reset width rather than the cached min width
-		if (!firstViewWasVisible && firstViewVisible && this.bodyContainer.clientWidth >= SettingsEditor2.EDITOR_MIN_WIDTH + SettingsEditor2.TOC_RESET_WIDTH) {
-			this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
+			this.splitView.setViewVisible(0, firstViewVisible);
+			// If the first view is again visible, and we have enough space, immediately set the
+			// editor to use the reset width rather than the cached min width
+			if (!firstViewWasVisible && firstViewVisible && this.bodyContainer.clientWidth >= SettingsEditor2.EDITOR_MIN_WIDTH + SettingsEditor2.TOC_RESET_WIDTH) {
+				this.splitView.resizeView(0, SettingsEditor2.TOC_RESET_WIDTH);
+			}
+			this.splitView.style({
+				separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
+			});
 		}
-		this.splitView.style({
-			separatorBorder: firstViewVisible ? this.theme.getColor(settingsSashBorder)! : Color.transparent
-		});
 	}
 
 	protected override saveState(): void {

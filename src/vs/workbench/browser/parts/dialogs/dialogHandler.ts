@@ -119,7 +119,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		} : undefined;
 
 		const dialog = new Dialog(
-			this.layoutService.container,
+			this.layoutService.activeContainer,
 			message,
 			buttons,
 			{
@@ -127,7 +127,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				cancelId,
 				type: this.getDialogType(type),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
+					const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
 					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);

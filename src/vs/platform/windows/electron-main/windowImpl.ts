@@ -35,7 +35,7 @@ import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowCon
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -82,7 +82,29 @@ const enum ReadyState {
 	READY
 }
 
-export class CodeWindow extends Disposable implements ICodeWindow {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	protected abstract getWin(): BrowserWindow | null;
+
+	focus(options?: { force: boolean }): void {
+		if (isMacintosh && options?.force) {
+			app.focus({ steal: true });
+		}
+
+		const win = this.getWin();
+		if (!win) {
+			return;
+		}
+
+		if (win.isMinimized()) {
+			win.restore();
+		}
+
+		win.focus();
+	}
+}
+
+export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
@@ -113,6 +135,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private _win: BrowserWindow;
 	get win(): BrowserWindow | null { return this._win; }
+
+	protected getWin(): BrowserWindow | null {
+		return this._win;
+	}
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
@@ -416,29 +442,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		}
 
 		return !!this.documentEdited;
-	}
-
-	focus(options?: { force: boolean }): void {
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground.
-		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
-		}
-
-		if (!this._win) {
-			return;
-		}
-
-		if (this._win.isMinimized()) {
-			this._win.restore();
-		}
-
-		this._win.focus();
 	}
 
 	private readyState = ReadyState.NONE;

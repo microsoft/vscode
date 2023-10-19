@@ -238,6 +238,12 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * When set to `true`, pass DOM focus into the tab control.
 	 */
 	readonly focusTabControl?: boolean;
+
+	/**
+	 * When set to `true`, will not attempt to move the window to
+	 * the top that the editor opens in.
+	 */
+	readonly preserveWindowOrder?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {

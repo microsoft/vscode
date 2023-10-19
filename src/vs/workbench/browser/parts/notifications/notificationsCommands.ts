@@ -19,6 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ActionRunner, IAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { hash } from 'vs/base/common/hash';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 // Center
 export const SHOW_NOTIFICATIONS_CENTER = 'notifications.showList';
@@ -72,7 +73,7 @@ export function getNotificationFromContext(listService: IListService, context?: 
 		if (!isNotificationViewItem(element)) {
 			if (list.isDOMFocused()) {
 				// the notification list might have received focus
-				// via keyboard and might not have a focussed element.
+				// via keyboard and might not have a focused element.
 				// in that case just return the first element
 				// https://github.com/microsoft/vscode/issues/191705
 				element = list.element(0);
@@ -138,9 +139,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 			primary: KeyMod.CtrlCmd | KeyCode.Backspace
 		},
 		handler: (accessor, args?) => {
+			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 			const notification = getNotificationFromContext(accessor.get(IListService), args);
 			if (notification && !notification.hasProgress) {
 				notification.close();
+				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 			}
 		}
 	});

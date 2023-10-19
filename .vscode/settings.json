@@ -6,6 +6,7 @@
 		".build": true,
 		".profile-oss": true,
 		"**/.DS_Store": true,
+		".vscode-test": true,
 		"cli/target": true,
 		"build/**/*.js": {
 			"when": "$(basename).ts"
@@ -34,7 +35,7 @@
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
 	},
 	"files.readonlyInclude": {
-		"**/node_modules/**": true,
+		"**/node_modules/**/*.*": true,
 		"**/yarn.lock": true,
 		"**/Cargo.lock": true,
 		"src/vs/workbench/workbench.web.main.css": true,
@@ -141,6 +142,11 @@
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
 			"${workspaceFolder}/build/**/*.js"
+		]
+	},
+	"extension-test-runner.debugOptions": {
+		"outFiles": [
+			"${workspaceFolder}/extensions/*/out/**/*.js",
 		]
 	},
 	"githubPullRequests.assignCreated": "${user}",

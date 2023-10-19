@@ -20,6 +20,10 @@
 	display: none;
 }
 
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container {
+	display: flex;
+}
+
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-label.codicon-more {
 	display: flex;
 	align-items: center;
@@ -44,9 +48,13 @@
 	display: flex;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon {
-	padding-left: 2px;
-	padding-right: 2px;
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item.icon {
+	height: 24px;
+	padding: 0 5px;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
+	font-size: 18px;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label:not(.codicon) {
@@ -148,6 +156,37 @@
 	display: inline-block;
 	box-sizing: border-box;
 	position: relative;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	margin: auto;
+	left: 0;
+	overflow: hidden;
+	width: 100%;
+	height: 100%;
+	z-index: 2;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
+	position: absolute;
+	top: 12px;
+	right: 0px;
+	font-size: 9px;
+	font-weight: 600;
+	min-width: 12px;
+	height: 11px;
+	padding: 0 2px;
+	border-radius: 16px;
+	text-align: center;
+}
+
+.monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
+	mask-size: 12px;
+	-webkit-mask-size: 12px;
+	top: 2px;
 }
 
 /* active item indicator */

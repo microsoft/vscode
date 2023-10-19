@@ -83,10 +83,6 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/voiceRecognition",
-			"project": "vscode-workbench"
-		},
-		{
 			"name": "vs/workbench/contrib/extensions",
 			"project": "vscode-workbench"
 		},
@@ -212,6 +208,10 @@
 		},
 		{
 			"name": "vs/workbench/contrib/tags",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/speech",
 			"project": "vscode-workbench"
 		},
 		{

@@ -280,6 +280,7 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 	mainPid: number;
 
 	machineId: string;
+	sqmId: string;
 
 	execPath: string;
 	backupPath?: string;
