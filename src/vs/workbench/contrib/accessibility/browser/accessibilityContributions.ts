@@ -43,7 +43,7 @@ import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/brows
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -228,6 +228,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
+			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -288,7 +289,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: { type: AccessibleViewType.View },
-					actions: getActionsFromNotification(notification)
+					actions: getActionsFromNotification(notification, accessibleNotificationService)
 				});
 				return true;
 			}
@@ -297,7 +298,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 	}
 }
 
-function getActionsFromNotification(notification: INotificationViewItem): IAction[] | undefined {
+function getActionsFromNotification(notification: INotificationViewItem, accessibleNotificationService: IAccessibleNotificationService): IAction[] | undefined {
 	let actions = undefined;
 	if (notification.actions) {
 		actions = [];
@@ -323,7 +324,12 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
 	}
 	if (actions) {
-		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
+		actions.push({
+			id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
+				notification.close();
+				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+			}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)
+		});
 	}
 	return actions;
 }
