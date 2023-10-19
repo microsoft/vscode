@@ -29,7 +29,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { SelectAndInsertFileAction, dynamicReferenceDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferences';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -330,6 +330,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!model.getValue().trim().match(new RegExp(`^${chatAgentLeader}\\w*$`))) {
+					// Only when the input only contains the start of an agent
+					return;
+				}
+
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent && !Range.containsPosition(usedAgent.editorRange, position)) {
@@ -420,8 +425,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (model.getValue().trim() !== '/') {
-					// Only when the input only contains a slash
+				if (!model.getValue().trim().match(new RegExp(`^${chatSubcommandLeader}\\w*$`))) {
+					// Only when the input only contains the start of a slash command
 					return;
 				}
 
