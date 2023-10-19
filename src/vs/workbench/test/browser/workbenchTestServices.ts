@@ -849,7 +849,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	arrangeGroups(_arrangement: GroupsArrangement): void { }
 	toggleMaximizeGroup(): void { }
 	toggleExpandGroup(): void { }
-	isGroupMaximized(_target: number | IEditorGroup): boolean { throw new Error('not implemented'); }
 	applyLayout(_layout: EditorGroupLayout): void { }
 	getLayout(): EditorGroupLayout { throw new Error('not implemented'); }
 	setGroupOrientation(_orientation: GroupOrientation): void { }

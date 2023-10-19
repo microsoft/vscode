@@ -337,11 +337,6 @@ export interface IEditorPart {
 	toggleExpandGroup(group?: IEditorGroup | GroupIdentifier): void;
 
 	/**
-	 * Returns true if the group is maximized
-	 */
-	isGroupMaximized(target: IEditorGroup | GroupIdentifier): boolean;
-
-	/**
 	 * Applies the provided layout by either moving existing groups or creating new groups.
 	 */
 	applyLayout(layout: EditorGroupLayout): void;

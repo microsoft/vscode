@@ -1746,16 +1746,6 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(part.getSize(rightGroup), { width: 0, height: 0 });
 		assert.deepStrictEqual(part.getSize(rightBottomGroup), { width: 0, height: 0 });
 
-		// isGroupMaximized() - root group is maximized
-		assert.deepStrictEqual(part.isGroupMaximized(rootGroup), true);
-		assert.deepStrictEqual(part.isGroupMaximized(rightGroup), false);
-		assert.deepStrictEqual(part.isGroupMaximized(rightBottomGroup), false);
-
-		// When maximizing a group, no group can be expanded
-		assert.deepStrictEqual(part.isGroupExpanded(rootGroup), false);
-		assert.deepStrictEqual(part.isGroupExpanded(rightGroup), false);
-		assert.deepStrictEqual(part.isGroupExpanded(rightBottomGroup), false);
-
 		assert.deepStrictEqual(maxmizedGroup, rootGroup);
 		assert.deepStrictEqual(maximizedValue, true);
 
@@ -1765,11 +1755,6 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);
 		assert.deepStrictEqual(part.getSize(rightGroup), sizeRightGroup);
 		assert.deepStrictEqual(part.getSize(rightBottomGroup), sizeRightBottomGroup);
-
-		// isGroupMaximized() - none is maximized
-		assert.deepStrictEqual(part.isGroupMaximized(rootGroup), false);
-		assert.deepStrictEqual(part.isGroupMaximized(rightGroup), false);
-		assert.deepStrictEqual(part.isGroupMaximized(rightBottomGroup), false);
 
 		assert.deepStrictEqual(maxmizedGroup, rootGroup);
 		assert.deepStrictEqual(maximizedValue, false);

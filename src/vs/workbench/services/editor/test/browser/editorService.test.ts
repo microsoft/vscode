@@ -1707,9 +1707,6 @@ suite('EditorService', () => {
 
 		await rootGroup.closeEditor(input2);
 		assert.strictEqual(part.activeGroup, sideGroup);
-
-		assert(!part.isGroupExpanded(rootGroup));
-		assert(part.isGroupExpanded(part.activeGroup));
 	});
 
 	test('active editor change / visible editor change events', async function () {

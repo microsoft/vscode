@@ -417,11 +417,11 @@ export class EditorPart extends Part implements IEditorPart {
 		this.gridWidget.unmaximizeView();
 	}
 
-	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
 		return this.gridWidget.isViewMaximized(targetGroup);
 	}
 
-	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
+	private isGroupExpanded(targetGroup: IEditorGroupView): boolean {
 		return this.gridWidget.isViewExpanded(targetGroup);
 	}
 
@@ -664,7 +664,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doSetGroupActive(group: IEditorGroupView): void {
 		if (this._activeGroup !== group) {
-			if (this.isGroupMaximized(this.activeGroup)) {
+			if (this._activeGroup && this.isGroupMaximized(this._activeGroup)) {
 				this.unmaximizeGroup();
 			}
 
@@ -1159,7 +1159,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				return groupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+		}, { styles: { separatorBorder: this.gridSeparatorBorder }, hasMaximizedView: serializedGrid.hasMaximizedView });
 
 		// If the active group was not found when restoring the grid
 		// make sure to make at least one group active. We always need
@@ -1197,6 +1197,10 @@ export class EditorPart extends Part implements IEditorPart {
 			}
 			this._onDidMaximizeGroup.fire({ group: e.view, maximized: e.maximized });
 		}));
+
+		if (this.isGroupMaximized(this.activeGroup)) {
+			this._onDidMaximizeGroup.fire({ group: this.activeGroup, maximized: true });
+		}
 
 		this._onDidSetGridWidget.fire(undefined);
 	}
