@@ -293,11 +293,51 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._registrations.set(handle, this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
-			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
-				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
-			}
-		}));
+		this._registrations.set(handle, combinedDisposable(
+			this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
+				provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
+					return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+				}
+			}),
+			this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
+				provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, wordSeparators: string, token: CancellationToken, otherModels: ITextModel[]): Promise<Map<URI, languages.DocumentHighlight[]>> => {
+					const res = this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
+					if (!res) {
+						return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
+					}
+
+					return res.then(data => {
+						const result = new Map<URI, languages.DocumentHighlight[]>();
+						if (data) {
+							result.set(model.uri, data);
+						}
+
+						const word = model.getWordAtPosition({
+							lineNumber: position.lineNumber,
+							column: position.column
+						});
+
+						for (const otherModel of otherModels) {
+							if (!word) {
+								return new Map<URI, languages.DocumentHighlight[]>();
+							}
+
+							const matches = otherModel.findMatches(word.word, true, false, true, wordSeparators, false);
+							const highlights = matches.map(m => ({
+								range: m.range,
+								kind: languages.DocumentHighlightKind.Text
+							}));
+
+							if (highlights) {
+								result.set(otherModel.uri, highlights);
+							}
+						}
+
+						return result;
+					});
+				}
+			})
+		));
 	}
 
 	// --- linked editing

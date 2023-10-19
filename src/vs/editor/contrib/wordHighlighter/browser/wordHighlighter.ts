@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import * as nls from 'vs/nls';
 import * as arrays from 'vs/base/common/arrays';
+import { alert } from 'vs/base/browser/ui/aria/aria';
 import { CancelablePromise, createCancelablePromise, first, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, EditorContributionInstantiation, IActionOptions, registerEditorAction, registerEditorContribution, registerModelAndPositionCommand } from 'vs/editor/browser/editorExtensions';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
-import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
+import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { IEditorContribution, IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
+import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider, MultiDocumentHighlightProvider } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { DocumentHighlight, DocumentHighlightKind, DocumentHighlightProvider } from 'vs/editor/common/languages';
-import * as nls from 'vs/nls';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
-import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { getHighlightDecorationOptions } from 'vs/editor/contrib/wordHighlighter/browser/highlightDecorations';
-import { Iterable } from 'vs/base/common/iterator';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
-export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<DocumentHighlight[] | null | undefined> {
-
+export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, position: Position, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]> | null | undefined> {
 	const orderedByScore = registry.ordered(model);
 
 	// in order of score ask the occurrences provider
@@ -43,11 +43,30 @@ export function getOccurrencesAtPosition(registry: LanguageFeatureRegistry<Docum
 	return first<DocumentHighlight[] | null | undefined>(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideDocumentHighlights(model, position, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), arrays.isNonEmptyArray);
+	}), arrays.isNonEmptyArray).then(result => {
+		if (result) {
+			const map = new Map<URI, DocumentHighlight[]>();
+			map.set(model.uri, result);
+			return map;
+		}
+		return new Map<URI, DocumentHighlight[]>();
+	});
+}
+
+export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, position: Position, wordSeparators: string, token: CancellationToken, otherModels: ITextModel[]): Promise<Map<URI, DocumentHighlight[]> | null | undefined> {
+	const orderedByScore = registry.ordered(model);
+
+	// in order of score ask the occurrences provider
+	// until someone response with a good result
+	// (good = none empty array)
+	return first<Map<URI, DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
+		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, wordSeparators, token, otherModels))
+			.then(undefined, onUnexpectedExternalError);
+	}), (t: Map<URI, DocumentHighlight[]> | null | undefined): t is Map<URI, DocumentHighlight[]> => t instanceof Map && t.size > 0);
 }
 
 interface IOccurenceAtPositionRequest {
-	readonly result: Promise<DocumentHighlight[]>;
+	readonly result: Promise<Map<URI, DocumentHighlight[]>>;
 	isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean;
 	cancel(): void;
 }
@@ -55,7 +74,7 @@ interface IOccurenceAtPositionRequest {
 abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
 
 	private readonly _wordRange: Range | null;
-	private _result: CancelablePromise<DocumentHighlight[]> | null;
+	private _result: CancelablePromise<Map<URI, DocumentHighlight[]>> | null;
 
 	constructor(private readonly _model: ITextModel, private readonly _selection: Selection, private readonly _wordSeparators: string) {
 		this._wordRange = this._getCurrentWordRange(_model, _selection);
@@ -70,7 +89,7 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 
 	}
 
-	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]>;
+	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]>>;
 
 	private _getCurrentWordRange(model: ITextModel, selection: Selection): Range | null {
 		const word = model.getWordAtPosition(selection.getPosition());
@@ -117,8 +136,13 @@ class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		this._providers = providers;
 	}
 
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
-		return getOccurrencesAtPosition(this._providers, model, selection.getPosition(), token).then(value => value || []);
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]>> {
+		return getOccurrencesAtPosition(this._providers, model, selection.getPosition(), token).then(value => {
+			if (!value) {
+				return new Map<URI, DocumentHighlight[]>();
+			}
+			return value;
+		});
 	}
 }
 
@@ -131,24 +155,25 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		this._selectionIsEmpty = selection.isEmpty();
 	}
 
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<DocumentHighlight[]> {
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]>> {
 		return timeout(250, token).then(() => {
 			if (!selection.isEmpty()) {
-				return [];
+				return new Map<URI, DocumentHighlight[]>();
 			}
 
 			const word = model.getWordAtPosition(selection.getPosition());
 
 			if (!word || word.word.length > 1000) {
-				return [];
+				return new Map<URI, DocumentHighlight[]>();
 			}
 			const matches = model.findMatches(word.word, true, false, true, wordSeparators, false);
-			return matches.map(m => {
-				return {
-					range: m.range,
-					kind: DocumentHighlightKind.Text
-				};
-			});
+			const highlight: DocumentHighlight[] = matches.map(m => ({
+				range: m.range,
+				kind: DocumentHighlightKind.Text
+			}));
+			const res = new Map<URI, DocumentHighlight[]>();
+			res.set(model.uri, highlight);
+			return res;
 		});
 	}
 
@@ -160,12 +185,72 @@ class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 		return super.isValid(model, selection, decorations);
 	}
 }
+class MultiModelOccurenceRequest extends OccurenceAtPositionRequest {
+	private readonly _providers: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
+	private readonly _otherModels: ITextModel[];
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string, providers: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, otherModels: ITextModel[]) {
+		super(model, selection, wordSeparators);
+		this._providers = providers;
+		this._otherModels = otherModels;
+	}
+
+	protected override _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]>> {
+		return getOccurrencesAcrossMultipleModels(this._providers, model, selection.getPosition(), wordSeparators, token, this._otherModels).then(value => {
+			if (!value) {
+				return new Map<URI, DocumentHighlight[]>();
+			}
+			return value;
+		});
+	}
+}
+
+class TextualMultiModelOccurenceRequest extends OccurenceAtPositionRequest {
+
+	private readonly _otherModels: ITextModel[];
+
+	constructor(model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]) {
+		super(model, selection, wordSeparators);
+		this._otherModels = otherModels;
+	}
+
+	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<Map<URI, DocumentHighlight[]>> {
+		return timeout(250, token).then(() => {
+			const result = new Map<URI, DocumentHighlight[]>();
+			const word = model.getWordAtPosition(selection.getPosition());
+
+			for (const otherModel of this._otherModels) {
+				if (!word) {
+					return new Map<URI, DocumentHighlight[]>();
+				}
+
+				const matches = otherModel.findMatches(word.word, true, false, true, wordSeparators, false);
+				const highlights = matches.map(m => ({
+					range: m.range,
+					kind: DocumentHighlightKind.Text
+				}));
+
+				if (highlights) {
+					result.set(otherModel.uri, highlights);
+				}
+			}
+			return result;
+		});
+	}
+}
 
 function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
 	if (registry.has(model)) {
 		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
 	}
 	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
+}
+
+function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]): IOccurenceAtPositionRequest {
+	if (registry.has(model)) {
+		return new MultiModelOccurenceRequest(model, selection, wordSeparators, registry, otherModels);
+	}
+	return new TextualMultiModelOccurenceRequest(model, selection, wordSeparators, otherModels);
 }
 
 registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
@@ -177,15 +262,18 @@ class WordHighlighter {
 
 	private readonly editor: IActiveCodeEditor;
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
+	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
 	private occurrencesHighlight: boolean;
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
+	private readonly codeEditorService: ICodeEditorService;
 
 	private workerRequestTokenId: number = 0;
 	private workerRequest: IOccurenceAtPositionRequest | null;
 	private workerRequestCompleted: boolean = false;
-	private workerRequestValue: DocumentHighlight[] = [];
+	private workerRequestValue: Map<URI, DocumentHighlight[]> = new Map();
+	private storedDecorations: Map<URI, string[]> = new Map();
 
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: any = -1;
@@ -193,12 +281,12 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
-	private readonly linkedHighlighters: () => Iterable<WordHighlighter | null>;
 
-	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, linkedHighlighters: () => Iterable<WordHighlighter | null>, contextKeyService: IContextKeyService) {
+	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, multiProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, contextKeyService: IContextKeyService, @ICodeEditorService codeEditorService: ICodeEditorService) {
 		this.editor = editor;
 		this.providers = providers;
-		this.linkedHighlighters = linkedHighlighters;
+		this.multiDocumentProviders = multiProviders;
+		this.codeEditorService = codeEditorService;
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
@@ -303,6 +391,18 @@ class WordHighlighter {
 	}
 
 	private _removeDecorations(): void {
+		const currentEditors = this.codeEditorService.listCodeEditors();
+		// iterate over editors and store models in currentModels
+		for (const editor of currentEditors) {
+			const model = editor.getModel();
+			if (model) {
+				model.changeDecorations((changeAccessor) => {
+					changeAccessor.deltaDecorations(this.storedDecorations.get(model.uri) ?? [], []);
+					this.storedDecorations.delete(model.uri);
+				});
+			}
+		}
+
 		if (this.decorations.length > 0) {
 			// remove decorations
 			this.decorations.clear();
@@ -415,8 +515,20 @@ class WordHighlighter {
 			const myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
-			this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
-
+			const currentEditors = this.codeEditorService.listCodeEditors();
+			const currentModels: ITextModel[] = [];
+			// iterate over editors and store models in currentModels
+			for (const editor of currentEditors) {
+				const model = editor.getModel();
+				if (model) {
+					currentModels.push(model);
+				}
+			}
+			if (currentModels && currentModels.length > 1) {
+				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators), currentModels);
+			} else {
+				this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+			}
 			this.workerRequest.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
@@ -445,25 +557,39 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		const decorations: IModelDeltaDecoration[] = [];
-		for (const info of this.workerRequestValue) {
-			if (info.range) {
-				decorations.push({
-					range: info.range,
-					options: getHighlightDecorationOptions(info.kind)
-				});
+		// create new loop, iterate over current editors using this.codeEditorService.listCodeEditors(),
+		// if the URI of that codeEditor is in the map, then add the decorations to the decorations array
+		// then set the decorations for the editor
+		const currentEditors = this.codeEditorService.listCodeEditors();
+		for (const editor of currentEditors) {
+			const editorHighlighterContrib = WordHighlighterContribution.get(editor);
+			if (!editorHighlighterContrib) {
+				continue;
 			}
-		}
 
-		this.decorations.set(decorations);
-		this._hasWordHighlights.set(this.hasDecorations());
+			const newDecorations: IModelDeltaDecoration[] = [];
+			const uri = editor.getModel()?.uri;
+			if (uri && this.workerRequestValue.has(uri)) {
+				const oldDecorations: string[] | undefined = this.storedDecorations.get(uri);
+				const highlights = this.workerRequestValue.get(uri);
+				if (highlights) {
+					for (const highlight of highlights) {
+						newDecorations.push({
+							range: highlight.range,
+							options: getHighlightDecorationOptions(highlight.kind)
+						});
+					}
+				}
 
-		// update decorators of friends
-		for (const other of this.linkedHighlighters()) {
-			if (other?.editor.getModel() === this.editor.getModel()) {
-				other._stopAll();
-				other.decorations.set(decorations);
-				other._hasWordHighlights.set(other.hasDecorations());
+				let newDecorationIDs: string[] = [];
+				editor.changeDecorations((changeAccessor) => {
+					newDecorationIDs = changeAccessor.deltaDecorations(oldDecorations ?? [], newDecorations);
+				});
+				this.storedDecorations = this.storedDecorations.set(uri, newDecorationIDs);
+
+				if (newDecorations.length > 0) {
+					editorHighlighterContrib.wordHighlighter?._hasWordHighlights.set(true);
+				}
 			}
 		}
 	}
@@ -482,70 +608,59 @@ export class WordHighlighterContribution extends Disposable implements IEditorCo
 		return editor.getContribution<WordHighlighterContribution>(WordHighlighterContribution.ID);
 	}
 
-	private wordHighlighter: WordHighlighter | null;
-	private linkedContributions: Set<WordHighlighterContribution>;
+	private _wordHighlighter: WordHighlighter | null;
 
-	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService) {
+	constructor(editor: ICodeEditor, @IContextKeyService contextKeyService: IContextKeyService, @ILanguageFeaturesService languageFeaturesService: ILanguageFeaturesService, @ICodeEditorService codeEditorService: ICodeEditorService) {
 		super();
-		this.wordHighlighter = null;
-		this.linkedContributions = new Set();
+		this._wordHighlighter = null;
 		const createWordHighlighterIfPossible = () => {
 			if (editor.hasModel() && !editor.getModel().isTooLargeForTokenization()) {
-				this.wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, () => Iterable.map(this.linkedContributions, c => c.wordHighlighter), contextKeyService);
+				this._wordHighlighter = new WordHighlighter(editor, languageFeaturesService.documentHighlightProvider, languageFeaturesService.multiDocumentHighlightProvider, contextKeyService, codeEditorService);
 			}
 		};
 		this._register(editor.onDidChangeModel((e) => {
-			if (this.wordHighlighter) {
-				this.wordHighlighter.dispose();
-				this.wordHighlighter = null;
+			if (this._wordHighlighter) {
+				this._wordHighlighter.dispose();
+				this._wordHighlighter = null;
 			}
 			createWordHighlighterIfPossible();
 		}));
 		createWordHighlighterIfPossible();
 	}
 
+	public get wordHighlighter(): WordHighlighter | null {
+		return this._wordHighlighter;
+	}
+
 	public saveViewState(): boolean {
-		if (this.wordHighlighter && this.wordHighlighter.hasDecorations()) {
+		if (this._wordHighlighter && this._wordHighlighter.hasDecorations()) {
 			return true;
 		}
 		return false;
 	}
 
 	public moveNext() {
-		this.wordHighlighter?.moveNext();
+		this._wordHighlighter?.moveNext();
 	}
 
 	public moveBack() {
-		this.wordHighlighter?.moveBack();
+		this._wordHighlighter?.moveBack();
 	}
 
 	public restoreViewState(state: boolean | undefined): void {
-		if (this.wordHighlighter && state) {
-			this.wordHighlighter.restore();
+		if (this._wordHighlighter && state) {
+			this._wordHighlighter.restore();
 		}
 	}
 
 	public stopHighlighting() {
-		this.wordHighlighter?.stop();
-	}
-
-	public linkWordHighlighters(editor: ICodeEditor): IDisposable {
-		const other = WordHighlighterContribution.get(editor);
-		if (!other) {
-			return Disposable.None;
-		}
-		this.linkedContributions.add(other);
-		other.linkedContributions.add(this);
-		return toDisposable(() => {
-			this.linkedContributions.delete(other);
-			other.linkedContributions.delete(this);
-		});
+		this._wordHighlighter?.stop();
 	}
 
 	public override dispose(): void {
-		if (this.wordHighlighter) {
-			this.wordHighlighter.dispose();
-			this.wordHighlighter = null;
+		if (this._wordHighlighter) {
+			this._wordHighlighter.dispose();
+			this._wordHighlighter = null;
 		}
 		super.dispose();
 	}
