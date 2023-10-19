@@ -40,7 +40,7 @@ export abstract class EditModeStrategy {
 
 	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
-	abstract undoChanges(response: EditResponse): Promise<void>;
+	abstract undoChanges(altVersionId: number): Promise<void>;
 
 	abstract renderProgressChanges(): Promise<void>;
 
@@ -122,7 +122,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async undoChanges(_response: EditResponse): Promise<void> {
+	override async undoChanges(_altVersionId: number): Promise<void> {
 		// nothing to do
 	}
 
@@ -317,9 +317,9 @@ export class LiveStrategy extends EditModeStrategy {
 		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
 	}
 
-	override async undoChanges(response: EditResponse): Promise<void> {
+	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
-		LiveStrategy._undoModelUntil(textModelN, response.modelAltVersionId);
+		LiveStrategy._undoModelUntil(textModelN, altVersionId);
 	}
 
 	override async renderProgressChanges(): Promise<void> {
