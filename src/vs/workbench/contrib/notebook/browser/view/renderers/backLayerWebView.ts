@@ -768,7 +768,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						await this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						// Uri without scheme, such as a file path
-						this._handleResourceOpening(tryDecodeURIComponent(data.href));
+						await this._handleResourceOpening(tryDecodeURIComponent(data.href));
 					} else {
 						// uri with scheme
 						if (osPath.isAbsolute(data.href)) {
@@ -968,7 +968,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		return this.openerService.open(notebookResource, { fromUserGesture: true, fromWorkspace: true });
 	}
 
-	private _handleResourceOpening(href: string) {
+	private async _handleResourceOpening(href: string) {
 		let linkToOpen: URI | undefined = undefined;
 		let fragment: string | undefined = undefined;
 
@@ -982,9 +982,9 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (href.startsWith('/')) {
-			linkToOpen = URI.parse(href);
+			linkToOpen = await this.pathService.fileURI(href);
 		} else if (href.startsWith('~')) {
-			const userHome = this.pathService.resolvedUserHome;
+			const userHome = await this.pathService.userHome();
 			if (userHome) {
 				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
 			}
