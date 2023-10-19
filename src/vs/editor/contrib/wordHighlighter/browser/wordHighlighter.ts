@@ -524,7 +524,6 @@ class WordHighlighter {
 
 			const currentEditors = this.codeEditorService.listCodeEditors();
 			const currentModels: ITextModel[] = [];
-			// iterate over editors and store models in currentModels
 			for (const editor of currentEditors) {
 				const model = editor.getModel();
 				if (model) {
@@ -532,10 +531,17 @@ class WordHighlighter {
 				}
 			}
 
-			if (currentModels && currentModels.length > 1 && this.multiDocumentOccurrencesHighlight) { // todo @Yoyokrazy -- should ignore setting if editor is a notebook.
+			const isNotebookEditor = this.editor.getModel()?.uri.scheme === 'vscode-notebook-cell';
+			const notebookCellModels = currentModels.filter(model => model.uri.scheme === 'vscode-notebook-cell');
+
+			if (currentModels && currentModels.length > 1 && this.multiDocumentOccurrencesHighlight) {
 				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators), currentModels);
 			} else {
-				this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+				if (isNotebookEditor) { // notebooks should highlight accross cells even with multi-doc highlight turned off.
+					this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators), notebookCellModels);
+				} else {
+					this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+				}
 			}
 			this.workerRequest.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
