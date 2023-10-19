@@ -584,6 +584,10 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The reference {@link IView view}.
 	 */
 	isViewExpanded(view: T): boolean {
+		if (this.maximizedView) {
+			// No view can be expanded when a view is maximized
+			return false;
+		}
 		const location = this.getViewLocation(view);
 		return this.gridview.isViewExpanded(location);
 	}

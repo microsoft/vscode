@@ -422,7 +422,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
-		return !this.isGroupMaximized(targetGroup) && this.gridWidget.isViewExpanded(targetGroup);
+		return this.gridWidget.isViewExpanded(targetGroup);
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {

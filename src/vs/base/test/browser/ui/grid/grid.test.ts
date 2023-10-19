@@ -518,6 +518,149 @@ suite('Grid', function () {
 		assert.deepStrictEqual(view3.size, size3);
 		assert.deepStrictEqual(view4.size, size4);
 	});
+
+	test('isViewMaximized', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		function checkIsMaximized(view: TestView) {
+			grid.maximizeView(view);
+
+			assert.deepStrictEqual(grid.isViewMaximized(view1), view1 === view);
+			assert.deepStrictEqual(grid.isViewMaximized(view2), view2 === view);
+			assert.deepStrictEqual(grid.isViewMaximized(view3), view3 === view);
+			assert.deepStrictEqual(grid.isViewMaximized(view4), view4 === view);
+
+			// When a view is maximized, no view can be expanded even if it is maximized
+			assert.deepStrictEqual(grid.isViewExpanded(view1), false);
+			assert.deepStrictEqual(grid.isViewExpanded(view2), false);
+			assert.deepStrictEqual(grid.isViewExpanded(view3), false);
+			assert.deepStrictEqual(grid.isViewExpanded(view4), false);
+
+			grid.unmaximizeView();
+
+			assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+			assert.deepStrictEqual(grid.isViewMaximized(view2), false);
+			assert.deepStrictEqual(grid.isViewMaximized(view3), false);
+			assert.deepStrictEqual(grid.isViewMaximized(view4), false);
+		}
+
+		checkIsMaximized(view1);
+		checkIsMaximized(view2);
+		checkIsMaximized(view3);
+		checkIsMaximized(view4);
+	});
+
+	test('Changes to the grid unmaximize the view', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+
+		// Adding a view unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+
+		// Removing a view unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.removeView(view4);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+	});
+
+	test('Changes to the grid sizing unmaximize the view', function () {
+		const view1 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		const grid = store.add(new Grid(view1));
+		container.appendChild(grid.element);
+
+		grid.layout(800, 600);
+
+		const view2 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = store.add(new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE));
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		// Maximizing a different view unmaximizes the current one and maximizes the new one
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.maximizeView(view2);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewMaximized(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), false);
+		assert.deepStrictEqual(grid.isViewVisible(view4), false);
+
+		// Distributing the size unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.distributeViewSizes();
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+
+		// Expanding a different view unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.expandView(view2);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+
+		// Expanding the maximized view unmaximizes the view
+		grid.maximizeView(view1);
+		assert.deepStrictEqual(grid.isViewMaximized(view1), true);
+		grid.expandView(view1);
+
+		assert.deepStrictEqual(grid.isViewMaximized(view1), false);
+		assert.deepStrictEqual(grid.isViewVisible(view1), true);
+		assert.deepStrictEqual(grid.isViewVisible(view2), true);
+		assert.deepStrictEqual(grid.isViewVisible(view3), true);
+		assert.deepStrictEqual(grid.isViewVisible(view4), true);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {
