@@ -378,7 +378,7 @@ export class ExperimentalSplitWindowAction extends Action2 {
 		}, { targetWindowId: activeWindowId });
 
 		// Then create a new window next to the active window
-		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart({
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({
 			position: {
 				x: activeWindow.screen.availWidth / 2,
 				y: 0,
