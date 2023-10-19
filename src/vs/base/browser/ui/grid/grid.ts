@@ -991,7 +991,6 @@ export function createSerializedGrid<T>(gridDescriptor: GridDescriptor<T>): ISer
 		root,
 		orientation: gridDescriptor.orientation,
 		width: width || 1,
-		height: height || 1,
-		hasMaximizedView: false // Not sure about this case
+		height: height || 1
 	};
 }
