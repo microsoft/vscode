@@ -1106,6 +1106,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
