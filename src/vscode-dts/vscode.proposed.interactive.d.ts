@@ -52,6 +52,7 @@ declare module 'vscode' {
 		message?: string;
 		edits?: TextEdit[];
 		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {
