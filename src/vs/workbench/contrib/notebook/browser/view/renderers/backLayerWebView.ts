@@ -982,7 +982,15 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (href.startsWith('/')) {
-			linkToOpen = await this.pathService.fileURI(href);
+			const folders = this.workspaceContextService.getWorkspace().folders;
+			if (folders.length) {
+				linkToOpen = (await this.pathService.fileURI(href)).with({
+					scheme: folders[0].uri.scheme,
+					authority: folders[0].uri.scheme
+				});
+			} else {
+				linkToOpen = await this.pathService.fileURI(href);
+			}
 		} else if (href.startsWith('~')) {
 			const userHome = await this.pathService.userHome();
 			if (userHome) {
