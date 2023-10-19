@@ -69,7 +69,9 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 		this.viewState = this.memento.getMemento(StorageScope.WORKSPACE, StorageTarget.MACHINE) as IViewPaneState;
 		this._register(this.chatService.onDidRegisterProvider(({ providerId }) => {
 			if (providerId === this.chatViewOptions.providerId && !this._widget?.viewModel) {
-				this.updateModel();
+				const sessionId = this.getSessionId();
+				const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
+				this.updateModel(model);
 			}
 		}));
 	}
@@ -91,6 +93,17 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 	override shouldShowWelcome(): boolean {
 		const noPersistedSessions = !this.chatService.hasSessions(this.chatViewOptions.providerId);
 		return !this._widget?.viewModel && (noPersistedSessions || this.didProviderRegistrationFail);
+	}
+
+	private getSessionId() {
+		let sessionId: string | undefined;
+		if (this.chatService.transferredSessionData) {
+			sessionId = this.chatService.transferredSessionData.sessionId;
+			this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
+		} else {
+			sessionId = this.viewState.sessionId;
+		}
+		return sessionId;
 	}
 
 	protected override renderBody(parent: HTMLElement): void {
@@ -115,26 +128,19 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			this._register(this._widget.onDidClear(() => this.clear()));
 			this._widget.render(parent);
 
-			let sessionId: string | undefined;
-			if (this.chatService.transferredSessionData) {
-				sessionId = this.chatService.transferredSessionData.sessionId;
-				this.viewState.inputValue = this.chatService.transferredSessionData.inputValue;
-			} else {
-				sessionId = this.viewState.sessionId;
-			}
-
+			const sessionId = this.getSessionId();
 			// Render the welcome view if this session gets disposed at any point,
 			// including if the provider registration fails
 			const disposeListener = sessionId ? this._register(this.chatService.onDidDisposeSession((e) => {
-				if (e.sessionId === sessionId) {
+				if (e.reason === 'initializationFailed' && e.sessionId === sessionId) {
 					this.didProviderRegistrationFail = true;
 					disposeListener?.dispose();
 					this._onDidChangeViewWelcomeState.fire();
 				}
 			})) : undefined;
+			const model = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
 
-			const initialModel = sessionId ? this.chatService.getOrRestoreSession(sessionId) : undefined;
-			this.updateModel(initialModel);
+			this.updateModel(model);
 		} catch (e) {
 			this.logService.error(e);
 			throw e;

@@ -146,7 +146,7 @@ export class ChatService extends Disposable implements IChatService {
 	private readonly _onDidSubmitSlashCommand = this._register(new Emitter<{ slashCommand: string; sessionId: string }>());
 	public readonly onDidSubmitSlashCommand = this._onDidSubmitSlashCommand.event;
 
-	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string }>());
+	private readonly _onDidDisposeSession = this._register(new Emitter<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>());
 	public readonly onDidDisposeSession = this._onDidDisposeSession.event;
 
 	private readonly _onDidRegisterProvider = this._register(new Emitter<{ providerId: string }>());
@@ -379,7 +379,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.setInitializationError(err);
 			model.dispose();
 			this._sessionModels.delete(model.sessionId);
-			this._onDidDisposeSession.fire({ sessionId: model.sessionId });
+			this._onDidDisposeSession.fire({ sessionId: model.sessionId, reason: 'initializationFailed' });
 		}
 	}
 
@@ -733,7 +733,7 @@ export class ChatService extends Disposable implements IChatService {
 		model.dispose();
 		this._sessionModels.delete(sessionId);
 		this._pendingRequests.get(sessionId)?.cancel();
-		this._onDidDisposeSession.fire({ sessionId });
+		this._onDidDisposeSession.fire({ sessionId, reason: 'cleared' });
 	}
 
 	registerProvider(provider: IChatProvider): IDisposable {

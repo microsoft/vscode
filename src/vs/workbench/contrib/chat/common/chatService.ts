@@ -290,7 +290,7 @@ export interface IChatService {
 
 	onDidPerformUserAction: Event<IChatUserActionEvent>;
 	notifyUserAction(event: IChatUserActionEvent): void;
-	onDidDisposeSession: Event<{ sessionId: string }>;
+	onDidDisposeSession: Event<{ sessionId: string; reason: 'initializationFailed' | 'cleared' }>;
 
 	transferChatSession(transferredSessionData: IChatTransferredSessionData, toWorkspace: URI): void;
 }
