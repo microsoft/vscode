@@ -153,7 +153,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 
 		let done = false;
-		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[]; slashCommand?: vscode.InteractiveEditorSlashCommand }> = {
+		const progress: vscode.Progress<vscode.InteractiveEditorProgressItem> = {
 			report: async value => {
 				if (!request.live) {
 					throw new Error('Progress reporting is only supported for live sessions');
@@ -164,7 +164,8 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				await this._proxy.$handleProgressChunk(request.requestId, {
 					message: value.message,
 					edits: value.edits?.map(typeConvert.TextEdit.from),
-					slashCommand: value.slashCommand?.command
+					slashCommand: value.slashCommand?.command,
+					markdownFragment: extHostTypes.MarkdownString.isMarkdownString(value.content) ? value.content.value : value.content
 				});
 			}
 		};
