@@ -827,6 +827,7 @@ export interface ISerializedBranchNode {
 	type: 'branch';
 	data: ISerializedNode[];
 	size: number;
+	visible?: boolean;
 }
 
 export type ISerializedNode = ISerializedLeafNode | ISerializedBranchNode;
@@ -855,7 +856,11 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			return { type: 'leaf', data: node.view.toJSON(), size };
 		}
 
-		return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation))), size };
+		const data = node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation)));
+		if (data.some(c => c.visible !== false)) {
+			return { type: 'branch', data: data, size };
+		}
+		return { type: 'branch', data: data, size, visible: false };
 	}
 
 	/**
