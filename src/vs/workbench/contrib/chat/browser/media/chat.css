@@ -279,6 +279,9 @@
 	margin: 0 0 8px 0;
 }
 
+.interactive-item-container .interactive-result-code-block .monaco-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: unset;
+}
 
 .interactive-response .interactive-response-error-details {
 	display: flex;
