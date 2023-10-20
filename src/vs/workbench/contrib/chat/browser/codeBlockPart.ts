@@ -134,6 +134,9 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				shouldForwardArgs: true
 			}
 		}));
+		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
+			toolbarElement.classList.toggle('force-visibility', e);
+		}));
 
 		this._configureForScreenReader();
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
