@@ -14,7 +14,7 @@ import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
@@ -355,18 +355,6 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.session.input ?? this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
-		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
-			const start = this._zone.value.position;
-			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
-				return;
-			}
-			const nextLine = start.lineNumber + 1;
-			if (nextLine >= this._editor.getModel().getLineCount()) {
-				// last line isn't supported
-				return;
-			}
-			this._editor.revealLine(nextLine, ScrollType.Smooth);
-		}));
 
 		this._showWidget(true, options.position);
 
