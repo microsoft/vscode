@@ -94,9 +94,9 @@ steps:
               SourceLocationType = "UNC"
               SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
               SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
+              DestinationLocationType = "AzureBlob"
             }
           )
-          DestinationLocationType = "AzureBlob"
         }
       }
       $Output = [System.IO.Path]::GetTempFileName()
