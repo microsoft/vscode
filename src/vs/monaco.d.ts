@@ -4354,7 +4354,7 @@ declare namespace monaco.editor {
 		 */
 		scrollByPage?: boolean;
 		/**
-		 * When set, the horizontal scrollbar will not increase the content height.
+		 * When set, the horizontal scrollbar will not increase content height.
 		 * Defaults to false.
 		 */
 		ignoreHorizontalScrollbarInContentHeight?: boolean;
