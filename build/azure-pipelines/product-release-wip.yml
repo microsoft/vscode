@@ -85,19 +85,21 @@ steps:
             UserPrincipalName = "jomo@microsoft.com"
           }
         }
-        ReleaseBatches = @{
-          ReleaseRequestFiles = @(
-            @{
-              SizeInBytes = $size
-              SourceHash = $sha256
-              HashType = "SHA256"
-              SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
-            }
-          )
-          SourceLocationType = "UNC"
-          SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
-          DestinationLocationType = "AzureBlob"
-        }
+        ReleaseBatches = @(
+          @{
+            ReleaseRequestFiles = @(
+              @{
+                SizeInBytes = $size
+                SourceHash = $sha256
+                HashType = "SHA256"
+                SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
+              }
+            )
+            SourceLocationType = "UNC"
+            SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
+            DestinationLocationType = "AzureBlob"
+          }
+        )
       }
       $Output = [System.IO.Path]::GetTempFileName()
 
