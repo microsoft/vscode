@@ -1,21 +1,25 @@
 pool:
-  vmImage: 'windows-latest'
+  vmImage: "windows-latest"
 
 trigger: none
 pr: none
 
 steps:
   - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
-    displayName: 'Use EsrpClient'
+    displayName: "Use EsrpClient"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
       azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
+      KeyVaultName: vscode-build-packages
+      SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
+
   - powershell: |
       $ErrorActionPreference = "Stop"
       Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
+      $size = (Get-Item $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz).length
+      $sha256 = Get-FileHash $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz -Algorithm SHA256 | Select-Object -ExpandProperty Hash
 
       function Create-TmpJson($Obj) {
         $FileName = [System.IO.Path]::GetTempFileName()
@@ -23,9 +27,13 @@ steps:
         return $FileName
       }
 
-      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(ESRP-PKI)")
+      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
+
       $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+      $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
       $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+
       $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
       $CertStore.Open("ReadWrite")
       $CertStore.AddRange($CertCollection)
@@ -33,35 +41,62 @@ steps:
 
       $Auth = Create-TmpJson @{
         Version = "1.0.0"
-        AuthenticationType = "AAD_OAUTH_TOKEN"
-        ClientId = "$(esrp-aad-username)"
-        OAuthToken = @{
-          EnvironmentVariable = "ESRPOAuthToken"
-          EnvironmentVariableTarget = "Process"
+        AuthenticationType = "CERT"
+        TenantId = "975f013f-7f24-47e8-a7d3-abc4752bf346"
+        ClientId = "c24324f7-e65f-4c45-8702-ed2d4c35df99"
+        AuthCert = @{
+          SubjectName = $CertCollection[0].Subject
+          StoreLocation = "LocalMachine"
+          StoreName = "My"
+          SendX5c = "true"
         }
         RequestSigningCert = @{
-          SubjectName = $CertCollection[0].Subject
+          SubjectName = $CertCollection[1].Subject
           StoreLocation = "LocalMachine"
           StoreName = "My"
         }
       }
 
       $Config = Create-TmpJson @{}
-      $Input = Create-TmpJson @{}
+      $Input = Create-TmpJson @{
+        Version = "1.0.0"
+        ReleaseInfo = @{
+          ReleaseMetadata = @{
+            Title = "VS Code"
+            ReleaseContentType = "InstallPackage"
+            MinimumNumberOfApprovers = 1
+            ProductInfo = @{
+              Name = "VS Code"
+              Version = "e7e037083ff4455cf320e344325dacb480062c3c"
+              Description = "vscode_cli_linux_x64_cli"
+            }
+          }
+          Owners = @(
+            @{
+              Owner = @{
+                UserPrincipalName = "jomo@microsoft.com"
+              }
+            }
+          )
+          CreatedBy = @{
+            UserPrincipalName = "jomo@microsoft.com"
+          }
+        }
+        ReleaseBatches = @{
+          ReleaseRequestFiles = @(
+            @{
+              SizeInBytes = $size
+              SourceHash = $sha256
+              HashType = "SHA256"
+              SourceLocationType = "UNC"
+              SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
+              SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
+            }
+          )
+          DestinationLocationType = "AzureBlob"
+        }
+      }
       $Output = [System.IO.Path]::GetTempFileName()
 
       $env:ESRPOAuthToken = "$(esrp-aad-password)"
-      ESRPClient SubmitRelease -l Verbose -a $Auth -c $Config -i $Input -o $Output
-
-  # - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
-  #   displayName: 'ESRP Release'
-  #   inputs:
-  #     ConnectedServiceName: 'VS Code ESRP Release Aug2023 (8d8254b9-c41f-4880-9d98-2c99e7b34743)'
-  #     Intent: GenerateCdnLink
-  #     ContentType: 'sw electronic'
-  #     FolderLocation: '$(Build.ArtifactStagingDirectory)'
-  #     Owners: 'jomo@microsoft.com'
-  #     Approvers: 'kamaet@microsoft.com'
-  #     ServiceEndpointUrl: 'https://api.esrp.microsoft.com'
-  #     MainPublisher: 'VSCode'
-  #     DomainTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
+      ESRPClient SubmitRelease -l Verbose -a $Auth -i $Input -o $Output
