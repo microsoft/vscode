@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Barrier, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, Queue, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -542,7 +542,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const typeListener = this._zone.value.widget.onDidChangeInput(() => requestCts.cancel());
 
-		const sw = StopWatch.create();
+		const requestClock = StopWatch.create();
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: this._activeSession.lastInput.value,
@@ -557,9 +557,11 @@ export class InlineChatController implements IEditorContribution {
 		const progressEdits: TextEdit[][] = [];
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
-		const avgDuration = new MovingAverage();
+		const progressiveEditsAvgDuration = new MovingAverage();
+		const progressiveEditsClock = StopWatch.create();
+		const progressiveEditsQueue = new Queue();
 		let round = 0;
-		let t1 = Date.now();
+
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
 			if (data.message) {
@@ -577,11 +579,15 @@ export class InlineChatController implements IEditorContribution {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
 				progressEdits.push(data.edits);
-				avgDuration.update(Date.now() - t1);
-				await this._makeChanges(data.edits, { duration: avgDuration.value, round: round++ });
-				t1 = Date.now(); // don't measure how long `_makeChanges` takes
-				// TODO@jrieken this still isn't the true speed because the progress itself is async which
-				// makes an artifical queue, so that towards the end duration (now() -t1) is almost 0
+				progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
+				progressiveEditsClock.reset();
+
+				progressiveEditsQueue.queue(async () => {
+					// making changes goes into a queue because otherwise the async-progress time will
+					// influence the time it takes to receive the changes and progressive typing will
+					// become infinitely fast
+					await this._makeChanges(data.edits!, { duration: progressiveEditsAvgDuration.value, round: round++ });
+				});
 			}
 			if (data.markdownFragment) {
 				markdownContents.appendMarkdown(data.markdownFragment);
@@ -600,6 +606,7 @@ export class InlineChatController implements IEditorContribution {
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
 			// we must wait for all edits that came in via progress to complete
+			await Event.toPromise(progressiveEditsQueue.onDrained);
 			await progress.drain();
 
 			if (reply?.type === InlineChatResponseType.Message) {
@@ -622,7 +629,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
-			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
+			this._log('request took', requestClock.elapsed(), this._activeSession.provider.debugName);
 		}
 
 		if (request.live && !(response instanceof EditResponse)) {
