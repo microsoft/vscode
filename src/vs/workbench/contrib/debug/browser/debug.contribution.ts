@@ -596,11 +596,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.hideLauncherWhileDebugging' }, "Hide 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Only relevant when `{0}` is not `docked`.", '#debug.toolBarLocation#'),
 			default: false
-		},
-		'debug.showLauncherWhileDebugging': {
-			type: 'boolean',
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.showLauncherWhileDebugging' }, "Continue to show 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Ignored if `{0}` is `docked`.", '#debug.toolBarLocation#'),
-			default: false
 		}
 	}
 });
