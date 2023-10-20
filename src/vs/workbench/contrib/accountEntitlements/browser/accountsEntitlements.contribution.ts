@@ -24,6 +24,8 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IRequestService, asText } from 'vs/platform/request/common/request';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const configurationKey = 'workbench.accounts.experimental.showEntitlements';
 
@@ -44,7 +46,8 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		@IActivityService readonly activityService: IActivityService,
 		@IExtensionService readonly extensionService: IExtensionService,
 		@IConfigurationService readonly configurationService: IConfigurationService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService
+		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@IRequestService readonly requestService: IRequestService,
 	) {
 		super();
 
@@ -106,34 +109,43 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 
 		this.isInitialized = true;
 
-		const init = {
-			method: 'GET',
-			headers: new Headers({
+		const context = await this.requestService.request({
+			type: 'GET',
+			url: this.productService.entitlement!.entitlementUrl,
+			headers: {
 				'Authorization': `Bearer ${session.accessToken}`
-			}),
-		};
+			}
+		}, CancellationToken.None);
 
-		const response = await fetch(this.productService.entitlement!.entitlementUrl, init);
-		if (!response.ok) {
+		if (context.res.statusCode && context.res.statusCode !== 200) {
 			return;
 		}
-		const parsedResult = await response.json();
-		if (!parsedResult) {
+		const result = await asText(context);
+		if (!result) {
+			return;
+		}
+
+		let parsedResult: any;
+		try {
+			parsedResult = JSON.parse(result);
+		}
+		catch (err) {
+			//ignore
+			return;
+		}
+
+		if (!(this.productService.entitlement!.enablementKey in parsedResult) || !parsedResult[this.productService.entitlement!.enablementKey]) {
 			return;
 		}
 
 		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
 
-		const orgs = parsedResult['organization_login_list'] as any[];
-		if (orgs.length === 0) {
-			return;
-		}
-
 		this.contextKey.set(true);
 		const badge = new NumberBadge(1, () => menuTitle);
-		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge });
+		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
 
-		const menuTitle = this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1])!;
+		const orgs = parsedResult['organization_login_list'] as any[];
+		const menuTitle = orgs ? this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.entitlement!.command.titleWithoutPlaceHolder;
 
 		registerAction2(class extends Action2 {
 			constructor() {
