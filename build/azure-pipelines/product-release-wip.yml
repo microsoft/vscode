@@ -57,7 +57,10 @@ steps:
         }
       }
 
-      $Config = Create-TmpJson @{}
+      $Policy = Create-TmpJson @{
+        Version = "1.0.0"
+      }
+
       $Input = Create-TmpJson @{
         Version = "1.0.0"
         ReleaseInfo = @{
@@ -98,4 +101,4 @@ steps:
       }
       $Output = [System.IO.Path]::GetTempFileName()
 
-      ESRPClient SubmitRelease -l Verbose -a $Auth -i $Input -o $Output
+      ESRPClient SubmitRelease -l Verbose -a $Auth -p $Policy -i $Input -o $Output
