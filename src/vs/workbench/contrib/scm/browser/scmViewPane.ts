@@ -2299,23 +2299,25 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.tree);
 
 		append(this.listContainer, overflowWidgetsDomNode);
-		this.listContainer.classList.add('file-icon-themable-tree');
-		this.listContainer.classList.add('show-file-icons');
 
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
-		// TODO - @lszomoru
-		this._viewModel = this._register(this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer));
-		this.tree.setInput(this.scmViewService, this.loadTreeViewState());
+		this.tree.setInput(this.scmViewService, this.loadTreeViewState()).then(() => {
+			this._viewModel = this._register(this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer));
 
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
-		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
+			this.listContainer.classList.add('file-icon-themable-tree');
+			this.listContainer.classList.add('show-file-icons');
 
-		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
+			this.updateIndentStyles(this.themeService.getFileIconTheme());
+			this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+			this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
 
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.disposables)(this.updateActions, this));
-		this.updateActions();
+			this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
+			this._viewModel.setVisible(this.isBodyVisible());
+
+			this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.disposables)(this.updateActions, this));
+			this.updateActions();
+		});
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
