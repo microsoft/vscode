@@ -1025,7 +1025,9 @@ class ContentReferencesListPool extends Disposable {
 			container,
 			new ContentReferencesListDelegate(),
 			[new ContentReferencesListRenderer(resourceLabels)],
-			{});
+			{
+				alwaysConsumeMouseWheel: false,
+			});
 
 		return list;
 	}
