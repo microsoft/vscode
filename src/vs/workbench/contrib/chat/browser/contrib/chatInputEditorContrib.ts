@@ -29,7 +29,7 @@ import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { SelectAndInsertFileAction, dynamicReferenceDecorationType } from 'vs/workbench/contrib/chat/browser/contrib/chatDynamicReferences';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workbench/contrib/chat/common/chatColors';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -330,6 +330,11 @@ class AgentCompletions extends Disposable {
 					return null;
 				}
 
+				if (!model.getValue().trim().match(new RegExp(`^${chatAgentLeader}\\w*$`))) {
+					// Only when the input only contains the start of an agent
+					return;
+				}
+
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent && !Range.containsPosition(usedAgent.editorRange, position)) {
@@ -386,7 +391,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
-					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.match(/^\s+(\/\w*)?$/)) {
+					// Could allow text after 'position'
+					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
 						// No text allowed between agent and subcommand
 						return;
 					}
@@ -420,8 +426,8 @@ class AgentCompletions extends Disposable {
 					return;
 				}
 
-				if (model.getValue().trim() !== '/') {
-					// Only when the input only contains a slash
+				if (!model.getValue().trim().match(new RegExp(`^${chatSubcommandLeader}\\w*$`))) {
+					// Only when the input only contains the start of a slash command
 					return;
 				}
 
@@ -665,3 +671,52 @@ class VariableCompletions extends Disposable {
 }
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(VariableCompletions, LifecyclePhase.Eventually);
+
+class ChatTokenDeleter extends Disposable {
+
+	public readonly id = 'chatTokenDeleter';
+
+	constructor(
+		private readonly widget: IChatWidget,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+	) {
+		super();
+		const parser = this.instantiationService.createInstance(ChatRequestParser);
+		const inputValue = this.widget.inputEditor.getValue();
+		let previousInputValue: string | undefined;
+
+		// A simple heuristic to delete the previous token when the user presses backspace.
+		// The sophisticated way to do this would be to have a parse tree that can be updated incrementally.
+		this.widget.inputEditor.onDidChangeModelContent(e => {
+			if (!previousInputValue) {
+				previousInputValue = inputValue;
+			}
+
+			// Don't try to handle multicursor edits right now
+			const change = e.changes[0];
+
+			// If this was a simple delete, try to find out whether it was inside a token
+			if (!change.text) {
+				parser.parseChatRequest(this.widget.viewModel!.sessionId, previousInputValue).then(previousParsedValue => {
+					const deletableTokens = previousParsedValue.parts.filter(p => p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart || p instanceof ChatRequestSlashCommandPart);
+					deletableTokens.forEach(token => {
+						const deletedRangeOfToken = Range.intersectRanges(token.editorRange, change.range);
+						// Part of this token was deleted, and the deletion range doesn't go off the front of the token, for simpler math
+						if ((deletedRangeOfToken && !deletedRangeOfToken.isEmpty()) && Range.compareRangesUsingStarts(token.editorRange, change.range) < 0) {
+							// Assume single line tokens
+							const length = deletedRangeOfToken.endColumn - deletedRangeOfToken.startColumn;
+							const rangeToDelete = new Range(token.editorRange.startLineNumber, token.editorRange.startColumn, token.editorRange.endLineNumber, token.editorRange.endColumn - length);
+							this.widget.inputEditor.executeEdits(this.id, [{
+								range: rangeToDelete,
+								text: '',
+							}]);
+						}
+					});
+				});
+			}
+
+			previousInputValue = this.widget.inputEditor.getValue();
+		});
+	}
+}
+ChatWidget.CONTRIBS.push(ChatTokenDeleter);

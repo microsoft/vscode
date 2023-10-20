@@ -444,12 +444,13 @@
 
 .monaco-workbench .part.titlebar > .titlebar-container > .titlebar-right > .global-actions-container .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 11px;
+	top: 10px;
 	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
 	min-width: 12px;
-	height: 11px;
+	height: 12px;
+	line-height: 12px;
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
