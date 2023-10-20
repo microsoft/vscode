@@ -46,7 +46,6 @@
 	display: none; /* hides chevrons when last item */
 }
 
-/* Reset progress bar's absolute position which is defined in vs/workbench/browser/media/part.css */
 .monaco-workbench .part.editor > .content .title .monaco-progress-container {
 	top: unset;
 	bottom: 0;
