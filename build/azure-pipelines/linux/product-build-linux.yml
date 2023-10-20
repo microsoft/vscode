@@ -22,6 +22,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -331,6 +332,7 @@ steps:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
+        BuildComponentPath: $(Build.SourcesDirectory)/remote
         BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 

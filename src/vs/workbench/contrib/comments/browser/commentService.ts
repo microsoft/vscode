@@ -176,9 +176,6 @@ export class CommentService extends Disposable implements ICommentService {
 
 		const storageEvent = Event.debounce(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, CONTINUE_ON_COMMENTS, storageListener), (last, event) => last?.external ? last : event, 500);
 		storageListener.add(storageEvent(v => {
-			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
-				return;
-			}
 			if (!v.external) {
 				return;
 			}
@@ -200,9 +197,6 @@ export class CommentService extends Disposable implements ICommentService {
 			}
 		}));
 		this._register(storageService.onWillSaveState(() => {
-			if (!this.configurationService.getValue<ICommentsConfiguration | undefined>(COMMENTS_SECTION)?.experimentalContinueOn) {
-				return;
-			}
 			const map: Map<string, PendingCommentThread[]> = new Map();
 			for (const provider of this._continueOnCommentProviders) {
 				const pendingComments = provider.provideContinueOnComments();

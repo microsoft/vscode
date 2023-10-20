@@ -887,8 +887,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			addDisposableListener(document.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
-			addDisposableListener(document.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
+			addDisposableListener(this.el.ownerDocument.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			addDisposableListener(this.el.ownerDocument.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {

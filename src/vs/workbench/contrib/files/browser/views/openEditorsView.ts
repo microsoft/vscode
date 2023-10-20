@@ -65,7 +65,7 @@ export class OpenEditorsView extends ViewPane {
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
-	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
+	private list: WorkbenchList<OpenEditor | IEditorGroup> | undefined;
 	private listLabels: ResourceLabels | undefined;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
@@ -305,11 +305,8 @@ export class OpenEditorsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		this.list.domFocus();
-	}
 
-	getList(): WorkbenchList<OpenEditor | IEditorGroup> {
-		return this.list;
+		this.list?.domFocus();
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -394,13 +391,17 @@ export class OpenEditorsView extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.OpenEditorsContext,
 			menuActionOptions: { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} },
-			contextKeyService: this.list.contextKeyService,
+			contextKeyService: this.list?.contextKeyService,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.group.getIndexOfEditor(element.editor) } : { groupId: element.id }
 		});
 	}
 
 	private focusActiveEditor(): void {
+		if (!this.list) {
+			return;
+		}
+
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
 			if (index >= 0) {
@@ -491,6 +492,10 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
+		if (!this.list) {
+			return super.getOptimalWidth();
+		}
+
 		const parentNode = this.list.getHTMLElement();
 		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 

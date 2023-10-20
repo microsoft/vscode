@@ -43,7 +43,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const enum RenderConstants {
 	/**
@@ -204,7 +205,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -215,6 +217,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols,
 			rows,
+			documentOverride: layoutService.container.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -590,7 +593,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
-		this._accessibilityService.alertCleared();
+		this._accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 	}
 
 	hasSelection(): boolean {

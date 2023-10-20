@@ -452,7 +452,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), priority: 100 });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {

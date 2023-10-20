@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -464,7 +464,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private updateTitleContainer(): void {
-		this.titleContainer.classList.toggle('tabs', this.groupsView.partOptions.showTabs);
+		this.titleContainer.classList.toggle('tabs', this.groupsView.partOptions.showTabs === 'multiple');
 		this.titleContainer.classList.toggle('show-file-icons', this.groupsView.partOptions.showIcons);
 	}
 
@@ -490,7 +490,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		options.sticky = this.model.isSticky(activeEditor);	// preserve sticky state
 		options.preserveFocus = true;						// handle focus after editor is opened
 
-		const activeElement = document.activeElement;
+		const activeElement = this.editorContainer.ownerDocument.activeElement;
 
 		// Show active editor (intentionally not using async to keep
 		// `restoreEditors` from executing in same stack)
@@ -501,7 +501,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// stolen accidentally on startup when the user already
 			// clicked somewhere.
 
-			if (this.groupsView.activeGroup === this && activeElement === document.activeElement) {
+			if (this.groupsView.activeGroup === this && activeElement && isActiveElement(activeElement)) {
 				this.focus();
 			}
 		});
@@ -700,7 +700,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control switch between singleEditorTabs, multiEditorTabs and multiRowEditorTabs
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
-			(event.oldPartOptions.showTabs && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
+			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
 		) {
 
 			// Re-layout
@@ -1073,7 +1073,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		let openEditorPromise: Promise<IEditorPane | undefined>;
 		if (context.active) {
 			openEditorPromise = (async () => {
-				const { pane, changed, cancelled, error } = await this.editorPane.openEditor(editor, options, { newInGroup: context.isNew });
+				const { pane, changed, cancelled, error } = await this.editorPane.openEditor(editor, options, internalOptions, { newInGroup: context.isNew });
 
 				// Return early if the operation was cancelled by another operation
 				if (cancelled) {
@@ -1415,7 +1415,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				ignoreError: internalOptions?.fromError
 			};
 
-			this.doOpenEditor(nextActiveEditor, options);
+			const internalEditorOpenOptions: IInternalEditorOpenOptions = {
+				// When closing an editor, we reveal the next one in the group.
+				// However, this can be a result of moving an editor to another
+				// window so we explicitly disable window reordering in this case.
+				preserveWindowOrder: true
+			};
+
+			this.doOpenEditor(nextActiveEditor, options, internalEditorOpenOptions);
 		}
 
 		// Otherwise we are empty, so clear from editor control and send event
@@ -1442,9 +1449,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private shouldRestoreFocus(target: Element): boolean {
-		const activeElement = document.activeElement;
-
-		if (activeElement === document.body) {
+		const activeElement = target.ownerDocument.activeElement;
+		if (activeElement === target.ownerDocument.body) {
 			return true; // always restore focus if nothing is focused currently
 		}
 
@@ -1886,7 +1892,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		const { showTabs } = this.groupsView.partOptions;
-		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
+		this.titleContainer.style.backgroundColor = this.getColor(showTabs === 'multiple' ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND) || '';
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground) || '';

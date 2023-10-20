@@ -26,9 +26,11 @@ import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCopyAction, IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -36,15 +38,20 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export interface IChatCodeBlockActionContext {
-	code: string;
-	languageId: string;
-	codeBlockIndex: number;
+export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
 }
 
-export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
+export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
+
+function isResponseFiltered(context: ICodeBlockActionContext) {
+	return isResponseVM(context.element) && context.element.errorDetails?.responseIsFiltered;
+}
+
+function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
+	return isResponseVM(context.element) ? context.element.response.usedContext?.documents : undefined;
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -66,7 +73,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext): any;
+	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
 export function registerChatCodeBlockActions() {
@@ -90,31 +97,31 @@ export function registerChatCodeBlockActions() {
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
-			if (!isCodeBlockActionContext(context)) {
-				return;
-			}
-
-			if (context.element.errorDetails?.responseIsFiltered) {
-				// When run from command palette
+			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
 			clipboardService.writeText(context.code);
 
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: <IChatCopyAction>{
-					kind: 'copy',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					copyType: InteractiveSessionCopyKind.Toolbar,
-					copiedCharacters: context.code.length,
-					totalCharacters: context.code.length,
-					copiedText: context.code,
-				}
-			});
+			if (isResponseVM(context.element)) {
+				const chatService = accessor.get(IChatService);
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: <IChatCopyAction>{
+						kind: 'copy',
+						responseId: context.element.providerResponseId,
+						codeBlockIndex: context.codeBlockIndex,
+						copyType: InteractiveSessionCopyKind.Toolbar,
+						copiedCharacters: context.code.length,
+						totalCharacters: context.code.length,
+						copiedText: context.code,
+					}
+				});
+			}
 		}
 	});
 
@@ -146,6 +153,9 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
+				requestId: context.element.requestId,
 				action: {
 					kind: 'copy',
 					codeBlockIndex: context.codeBlockIndex,
@@ -182,9 +192,10 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
+					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				keybinding: {
-					when: CONTEXT_ACCESSIBILITY_MODE_ENABLED,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.WorkbenchContrib
@@ -192,11 +203,11 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const textFileService = accessor.get(ITextFileService);
 
-			if (context.element.errorDetails?.responseIsFiltered) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
@@ -228,7 +239,7 @@ export function registerChatCodeBlockActions() {
 			await this.handleTextEditor(accessor, activeEditorControl, activeModel, context);
 		}
 
-		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: IChatCodeBlockActionContext) {
+		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
 			if (!notebookEditor.hasModel()) {
 				return;
 			}
@@ -253,8 +264,8 @@ export function registerChatCodeBlockActions() {
 			this.notifyUserAction(accessor, context);
 		}
 
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, chatCodeBlockActionContext: IChatCodeBlockActionContext) {
-			this.notifyUserAction(accessor, chatCodeBlockActionContext);
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, codeBlockActionContext: ICodeBlockActionContext) {
+			this.notifyUserAction(accessor, codeBlockActionContext);
 
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
@@ -288,7 +299,7 @@ export function registerChatCodeBlockActions() {
 					}
 				}
 
-				const usedDocuments = chatCodeBlockActionContext.element.response.usedContext?.documents;
+				const usedDocuments = getUsedDocuments(codeBlockActionContext);
 				if (usedDocuments) {
 					docRefs.push(usedDocuments);
 				}
@@ -297,7 +308,7 @@ export function registerChatCodeBlockActions() {
 
 				mappedEdits = await mostRelevantProvider.provideMappedEdits(
 					activeModel,
-					[chatCodeBlockActionContext.code],
+					[codeBlockActionContext.code],
 					{ documents: docRefs },
 					cancellationTokenSource.token);
 			}
@@ -309,24 +320,29 @@ export function registerChatCodeBlockActions() {
 				await bulkEditService.apply([
 					new ResourceTextEdit(activeModel.uri, {
 						range: activeSelection,
-						text: chatCodeBlockActionContext.code,
+						text: codeBlockActionContext.code,
 					}),
 				]);
 			}
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 
-		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'insert',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					totalCharacters: context.code.length,
-				}
-			});
+		private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseVM(context.element)) {
+				const chatService = accessor.get(IChatService);
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'insert',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						totalCharacters: context.code.length,
+					}
+				});
+			}
 		}
 
 	});
@@ -351,26 +367,32 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			if (context.element.errorDetails?.responseIsFiltered) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
 
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
+
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
 
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'insert',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					totalCharacters: context.code.length,
-					newFile: true
-				}
-			});
+			if (isResponseVM(context.element)) {
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'insert',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						totalCharacters: context.code.length,
+						newFile: true
+					}
+				});
+			}
 		}
 	});
 
@@ -386,11 +408,16 @@ export function registerChatCodeBlockActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
-				menu: {
+				menu: [{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
-				},
+					when: CONTEXT_IN_CHAT_SESSION,
+				}, {
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: CTX_INLINE_CHAT_VISIBLE,
+				}],
 				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
@@ -408,8 +435,8 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			if (context.element.errorDetails?.responseIsFiltered) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
@@ -437,15 +464,20 @@ export function registerChatCodeBlockActions() {
 
 			terminal.sendText(context.code, false, true);
 
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'runInTerminal',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					languageId: context.languageId,
-				}
-			});
+			if (isResponseVM(context.element)) {
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'runInTerminal',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						languageId: context.languageId,
+					}
+				});
+			}
 		}
 	});
 

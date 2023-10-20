@@ -165,6 +165,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			partContainerClass: 'sidebar',
 			pinnedViewContainersKey: ActivitybarPart.pinnedViewContainersKey,
 			placeholderViewContainersKey: ActivitybarPart.placeholderViewContainersKey,
+			viewContainersWorkspaceStateKey: ActivitybarPart.viewContainersWorkspaceStateKey,
 			icon: true,
 			orientation: ActionsOrientation.HORIZONTAL,
 			recomputeSizes: true,
@@ -190,7 +191,8 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
 				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
-			})
+			}),
+			compact: true
 		};
 	}
 

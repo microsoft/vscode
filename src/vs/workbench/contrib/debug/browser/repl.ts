@@ -69,7 +69,7 @@ import { Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { ReplEvaluationResult, ReplGroup } from 'vs/workbench/contrib/debug/common/replModel';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 const $ = dom.$;
 
@@ -570,16 +570,18 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(registerNavigableContainer({
 			focusNotifiers: [this, this.filterWidget],
 			focusNextWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.filterWidget.hasFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focus();
 				}
 			},
 			focusPreviousWidget: () => {
+				const element = this.tree?.getHTMLElement();
 				if (this.replInput.hasTextFocus()) {
 					this.tree?.domFocus();
-				} else if (this.tree?.getHTMLElement() === document.activeElement) {
+				} else if (element && dom.isActiveElement(element)) {
 					this.focusFilter();
 				}
 			}
@@ -648,7 +650,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 		this._register(tree.onContextMenu(e => this.onContextMenu(e)));
 		let lastSelectedString: string;
 		this._register(tree.onMouseClick(() => {
-			const selection = window.getSelection();
+			const selection = dom.getWindow(this.treeContainer).getSelection();
 			if (!selection || selection.type !== 'Range' || lastSelectedString === selection.toString()) {
 				// only focus the input if the user is not currently selecting.
 				this.replInput.focus();
@@ -976,9 +978,9 @@ registerAction2(class extends ViewAction<Repl> {
 	}
 
 	runInView(_accessor: ServicesAccessor, view: Repl): void {
-		const accessibilityService = _accessor.get(IAccessibilityService);
+		const accessibleNotificationService = _accessor.get(IAccessibleNotificationService);
 		view.clearRepl();
-		accessibilityService.alertCleared();
+		accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 	}
 });
 
@@ -1070,7 +1072,7 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, element: IReplElement): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
 		const debugService = accessor.get(IDebugService);
-		const nativeSelection = window.getSelection();
+		const nativeSelection = dom.getActiveWindow().getSelection();
 		const selectedText = nativeSelection?.toString();
 		if (selectedText && selectedText.length > 0) {
 			return clipboardService.writeText(selectedText);

@@ -33,6 +33,7 @@ import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/con
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
 import { SCMSyncViewPane } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -227,7 +228,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.providerCountBadge.auto', "Only show count badge for Source Control Provider when non-zero."),
 				localize('scm.providerCountBadge.visible', "Show Source Control Provider count badges.")
 			],
-			description: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers only appear when there is more than one provider."),
+			markdownDescription: localize('scm.providerCountBadge', "Controls the count badges on Source Control Provider headers. These headers appear in the \"Source Control\", and \"Source Control Sync\" views when there is more than one provider or when the {0} setting is enabled, as well as in the \"Source Control Repositories\" view.", '\`#scm.alwaysShowRepositories#\`'),
 			default: 'hidden'
 		},
 		'scm.defaultViewMode': {
@@ -308,7 +309,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyMod.CtrlCmd | KeyCode.Enter,
 	handler: accessor => {
 		const contextKeyService = accessor.get(IContextKeyService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 
 		if (!repositoryId) {
@@ -336,7 +337,7 @@ const viewNextCommitCommand = {
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showNextHistoryValue();
@@ -349,7 +350,7 @@ const viewPreviousCommitCommand = {
 	handler: (accessor: ServicesAccessor) => {
 		const contextKeyService = accessor.get(IContextKeyService);
 		const scmService = accessor.get(ISCMService);
-		const context = contextKeyService.getContext(document.activeElement);
+		const context = contextKeyService.getContext(getActiveElement());
 		const repositoryId = context.getValue<string | undefined>('scmRepository');
 		const repository = repositoryId ? scmService.getRepository(repositoryId) : undefined;
 		repository?.input.showPreviousHistoryValue();

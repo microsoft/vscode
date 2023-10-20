@@ -82,7 +82,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerListeners(): void {
 
 		// Editor & group changes
-		this.editorGroupService.whenReady.then(() => this.onEditorGroupsReady());
+		this.editorGroupService.mainPart.whenReady.then(() => this.onEditorGroupsReady());
 		this._register(this.editorGroupService.onDidChangeActiveGroup(group => this.handleActiveEditorChange(group)));
 		this._register(this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView)));
 		this._register(this.editorsObserver.onDidMostRecentlyActiveEditorsChange(() => this._onDidMostRecentlyActiveEditorsChange.fire()));
@@ -972,7 +972,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 				}
 			}
 		}
-
 		return {
 			success: saveResults.every(result => !!result),
 			editors: coalesce(saveResults)

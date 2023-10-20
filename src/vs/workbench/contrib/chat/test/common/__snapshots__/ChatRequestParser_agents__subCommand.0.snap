@@ -13,55 +13,56 @@
       },
       agent: {
         id: "agent",
-        metadata: {
-          description: "",
-          subCommands: [ { name: "subCommand" } ]
-        }
+        metadata: { description: "" },
+        provideSlashCommands: [Function provideSlashCommands]
       },
       kind: "agent"
     },
     {
       range: {
         start: 6,
-        endExclusive: 17
+        endExclusive: 7
       },
       editorRange: {
         startLineNumber: 1,
         startColumn: 7,
         endLineNumber: 1,
-        endColumn: 18
+        endColumn: 8
       },
-      text: " Please do ",
+      text: " ",
       kind: "text"
     },
     {
       range: {
-        start: 17,
-        endExclusive: 28
+        start: 7,
+        endExclusive: 18
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 18,
+        startColumn: 8,
         endLineNumber: 1,
-        endColumn: 29
+        endColumn: 19
       },
-      command: { name: "subCommand" },
+      command: {
+        name: "subCommand",
+        description: ""
+      },
       kind: "subcommand"
     },
     {
       range: {
-        start: 28,
+        start: 18,
         endExclusive: 35
       },
       editorRange: {
         startLineNumber: 1,
-        startColumn: 29,
+        startColumn: 19,
         endLineNumber: 1,
         endColumn: 36
       },
-      text: " thanks",
+      text: " Please do thanks",
       kind: "text"
     }
   ],
-  text: "@agent Please do /subCommand thanks"
+  text: "@agent /subCommand Please do thanks"
 }

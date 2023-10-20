@@ -25,7 +25,7 @@ import { ISerializableCommandAction } from 'vs/platform/action/common/action';
 import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
@@ -33,8 +33,8 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { getFocusedOrLastActiveWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -61,7 +61,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
-		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService
+		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
 	}
@@ -223,6 +224,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: { targetWindowId?: number | undefined } | undefined): Promise<void> {
+		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(firstArg);
+		if (window?.win) {
+			if (window.win.isFullScreen()) {
+				const fullscreenLeftFuture = Event.toPromise(Event.once(Event.fromNodeEventEmitter(window.win, 'leave-full-screen')));
+				window.win.setFullScreen(false);
+				await fullscreenLeftFuture;
+			}
+
+			window.win.setBounds(position);
+		}
+	}
+
 	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.codeWindowById(windowId);
 		if (window) {
@@ -360,19 +374,19 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Dialog
 
 	async showMessageBox(windowId: number | undefined, options: MessageBoxOptions): Promise<MessageBoxReturnValue> {
-		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
+		const window = this.getTargetWindow(windowId);
 
 		return this.dialogMainService.showMessageBox(options, window?.win ?? undefined);
 	}
 
 	async showSaveDialog(windowId: number | undefined, options: SaveDialogOptions): Promise<SaveDialogReturnValue> {
-		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
+		const window = this.getTargetWindow(windowId);
 
 		return this.dialogMainService.showSaveDialog(options, window?.win ?? undefined);
 	}
 
 	async showOpenDialog(windowId: number | undefined, options: OpenDialogOptions): Promise<OpenDialogReturnValue> {
-		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
+		const window = this.getTargetWindow(windowId);
 
 		return this.dialogMainService.showOpenDialog(options, window?.win ?? undefined);
 	}
@@ -731,13 +745,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	async openDevTools(windowId: number | undefined, options?: OpenDevToolsOptions): Promise<void> {
-		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
+		const window = this.getTargetWindow(windowId);
 
 		window?.win?.webContents.openDevTools(options);
 	}
 
 	async toggleDevTools(windowId: number | undefined): Promise<void> {
-		const window = this.focusedWindow() ?? this.codeWindowById(windowId);
+		const window = this.getTargetWindow(windowId);
 
 		window?.win?.webContents.toggleDevTools();
 	}
@@ -803,7 +817,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.auxiliaryWindowsMainService.getWindowById(windowId);
 	}
 
-	private focusedWindow(): ICodeWindow | IAuxiliaryWindow | undefined {
-		return this.windowsMainService.getFocusedWindow() ?? this.auxiliaryWindowsMainService.getFocusedWindow();
+	private getTargetWindow(fallbackWindowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
+		let window = this.instantiationService.invokeFunction(getFocusedOrLastActiveWindow);
+		if (!window) {
+			window = this.windowById(fallbackWindowId);
+		}
+
+		return window;
 	}
 }

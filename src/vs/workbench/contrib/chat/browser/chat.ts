@@ -97,6 +97,8 @@ export interface IChatWidget {
 	getFocus(): ChatTreeItem | undefined;
 	updateInput(query?: string): void;
 	acceptInput(query?: string): void;
+	setInputPlaceholder(placeholder: string): void;
+	resetInputPlaceholder(): void;
 	focusLastMessage(): void;
 	focusInput(): void;
 	hasInputFocus(): boolean;
