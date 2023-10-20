@@ -83,6 +83,15 @@ steps:
               }
             }
           )
+          Approvers = @(
+            @{
+              Approver = @{
+                UserPrincipalName = "jomo@microsoft.com"
+              }
+              IsAutoApproved = $true
+              IsMandatory = $false
+            }
+          )
           CreatedBy = @{
             UserPrincipalName = "jomo@microsoft.com"
           }
