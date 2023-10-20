@@ -188,7 +188,7 @@ export interface IProductConfiguration {
 
 	readonly commonlyUsedSettings?: string[];
 	readonly aiGeneratedWorkspaceTrust?: IAiGeneratedWorkspaceTrust;
-	readonly entitlement?: IEntitlement;
+	readonly gitHubEntitlement?: IGitHubEntitlement;
 }
 
 export interface ITunnelApplicationConfig {
@@ -290,7 +290,7 @@ export interface IAiGeneratedWorkspaceTrust {
 	readonly startupTrustRequestLearnMore: string;
 }
 
-export interface IEntitlement {
+export interface IGitHubEntitlement {
 	providerId: string;
 	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
 	altCommand: { title: string; action: string; when: string };

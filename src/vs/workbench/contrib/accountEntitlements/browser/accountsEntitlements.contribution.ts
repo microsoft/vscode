@@ -51,7 +51,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	) {
 		super();
 
-		if (!this.productService.entitlement) {
+		if (!this.productService.gitHubEntitlement) {
 			return;
 		}
 
@@ -67,7 +67,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}
 
 		this.extensionManagementService.getInstalled().then(exts => {
-			const installed = exts.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.entitlement!.extensionId));
+			const installed = exts.find(value => ExtensionIdentifier.equals(value.identifier.id, this.productService.gitHubEntitlement!.extensionId));
 			if (installed) {
 				this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 				this.contextKey.set(false);
@@ -81,7 +81,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	private registerListeners() {
 		this._register(this.extensionService.onDidChangeExtensions(async (result) => {
 			for (const ext of result.added) {
-				if (ExtensionIdentifier.equals(this.productService.entitlement!.extensionId, ext.identifier)) {
+				if (ExtensionIdentifier.equals(this.productService.gitHubEntitlement!.extensionId, ext.identifier)) {
 					this.storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
 					this.contextKey.set(false);
 					return;
@@ -90,15 +90,15 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		}));
 
 		this._register(this.authenticationService.onDidChangeSessions(async (e) => {
-			if (e.providerId === this.productService.entitlement!.providerId && e.event.added.length > 0 && !this.isInitialized) {
+			if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.added.length > 0 && !this.isInitialized) {
 				this.onSessionChange(e.event.added[0]);
-			} else if (e.providerId === this.productService.entitlement!.providerId && e.event.removed.length > 0) {
+			} else if (e.providerId === this.productService.gitHubEntitlement!.providerId && e.event.removed.length > 0) {
 				this.contextKey.set(false);
 			}
 		}));
 
 		this._register(this.authenticationService.onDidRegisterAuthenticationProvider(async e => {
-			if (e.id === this.productService.entitlement!.providerId && !this.isInitialized) {
+			if (e.id === this.productService.gitHubEntitlement!.providerId && !this.isInitialized) {
 				const session = await this.authenticationService.getSessions(e.id);
 				this.onSessionChange(session[0]);
 			}
@@ -111,7 +111,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 
 		const context = await this.requestService.request({
 			type: 'GET',
-			url: this.productService.entitlement!.entitlementUrl,
+			url: this.productService.gitHubEntitlement!.entitlementUrl,
 			headers: {
 				'Authorization': `Bearer ${session.accessToken}`
 			}
@@ -134,7 +134,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		if (!(this.productService.entitlement!.enablementKey in parsedResult) || !parsedResult[this.productService.entitlement!.enablementKey]) {
+		if (!(this.productService.gitHubEntitlement!.enablementKey in parsedResult) || !parsedResult[this.productService.gitHubEntitlement!.enablementKey]) {
 			return;
 		}
 
@@ -145,7 +145,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
 
 		const orgs = parsedResult['organization_login_list'] as any[];
-		const menuTitle = orgs ? this.productService.entitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.entitlement!.command.titleWithoutPlaceHolder;
+		const menuTitle = orgs ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -168,7 +168,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 				const commandService = accessor.get(ICommandService);
 				const contextKeyService = accessor.get(IContextKeyService);
 				const storageService = accessor.get(IStorageService);
-				commandService.executeCommand(productService.entitlement!.command.action, productService.entitlement!.extensionId!);
+				commandService.executeCommand(productService.gitHubEntitlement!.command.action, productService.gitHubEntitlement!.extensionId!);
 				accountsMenuBadgeDisposable.clear();
 				const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
 				contextKey.set(false);
@@ -176,8 +176,8 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			}
 		});
 
-		const altMenuTitle = this.productService.entitlement!.altCommand.title!;
-		const altContextKey = this.productService.entitlement!.altCommand.when;
+		const altMenuTitle = this.productService.gitHubEntitlement!.altCommand.title!;
+		const altContextKey = this.productService.gitHubEntitlement!.altCommand.when;
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -199,7 +199,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			) {
 				const productService = accessor.get(IProductService);
 				const commandService = accessor.get(ICommandService);
-				commandService.executeCommand(productService.entitlement!.altCommand.action, productService.entitlement!.extensionId!);
+				commandService.executeCommand(productService.gitHubEntitlement!.altCommand.action, productService.gitHubEntitlement!.extensionId!);
 			}
 		});
 	}
