@@ -737,6 +737,7 @@
 		"--tab-sizing-fixed-min-width",
 		"--tab-sizing-fixed-max-width",
 		"--editor-group-tab-height",
+		"--editor-group-tab-total-height",
 		"--testMessageDecorationFontFamily",
 		"--testMessageDecorationFontSize",
 		"--title-border-bottom-color",
