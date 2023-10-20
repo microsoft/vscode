@@ -430,7 +430,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			const change = diff.changes[i];
 
 			// everything below the original start line is one group
-			if (change.original.startLineNumber >= originalStartLineNumber) {
+			if (change.original.startLineNumber >= originalStartLineNumber || 'true') { // TODO@jrieken be smarter and fix this
 				mainGroup.push(change);
 				continue;
 			}
