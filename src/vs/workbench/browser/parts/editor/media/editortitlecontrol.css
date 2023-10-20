@@ -45,8 +45,3 @@
 .monaco-workbench .part.editor > .content .editor-group-container > .title .breadcrumbs-below-tabs .breadcrumbs-control .monaco-breadcrumb-item:last-child .codicon:last-child {
 	display: none; /* hides chevrons when last item */
 }
-
-.monaco-workbench .part.editor > .content .title .monaco-progress-container {
-	top: unset;
-	bottom: 0;
-}

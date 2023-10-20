@@ -90,7 +90,7 @@
 .monaco-workbench .part.editor > .content .monaco-progress-container {
 	position: absolute;
 	left: 0;
-	top: 33px; /* at the bottom of the 35px height title container */
+	bottom: 0;
 	z-index: 5; /* on top of things */
 	height: 2px;
 }
