@@ -48,7 +48,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
-	private _lineRanges: readonly LineRangeMapping[] | undefined;
 
 	constructor(
 		editor: ICodeEditor,
@@ -146,7 +145,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._cleanupFullDiff();
 		super.hide();
 		this._isVisible = false;
-		this._lineRanges = undefined;
 	}
 
 	override show(): void {
@@ -156,7 +154,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	showForChanges(changes: readonly LineRangeMapping[]): void {
 		const hasFocus = this._diffEditor.hasTextFocus();
 		this._isVisible = true;
-		this._lineRanges = changes;
 
 		const onlyInserts = changes.every(change => change.original.isEmpty);
 
@@ -179,10 +176,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		if (hasFocus) {
 			this._diffEditor.focus();
 		}
-	}
-
-	get startLine(): number | undefined {
-		return this._lineRanges?.[0]?.modified.startLineNumber;
 	}
 
 	private _renderInsertWithHighlight(changes: readonly LineRangeMapping[]) {
