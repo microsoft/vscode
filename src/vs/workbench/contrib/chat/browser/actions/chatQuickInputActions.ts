@@ -84,7 +84,35 @@ class QuickChatGlobalAction extends Action2 {
 				linux: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
 				}
-			}
+			},
+			metadata: {
+				description: localize('toggle.desc', 'abc'),
+				args: [{
+					name: 'args',
+					schema: {
+						anyOf: [
+							{
+								type: 'object',
+								required: ['query'],
+								properties: {
+									query: {
+										description: localize('toggle.query', "The query to open the quick chat with"),
+										type: 'string'
+									},
+									isPartialQuery: {
+										description: localize('toggle.isPartialQuery', "Whether the query is partial; it will wait for more user input"),
+										type: 'boolean'
+									}
+								},
+							},
+							{
+								type: 'string',
+								description: localize('toggle.query', "The query to open the quick chat with")
+							}
+						]
+					}
+				}]
+			},
 		});
 	}
 
