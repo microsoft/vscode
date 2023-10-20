@@ -1075,10 +1075,12 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
+		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
+		templateData.label.setFile(uri, {
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },
+			range: 'range' in element.reference ? element.reference.range : undefined
 		});
 	}
 
