@@ -18,7 +18,7 @@ import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
@@ -142,6 +142,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
 	private gridWidgetDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
+
+	private disposableMaximizedView: IDisposable = Disposable.None;
 
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
@@ -376,7 +378,7 @@ export class EditorPart extends Part implements IEditorPart {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.gridWidget.maximizeView(target);
+				this.disposableMaximizedView = this.gridWidget.maximizeView(target);
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -401,7 +403,8 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private unmaximizeGroup(): void {
-		this.gridWidget.unmaximizeView();
+		this.disposableMaximizedView.dispose();
+		this.disposableMaximizedView = Disposable.None;
 	}
 
 	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {

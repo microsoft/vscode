@@ -6,7 +6,7 @@
 import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -629,12 +629,12 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Maximizes the specified view and hides all other views.
 	 * @param view The view to maximize.
 	 */
-	maximizeView(view: T): void {
+	maximizeView(view: T): IDisposable {
 		if (this.views.size < 2) {
 			throw new Error('At least two views are required to maximize a view');
 		}
 		if (this.maximizedView === view) {
-			return;
+			return toDisposable(() => this.unmaximizeView());
 		}
 		if (this.maximizedView) {
 			this.unmaximizeView();
@@ -648,12 +648,11 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 		this.maximizedView = view;
 		this._onDidMaximizeGroup.fire({ view, maximized: true });
+
+		return toDisposable(() => this.unmaximizeView());
 	}
 
-	/**
-	 * Restores all views to their previous size after a view has been maximized.
-	 */
-	unmaximizeView(): void {
+	private unmaximizeView(): void {
 		if (!this.maximizedView) {
 			return;
 		}
