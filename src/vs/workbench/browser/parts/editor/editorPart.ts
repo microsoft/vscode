@@ -140,6 +140,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private centeredLayoutWidget!: CenteredViewLayout;
 
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
+	private gridWidgetDisposables: DisposableStore = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
@@ -1190,7 +1191,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
-		this._register(this.gridWidget.onDidMaximizeGroup(e => {
+		this.gridWidgetDisposables.clear();
+		this.gridWidgetDisposables.add(gridWidget.onDidMaximizeGroup(e => {
 			if (this.activeGroup !== e.view) {
 				this.activateGroup(e.view);
 			}
