@@ -202,7 +202,7 @@ declare module 'vscode' {
 
 	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
 
-	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
