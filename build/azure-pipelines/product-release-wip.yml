@@ -5,9 +5,10 @@ trigger: none
 pr: none
 
 steps:
-  - bash: |
-      set -e
-      wget https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -P $(Build.ArtifactStagingDirectory)
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+      Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
+
   # - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
   #   displayName: 'ESRP Release'
   #   inputs:
