@@ -391,7 +391,8 @@ class AgentCompletions extends Disposable {
 				}
 
 				for (const partAfterAgent of parsedRequest.slice(usedAgentIdx + 1)) {
-					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.match(/^\s+(\/\w*)?$/)) {
+					// Could allow text after 'position'
+					if (!(partAfterAgent instanceof ChatRequestTextPart) || !partAfterAgent.text.trim().match(/^(\/\w*)?$/)) {
 						// No text allowed between agent and subcommand
 						return;
 					}
