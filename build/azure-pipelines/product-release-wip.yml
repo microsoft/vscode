@@ -66,7 +66,9 @@ steps:
         ReleaseInfo = @{
           ReleaseMetadata = @{
             Title = "VS Code"
-            ReleaseContentType = "InstallPackage"
+            Properties = @{
+              ReleaseContentType = "InstallPackage"
+            }
             MinimumNumberOfApprovers = 1
             ProductInfo = @{
               Name = "VS Code"
