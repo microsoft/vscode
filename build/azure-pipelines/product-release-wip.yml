@@ -98,5 +98,4 @@ steps:
       }
       $Output = [System.IO.Path]::GetTempFileName()
 
-      $env:ESRPOAuthToken = "$(esrp-aad-password)"
       ESRPClient SubmitRelease -l Verbose -a $Auth -i $Input -o $Output
