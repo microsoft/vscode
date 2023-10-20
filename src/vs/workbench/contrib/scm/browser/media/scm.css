@@ -199,16 +199,12 @@
 	flex-grow: 100;
 }
 
-.scm-view .monaco-list .monaco-list-row .scm-input > .scm-editor > .actions,
 .scm-view .monaco-list .monaco-list-row .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row .resource > .name > .monaco-icon-label > .actions {
 	display: none;
 	max-width: fit-content;
 }
 
-.scm-view .monaco-list .monaco-list-row:hover .scm-input > .scm-editor > .actions,
-.scm-view .monaco-list .monaco-list-row.selected .scm-input > .scm-editor > .actions,
-.scm-view .monaco-list .monaco-list-row.focused .scm-input > .scm-editor > .actions,
 .scm-view .monaco-list .monaco-list-row:hover .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row.selected .resource-group > .actions,
 .scm-view .monaco-list .monaco-list-row.focused .resource-group > .actions,
@@ -254,10 +250,13 @@
 	z-index: 2;
 }
 
+.scm-view .scm-input .actions .actions-container {
+	background-color: var(--vscode-input-background);
+}
+
 .scm-view .scm-input .actions .action-label {
 	border-radius: 5px;
-	background-color: var(--vscode-input-background);
-	outline: 1px solid var(--vscode-input-border);
+	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
 	outline-offset: -1px;
 }
 
@@ -420,7 +419,6 @@
 	z-index: 1;
 	padding: 2px 6px;
 	box-sizing: border-box;
-	width: 100%;
 	overflow: hidden;
 	white-space: nowrap;
 	text-overflow: ellipsis;
