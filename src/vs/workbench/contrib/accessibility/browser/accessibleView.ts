@@ -505,7 +505,11 @@ export class AccessibleView extends Disposable {
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
 			// HACK: Delay to allow the context view to hide #186514
-			setTimeout(() => provider.onClose(), 100);
+			if (provider.id === AccessibleViewProviderId.Terminal) {
+				provider.onClose();
+			} else {
+				setTimeout(() => provider.onClose(), 100);
+			}
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {
