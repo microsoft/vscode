@@ -26,7 +26,7 @@ import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeSer
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { disposableTimeout, ThrottledDelayer } from 'vs/base/common/async';
+import { disposableTimeout, ThrottledDelayer, Sequencer } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
 import { ICompressibleTreeRenderer, ICompressibleKeyboardNavigationLabelProvider } from 'vs/base/browser/ui/tree/objectTree';
@@ -1123,7 +1123,7 @@ class ViewModel {
 		// Update sort key based on view mode
 		this.sortKey = this.getViewModelSortKey();
 
-		this.tree.updateChildren();
+		this._updateChildren();
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
@@ -1138,7 +1138,7 @@ class ViewModel {
 
 		this._sortKey = sortKey;
 
-		this.tree.updateChildren();
+		this._updateChildren();
 		this._onDidChangeSortKey.fire(sortKey);
 		this.sortKeyContextKey.set(sortKey);
 
@@ -1157,6 +1157,7 @@ class ViewModel {
 	private readonly visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
 	private firstVisible = true;
+	private readonly updateChildrenSequencer = new Sequencer();
 	private readonly disposables = new DisposableStore();
 
 	private modeContextKey: IContextKey<ViewModelMode>;
@@ -1223,18 +1224,20 @@ class ViewModel {
 			this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
 			this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 
-			this.tree.updateChildren();
+			this._updateChildren();
 			this.updateRepositoryContextKeys();
 		}
 	}
 
 	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
+		this._updateChildren();
+
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			repositoryDisposables.add(repository.provider.onDidChange(() => this.tree.updateChildren(repository, true, true)));
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this.tree.updateChildren(repository, true)));
-			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.tree.updateChildren(repository)));
+			repositoryDisposables.add(repository.provider.onDidChange(() => this._updateChildren(repository, true, true)));
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this._updateChildren(repository, true)));
+			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this._updateChildren(repository)));
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
 
@@ -1249,8 +1252,8 @@ class ViewModel {
 					if (!resourceGroupDisposables.has(resourceGroup)) {
 						const disposableStore = new DisposableStore();
 
-						disposableStore.add(resourceGroup.onDidChange(() => this.tree.updateChildren(repository)));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => this.tree.updateChildren(resourceGroup)));
+						disposableStore.add(resourceGroup.onDidChange(() => this._updateChildren(repository)));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => this._updateChildren(repository)));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
@@ -1265,10 +1268,6 @@ class ViewModel {
 		for (const repository of removed) {
 			this.items.deleteAndDispose(repository);
 		}
-
-		this.tree.updateChildren();
-		this.updateRepositoryContextKeys();
-		this.updateRepositoryCollapseAllContextKeys();
 	}
 
 	setVisible(visible: boolean): void {
@@ -1294,50 +1293,20 @@ class ViewModel {
 		this.updateRepositoryCollapseAllContextKeys();
 	}
 
-	// private async refresh(item?: ISCMRepository | ISCMResourceGroup): Promise<void> {
-	// 	if (!this.alwaysShowRepositories && this.items.size === 1) {
-	// 		const provider = Iterable.first(this.items.keys())!.provider;
-	// 		this.scmProviderContextKey.set(provider.contextValue);
-	// 		this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
-	// 		this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
-	// 	} else {
-	// 		this.scmProviderContextKey.set(undefined);
-	// 		this.scmProviderRootUriContextKey.set(undefined);
-	// 		this.scmProviderHasRootUriContextKey.set(false);
-	// 	}
+	private _updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
+		this.updateChildrenSequencer.queue(async () => {
+			this.updateRepositoryContextKeys();
+			const focusedInput = this.inputRenderer.getFocusedInput();
 
-	// 	const focusedInput = this.inputRenderer.getFocusedInput();
+			await this.tree.updateChildren(element, recursive, rerender);
 
-	// 	if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isSCMRepository(item)))) {
-	// 		// Single repository and not always show repositories
-	// 		await this.tree.setInput(Iterable.first(this.items.keys())!);
-	// 	} else if (item) {
-	// 		// Particular repository or resource group
-	// 		await this.tree.updateChildren(item);
-	// 	} else {
-	// 		// Expand repository nodes
-	// 		// const expanded = Array.from(this.items.keys())
-	// 		// 	.map(repository => `repo:${repository.provider.id}`);
+			if (focusedInput) {
+				this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
+			}
 
-	// 		// await this.tree.setInput([...this.items.keys()], { expanded });
-	// 	}
-
-	// 	// if (!this.alwaysShowRepositories && (this.items.size === 1 && (!item || isRepositoryItem(item)))) {
-	// 	// 	const item = Iterable.first(this.items.values())!;
-	// 	// 	this.tree.setChildren(null, this.render(item, this.treeViewState).children);
-	// 	// } else if (item) {
-	// 	// 	this.tree.setChildren(item.element, this.render(item, this.treeViewState).children);
-	// 	// } else {
-	// 	// 	const items = coalesce(this.scmViewService.visibleRepositories.map(r => this.items.get(r)));
-	// 	// 	this.tree.setChildren(null, items.map(item => this.render(item, this.treeViewState)));
-	// 	// }
-
-	// 	if (focusedInput) {
-	// 		this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
-	// 	}
-
-	// 	this.updateRepositoryCollapseAllContextKeys();
-	// }
+			this.updateRepositoryCollapseAllContextKeys();
+		});
+	}
 
 	private onDidActiveEditorChange(): void {
 		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
