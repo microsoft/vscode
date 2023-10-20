@@ -555,6 +555,11 @@ export class InlineChatController implements IEditorContribution {
 
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
+
+			if (requestCts.token.isCancellationRequested) {
+				return;
+			}
+
 			if (data.message) {
 				this._zone.value.widget.updateToolbar(false);
 				this._zone.value.widget.updateInfo(data.message);
@@ -577,7 +582,8 @@ export class InlineChatController implements IEditorContribution {
 					// making changes goes into a queue because otherwise the async-progress time will
 					// influence the time it takes to receive the changes and progressive typing will
 					// become infinitely fast
-					await this._makeChanges(data.edits!, { duration: progressiveEditsAvgDuration.value, round: round++ });
+					await this._makeChanges(data.edits!, { duration: progressiveEditsAvgDuration.value, round: round++, token: requestCts.token });
+					this._showWidget(false);
 				});
 			}
 			if (data.markdownFragment) {
