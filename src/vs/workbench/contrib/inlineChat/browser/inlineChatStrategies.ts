@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, DeferredAsyncIterableObject } from 'vs/base/common/async';
+import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -494,8 +494,18 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], timings: { duration: number; round: number }): Promise<void> {
-		await super.makeProgressiveChanges(edits, timings);
-		await this._renderDiffZones();
+
+		const changeTask = super.makeProgressiveChanges(edits, timings);
+
+		//add a listener that shows the diff zones as soon as the first edit is applied
+		let renderTask = Promise.resolve();
+		const changeListener = this._session.textModelN.onDidChangeContent(() => {
+			changeListener.dispose();
+			renderTask = this._renderDiffZones();
+		});
+		await changeTask;
+		await renderTask;
+		changeListener.dispose();
 	}
 
 	override async renderChanges(response: EditResponse) {
@@ -585,18 +595,18 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
-	const stream = new DeferredAsyncIterableObject<string>();
+	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
 	// const wordCount = countWords(newText);
 
 	const handle = setInterval(() => {
 
 		const r = getNWords(newText, 1);
-		stream.emit(r.value);
+		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
 			clearInterval(handle);
-			stream.complete();
+			stream.resolve();
 		}
 
 	}, 1000 / wordsPerSec);
