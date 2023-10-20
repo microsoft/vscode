@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editordroptarget';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, DragAndDropObserver, EventHelper, EventType, getWindow, isAncestor } from 'vs/base/browser/dom';
 import { renderFormattedText } from 'vs/base/browser/formattedTextRenderer';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -530,7 +530,7 @@ class DropOverlay extends Themable {
 	private getOverlayOffsetHeight(): number {
 
 		// With tabs and opened editors: use the area below tabs as drop target
-		if (!this.groupView.isEmpty && this.editorGroupService.partOptions.showTabs) {
+		if (!this.groupView.isEmpty && this.editorGroupService.partOptions.showTabs === 'multiple') {
 			return this.groupView.titleHeight.offset;
 		}
 
@@ -601,7 +601,9 @@ export class EditorDropTarget extends Themable {
 	private registerListeners(): void {
 		this._register(addDisposableListener(this.container, EventType.DRAG_ENTER, e => this.onDragEnter(e)));
 		this._register(addDisposableListener(this.container, EventType.DRAG_LEAVE, () => this.onDragLeave()));
-		[this.container, window].forEach(node => this._register(addDisposableListener(node as HTMLElement, EventType.DRAG_END, () => this.onDragEnd())));
+		for (const target of [this.container, getWindow(this.container)]) {
+			this._register(addDisposableListener(target, EventType.DRAG_END, () => this.onDragEnd()));
+		}
 	}
 
 	private onDragEnter(event: DragEvent): void {

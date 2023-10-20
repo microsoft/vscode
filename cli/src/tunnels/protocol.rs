@@ -133,9 +133,53 @@ pub struct GetEnvResponse {
 	pub os_release: String,
 }
 
+/// Method: `kill`. Sends a generic, platform-specific kill command to the process.
 #[derive(Deserialize)]
-pub struct FsStatRequest {
+pub struct SysKillRequest {
+	pub pid: u32,
+}
+
+#[derive(Serialize)]
+pub struct SysKillResponse {
+	pub success: bool,
+}
+
+/// Methods: `fs_read`/`fs_write`/`fs_rm`/`fs_mkdirp`/`fs_stat`
+///  - fs_read: reads into a stream returned from the method,
+///  - fs_write: writes from a stream passed to the method.
+///  - fs_rm: recursively removes the file
+///  - fs_mkdirp: recursively creates the directory
+///  - fs_readdir: reads directory contents
+///  - fs_stat: stats the given path
+///  - fs_connect: connect to the given unix or named pipe socket, streaming
+///    data in and out from the method's stream.
+#[derive(Deserialize)]
+pub struct FsSinglePathRequest {
 	pub path: String,
+}
+
+#[derive(Serialize)]
+pub enum FsFileKind {
+	#[serde(rename = "dir")]
+	Directory,
+	#[serde(rename = "file")]
+	File,
+	#[serde(rename = "link")]
+	Link,
+}
+
+impl From<std::fs::FileType> for FsFileKind {
+	fn from(kind: std::fs::FileType) -> Self {
+		if kind.is_dir() {
+			Self::Directory
+		} else if kind.is_file() {
+			Self::File
+		} else if kind.is_symlink() {
+			Self::Link
+		} else {
+			unreachable!()
+		}
+	}
 }
 
 #[derive(Serialize, Default)]
@@ -143,7 +187,26 @@ pub struct FsStatResponse {
 	pub exists: bool,
 	pub size: Option<u64>,
 	#[serde(rename = "type")]
-	pub kind: Option<&'static str>,
+	pub kind: Option<FsFileKind>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirResponse {
+	pub contents: Vec<FsReadDirEntry>,
+}
+
+#[derive(Serialize)]
+pub struct FsReadDirEntry {
+	pub name: String,
+	#[serde(rename = "type")]
+	pub kind: Option<FsFileKind>,
+}
+
+/// Method: `fs_reaname`. Renames a file.
+#[derive(Deserialize)]
+pub struct FsRenameRequest {
+	pub from_path: String,
+	pub to_path: String,
 }
 
 #[derive(Deserialize, Debug)]

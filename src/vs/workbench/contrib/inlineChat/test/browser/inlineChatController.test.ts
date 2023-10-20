@@ -16,12 +16,15 @@ import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -91,6 +94,10 @@ suite('InteractiveChatController', function () {
 		const contextKeyService = new MockContextKeyService();
 		inlineChatService = new InlineChatServiceImpl(contextKeyService);
 
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
+		configurationService.setUserConfiguration('editor', {});
+
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
 			[IInlineChatService, inlineChatService],
@@ -113,6 +120,10 @@ suite('InteractiveChatController', function () {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
 					return null;
 				}
+			}],
+			[IConfigurationService, configurationService],
+			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+				override onDidChangeLocation = Event.None;
 			}]
 		);
 
@@ -162,7 +173,7 @@ suite('InteractiveChatController', function () {
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 
 		await run;
 
@@ -194,7 +205,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -224,7 +235,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -287,7 +298,7 @@ suite('InteractiveChatController', function () {
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		await r;
 	});
 

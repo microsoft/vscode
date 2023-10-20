@@ -406,10 +406,7 @@ export abstract class ViewPane extends Pane implements IView {
 		if (changed) {
 			this._onDidChangeBodyVisibility.fire(expanded);
 		}
-		if (this.twistiesContainer) {
-			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!expanded)));
-			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(expanded)));
-		}
+		this.updateTwistyIcon();
 		return changed;
 	}
 
@@ -425,7 +422,7 @@ export abstract class ViewPane extends Pane implements IView {
 	protected renderHeader(container: HTMLElement): void {
 		this.headerContainer = container;
 
-		this.twistiesContainer = append(container, $(ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))));
+		this.twistiesContainer = append(container, $(`.twisty-container${ThemeIcon.asCSSSelector(this.getTwistyIcon(this.isExpanded()))}`));
 
 		this.renderHeaderTitle(container, this.title);
 
@@ -457,6 +454,18 @@ export abstract class ViewPane extends Pane implements IView {
 		const onDidRelevantConfigurationChange = Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewPane.AlwaysShowActionsConfig));
 		this._register(onDidRelevantConfigurationChange(this.updateActionsVisibility, this));
 		this.updateActionsVisibility();
+	}
+
+	protected override updateHeader(): void {
+		super.updateHeader();
+		this.updateTwistyIcon();
+	}
+
+	private updateTwistyIcon(): void {
+		if (this.twistiesContainer) {
+			this.twistiesContainer.classList.remove(...ThemeIcon.asClassNameArray(this.getTwistyIcon(!this._expanded)));
+			this.twistiesContainer.classList.add(...ThemeIcon.asClassNameArray(this.getTwistyIcon(this._expanded)));
+		}
 	}
 
 	protected getTwistyIcon(expanded: boolean): ThemeIcon {

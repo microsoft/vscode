@@ -15,7 +15,6 @@ import { AccessibleViewProviderId, accessibilityHelpIsShown, accessibleViewCurre
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
-import { alert } from 'vs/base/browser/ui/aria/aria';
 
 const accessibleViewMenu = {
 	id: MenuId.AccessibleView,
@@ -184,8 +183,8 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			id: AccessibilityCommandId.AccessibleViewAcceptInlineCompletion,
 			precondition: ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.InlineCompletions)),
 			keybinding: {
-				primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+				primary: KeyMod.CtrlCmd | KeyCode.Slash,
+				mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			icon: Codicon.check,
@@ -212,7 +211,6 @@ class AccessibleViewAcceptInlineCompletionAction extends Action2 {
 			return;
 		}
 		await model.accept(editor);
-		alert('Accepted');
 		model.stop();
 		editor.focus();
 	}

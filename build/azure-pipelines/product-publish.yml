@@ -3,6 +3,7 @@ steps:
     inputs:
       versionSource: fromFile
       versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"

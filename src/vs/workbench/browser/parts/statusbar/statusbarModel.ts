@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isStatusbarEntryLocation, IStatusbarEntryPriority, StatusbarAlignment } from 'vs/workbench/services/statusbar/browser/statusbar';
-import { hide, show, isAncestor } from 'vs/base/browser/dom';
+import { hide, show, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Emitter } from 'vs/base/common/event';
 
@@ -174,7 +174,7 @@ export class StatusbarViewModel extends Disposable {
 	}
 
 	private getFocusedEntry(): IStatusbarViewModelEntry | undefined {
-		return this._entries.find(entry => isAncestor(document.activeElement, entry.container));
+		return this._entries.find(entry => isAncestorOfActiveElement(entry.container));
 	}
 
 	private focusEntry(delta: number, restartPosition: number): void {
