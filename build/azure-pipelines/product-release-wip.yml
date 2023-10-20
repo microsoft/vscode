@@ -59,6 +59,7 @@ steps:
 
       $Policy = Create-TmpJson @{
         Version = "1.0.0"
+        Audience = "InternalLimited"
       }
 
       $Input = Create-TmpJson @{
