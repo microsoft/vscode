@@ -578,7 +578,7 @@ export class InlineChatController implements IEditorContribution {
 				}
 				progressEdits.push(data.edits);
 				avgDuration.update(Date.now() - t1);
-				await this._makeChanges(data.edits, true, { duration: avgDuration.value, round: round++ });
+				await this._makeChanges(data.edits, { duration: avgDuration.value, round: round++ });
 				t1 = Date.now(); // don't measure how long `_makeChanges` takes
 				// TODO@jrieken this still isn't the true speed because the progress itself is async which
 				// makes an artifical queue, so that towards the end duration (now() -t1) is almost 0
@@ -608,7 +608,7 @@ export class InlineChatController implements IEditorContribution {
 			} else if (reply) {
 				const editResponse = new EditResponse(this._activeSession.textModelN.uri, modelAltVersionIdNow, reply, progressEdits);
 				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
-					await this._makeChanges(editResponse.allLocalEdits[i], true, undefined);
+					await this._makeChanges(editResponse.allLocalEdits[i], undefined);
 				}
 				response = editResponse;
 			} else {
@@ -663,19 +663,20 @@ export class InlineChatController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _makeChanges(lastEdits: TextEdit[], computeMoreMinimalEdits: boolean, opts: ProgressingEditsOptions | undefined) {
+	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
-		// make changes from modelN -> modelN+1
-		const moreMinimalEdits = computeMoreMinimalEdits ? await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, lastEdits) : undefined;
-		const editOperations = (moreMinimalEdits ?? lastEdits).map(TextEdit.asEditOperation);
-		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, lastEdits, moreMinimalEdits);
+		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, edits);
+		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, edits, moreMinimalEdits);
 
-		if (editOperations.length === 0) {
+		if (moreMinimalEdits?.length === 0) {
 			// nothing left to do
 			return;
 		}
+
+		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
+		const editOperations = actualEdits.map(TextEdit.asEditOperation);
 
 		try {
 			this._ignoreModelContentChanged = true;
