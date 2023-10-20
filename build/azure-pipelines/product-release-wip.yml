@@ -6,11 +6,52 @@ pr: none
 
 steps:
   - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
-    displayName: 'Use EsrpClient '
+    displayName: 'Use EsrpClient'
+  - task: AzureKeyVault@1
+    displayName: "Azure Key Vault: Get Secrets"
+    inputs:
+      azureSubscription: "vscode-builds-subscription"
+      KeyVaultName: vscode-build-secrets
+      SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
   - powershell: |
       $ErrorActionPreference = "Stop"
       Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
-      ESRPClient Version
+
+      function Create-TmpJson($Obj) {
+        $FileName = [System.IO.Path]::GetTempFileName()
+        ConvertTo-Json -Depth 100 $Obj | Out-File -Encoding UTF8 $FileName
+        return $FileName
+      }
+
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(ESRP-PKI)")
+      $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+      $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+      $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
+      $CertStore.Open("ReadWrite")
+      $CertStore.AddRange($CertCollection)
+      $CertStore.Close()
+
+      $Auth = Create-TmpJson @{
+        Version = "1.0.0"
+        AuthenticationType = "AAD_OAUTH_TOKEN"
+        ClientId = "$(esrp-aad-username)"
+        OAuthToken = @{
+          EnvironmentVariable = "ESRPOAuthToken"
+          EnvironmentVariableTarget = "Process"
+        }
+        RequestSigningCert = @{
+          SubjectName = $CertCollection[0].Subject
+          StoreLocation = "LocalMachine"
+          StoreName = "My"
+        }
+      }
+
+      $Config = Create-TmpJson @{}
+      $Input = Create-TmpJson @{}
+      $Output = [System.IO.Path]::GetTempFileName()
+
+      $env:ESRPOAuthToken = "$(esrp-aad-password)"
+      ESRPClient SubmitRelease -l Verbose -a $Auth -c $Config -i $Input -o $Output
 
   # - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
   #   displayName: 'ESRP Release'
