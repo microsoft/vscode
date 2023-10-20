@@ -36,6 +36,10 @@
 	border-radius: 2px;
 }
 
+.interactive-result-code-block .interactive-result-code-block-toolbar.force-visibility .monaco-toolbar {
+	display: initial !important;
+}
+
 .interactive-result-code-block {
 	margin: 16px 0;
 }

@@ -14,6 +14,8 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { IRectangle } from 'vs/platform/window/common/window';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -37,10 +39,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Auxiliary Editor Parts
 
-	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
+	async createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart> {
 		const disposables = new DisposableStore();
 
-		const auxiliaryWindow = disposables.add(this.auxiliaryWindowService.open());
+		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
 		disposables.add(Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose()));
 
 		const partContainer = document.createElement('div');
@@ -55,6 +57,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
 
 		editorPart.create(partContainer, { restorePreviousState: false });
+
+		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
 		disposables.add(auxiliaryWindow.onWillLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 		auxiliaryWindow.layout();

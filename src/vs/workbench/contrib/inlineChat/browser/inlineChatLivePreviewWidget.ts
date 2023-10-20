@@ -10,7 +10,7 @@ import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
-import { ITextModel } from 'vs/editor/common/model';
+import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ZoneWidget } from 'vs/editor/contrib/zoneWidget/browser/zoneWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
@@ -18,7 +18,7 @@ import * as editorColorRegistry from 'vs/editor/common/core/editorColorRegistry'
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INLINE_CHAT_ID, inlineChatDiffInserted, inlineChatDiffRemoved, inlineChatRegionHighlight } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { LineRange } from 'vs/editor/common/core/lineRange';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
@@ -69,7 +69,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
-			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
 			renderOverviewRuler: false,
@@ -151,7 +151,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		throw new Error('use showForChanges');
 	}
 
-	showForChanges(changes: readonly DetailedLineRangeMapping[]): void {
+	showForChanges(changes: readonly LineRangeMapping[]): void {
 		const hasFocus = this._diffEditor.hasTextFocus();
 		this._isVisible = true;
 
@@ -178,26 +178,27 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		}
 	}
 
-
-	private _renderInsertWithHighlight(changes: readonly DetailedLineRangeMapping[]) {
+	private _renderInsertWithHighlight(changes: readonly LineRangeMapping[]) {
 		assertType(this.editor.hasModel());
 
-		const ranges = this._computeHiddenRanges(this.editor.getModel(), changes);
+		const options: IModelDecorationOptions = {
+			description: 'inline-chat-insert',
+			showIfCollapsed: false,
+			isWholeLine: true,
+			className: 'inline-chat-lines-inserted-range',
+		};
 
-		this._decorationCollection.set([{
-			range: lineRangeAsRange(ranges.modifiedHidden),
-			options: {
-				description: 'inline-chat-insert',
-				showIfCollapsed: false,
-				isWholeLine: true,
-				className: 'inline-chat-lines-inserted-range',
-			}
-		}]);
+		this._decorationCollection.set(changes.map(change => {
+			return {
+				range: lineRangeAsRange(change.modified),
+				options,
+			};
+		}));
 	}
 
 	// --- full diff
 
-	private _renderChangesWithFullDiff(changes: readonly DetailedLineRangeMapping[]) {
+	private _renderChangesWithFullDiff(changes: readonly LineRangeMapping[]) {
 		assertType(this.editor.hasModel());
 
 		const modified = this.editor.getModel();
@@ -225,7 +226,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		super.hide();
 	}
 
-	private _computeHiddenRanges(model: ITextModel, changes: readonly DetailedLineRangeMapping[]) {
+	private _computeHiddenRanges(model: ITextModel, changes: readonly LineRangeMapping[]) {
 
 		let originalLineRange = changes[0].original;
 		let modifiedLineRange = changes[0].modified;
@@ -332,7 +333,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			readOnly: true,
 			minimap: { enabled: false },
-			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true },
+			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true, ignoreHorizontalScrollbarInContentHeight: true, },
 		}, { isSimpleWidget: true, contributions }, parentEditor);
 
 		const doStyle = () => {

@@ -7,8 +7,10 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
+import { localize } from 'vs/nls';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
@@ -75,6 +77,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			? await agent.validateSlashCommand(request.command)
 			: undefined;
 
+		const stopWatch = StopWatch.create(false);
+		let firstProgress: number | undefined;
 		try {
 			const task = agent.invoke(
 				{
@@ -85,6 +89,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
 				new Progress<vscode.ChatAgentProgress>(progress => {
 					throwIfDone();
+					if (typeof firstProgress === 'undefined') {
+						firstProgress = stopWatch.elapsed();
+					}
+
 					const convertedProgress = typeConvert.ChatResponseProgress.from(progress);
 					if ('placeholder' in progress && 'resolvedContent' in progress) {
 						const resolvedContent = Promise.all([this._proxy.$handleProgressChunk(requestId, convertedProgress), progress.resolvedContent]);
@@ -112,7 +120,8 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 					}
 					sessionResults.set(requestId, result);
 
-					return { errorDetails: result.errorDetails }; // TODO timings here
+					const timings = { firstProgress: firstProgress, totalElapsed: stopWatch.elapsed() };
+					return { errorDetails: result.errorDetails, timings };
 				} else {
 					this._previousResultMap.delete(sessionId);
 				}
@@ -122,11 +131,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 		} catch (e) {
 			this._logService.error(e, agent.extension);
-			return {
-				errorDetails: {
-					message: toErrorMessage(e)
-				}
-			};
+			return { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", toErrorMessage(e)), responseIsIncomplete: true } };
 
 		} finally {
 			done = true;

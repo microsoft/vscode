@@ -260,7 +260,7 @@ class VoiceChatSessions {
 		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession(cts.token));
 
 		let transcription: string = '';
-		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 2000));
+		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 1200));
 		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
 			if (cts.token.isCancellationRequested) {
 				return;

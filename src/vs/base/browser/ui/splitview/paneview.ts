@@ -317,14 +317,22 @@ export abstract class Pane extends Disposable implements IView {
 	protected updateHeader(): void {
 		const expanded = !this.headerVisible || this.isExpanded();
 
+		if (this.collapsible) {
+			this.header.setAttribute('tabindex', '0');
+			this.header.setAttribute('role', 'button');
+		} else {
+			this.header.removeAttribute('tabindex');
+			this.header.removeAttribute('role');
+		}
+
 		this.header.style.lineHeight = `${this.headerSize}px`;
 		this.header.classList.toggle('hidden', !this.headerVisible);
 		this.header.classList.toggle('expanded', expanded);
 		this.header.classList.toggle('not-collapsible', !this.collapsible);
 		this.header.setAttribute('aria-expanded', String(expanded));
 
-		this.header.style.color = this.styles.headerForeground ?? '';
-		this.header.style.backgroundColor = this.styles.headerBackground ?? '';
+		this.header.style.color = this.collapsible ? this.styles.headerForeground ?? '' : '';
+		this.header.style.backgroundColor = (this.collapsible ? this.styles.headerBackground : 'transparent') ?? '';
 		this.header.style.borderTop = this.styles.headerBorder && this.orientation === Orientation.VERTICAL ? `1px solid ${this.styles.headerBorder}` : '';
 		this.element.style.borderLeft = this.styles.leftBorder && this.orientation === Orientation.HORIZONTAL ? `1px solid ${this.styles.leftBorder}` : '';
 	}
