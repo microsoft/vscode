@@ -91,12 +91,12 @@ steps:
               SizeInBytes = $size
               SourceHash = $sha256
               HashType = "SHA256"
-              SourceLocationType = "UNC"
-              SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
               SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
-              DestinationLocationType = "AzureBlob"
             }
           )
+          SourceLocationType = "UNC"
+          SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
+          DestinationLocationType = "AzureBlob"
         }
       }
       $Output = [System.IO.Path]::GetTempFileName()
