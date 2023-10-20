@@ -2560,11 +2560,15 @@ export interface MainThreadLocalizationShape extends IDisposable {
 
 export interface ExtHostIssueReporterShape {
 	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
+	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
 }
 
 export interface MainThreadIssueReporterShape extends IDisposable {
 	$registerIssueUriRequestHandler(extensionId: string): void;
 	$unregisterIssueUriRequestHandler(extensionId: string): void;
+	$registerIssueDataProvider(extensionId: string): void;
+	$unregisterIssueDataProvider(extensionId: string): void;
 }
 
 export interface TunnelDto {
