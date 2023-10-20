@@ -619,20 +619,15 @@ class BranchNode implements ISplitView<ILayoutContext>, IDisposable {
 			return;
 		}
 
-		const oldChildrenVisibleCount = this.visibleChildrenCount();
-
+		const wereAllChildrenHidden = this.splitview.contentSize === 0;
 		this.splitview.setViewVisible(index, visible);
+		const areAllChildrenHidden = this.splitview.contentSize === 0;
 
 		// If all children are hidden then the parent should hide the entire splitview
 		// If the entire splitview is hidden then the parent should show the splitview when a child is shown
-		const newChildrenVisibleCount = this.visibleChildrenCount();
-		if ((visible && oldChildrenVisibleCount === 0) || (!visible && newChildrenVisibleCount === 0)) {
+		if ((visible && wereAllChildrenHidden) || (!visible && areAllChildrenHidden)) {
 			this._onDidVisibilityChange.fire(visible);
 		}
-	}
-
-	private visibleChildrenCount(): number {
-		return this.children.filter((c, index) => this.splitview.getViewSize(index) > 0).length;
 	}
 
 	getChildCachedVisibleSize(index: number): number | undefined {
