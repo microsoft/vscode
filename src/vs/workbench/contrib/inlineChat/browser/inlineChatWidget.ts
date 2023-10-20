@@ -111,7 +111,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 	renderMarginRevertIcon: false,
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,

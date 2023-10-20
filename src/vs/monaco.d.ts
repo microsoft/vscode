@@ -4353,6 +4353,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		scrollByPage?: boolean;
+		/**
+		 * When set, the horizontal scrollbar will not increase the content height.
+		 * Defaults to false.
+		 */
+		ignoreHorizontalScrollbarInContentHeight?: boolean;
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -4369,6 +4374,7 @@ declare namespace monaco.editor {
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
 		readonly scrollByPage: boolean;
+		readonly ignoreHorizontalScrollbarInContentHeight: boolean;
 	}
 
 	export type InUntrustedWorkspace = 'inUntrustedWorkspace';

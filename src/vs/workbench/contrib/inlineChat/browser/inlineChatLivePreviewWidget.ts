@@ -70,7 +70,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			.filter(c => c.id !== INLINE_CHAT_ID && c.id !== FoldingController.ID);
 
 		this._diffEditor = instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.domNode, {
-			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+			scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 			scrollBeyondLastLine: false,
 			renderMarginRevertIcon: true,
 			renderOverviewRuler: false,
@@ -340,7 +340,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 			stickyScroll: { enabled: false },
 			readOnly: true,
 			minimap: { enabled: false },
-			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true },
+			scrollbar: { alwaysConsumeMouseWheel: false, useShadows: true, ignoreHorizontalScrollbarInContentHeight: true, },
 		}, { isSimpleWidget: true, contributions }, parentEditor);
 
 		const doStyle = () => {
