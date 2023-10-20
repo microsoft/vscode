@@ -14,7 +14,7 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 16px 20px;
+	padding: 16px 20px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -162,6 +162,14 @@
 	line-height: 1.5em;
 }
 
+.interactive-item-container .value .rendered-markdown ul {
+	padding-inline-start: 24px;
+}
+
+.interactive-item-container .value .rendered-markdown ol {
+	padding-inline-start: 28px;
+}
+
 .interactive-item-container .value .rendered-markdown li {
 	line-height: 1.3rem;
 }
@@ -177,7 +185,7 @@
 }
 
 .interactive-item-container.interactive-item-compact {
-	padding: 8px 20px 0 20px;
+	padding: 8px 20px;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -271,6 +279,9 @@
 	margin: 0 0 8px 0;
 }
 
+.interactive-item-container .interactive-result-code-block .monaco-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: unset;
+}
 
 .interactive-response .interactive-response-error-details {
 	display: flex;
@@ -457,6 +468,7 @@
 	font-size: 12px;
 	color: var(--vscode-foreground);
 	opacity: 0.8;
+	user-select: none;
 }
 
 .interactive-session .chat-used-context-label:hover {

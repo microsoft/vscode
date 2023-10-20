@@ -1291,27 +1291,21 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
-		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
-		if (this.extensionGalleryService.isEnabled() && toggleData && groups.filter(g => g.extensionInfo).length) {
+		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.workbenchAssignmentService, this.environmentService, this.productService);
+		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const extensionId = key;
-				// Recommend prerelease if not on Stable.
-				const isStable = this.productService.quality === 'stable';
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
-				if (!extension) {
-					continue;
-				}
-
-				let groupTitle: string | undefined;
+				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
 				const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
 				const contributesConfiguration = manifest?.contributes?.configuration;
+
+				let groupTitle: string | undefined;
 				if (!Array.isArray(contributesConfiguration)) {
 					groupTitle = contributesConfiguration?.title;
 				} else if (contributesConfiguration.length === 1) {
 					groupTitle = contributesConfiguration[0].title;
 				}
 
-				const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
+				const extensionName = extension?.displayName ?? extension?.name ?? extension.identifier.id;
 				const settingKey = `${key}.manageExtension`;
 				const setting: ISetting = {
 					range: nullRange,
@@ -1325,7 +1319,7 @@ export class SettingsEditor2 extends EditorPane {
 					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
-					displayExtensionId: extensionId,
+					displayExtensionId: extension.identifier.id,
 					prereleaseExtensionId: key,
 					stableExtensionId: key,
 					extensionGroupTitle: groupTitle ?? extensionName
@@ -1339,7 +1333,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, groups.filter(g => g.extensionInfo)));
 
-		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.environmentService, this.productService);
+		const commonlyUsedDataToUse = getCommonlyUsedData(toggleData);
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 

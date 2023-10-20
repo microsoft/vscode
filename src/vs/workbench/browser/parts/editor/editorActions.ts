@@ -2448,7 +2448,7 @@ export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
 			return;
 		}
 
-		const auxiliaryEditorPart = editorGroupService.createAuxiliaryEditorPart();
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
 		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
 	}
