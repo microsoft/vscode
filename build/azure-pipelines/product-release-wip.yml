@@ -1,22 +1,23 @@
 pool:
-  vmImage: "ubuntu-latest"
+  vmImage: 'windows-latest'
 
 trigger: none
 pr: none
 
 steps:
-  - script: |
-      set -e
-      wget https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -P $(Build.ArtifactStagingDirectory)
-  - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
-    displayName: 'ESRP Release'
-    inputs:
-      ConnectedServiceName: 'VS Code ESRP Release Aug2023 (8d8254b9-c41f-4880-9d98-2c99e7b34743)'
-      Intent: GenerateCdnLink
-      ContentType: 'sw electronic'
-      FolderLocation: '$(Build.ArtifactStagingDirectory)'
-      Owners: 'jomo@microsoft.com'
-      Approvers: 'kamaet@microsoft.com'
-      ServiceEndpointUrl: 'https://api.esrp.microsoft.com'
-      MainPublisher: 'VSCode'
-      DomainTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+      curl -P $(Build.ArtifactStagingDirectory) -O https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz
+
+  # - task: SFP.release-tasks.custom-build-release-task.EsrpRelease@4
+  #   displayName: 'ESRP Release'
+  #   inputs:
+  #     ConnectedServiceName: 'VS Code ESRP Release Aug2023 (8d8254b9-c41f-4880-9d98-2c99e7b34743)'
+  #     Intent: GenerateCdnLink
+  #     ContentType: 'sw electronic'
+  #     FolderLocation: '$(Build.ArtifactStagingDirectory)'
+  #     Owners: 'jomo@microsoft.com'
+  #     Approvers: 'kamaet@microsoft.com'
+  #     ServiceEndpointUrl: 'https://api.esrp.microsoft.com'
+  #     MainPublisher: 'VSCode'
+  #     DomainTenantId: '975f013f-7f24-47e8-a7d3-abc4752bf346'
