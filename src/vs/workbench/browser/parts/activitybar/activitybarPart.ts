@@ -187,8 +187,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		super({
 			...options,
 			fillExtraContextMenuActions: (actions, e) => {
-				this.fillContextMenuActions(actions, e);
 				options.fillExtraContextMenuActions(actions, e);
+				this.fillContextMenuActions(actions, e);
 			}
 		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, contextKeyService, environmentService);
 

@@ -76,7 +76,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
-		@IMenuService private menuService: IMenuService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(
 			Parts.PANEL_PART,
@@ -97,6 +97,7 @@ export class PanelPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			menuService,
 		);
 	}
 
