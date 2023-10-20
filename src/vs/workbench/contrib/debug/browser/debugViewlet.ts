@@ -71,7 +71,7 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.toolBarLocation') || e.affectsConfiguration('debug.showLauncherWhileDebugging')) {
+			if (e.affectsConfiguration('debug.toolBarLocation') || e.affectsConfiguration('debug.hideLauncherWhileDebugging')) {
 				this.updateTitleArea();
 			}
 		}));
@@ -173,7 +173,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 			ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')
 		),
 		ContextKeyExpr.or(
-			ContextKeyExpr.equals('config.debug.showLauncherWhileDebugging', true),
+			ContextKeyExpr.not('config.debug.hideLauncherWhileDebugging'),
 			ContextKeyExpr.not('inDebugMode')
 		)
 	),
@@ -279,7 +279,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
 		CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
 		ContextKeyExpr.or(
 			ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'),
-			ContextKeyExpr.not('config.debug.showLauncherWhileDebugging')
+			ContextKeyExpr.has('config.debug.hideLauncherWhileDebugging')
 		)
 	),
 	order: 10,

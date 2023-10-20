@@ -591,9 +591,9 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('debug.enableStatusBarColor', "Color of the Status bar when debugger is active."),
 			default: true
 		},
-		'debug.showLauncherWhileDebugging': {
+		'debug.hideLauncherWhileDebugging': {
 			type: 'boolean',
-			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.showLauncherWhileDebugging' }, "Continue to show 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Ignored if `{0}` is `docked`.", '#debug.toolBarLocation#'),
+			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.hideLauncherWhileDebugging' }, "Hide 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Only relevant when `{0}` is not `docked`.", '#debug.toolBarLocation#'),
 			default: false
 		}
 	}
