@@ -184,7 +184,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 			title: localize('quickOpenWithModes', "Quick Open"),
 			icon: Codicon.search,
 			menu: {
-				id: MenuId.CommandCenterCenter,
+				id: MenuId.CommandCenter,
 				order: 100
 			}
 		});
