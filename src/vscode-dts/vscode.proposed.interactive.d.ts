@@ -20,6 +20,7 @@ declare module 'vscode' {
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		input?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
 		message?: string;
@@ -52,6 +53,7 @@ declare module 'vscode' {
 		message?: string;
 		edits?: TextEdit[];
 		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {

@@ -1065,6 +1065,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.paneItems[0].pane.collapsible = true;
 		} else {
 			if (this.paneItems.length === 1) {
+				this.paneItems[0].pane.headerVisible = true;
 				this.paneItems[0].pane.setExpanded(true);
 				this.paneItems[0].pane.collapsible = false;
 			} else {

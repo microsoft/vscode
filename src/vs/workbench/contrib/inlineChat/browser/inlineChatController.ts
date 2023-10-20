@@ -25,7 +25,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { EditResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, MarkdownResponse, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
-import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
+import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -37,6 +37,8 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { MarkdownString } from 'vs/base/common/htmlContent';
+import { MovingAverage } from 'vs/base/common/numbers';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -246,8 +248,8 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 		if (this._activeSession) {
-			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 			widgetPosition = this._strategy?.getWidgetPosition() ?? widgetPosition;
+			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
 		this._zone.value.show(widgetPosition);
 	}
@@ -352,7 +354,7 @@ export class InlineChatController implements IEditorContribution {
 		this._updatePlaceholder();
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
-		this._zone.value.widget.value = this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
+		this._zone.value.widget.value = this._activeSession.session.input ?? this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
 		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
 			const start = this._zone.value.position;
 			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
@@ -489,7 +491,7 @@ export class InlineChatController implements IEditorContribution {
 			if (lastExchange.response instanceof EditResponse) {
 				try {
 					this._ignoreModelContentChanged = true;
-					await this._strategy.undoChanges(lastExchange.response);
+					await this._strategy.undoChanges(lastExchange.response.modelAltVersionId);
 				} finally {
 					this._ignoreModelContentChanged = false;
 				}
@@ -551,7 +553,13 @@ export class InlineChatController implements IEditorContribution {
 		};
 		this._chatAccessibilityService.acceptRequest();
 
+		const modelAltVersionIdNow = this._activeSession.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
+		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+
+		const avgDuration = new MovingAverage();
+		let round = 0;
+		let t1 = Date.now();
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
 			if (data.message) {
@@ -569,8 +577,15 @@ export class InlineChatController implements IEditorContribution {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
 				progressEdits.push(data.edits);
-				await this._makeChanges(data.edits, true);
-				await this._strategy?.renderProgressChanges();
+				avgDuration.update(Date.now() - t1);
+				await this._makeChanges(data.edits, true, { duration: avgDuration.value, round: round++ });
+				t1 = Date.now(); // don't measure how long `_makeChanges` takes
+				// TODO@jrieken this still isn't the true speed because the progress itself is async which
+				// makes an artifical queue, so that towards the end duration (now() -t1) is almost 0
+			}
+			if (data.markdownFragment) {
+				markdownContents.appendMarkdown(data.markdownFragment);
+				this._zone.value.widget.updateMarkdownMessage(markdownContents);
 			}
 		});
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
@@ -588,11 +603,12 @@ export class InlineChatController implements IEditorContribution {
 			await progress.drain();
 
 			if (reply?.type === InlineChatResponseType.Message) {
-				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply);
+				markdownContents.appendMarkdown(reply.message.value);
+				response = new MarkdownResponse(this._activeSession.textModelN.uri, reply, markdownContents);
 			} else if (reply) {
-				const editResponse = new EditResponse(this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), reply, progressEdits);
+				const editResponse = new EditResponse(this._activeSession.textModelN.uri, modelAltVersionIdNow, reply, progressEdits);
 				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
-					await this._makeChanges(editResponse.allLocalEdits[i], true);
+					await this._makeChanges(editResponse.allLocalEdits[i], true, undefined);
 				}
 				response = editResponse;
 			} else {
@@ -601,14 +617,16 @@ export class InlineChatController implements IEditorContribution {
 
 		} catch (e) {
 			response = new ErrorResponse(e);
-
 		} finally {
 			this._ctxHasActiveRequest.set(false);
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
 			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
+		}
 
+		if (request.live && !(response instanceof EditResponse)) {
+			this._strategy?.undoChanges(modelAltVersionIdNow);
 		}
 
 		requestCts.dispose();
@@ -645,7 +663,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _makeChanges(lastEdits: TextEdit[], computeMoreMinimalEdits: boolean) {
+	private async _makeChanges(lastEdits: TextEdit[], computeMoreMinimalEdits: boolean, opts: ProgressingEditsOptions | undefined) {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -662,7 +680,11 @@ export class InlineChatController implements IEditorContribution {
 		try {
 			this._ignoreModelContentChanged = true;
 			this._activeSession.wholeRange.trackEdits(editOperations);
-			await this._strategy.makeChanges(editOperations);
+			if (opts) {
+				await this._strategy.makeProgressiveChanges(editOperations, opts);
+			} else {
+				await this._strategy.makeChanges(editOperations);
+			}
 			this._ctxDidEdit.set(this._activeSession.hasChangedText);
 		} finally {
 			this._ignoreModelContentChanged = false;
@@ -716,7 +738,7 @@ export class InlineChatController implements IEditorContribution {
 			// clear status, show MD message
 
 			this._zone.value.widget.updateStatus('');
-			const content = this._zone.value.widget.updateMarkdownMessage(response.raw.message);
+			const content = this._zone.value.widget.updateMarkdownMessage(response.mdContent);
 			this._zone.value.widget.updateToolbar(true);
 			if (content) {
 				status = localize('markdownResponseMessage', "{0}", content);
@@ -733,7 +755,7 @@ export class InlineChatController implements IEditorContribution {
 				this._chatAccessibilityService.acceptResponse();
 				return State.CANCEL;
 			}
-			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Use tab to navigate to the diff editor and review proposed changes.") : '';
+			status = this._configurationService.getValue('accessibility.verbosity.inlineChat') === true ? localize('editResponseMessage', "Review proposed changes in the diff editor.") : '';
 			await this._strategy.renderChanges(response);
 		}
 		this._chatAccessibilityService.acceptResponse(status);
@@ -862,7 +884,7 @@ export class InlineChatController implements IEditorContribution {
 
 	viewInChat() {
 		if (this._activeSession?.lastExchange?.response instanceof MarkdownResponse) {
-			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt.value, this._activeSession.lastExchange.response.raw.message.value);
+			this._instaService.invokeFunction(showMessageResponse, this._activeSession.lastExchange.prompt.value, this._activeSession.lastExchange.response.mdContent.value);
 		}
 	}
 

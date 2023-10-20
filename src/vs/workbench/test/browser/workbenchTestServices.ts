@@ -869,7 +869,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	readonly activePart = this;
 	readonly mainPart = this;
 	registerEditorPart(part: any): IDisposable { return Disposable.None; }
-	createAuxiliaryEditorPart(): IAuxiliaryEditorPart { throw new Error('Method not implemented.'); }
+	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> { throw new Error('Method not implemented.'); }
 }
 
 export class TestEditorGroupView implements IEditorGroupView {
@@ -1754,7 +1754,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 		return Disposable.None;
 	}
 
-	createAuxiliaryEditorPart(): IAuxiliaryEditorPart {
+	createAuxiliaryEditorPart(): Promise<IAuxiliaryEditorPart> {
 		throw new Error('Method not implemented.');
 	}
 
