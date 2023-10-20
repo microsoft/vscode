@@ -1086,9 +1086,13 @@ const getNativeFileUri = (file: File) => {
 	return URI.file(file.path);
 };
 
+const hasPath = (file: File) => {
+	return file.path;
+};
+
 const getNativeFileUris = (files: FileList): readonly URI[] => {
 	const filesArray = [...files];
-	return filesArray.map(getNativeFileUri);
+	return filesArray.filter(hasPath).map(getNativeFileUri);
 };
 
 
