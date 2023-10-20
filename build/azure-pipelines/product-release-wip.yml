@@ -41,17 +41,17 @@ steps:
 
       $Auth = Create-TmpJson @{
         Version = "1.0.0"
-        AuthenticationType = "CERT"
+        AuthenticationType = "AAD_CERT"
         TenantId = "975f013f-7f24-47e8-a7d3-abc4752bf346"
         ClientId = "c24324f7-e65f-4c45-8702-ed2d4c35df99"
         AuthCert = @{
-          SubjectName = $CertCollection[0].Subject
+          SubjectName = "CN=vscode-esrp"
           StoreLocation = "LocalMachine"
           StoreName = "My"
           SendX5c = "true"
         }
         RequestSigningCert = @{
-          SubjectName = $CertCollection[1].Subject
+          SubjectName = "CN=c24324f7-e65f-4c45-8702-ed2d4c35df99"
           StoreLocation = "LocalMachine"
           StoreName = "My"
         }
