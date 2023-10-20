@@ -494,8 +494,18 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], timings: { duration: number; round: number }): Promise<void> {
-		await super.makeProgressiveChanges(edits, timings);
-		await this._renderDiffZones();
+
+		const changeTask = super.makeProgressiveChanges(edits, timings);
+
+		//add a listener that shows the diff zones as soon as the first edit is applied
+		let renderTask = Promise.resolve();
+		const changeListener = this._session.textModelN.onDidChangeContent(() => {
+			changeListener.dispose();
+			renderTask = this._renderDiffZones();
+		});
+		await changeTask;
+		await renderTask;
+		changeListener.dispose();
 	}
 
 	override async renderChanges(response: EditResponse) {
