@@ -1197,7 +1197,7 @@ export class EditorPart extends Part implements IEditorPart {
 			this._onDidMaximizeGroup.fire({ group: e.view, maximized: e.maximized });
 		}));
 
-		if (this.isGroupMaximized(this.activeGroup)) {
+		if (this.activeGroup && this.isGroupMaximized(this.activeGroup)) {
 			this._onDidMaximizeGroup.fire({ group: this.activeGroup, maximized: true });
 		}
 
