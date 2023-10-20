@@ -1158,7 +1158,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				return groupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder }, hasMaximizedView: serializedGrid.hasMaximizedView });
+		}, { styles: { separatorBorder: this.gridSeparatorBorder }, maximizedView: serializedGrid.maximizedView });
 
 		// If the active group was not found when restoring the grid
 		// make sure to make at least one group active. We always need

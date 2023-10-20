@@ -211,7 +211,7 @@ export interface IGridOptions extends IGridViewOptions {
 	/**
 	 * Whether a view is maximized.
 	 */
-	hasMaximizedView?: boolean;
+	maximizedView?: GridLocation;
 }
 
 /**
@@ -310,13 +310,11 @@ export class Grid<T extends IView = IView> extends Disposable {
 		if (view instanceof GridView) {
 			this.gridview = view;
 			this.gridview.getViewMap(this.views);
-			if (options.hasMaximizedView) {
-				for (const view of this.views.keys()) {
-					if (this.isViewVisible(view)) {
-						this.maximizedView = view;
-						break;
-					}
-				}
+			// retrieve the maximized view if available
+			if (options.maximizedView) {
+				const root = this.getViews();
+				const maximizedNode = getGridNode(root, options.maximizedView);
+				this.maximizedView = !isGridBranchNode(maximizedNode) ? maximizedNode.view : undefined;
 			}
 		} else {
 			this.gridview = new GridView(options);
@@ -764,7 +762,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 			.map(node => node.view);
 	}
 
-	private getViewLocation(view: T): GridLocation {
+	protected getViewLocation(view: T): GridLocation {
 		const element = this.views.get(view);
 
 		if (!element) {
@@ -837,7 +835,7 @@ export interface ISerializedGrid {
 	orientation: Orientation;
 	width: number;
 	height: number;
-	hasMaximizedView?: boolean;
+	maximizedView?: GridLocation | undefined;
 }
 
 /**
@@ -910,7 +908,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			orientation: this.orientation,
 			width: this.width,
 			height: this.height,
-			hasMaximizedView: !!this.maximizedView
+			maximizedView: this.maximizedView ? this.getViewLocation(this.maximizedView) : undefined
 		};
 	}
 
