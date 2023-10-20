@@ -27,6 +27,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly onWillLayout: Event<Dimension>;
 	readonly onDidClose: Event<void>;
 
+	readonly window: Window & typeof globalThis;
 	readonly container: HTMLElement;
 
 	layout(): void;
@@ -52,6 +53,7 @@ export class BrowserAuxiliaryWindowService implements IAuxiliaryWindowService {
 		const { container, onWillLayout, onDidClose } = this.create(auxiliaryWindow, disposables);
 
 		return {
+			window: auxiliaryWindow,
 			container,
 			onWillLayout: onWillLayout.event,
 			onDidClose: onDidClose.event,

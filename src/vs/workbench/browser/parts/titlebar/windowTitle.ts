@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { template } from 'vs/base/common/labels';
 import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
@@ -51,18 +51,23 @@ export class WindowTitle extends Disposable {
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
 
+	private readonly editorService: IEditorService;
+
 	constructor(
+		private readonly targetWindow: Window & typeof globalThis,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
+
+		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
 
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
@@ -140,7 +145,7 @@ export class WindowTitle extends Disposable {
 				nativeTitle = this.productService.nameLong;
 			}
 
-			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -148,10 +153,10 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
 
-			window.document.title = nativeTitle;
+			this.targetWindow.document.title = nativeTitle;
 			this.title = title;
 
 			this.onDidChangeEmitter.fire();

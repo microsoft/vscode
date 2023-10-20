@@ -104,7 +104,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IHoverService hoverService: IHoverService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
+		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, window, 'main'));
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
