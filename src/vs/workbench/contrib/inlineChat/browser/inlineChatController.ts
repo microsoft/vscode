@@ -605,8 +605,10 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
-			// we must wait for all edits that came in via progress to complete
-			await Event.toPromise(progressiveEditsQueue.onDrained);
+			if (progressiveEditsQueue.size > 0) {
+				// we must wait for all edits that came in via progress to complete
+				await Event.toPromise(progressiveEditsQueue.onDrained);
+			}
 			await progress.drain();
 
 			if (reply?.type === InlineChatResponseType.Message) {
