@@ -8,7 +8,7 @@ import { Barrier, Queue, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -39,6 +39,8 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MovingAverage } from 'vs/base/common/numbers';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -92,12 +94,12 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
 
-	// private static _decoBlock = ModelDecorationOptions.register({
-	// 	description: 'inline-chat',
-	// 	showIfCollapsed: false,
-	// 	isWholeLine: true,
-	// 	className: 'inline-chat-block-selection',
-	// });
+	private static _decoBlock = ModelDecorationOptions.register({
+		description: 'inline-chat',
+		showIfCollapsed: false,
+		isWholeLine: true,
+		className: 'inline-chat-block-selection',
+	});
 
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
@@ -233,24 +235,25 @@ export class InlineChatController implements IEditorContribution {
 	private _showWidget(initialRender: boolean = false, position?: IPosition) {
 		assertType(this._editor.hasModel());
 
-		let widgetPosition: Position;
+		let widgetPosition = position
+			? Position.lift(position)
+			: this._zone.value.position ?? this._editor.getSelection().getStartPosition().delta(-1);
+
+		let needsMargin = false;
 		if (initialRender) {
-			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getStartPosition().delta(-1);
 			this._zone.value.setContainerMargins();
-			this._zone.value.setWidgetMargins(widgetPosition);
-		} else {
-			assertType(this._activeSession);
-			assertType(this._strategy);
-			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getStartPosition();
-			const needsMargin = this._strategy.needsMargin();
-			if (!needsMargin) {
-				this._zone.value.setWidgetMargins(widgetPosition, 0);
-			}
+		}
+
+		if (this._activeSession && this._activeSession.hasChangedText) {
+			widgetPosition = this._activeSession.wholeRange.value.getStartPosition().delta(-1);
 		}
 		if (this._activeSession) {
-			widgetPosition = this._strategy?.getWidgetPosition() ?? widgetPosition;
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
+		if (this._strategy) {
+			needsMargin = this._strategy.needsMargin();
+		}
+		this._zone.value.setWidgetMargins(widgetPosition, !needsMargin ? 0 : undefined);
 		this._zone.value.show(widgetPosition);
 	}
 
@@ -333,22 +336,22 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
-		// const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		// const updateWholeRangeDecoration = () => {
+		const wholeRangeDecoration = this._editor.createDecorationsCollection();
+		const updateWholeRangeDecoration = () => {
 
-		// 	const range = this._activeSession!.wholeRange.value;
-		// 	const decorations: IModelDeltaDecoration[] = [];
-		// 	if (!range.isEmpty()) {
-		// 		decorations.push({
-		// 			range,
-		// 			options: InlineChatController._decoBlock
-		// 		});
-		// 	}
-		// 	wholeRangeDecoration.set(decorations);
-		// };
-		// this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
-		// this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
-		// updateWholeRangeDecoration();
+			const range = this._activeSession!.wholeRange.value;
+			const decorations: IModelDeltaDecoration[] = [];
+			if (!range.isEmpty()) {
+				decorations.push({
+					range,
+					options: InlineChatController._decoBlock
+				});
+			}
+			wholeRangeDecoration.set(decorations);
+		};
+		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
+		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
+		updateWholeRangeDecoration();
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._updatePlaceholder();

@@ -51,8 +51,6 @@ export abstract class EditModeStrategy {
 
 	abstract hasFocus(): boolean;
 
-	abstract getWidgetPosition(): Position | undefined;
-
 	abstract needsMargin(): boolean;
 }
 
@@ -146,10 +144,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		} else {
 			this._widget.hideCreatePreview();
 		}
-	}
-
-	getWidgetPosition(): Position | undefined {
-		return;
 	}
 
 	hasFocus(): boolean {
@@ -379,10 +373,6 @@ export class LiveStrategy extends EditModeStrategy {
 		this._widget.updateStatus(message);
 	}
 
-	override getWidgetPosition(): Position | undefined {
-		return undefined;
-	}
-
 	override needsMargin(): boolean {
 		return true;
 	}
@@ -440,7 +430,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			const change = diff.changes[i];
 
 			// everything below the original start line is one group
-			if (change.original.startLineNumber >= originalStartLineNumber) {
+			if (change.original.startLineNumber >= originalStartLineNumber || 'true') { // TODO@jrieken be smarter and fix this
 				mainGroup.push(change);
 				continue;
 			}
@@ -513,7 +503,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		await this._renderDiffZones();
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToStart(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -521,23 +511,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override hasFocus(): boolean {
 		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
-	}
-
-	override getWidgetPosition(): Position | undefined {
-		for (let i = this._diffZonePool.length - 1; i >= 0; i--) {
-			const zone = this._diffZonePool[i];
-			if (zone.isVisible) {
-				// above last view zone
-				if (zone.position) {
-					// can be undefined when the zone isn't attached yet
-					return zone.position;
-				}
-				if (zone.startLine) {
-					return new Position(zone.startLine, 1);
-				}
-			}
-		}
-		return undefined;
 	}
 }
 
