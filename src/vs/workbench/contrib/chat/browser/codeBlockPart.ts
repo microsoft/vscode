@@ -93,21 +93,9 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 	) {
 		super();
 		this.element = $('.interactive-result-code-block');
+
 		this.contextKeyService = this._register(contextKeyService.createScoped(this.element));
 		const scopedInstantiationService = instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
-		this.toolbar = this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, this.element, menuId, {
-			menuOptions: {
-				shouldForwardArgs: true
-			}
-		}));
-
-		this._configureForScreenReader();
-		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
-		this._register(this.configurationService.onDidChangeConfiguration((e) => {
-			if (e.affectedKeys.has(AccessibilityVerbositySettingId.Chat)) {
-				this._configureForScreenReader();
-			}
-		}));
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
@@ -136,6 +124,23 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 			])
+		}));
+
+		const toolbarElement = dom.append(this.element, $('.interactive-result-code-block-toolbar'));
+		const editorScopedService = this.editor.contextKeyService.createScoped(toolbarElement);
+		const editorScopedInstantiationService = scopedInstantiationService.createChild(new ServiceCollection([IContextKeyService, editorScopedService]));
+		this.toolbar = this._register(editorScopedInstantiationService.createInstance(MenuWorkbenchToolBar, toolbarElement, menuId, {
+			menuOptions: {
+				shouldForwardArgs: true
+			}
+		}));
+
+		this._configureForScreenReader();
+		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
+		this._register(this.configurationService.onDidChangeConfiguration((e) => {
+			if (e.affectedKeys.has(AccessibilityVerbositySettingId.Chat)) {
+				this._configureForScreenReader();
+			}
 		}));
 
 		this._register(this.options.onDidChange(() => {
