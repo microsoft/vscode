@@ -93,7 +93,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 	private registerListeners(): void {
 
 		// Editor & group changes
-		if (this.editorGroupsContainer === this.editorGroupService.mainPart) {
+		if (this.editorGroupsContainer === this.editorGroupService.mainPart || this.editorGroupsContainer === this.editorGroupService) {
 			this.editorGroupService.mainPart.whenReady.then(() => this.onEditorGroupsReady());
 		} else {
 			this.onEditorGroupsReady();

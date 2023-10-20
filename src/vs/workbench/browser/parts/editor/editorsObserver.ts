@@ -459,7 +459,7 @@ export class EditorsObserver extends Disposable {
 	}
 
 	private async loadState(): Promise<void> {
-		if (this.editorGroupsContainer === this.editorGroupService.mainPart) {
+		if (this.editorGroupsContainer === this.editorGroupService.mainPart || this.editorGroupsContainer === this.editorGroupService) {
 			await this.editorGroupService.mainPart.whenReady;
 		}
 
