@@ -70,11 +70,11 @@ steps:
               ReleaseContentType = "InstallPackage"
             }
             MinimumNumberOfApprovers = 1
-            ProductInfo = @{
-              Name = "VS Code"
-              Version = "e7e037083ff4455cf320e344325dacb480062c3c"
-              Description = "vscode_cli_linux_x64_cli"
-            }
+          }
+          ProductInfo = @{
+            Name = "VS Code"
+            Version = "e7e037083ff4455cf320e344325dacb480062c3c"
+            Description = "vscode_cli_linux_x64_cli"
           }
           Owners = @(
             @{
