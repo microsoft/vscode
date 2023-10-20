@@ -92,6 +92,9 @@ steps:
               IsMandatory = $false
             }
           )
+          AccessPermissions = @{
+            MainPublisher = "VSCode"
+          }
           CreatedBy = @{
             UserPrincipalName = "jomo@microsoft.com"
           }
