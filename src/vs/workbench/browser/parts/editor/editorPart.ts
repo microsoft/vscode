@@ -18,7 +18,7 @@ import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
 import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IDisposable, dispose, toDisposable, DisposableStore, Disposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { ISerializedEditorGroupModel, isSerializedEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
@@ -101,7 +101,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
-	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<boolean>());
 	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
 
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
@@ -142,8 +142,6 @@ export class EditorPart extends Part implements IEditorPart {
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
 	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
-
-	private unmaximizeViwHandler: IDisposable = Disposable.None;
 
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
@@ -378,7 +376,8 @@ export class EditorPart extends Part implements IEditorPart {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.unmaximizeViwHandler = this.gridWidget.maximizeView(target);
+				this.gridWidget.maximizeView(target);
+				this.doSetGroupActive(target);
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -403,8 +402,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private unmaximizeGroup(): void {
-		this.unmaximizeViwHandler.dispose();
-		this.unmaximizeViwHandler = Disposable.None;
+		this.gridWidget.exitMaximizedView();
 	}
 
 	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
@@ -1181,14 +1179,10 @@ export class EditorPart extends Part implements IEditorPart {
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
 		this.gridWidgetDisposables.clear();
-		this.gridWidgetDisposables.add(gridWidget.onDidMaximizeGroup(e => {
-			this.doSetGroupActive(e.view);
-			this._onDidChangeGroupMaximized.fire({ group: e.view, maximized: e.maximized });
-		}));
+		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		if (this.activeGroup && this.isGroupMaximized(this.activeGroup)) {
-			this.unmaximizeViwHandler = this.gridWidget.maximizeView(this.activeGroup);
-			this._onDidChangeGroupMaximized.fire({ group: this.activeGroup, maximized: true });
+			this._onDidChangeGroupMaximized.fire(true);
 		}
 
 		this.onDidSetGridWidget.fire(undefined);

@@ -486,7 +486,7 @@ suite('Grid', function () {
 		const size3 = view3.size;
 		const size4 = view4.size;
 
-		const disposableMaximizedView1 = grid.maximizeView(view1);
+		grid.maximizeView(view1);
 
 		// Views 2, 3, 4 are hidden
 		// Splitview (2,4) and ((2,4),3) are hidden
@@ -495,7 +495,7 @@ suite('Grid', function () {
 		assert.deepStrictEqual(view3.size, [0, 0]);
 		assert.deepStrictEqual(view4.size, [0, 0]);
 
-		disposableMaximizedView1.dispose();
+		grid.exitMaximizedView();
 
 		assert.deepStrictEqual(view1.size, size1);
 		assert.deepStrictEqual(view2.size, size2);
@@ -504,14 +504,14 @@ suite('Grid', function () {
 
 		// Views 1, 3, 4 are hidden
 		// All splitviews are still visible => only orthogonalsize is 0
-		const disposableMaximizedView2 = grid.maximizeView(view2);
+		grid.maximizeView(view2);
 
 		assert.deepStrictEqual(view1.size, [0, 600]);
 		assert.deepStrictEqual(view2.size, [800, 600]);
 		assert.deepStrictEqual(view3.size, [800, 0]);
 		assert.deepStrictEqual(view4.size, [0, 600]);
 
-		disposableMaximizedView2.dispose();
+		grid.exitMaximizedView();
 
 		assert.deepStrictEqual(view1.size, size1);
 		assert.deepStrictEqual(view2.size, size2);
@@ -536,7 +536,7 @@ suite('Grid', function () {
 		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
 
 		function checkIsMaximized(view: TestView) {
-			const disposableMaximizedView = grid.maximizeView(view);
+			grid.maximizeView(view);
 
 			assert.deepStrictEqual(grid.isViewMaximized(view1), view1 === view);
 			assert.deepStrictEqual(grid.isViewMaximized(view2), view2 === view);
@@ -549,7 +549,7 @@ suite('Grid', function () {
 			assert.deepStrictEqual(grid.isViewExpanded(view3), false);
 			assert.deepStrictEqual(grid.isViewExpanded(view4), false);
 
-			disposableMaximizedView.dispose();
+			grid.exitMaximizedView();
 
 			assert.deepStrictEqual(grid.isViewMaximized(view1), false);
 			assert.deepStrictEqual(grid.isViewMaximized(view2), false);

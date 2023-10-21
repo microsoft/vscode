@@ -235,7 +235,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.updateEditorGroupContextKeys()));
 		this._register(this.editorGroupService.onDidChangeGroupLocked(() => this.updateEditorGroupContextKeys()));
 
-		this._register(this.editorGroupService.onDidChangeGroupMaximized(({ maximized }) => this.maximizedEditorGroupContext.set(maximized)));
+		this._register(this.editorGroupService.onDidChangeGroupMaximized((maximized) => this.maximizedEditorGroupContext.set(maximized)));
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 

@@ -6,7 +6,7 @@
 import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { equals, tail2 as tail } from 'vs/base/common/arrays';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, toDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
 import type { SplitView, AutoSizing as SplitViewAutoSizing } from 'vs/base/browser/ui/splitview/splitview';
@@ -51,6 +51,7 @@ export interface GridLeafNode<T extends IView> {
 	readonly view: T;
 	readonly box: Box;
 	readonly cachedVisibleSize: number | undefined;
+	readonly maximized: boolean;
 }
 
 export interface GridBranchNode<T extends IView> {
@@ -207,12 +208,7 @@ export namespace Sizing {
 }
 
 export interface IGridStyles extends IGridViewStyles { }
-export interface IGridOptions extends IGridViewOptions {
-	/**
-	 * Whether a view is maximized.
-	 */
-	maximizedView?: GridLocation;
-}
+export interface IGridOptions extends IGridViewOptions { }
 
 /**
  * The {@link Grid} exposes a Grid widget in a friendlier API than the underlying
@@ -293,10 +289,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	private didLayout = false;
 
-	protected maximizedView: T | undefined = undefined;
-
-	private readonly _onDidMaximizeGroup = this._register(new Emitter<{ view: T; maximized: boolean }>());
-	readonly onDidMaximizeGroup = this._onDidMaximizeGroup.event;
+	private readonly _onDidChangeViewMaximized = this._register(new Emitter<boolean>());
+	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
 
 	/**
 	 * Create a new {@link Grid}. A grid must *always* have a view
@@ -310,12 +304,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 		if (view instanceof GridView) {
 			this.gridview = view;
 			this.gridview.getViewMap(this.views);
-			// retrieve the maximized view if available
-			if (options.maximizedView) {
-				const root = this.getViews();
-				const maximizedNode = getGridNode(root, options.maximizedView);
-				this.maximizedView = !isGridBranchNode(maximizedNode) ? maximizedNode.view : undefined;
-			}
 		} else {
 			this.gridview = new GridView(options);
 		}
@@ -327,6 +315,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 			this._addView(view, 0, [0]);
 		}
 
+		this.onDidChangeViewMaximized = this.gridview.onDidChangeViewMaximized;
 		this.onDidChange = this.gridview.onDidChange;
 		this.onDidScroll = this.gridview.onDidScroll;
 	}
@@ -401,10 +390,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 			throw new Error('Can\'t add same view twice');
 		}
 
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const orientation = getDirectionOrientation(direction);
 
 		if (this.views.size === 1 && this.orientation !== orientation) {
@@ -467,10 +452,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 			throw new Error('Can\'t remove last view');
 		}
 
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const location = this.getViewLocation(view);
 
 		let gridViewSizing: DistributeSizing | SplitViewAutoSizing | undefined;
@@ -497,10 +478,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param direction The direction the view should be placed next to the reference view.
 	 */
 	moveView(view: T, sizing: number | Sizing, referenceView: T, direction: Direction): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const sourceLocation = this.getViewLocation(view);
 		const [sourceParentLocation, from] = tail(sourceLocation);
 
@@ -526,10 +503,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param location The {@link GridLocation location} to insert the view on.
 	 */
 	moveViewTo(view: T, location: GridLocation): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const sourceLocation = this.getViewLocation(view);
 		const [sourceParentLocation, from] = tail(sourceLocation);
 		const [targetParentLocation, to] = tail(location);
@@ -556,10 +529,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param to Another {@link IView view}.
 	 */
 	swapViews(from: T, to: T): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const fromLocation = this.getViewLocation(from);
 		const toLocation = this.getViewLocation(to);
 		return this.gridview.swapViews(fromLocation, toLocation);
@@ -582,10 +551,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The reference {@link IView view}.
 	 */
 	isViewExpanded(view: T): boolean {
-		if (this.maximizedView) {
-			// No view can be expanded when a view is maximized
-			return false;
-		}
 		const location = this.getViewLocation(view);
 		return this.gridview.isViewExpanded(location);
 	}
@@ -596,7 +561,8 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The reference {@link IView view}.
 	 */
 	isViewMaximized(view: T): boolean {
-		return view === this.maximizedView;
+		const location = this.getViewLocation(view);
+		return this.gridview.isViewMaximized(location);
 	}
 
 	/**
@@ -629,44 +595,16 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * Maximizes the specified view and hides all other views.
 	 * @param view The view to maximize.
 	 */
-	maximizeView(view: T): IDisposable {
+	maximizeView(view: T) {
 		if (this.views.size < 2) {
 			throw new Error('At least two views are required to maximize a view');
 		}
-		if (this.maximizedView === view) {
-			return toDisposable(() => this.unmaximizeView());
-		}
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
-		for (const otherView of this.views.keys()) {
-			if (view !== otherView) {
-				this.setViewVisible(otherView, false);
-			}
-		}
-
-		this.maximizedView = view;
-		this._onDidMaximizeGroup.fire({ view, maximized: true });
-
-		return toDisposable(() => this.unmaximizeView());
+		const location = this.getViewLocation(view);
+		this.gridview.maximizeView(location);
 	}
 
-	private unmaximizeView(): void {
-		if (!this.maximizedView) {
-			return;
-		}
-
-		const previousMaximizedView = this.maximizedView;
-		this.maximizedView = undefined;
-
-		// When hiding a view, it's previous size is cached.
-		// To restore the sizes of all views, they need to be made visible in reverse order.
-		for (const view of [...this.views.keys()].reverse()) {
-			this.setViewVisible(view, true);
-		}
-
-		this._onDidMaximizeGroup.fire({ view: previousMaximizedView, maximized: false });
+	exitMaximizedView(): void {
+		this.gridview.exitMaximizedView();
 	}
 
 	/**
@@ -676,10 +614,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The {@link IView view}.
 	 */
 	expandView(view: T): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		const location = this.getViewLocation(view);
 		this.gridview.expandView(location);
 	}
@@ -689,10 +623,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * grid or within a single {@link SplitView}.
 	 */
 	distributeViewSizes(): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-		}
-
 		this.gridview.distributeViewSizes();
 	}
 
@@ -712,10 +642,6 @@ export class Grid<T extends IView = IView> extends Disposable {
 	 * @param view The {@link IView view}.
 	 */
 	setViewVisible(view: T, visible: boolean): void {
-		if (this.maximizedView) {
-			this.unmaximizeView();
-			return;
-		}
 		const location = this.getViewLocation(view);
 		this.gridview.setViewVisible(location, visible);
 	}
@@ -761,7 +687,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 			.map(node => node.view);
 	}
 
-	protected getViewLocation(view: T): GridLocation {
+	private getViewLocation(view: T): GridLocation {
 		const element = this.views.get(view);
 
 		if (!element) {
@@ -818,6 +744,7 @@ export interface ISerializedLeafNode {
 	data: any;
 	size: number;
 	visible?: boolean;
+	maximized?: boolean;
 }
 
 export interface ISerializedBranchNode {
@@ -834,7 +761,6 @@ export interface ISerializedGrid {
 	orientation: Orientation;
 	width: number;
 	height: number;
-	maximizedView?: GridLocation | undefined;
 }
 
 /**
@@ -846,11 +772,16 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const size = orientation === Orientation.VERTICAL ? node.box.width : node.box.height;
 
 		if (!isGridBranchNode(node)) {
+			const serializedLeafNode: ISerializedLeafNode = { type: 'leaf', data: node.view.toJSON(), size };
+
 			if (typeof node.cachedVisibleSize === 'number') {
-				return { type: 'leaf', data: node.view.toJSON(), size: node.cachedVisibleSize, visible: false };
+				serializedLeafNode.size = node.cachedVisibleSize;
+				serializedLeafNode.visible = false;
+			} else if (node.maximized) {
+				serializedLeafNode.maximized = true;
 			}
 
-			return { type: 'leaf', data: node.view.toJSON(), size };
+			return serializedLeafNode;
 		}
 
 		const data = node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation)));
@@ -906,8 +837,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			root: SerializableGrid.serializeNode(this.getViews(), this.orientation),
 			orientation: this.orientation,
 			width: this.width,
-			height: this.height,
-			maximizedView: this.maximizedView ? this.getViewLocation(this.maximizedView) : undefined
+			height: this.height
 		};
 	}
 

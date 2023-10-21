@@ -1732,10 +1732,8 @@ suite('EditorGroupsService', () => {
 		const sizeRightGroup = part.getSize(rightGroup);
 		const sizeRightBottomGroup = part.getSize(rightBottomGroup);
 
-		let maxmizedGroup;
 		let maximizedValue;
-		const maxiizeGroupEventDisposable = part.onDidChangeGroupMaximized(({ group, maximized }) => {
-			maxmizedGroup = group;
+		const maxiizeGroupEventDisposable = part.onDidChangeGroupMaximized((maximized) => {
 			maximizedValue = maximized;
 		});
 
@@ -1746,7 +1744,6 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(part.getSize(rightGroup), { width: 0, height: 0 });
 		assert.deepStrictEqual(part.getSize(rightBottomGroup), { width: 0, height: 0 });
 
-		assert.deepStrictEqual(maxmizedGroup, rootGroup);
 		assert.deepStrictEqual(maximizedValue, true);
 
 		part.toggleMaximizeGroup();
@@ -1756,7 +1753,6 @@ suite('EditorGroupsService', () => {
 		assert.deepStrictEqual(part.getSize(rightGroup), sizeRightGroup);
 		assert.deepStrictEqual(part.getSize(rightBottomGroup), sizeRightBottomGroup);
 
-		assert.deepStrictEqual(maxmizedGroup, rootGroup);
 		assert.deepStrictEqual(maximizedValue, false);
 		maxiizeGroupEventDisposable.dispose();
 	});
