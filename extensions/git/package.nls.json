@@ -234,6 +234,8 @@
 	"config.terminalGitEditor": "Controls whether to enable VS Code to be the Git editor for Git processes spawned in the integrated terminal. Note: Terminals need to be restarted to pick up a change in this setting.",
 	"config.timeline.showAuthor": "Controls whether to show the commit author in the Timeline view.",
 	"config.timeline.showUncommitted": "Controls whether to show uncommitted changes in the Timeline view.",
+	"config.trace2.configParamKey": "[The Trace2 API can be used to print debug, performance, and telemetry information](https://git-scm.com/docs/api-trace2). This setting does not enable Trace2, it only sets a [trace2.configParams](https://git-scm.com/docs/git-config#Documentation/git-config.txt-trace2configParams) related value that will be used by all git commands that are invoked by Visual Studio Code.\n\n## Example:\nIf you set Config Param Key to `myprefix.trace2.hello` and Config Param Value to `world`, then all git commands will be invoked as `git -c myprefix.trace2.hello=world ...`.\n\nIf you have enabled Trace2 and ran `git config [--system|--global|--local] trace2.configParams \"myprefix.trace2.*\"` then the Trace2 output should now include `myprefix.trace2.hello=world`.",
+	"config.trace2.configParamValue": "See the description for Config Param Key.",
 	"config.timeline.date": "Controls which date to use for items in the Timeline view.",
 	"config.timeline.date.committed": "Use the committed date",
 	"config.timeline.date.authored": "Use the authored date",

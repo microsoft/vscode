@@ -70,6 +70,7 @@ function findSpecificGit(path: string, onValidate: (path: string) => boolean): P
 		}
 
 		const buffers: Buffer[] = [];
+		// Ideally we should have provided the Git class' trace2Args here.
 		const child = cp.spawn(path, ['--version']);
 		child.stdout.on('data', (b: Buffer) => buffers.push(b));
 		child.on('error', cpErrorHandler(e));
@@ -372,6 +373,7 @@ export class Git {
 	readonly version: string;
 	private env: any;
 	private commandsToLog: string[] = [];
+	private trace2Args: string[] = [];
 
 	private _onOutput = new EventEmitter();
 	get onOutput(): EventEmitter { return this._onOutput; }
@@ -386,6 +388,23 @@ export class Git {
 			if (e === undefined || e.affectsConfiguration('git.commandsToLog')) {
 				const config = workspace.getConfiguration('git');
 				this.commandsToLog = config.get<string[]>('commandsToLog', []);
+			}
+			if (e === undefined || e.affectsConfiguration('git.trace2')) {
+				const config = workspace.getConfiguration('git.trace2');
+				let key = config.get<string>('configParamKey', '').trim();
+				const value = config.get<string>('configParamValue', '').trim();
+
+				// Do not allow invoking `git -c keypart1=keypart2=value ...`.
+				if (key.indexOf('=') >= 0) {
+					// TODO: give some warning.
+					key = '';
+				}
+
+				if (!key || !value) {
+					this.trace2Args = [];
+				} else {
+					this.trace2Args = ['-c', `${key}=${value}`];
+				}
 			}
 		};
 
@@ -566,7 +585,8 @@ export class Git {
 
 	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		options = assign({ cwd }, options || {});
-		const child = this.spawn(args, options);
+		args = [...this.trace2Args, ...args];
+		const child = this.internalSpawn(args, options);
 
 		if (options.log !== false) {
 			const startTime = Date.now();
@@ -579,7 +599,8 @@ export class Git {
 	}
 
 	private async _exec(args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
-		const child = this.spawn(args, options);
+		args = [...this.trace2Args, ...args];
+		const child = this.internalSpawn(args, options);
 
 		options.onSpawn?.(child);
 
@@ -640,6 +661,11 @@ export class Git {
 	}
 
 	spawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
+		args = [...this.trace2Args, ...args];
+		return this.internalSpawn(args, options);
+	}
+
+	private internalSpawn(args: string[], options: SpawnOptions = {}): cp.ChildProcess {
 		if (!this.path) {
 			throw new Error('git could not be found in the system.');
 		}

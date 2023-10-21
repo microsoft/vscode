@@ -2689,6 +2689,18 @@
           "description": "%config.timeline.showUncommitted%",
           "scope": "window"
         },
+        "git.trace2.configParamKey": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "%config.trace2.configParamKey%",
+          "scope": "window"
+        },
+        "git.trace2.configParamValue": {
+          "type": "string",
+          "default": "",
+          "description": "%config.trace2.configParamValue%",
+          "scope": "window"
+        },
         "git.showActionButton": {
           "type": "object",
           "additionalProperties": false,
