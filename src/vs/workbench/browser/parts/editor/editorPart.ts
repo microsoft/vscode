@@ -101,8 +101,8 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
-	private readonly _onDidMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
-	readonly onDidMaximizeGroup = this._onDidMaximizeGroup.event;
+	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
 
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
@@ -140,10 +140,10 @@ export class EditorPart extends Part implements IEditorPart {
 	private centeredLayoutWidget!: CenteredViewLayout;
 
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
-	private gridWidgetDisposables: DisposableStore = this._register(new DisposableStore());
+	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
-	private disposableMaximizedView: IDisposable = Disposable.None;
+	private unmaximizeViwHandler: IDisposable = Disposable.None;
 
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
@@ -378,7 +378,7 @@ export class EditorPart extends Part implements IEditorPart {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.disposableMaximizedView = this.gridWidget.maximizeView(target);
+				this.unmaximizeViwHandler = this.gridWidget.maximizeView(target);
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -403,8 +403,8 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private unmaximizeGroup(): void {
-		this.disposableMaximizedView.dispose();
-		this.disposableMaximizedView = Disposable.None;
+		this.unmaximizeViwHandler.dispose();
+		this.unmaximizeViwHandler = Disposable.None;
 	}
 
 	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
@@ -674,8 +674,6 @@ export class EditorPart extends Part implements IEditorPart {
 			// Expand the group if it is currently minimized
 			this.doRestoreGroup(group);
 
-			this.showActiveEditorGroupsIfHidden();
-
 			// Event
 			this._onDidChangeActiveGroup.fire(group);
 		}
@@ -691,18 +689,6 @@ export class EditorPart extends Part implements IEditorPart {
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.EXPAND, group);
-			}
-		}
-	}
-
-	// If hidden group becomes active, show all groups
-	private showActiveEditorGroupsIfHidden(): void {
-		if (this.gridWidget) {
-			for (const group of this.groups) {
-				if (this.activeGroup !== group && this.isGroupMaximized(group)) {
-					this.toggleMaximizeGroup(group);
-					break;
-				}
 			}
 		}
 	}
@@ -1162,7 +1148,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 				return groupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder }, maximizedView: serializedGrid.maximizedView });
+		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
 
 		// If the active group was not found when restoring the grid
 		// make sure to make at least one group active. We always need
@@ -1196,14 +1182,13 @@ export class EditorPart extends Part implements IEditorPart {
 		this._onDidScroll.input = gridWidget.onDidScroll;
 		this.gridWidgetDisposables.clear();
 		this.gridWidgetDisposables.add(gridWidget.onDidMaximizeGroup(e => {
-			if (this.activeGroup !== e.view) {
-				this.activateGroup(e.view);
-			}
-			this._onDidMaximizeGroup.fire({ group: e.view, maximized: e.maximized });
+			this.doSetGroupActive(e.view);
+			this._onDidChangeGroupMaximized.fire({ group: e.view, maximized: e.maximized });
 		}));
 
 		if (this.activeGroup && this.isGroupMaximized(this.activeGroup)) {
-			this._onDidMaximizeGroup.fire({ group: this.activeGroup, maximized: true });
+			this.unmaximizeViwHandler = this.gridWidget.maximizeView(this.activeGroup);
+			this._onDidChangeGroupMaximized.fire({ group: this.activeGroup, maximized: true });
 		}
 
 		this.onDidSetGridWidget.fire(undefined);

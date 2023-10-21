@@ -216,7 +216,7 @@ export interface IEditorGroupsContainer {
 	/**
 	 * An event for when the locked state of a group changes.
 	 */
-	readonly onDidMaximizeGroup: Event<{ group: IEditorGroup; maximized: boolean }>;
+	readonly onDidChangeGroupMaximized: Event<{ group: IEditorGroup; maximized: boolean }>;
 
 	/**
 	 * An active group is the default location for new editors to open.

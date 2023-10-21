@@ -1734,7 +1734,7 @@ suite('EditorGroupsService', () => {
 
 		let maxmizedGroup;
 		let maximizedValue;
-		const maxiizeGroupEventDisposable = part.onDidMaximizeGroup(({ group, maximized }) => {
+		const maxiizeGroupEventDisposable = part.onDidChangeGroupMaximized(({ group, maximized }) => {
 			maxmizedGroup = group;
 			maximizedValue = maximized;
 		});

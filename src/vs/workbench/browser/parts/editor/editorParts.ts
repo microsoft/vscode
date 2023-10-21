@@ -93,7 +93,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
-		disposables.add(part.onDidMaximizeGroup(group => this._onDidMaximizeGroup.fire(group)));
+		disposables.add(part.onDidChangeGroupMaximized(group => this._onDidChangeGroupMaximized.fire(group)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
@@ -173,8 +173,8 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
-	private readonly _onDidMaximizeGroup = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
-	readonly onDidMaximizeGroup = this._onDidMaximizeGroup.event;
+	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<{ group: IEditorGroupView; maximized: boolean }>());
+	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
 
 	//#endregion
 
