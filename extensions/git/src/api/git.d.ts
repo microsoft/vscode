@@ -303,7 +303,7 @@ export interface BranchProtectionProvider {
 export interface CommitMessageProvider {
 	readonly title: string;
 	readonly icon?: Uri | { light: Uri, dark: Uri } | ThemeIcon;
-	provideCommitMessage(changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
+	provideCommitMessage(repository: Repository, changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
 }
 
 export type APIState = 'uninitialized' | 'initialized';

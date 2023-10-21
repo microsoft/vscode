@@ -2048,7 +2048,7 @@ export class Repository implements Disposable {
 
 			const token = this.generateCommitMessageCancellationTokenSource.token;
 			const provider = this.commitMessageProviderRegistry.commitMessageProvider;
-			const commitMessage = await provider.provideCommitMessage(diff, token);
+			const commitMessage = await provider.provideCommitMessage(new ApiRepository(this), diff, token);
 			if (commitMessage) {
 				this.inputBox.value = commitMessage;
 			}

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, SourceControlInputBoxActionButton, ThemeIcon, l10n } from 'vscode';
-import { CommitMessageProvider, Status } from './api/git';
+import { CommitMessageProvider, Status, Repository as ApiRepository } from './api/git';
 import { Repository } from './repository';
 import { dispose } from './util';
 
@@ -20,7 +20,7 @@ export class TestCommitMessageProvider implements CommitMessageProvider {
 	readonly icon = new ThemeIcon('rocket');
 	readonly title = 'Generate Commit Message (Test)';
 
-	async provideCommitMessage(_: string[], token: CancellationToken): Promise<string | undefined> {
+	async provideCommitMessage(_: ApiRepository, __: string[], token: CancellationToken): Promise<string | undefined> {
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
