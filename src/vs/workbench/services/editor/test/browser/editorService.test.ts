@@ -57,7 +57,7 @@ suite('EditorService', () => {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		testLocalInstantiationService = instantiationService;
@@ -72,23 +72,35 @@ suite('EditorService', () => {
 	test('openEditor() - basics', async () => {
 		const [, service] = await createEditorService();
 
+		await testOpenBasics(service);
+	});
+
+	test('pasero openEditor() - basics (scoped)', async () => {
+		const [part, service] = await createEditorService();
+		const scoped = service.createScoped('main', disposables);
+		await part.whenReady;
+
+		await testOpenBasics(scoped);
+	});
+
+	async function testOpenBasics(service: IEditorService) {
 		let input = createTestFileEditorInput(URI.parse('my://resource-basics'), TEST_EDITOR_INPUT_ID);
 		let otherInput = createTestFileEditorInput(URI.parse('my://resource2-basics'), TEST_EDITOR_INPUT_ID);
 
 		let activeEditorChangeEventCounter = 0;
-		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+		disposables.add(service.onDidActiveEditorChange(() => {
 			activeEditorChangeEventCounter++;
-		});
+		}));
 
 		let visibleEditorChangeEventCounter = 0;
-		const visibleEditorChangeListener = service.onDidVisibleEditorsChange(() => {
+		disposables.add(service.onDidVisibleEditorsChange(() => {
 			visibleEditorChangeEventCounter++;
-		});
+		}));
 
 		let didCloseEditorListenerCounter = 0;
-		const didCloseEditorListener = service.onDidCloseEditor(() => {
+		disposables.add(service.onDidCloseEditor(() => {
 			didCloseEditorListenerCounter++;
-		});
+		}));
 
 		// Open input
 		let editor = await service.openEditor(input, { pinned: true });
@@ -170,11 +182,7 @@ suite('EditorService', () => {
 		assert.strictEqual(mruEditorsExcludingSticky.length, 2);
 		assert.strictEqual(input, sequentialEditorsExcludingSticky[0].editor);
 		assert.strictEqual(otherInput, sequentialEditorsExcludingSticky[1].editor);
-
-		activeEditorChangeListener.dispose();
-		visibleEditorChangeListener.dispose();
-		didCloseEditorListener.dispose();
-	});
+	}
 
 	test('openEditor() - multiple calls are cancelled and indicated as such', async () => {
 		const [, service] = await createEditorService();

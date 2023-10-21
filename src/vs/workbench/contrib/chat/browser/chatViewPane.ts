@@ -132,7 +132,7 @@ export class ChatViewPane extends ViewPane implements IChatViewPane {
 			// Render the welcome view if this session gets disposed at any point,
 			// including if the provider registration fails
 			const disposeListener = sessionId ? this._register(this.chatService.onDidDisposeSession((e) => {
-				if (e.reason === 'initializationFailed' && e.sessionId === sessionId) {
+				if (e.reason === 'initializationFailed' && e.providerId === this.chatViewOptions.providerId) {
 					this.didProviderRegistrationFail = true;
 					disposeListener?.dispose();
 					this._onDidChangeViewWelcomeState.fire();

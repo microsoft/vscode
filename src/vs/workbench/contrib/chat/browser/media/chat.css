@@ -14,7 +14,7 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 16px 20px;
+	padding: 16px 20px;
 	display: flex;
 	flex-direction: column;
 	gap: 8px;
@@ -185,7 +185,7 @@
 }
 
 .interactive-item-container.interactive-item-compact {
-	padding: 8px 20px 0 20px;
+	padding: 8px 20px;
 }
 
 .interactive-item-container.interactive-item-compact .header {

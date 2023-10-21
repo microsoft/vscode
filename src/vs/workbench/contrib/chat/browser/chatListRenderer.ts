@@ -655,7 +655,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			e.browserEvent.stopPropagation();
 		}));
 
-		list.layout(data.length * 22);
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(data.length, maxItemsShown);
+		const height = itemsShown * 22;
+		list.layout(height);
+		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, data);
 
 		return {
@@ -1025,7 +1029,9 @@ class ContentReferencesListPool extends Disposable {
 			container,
 			new ContentReferencesListDelegate(),
 			[new ContentReferencesListRenderer(resourceLabels)],
-			{});
+			{
+				alwaysConsumeMouseWheel: false,
+			});
 
 		return list;
 	}
@@ -1073,10 +1079,12 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
+		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
+		templateData.label.setFile(uri, {
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },
+			range: 'range' in element.reference ? element.reference.range : undefined
 		});
 	}
 
