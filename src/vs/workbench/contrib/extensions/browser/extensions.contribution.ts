@@ -676,8 +676,8 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				const outdated = this.extensionsWorkbenchService.outdated;
 				const results = await this.extensionsWorkbenchService.updateAll();
 				results.forEach((result) => {
-					if (result.error && result.context?.extensionIdentifier) {
-						const extension: IExtension | undefined = outdated.find((extension) => extension.identifier === result.context?.extensionIdentifier);
+					if (result.error) {
+						const extension: IExtension | undefined = outdated.find((extension) => areSameExtensions(extension.identifier, result.identifier));
 						if (extension) {
 							runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, result.error));
 						}

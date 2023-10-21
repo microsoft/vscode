@@ -1374,8 +1374,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 						operation: InstallOperation.Update,
 						installPreReleaseVersion: extension.local?.isPreReleaseVersion,
 						profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
-						donotIncludePackAndDependencies: true,
-						context: { extensionIdentifier: extension.identifier }, // Provide this in result so result reporting can look it up and use its properties
 					}
 				});
 			}
