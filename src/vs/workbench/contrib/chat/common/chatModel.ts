@@ -282,11 +282,11 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 	}
 
 	public get username(): string {
-		return this.agent?.metadata.fullName ?? this.session.responderUsername;
+		return this.session.responderUsername;
 	}
 
 	public get avatarIconUri(): URI | undefined {
-		return this.agent?.metadata.icon ?? this.session.responderAvatarIconUri;
+		return this.session.responderAvatarIconUri;
 	}
 
 	private _followups?: IChatFollowup[];

@@ -48,12 +48,13 @@ import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
-import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { convertParsedRequestToMarkdown, reduceInlineContentReferences, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
+import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -64,15 +65,16 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 const $ = dom.$;
 
 interface IChatListItemTemplate {
-	rowContainer: HTMLElement;
-	titleToolbar: MenuWorkbenchToolBar;
-	avatar: HTMLElement;
-	username: HTMLElement;
-	value: HTMLElement;
-	referencesListContainer: HTMLElement;
-	contextKeyService: IContextKeyService;
-	templateDisposables: IDisposable;
-	elementDisposables: DisposableStore;
+	readonly rowContainer: HTMLElement;
+	readonly titleToolbar: MenuWorkbenchToolBar;
+	readonly avatarContainer: HTMLElement;
+	readonly username: HTMLElement;
+	readonly detail: HTMLElement;
+	readonly value: HTMLElement;
+	readonly referencesListContainer: HTMLElement;
+	readonly contextKeyService: IContextKeyService;
+	readonly templateDisposables: IDisposable;
+	readonly elementDisposables: DisposableStore;
 }
 
 interface IItemHeightChangeParams {
@@ -219,8 +221,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
-		const avatar = dom.append(user, $('.avatar'));
+		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
+		const detail = dom.append(user, $('.detail'));
 		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
@@ -241,7 +244,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 
-		const template: IChatListItemTemplate = { avatar, username, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
@@ -271,25 +274,45 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.username.textContent = element.username;
+		dom.clearNode(templateData.detail);
 
 		if (element.avatarIconUri) {
-			const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
-			templateData.avatar.replaceChildren(avatarIcon);
+			const avatarImgIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
+			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
 		} else {
 			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
 			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
-			templateData.avatar.replaceChildren(avatarIcon);
+			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+		}
+
+		if (isResponseVM(element) && element.agent?.metadata.icon && !element.agent.metadata.isDefault) {
+			// const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+			// avatarIcon.src = FileAccess.uriToBrowserUri(element.agent.metadata.icon).toString(true);
+			// avatarIcon.title = element.agent.metadata.fullName ?? '';
+			const defaultIcon = Codicon.code;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			templateData.avatarContainer.appendChild(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+		}
+
+		const isLoading = isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData);
+
+		if (isLoading) {
+			templateData.detail.textContent = element.agent && !element.agent.metadata.isDefault ?
+				localize('usingAgent', "using {0}{1}", chatAgentLeader, element.agent.id) :
+				localize('thinking', "Thinking");
+			templateData.detail.appendChild(dom.$('span.chat-animated-ellipsis'));
 		}
 
 		// Do a progressive render if
 		// - This the last response in the list
-		// - And it is not a placeholder response ("Thinking...")
+		// - And it has some content
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && !element.isPlaceholder && (!element.isComplete || element.renderData)) {
+		if (isLoading && element.response.value.length) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
+
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
 			const timer = templateData.elementDisposables.add(new IntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
@@ -323,6 +346,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
+
+		if (isResponseVM(element) && element.isComplete) {
+			templateData.detail.textContent = element.agent && !element.agent.metadata.isDefault ?
+				localize('usedAgent', "used {0}{1}", chatAgentLeader, element.agent.id) :
+				'';
+		}
 
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);
 

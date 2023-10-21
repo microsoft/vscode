@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -75,7 +73,6 @@ export interface IChatResponseRenderData {
 }
 
 export interface IChatLiveUpdateData {
-	wordCountAfterLastUpdate: number;
 	loadingStartTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
@@ -96,7 +93,6 @@ export interface IChatResponseViewModel {
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IChatReplyFollowup[];
 	readonly commandFollowups?: IChatResponseCommandFollowup[];
@@ -285,17 +281,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	get response(): IResponse {
-		if (this._isPlaceholder) {
-			// TODO@roblourens- this is suspicious. We may want to separate the markdown content from other types of content?
-			const placeholderText = new MarkdownString(localize('thinking', "Thinking") + '\u2026');
-			return {
-				value: [placeholderText],
-				contentReferences: this._model.response.contentReferences,
-				usedContext: this._model.response.usedContext,
-				asString: () => placeholderText.value,
-			};
-		}
-
 		return this._model.response;
 	}
 
@@ -305,11 +290,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCanceled() {
 		return this._model.isCanceled;
-	}
-
-	private _isPlaceholder = false;
-	get isPlaceholder() {
-		return this._isPlaceholder;
 	}
 
 	get replyFollowups() {
@@ -343,7 +323,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.isPlaceholder;
+		return !this.isComplete;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
@@ -361,22 +341,15 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
-
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
 				impliedWordLoadRate: 0
 			};
 		}
 
 		this._register(_model.onDidChange(() => {
-			if (this._isPlaceholder && (_model.response.value.length > 0 || this.isComplete)) {
-				this._isPlaceholder = false;
-			}
-
 			if (this._contentUpdateTimings) {
 				// This should be true, if the model is changing
 				const now = Date.now();
@@ -389,7 +362,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 					this._contentUpdateTimings = {
 						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
 						lastUpdateTime: now,
-						wordCountAfterLastUpdate: wordCount,
 						impliedWordLoadRate
 					};
 				} else {
