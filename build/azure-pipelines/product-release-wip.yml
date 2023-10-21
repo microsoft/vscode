@@ -60,6 +60,8 @@ steps:
       $Policy = Create-TmpJson @{
         Version = "1.0.0"
         Audience = "InternalLimited"
+        Intent = "download"
+        ContentType = "InstallPackage"
       }
 
       $Input = Create-TmpJson @{
@@ -116,6 +118,7 @@ steps:
           }
         )
       }
+
       $Output = [System.IO.Path]::GetTempFileName()
 
       ESRPClient SubmitRelease -l Verbose -a $Auth -p $Policy -i $Input -o $Output
