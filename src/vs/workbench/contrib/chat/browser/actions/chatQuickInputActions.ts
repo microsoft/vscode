@@ -86,7 +86,7 @@ class QuickChatGlobalAction extends Action2 {
 				}
 			},
 			metadata: {
-				description: localize('toggle.desc', 'abc'),
+				description: localize('toggle.desc', 'Toggle the quick chat'),
 				args: [{
 					name: 'args',
 					schema: {
