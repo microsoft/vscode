@@ -31,6 +31,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -123,7 +124,7 @@ export function registerChatActions() {
 				}
 
 				const widgetService = accessor.get(IChatWidgetService);
-				widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`@${secondaryAgent.id}`);
+				widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
 			}
 		}
 	});
