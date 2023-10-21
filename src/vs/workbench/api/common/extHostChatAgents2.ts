@@ -89,7 +89,9 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				{ history: context.history.map(typeConvert.ChatMessage.to) },
 				new Progress<vscode.ChatAgentProgress>(progress => {
 					throwIfDone();
-					if (typeof firstProgress === 'undefined') {
+
+					// Measure the time to the first progress update with real markdown content
+					if (typeof firstProgress === 'undefined' && 'content' in progress) {
 						firstProgress = stopWatch.elapsed();
 					}
 
