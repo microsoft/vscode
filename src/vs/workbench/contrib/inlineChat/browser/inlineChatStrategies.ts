@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals, tail } from 'vs/base/common/arrays';
-import { AsyncIterableObject, DeferredAsyncIterableObject } from 'vs/base/common/async';
+import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
@@ -41,7 +42,7 @@ export abstract class EditModeStrategy {
 
 	abstract cancel(): Promise<void>;
 
-	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: { duration: number }): Promise<void>;
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
 
 	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
@@ -50,8 +51,6 @@ export abstract class EditModeStrategy {
 	abstract renderChanges(response: EditResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
-
-	abstract getWidgetPosition(): Position | undefined;
 
 	abstract needsMargin(): boolean;
 }
@@ -148,10 +147,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		}
 	}
 
-	getWidgetPosition(): Position | undefined {
-		return;
-	}
-
 	hasFocus(): boolean {
 		return this._widget.hasFocus();
 	}
@@ -231,6 +226,7 @@ class InlineDiffDecorations {
 export interface ProgressingEditsOptions {
 	duration: number;
 	round: number;
+	token: CancellationToken;
 }
 
 export class LiveStrategy extends EditModeStrategy {
@@ -341,7 +337,7 @@ export class LiveStrategy extends EditModeStrategy {
 			const wordCount = countWords(edit.text ?? '');
 			const speed = wordCount / durationInSec;
 			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed));
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
 		}
 	}
 
@@ -377,10 +373,6 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
-	}
-
-	override getWidgetPosition(): Position | undefined {
-		return undefined;
 	}
 
 	override needsMargin(): boolean {
@@ -424,9 +416,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 
-	private async _renderDiffZones() {
+	private async _updateDiffZones() {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		if (!diff || diff.changes.length === 0) {
+			for (const zone of this._diffZonePool) {
+				zone.hide();
+				zone.dispose();
+			}
 			return;
 		}
 
@@ -440,7 +436,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			const change = diff.changes[i];
 
 			// everything below the original start line is one group
-			if (change.original.startLineNumber >= originalStartLineNumber) {
+			if (change.original.startLineNumber >= originalStartLineNumber || 'true') { // TODO@jrieken be smarter and fix this
 				mainGroup.push(change);
 				continue;
 			}
@@ -477,7 +473,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		this._currentLineRangeGroups = groups;
 
 		const handleDiff = () => {
-			this._renderDiffZones();
+			this._updateDiffZones();
 		};
 
 		// create enough zones
@@ -493,17 +489,32 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override async makeProgressiveChanges(edits: ISingleEditOperation[], timings: { duration: number; round: number }): Promise<void> {
-		await super.makeProgressiveChanges(edits, timings);
-		await this._renderDiffZones();
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+
+		const changeTask = super.makeProgressiveChanges(edits, opts);
+
+		//add a listener that shows the diff zones as soon as the first edit is applied
+		let renderTask = Promise.resolve();
+		const changeListener = this._session.textModelN.onDidChangeContent(() => {
+			changeListener.dispose();
+			renderTask = this._updateDiffZones();
+		});
+		await changeTask;
+		await renderTask;
+		changeListener.dispose();
+	}
+
+	override async undoChanges(altVersionId: number): Promise<void> {
+		await super.undoChanges(altVersionId);
+		await this._updateDiffZones();
 	}
 
 	override async renderChanges(response: EditResponse) {
 
-		await this._renderDiffZones();
+		await this._updateDiffZones();
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToStart(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -511,23 +522,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 
 	override hasFocus(): boolean {
 		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
-	}
-
-	override getWidgetPosition(): Position | undefined {
-		for (let i = this._diffZonePool.length - 1; i >= 0; i--) {
-			const zone = this._diffZonePool[i];
-			if (zone.isVisible) {
-				// above last view zone
-				if (zone.position) {
-					// can be undefined when the zone isn't attached yet
-					return zone.position;
-				}
-				if (zone.startLine) {
-					return new Position(zone.startLine, 1);
-				}
-			}
-		}
-		return undefined;
 	}
 }
 
@@ -581,25 +575,31 @@ export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit
 	} satisfies AsyncTextEdit;
 }
 
-export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPerSec: number): AsyncTextEdit {
+export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
 
 	wordsPerSec = Math.max(10, wordsPerSec);
 
-	const stream = new DeferredAsyncIterableObject<string>();
+	const stream = new AsyncIterableSource<string>();
 	let newText = edit.text ?? '';
 	// const wordCount = countWords(newText);
 
 	const handle = setInterval(() => {
 
 		const r = getNWords(newText, 1);
-		stream.emit(r.value);
+		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
 			clearInterval(handle);
-			stream.complete();
+			stream.resolve();
 		}
 
 	}, 1000 / wordsPerSec);
+
+	// cancel ASAP
+	token.onCancellationRequested(() => {
+		clearTimeout(handle);
+		stream.resolve();
+	});
 
 	return {
 		range: edit.range,

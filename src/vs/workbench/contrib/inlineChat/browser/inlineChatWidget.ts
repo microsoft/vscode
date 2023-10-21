@@ -111,7 +111,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 	renderMarginRevertIcon: false,
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,
@@ -923,7 +923,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override show(position: Position): void {
-		position = position.lineNumber === 1 ? position.delta(-1) : position;
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);

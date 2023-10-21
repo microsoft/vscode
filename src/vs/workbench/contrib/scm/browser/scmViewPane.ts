@@ -227,7 +227,6 @@ class SCMTreeDragAndDrop implements ITreeDragAndDrop<TreeElement> {
 interface InputTemplate {
 	readonly inputWidget: SCMInputWidget;
 	inputWidgetHeight: number;
-	actionBar: ActionBar;
 	readonly elementDisposables: DisposableStore;
 	readonly templateDisposable: IDisposable;
 }
@@ -247,9 +246,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		private outerLayout: ISCMLayout,
 		private overflowWidgetsDomNode: HTMLElement,
 		private updateHeight: (input: ISCMInput, height: number) => void,
-		private actionViewItemProvider: IActionViewItemProvider,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@ISCMViewService private scmViewService: ISCMViewService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) { }
 
 	renderTemplate(container: HTMLElement): InputTemplate {
@@ -264,10 +261,7 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const inputWidget = this.instantiationService.createInstance(SCMInputWidget, inputElement, this.overflowWidgetsDomNode);
 		templateDisposable.add(inputWidget);
 
-		const actionsContainer = append(inputElement, $('.actions'));
-		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
-
-		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, actionBar, elementDisposables: new DisposableStore(), templateDisposable };
+		return { inputWidget, inputWidgetHeight: InputRenderer.DEFAULT_HEIGHT, elementDisposables: new DisposableStore(), templateDisposable };
 	}
 
 	renderElement(node: ITreeNode<ISCMInput, FuzzyScore>, index: number, templateData: InputTemplate): void {
@@ -320,13 +314,6 @@ class InputRenderer implements ICompressibleTreeRenderer<ISCMInput, FuzzyScore, 
 		const layoutEditor = () => templateData.inputWidget.layout();
 		templateData.elementDisposables.add(this.outerLayout.onDidChange(layoutEditor));
 		layoutEditor();
-
-		// Action bar
-		templateData.actionBar.clear();
-		templateData.actionBar.context = input.repository.provider;
-
-		const menus = this.scmViewService.menus.getRepositoryMenus(input.repository.provider);
-		templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.inputBoxMenu, templateData.actionBar));
 	}
 
 	renderCompressedElements(): void {
@@ -1285,6 +1272,7 @@ class ViewModel {
 		for (const repository of added) {
 			const disposable = combinedDisposable(
 				repository.provider.groups.onDidSplice(splice => this._onDidSpliceGroups(item, splice)),
+				repository.input.onDidChangeActionButton(() => this.refresh(item)),
 				repository.input.onDidChangeVisibility(() => this.refresh(item)),
 				repository.provider.onDidChange(() => {
 					if (this.showActionButton) {
@@ -1820,6 +1808,7 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
+	private actionBar: ActionBar;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -1968,6 +1957,31 @@ class SCMInputWidget {
 		};
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
+
+		// ActionBar
+		this.actionBar.context = input.repository.provider;
+
+		const onDidChangeActionButton = () => {
+			this.actionBar.clear();
+			if (!input.actionButton) {
+				return;
+			}
+
+			const action = new Action(
+				input.actionButton.command.id,
+				input.actionButton.command.title,
+				ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+				input.actionButton.enabled,
+				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+
+			this.actionBar.push(action, { icon: true, label: false });
+
+			// Update placeholder width to accommodate for the action bar
+			this.placeholderTextContainer.style.width = input.actionButton ? 'calc(100% - 26px)' : '100%';
+		};
+
+		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		onDidChangeActionButton();
 	}
 
 	get selections(): Selection[] | null {
@@ -2010,6 +2024,7 @@ class SCMInputWidget {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
@@ -2062,6 +2077,9 @@ class SCMInputWidget {
 				FormatOnType.ID
 			])
 		};
+
+		this.actionBar = new ActionBar(append(this.element, $('.actions')));
+		this.disposables.add(this.actionBar);
 
 		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
 		const instantiationService2 = instantiationService.createChild(services);
@@ -2361,7 +2379,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height), getActionViewItemProvider(this.instantiationService));
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => this.tree.updateElementHeight(input, height));
 		const delegate = new ListDelegate(this.inputRenderer);
 
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);

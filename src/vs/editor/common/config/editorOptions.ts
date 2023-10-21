@@ -3624,6 +3624,12 @@ export interface IEditorScrollbarOptions {
 	 * Defaults to false.
 	 */
 	scrollByPage?: boolean;
+
+	/**
+	 * When set, the horizontal scrollbar will not increase content height.
+	 * Defaults to false.
+	 */
+	ignoreHorizontalScrollbarInContentHeight?: boolean;
 }
 
 export interface InternalEditorScrollbarOptions {
@@ -3640,6 +3646,7 @@ export interface InternalEditorScrollbarOptions {
 	readonly verticalScrollbarSize: number;
 	readonly verticalSliderSize: number;
 	readonly scrollByPage: boolean;
+	readonly ignoreHorizontalScrollbarInContentHeight: boolean;
 }
 
 function _scrollbarVisibilityFromString(visibility: string | undefined, defaultValue: ScrollbarVisibility): ScrollbarVisibility {
@@ -3669,7 +3676,8 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 			verticalSliderSize: 14,
 			handleMouseWheel: true,
 			alwaysConsumeMouseWheel: true,
-			scrollByPage: false
+			scrollByPage: false,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		super(
 			EditorOption.scrollbar, 'scrollbar', defaults,
@@ -3710,6 +3718,11 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 					type: 'boolean',
 					default: defaults.scrollByPage,
 					description: nls.localize('scrollbar.scrollByPage', "Controls whether clicks scroll by page or jump to click position.")
+				},
+				'editor.scrollbar.ignoreHorizontalScrollbarInContentHeight': {
+					type: 'boolean',
+					default: defaults.ignoreHorizontalScrollbarInContentHeight,
+					description: nls.localize('scrollbar.ignoreHorizontalScrollbarInContentHeight', "When set, the horizontal scrollbar will not increase the size of the editor's content.")
 				}
 			}
 		);
@@ -3736,6 +3749,7 @@ class EditorScrollbar extends BaseEditorOption<EditorOption.scrollbar, IEditorSc
 			verticalScrollbarSize: verticalScrollbarSize,
 			verticalSliderSize: EditorIntOption.clampedInt(input.verticalSliderSize, verticalScrollbarSize, 0, 1000),
 			scrollByPage: boolean(input.scrollByPage, this.defaultValue.scrollByPage),
+			ignoreHorizontalScrollbarInContentHeight: boolean(input.ignoreHorizontalScrollbarInContentHeight, this.defaultValue.ignoreHorizontalScrollbarInContentHeight),
 		};
 	}
 }
