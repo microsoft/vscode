@@ -43,6 +43,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IResourceLabel, ResourceLabels } from 'vs/workbench/browser/labels';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
@@ -52,6 +53,7 @@ import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
 import { convertParsedRequestToMarkdown, reduceInlineContentReferences, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
+import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
@@ -133,6 +135,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
 		@IProductService productService: IProductService,
+		@IThemeService private readonly themeService: IThemeService,
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -275,29 +278,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
 		templateData.username.textContent = element.username;
 		dom.clearNode(templateData.detail);
+		this.renderAvatar(element, templateData);
 
-		if (element.avatarIconUri) {
-			const avatarImgIcon = dom.$<HTMLImageElement>('img.icon');
-			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
-			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
-		} else {
-			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
-			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
-		}
-
-		if (isResponseVM(element) && element.agent?.metadata.icon && !element.agent.metadata.isDefault) {
-			// const avatarIcon = dom.$<HTMLImageElement>('img.icon');
-			// avatarIcon.src = FileAccess.uriToBrowserUri(element.agent.metadata.icon).toString(true);
-			// avatarIcon.title = element.agent.metadata.fullName ?? '';
-			const defaultIcon = Codicon.code;
-			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
-			templateData.avatarContainer.appendChild(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
-		}
-
-		const isLoading = isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData);
-
-		if (isLoading) {
+		const shouldDoProgressiveRender = isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData);
+		if (shouldDoProgressiveRender) {
 			templateData.detail.textContent = element.agent && !element.agent.metadata.isDefault ?
 				localize('usingAgent', "using {0}{1}", chatAgentLeader, element.agent.id) :
 				localize('thinking', "Thinking");
@@ -310,7 +294,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (isLoading && element.response.value.length) {
+		if (shouldDoProgressiveRender && element.response.value.length) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
@@ -338,6 +322,39 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.basicRenderElement([new MarkdownString(markdown)], element, index, templateData);
 		} else {
 			this.renderWelcomeMessage(element, templateData);
+		}
+	}
+
+	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate) {
+		if (element.avatarIconUri) {
+			const avatarImgIcon = dom.$<HTMLImageElement>('img.icon');
+			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
+			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
+		} else {
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
+			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+		}
+
+		if (isResponseVM(element) && element.agent && !element.agent.metadata.isDefault) {
+			const icon = this.getAgentIcon(element.agent.metadata);
+			if (icon instanceof URI) {
+				const avatarIcon = dom.$<HTMLImageElement>('img.icon');
+				avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
+				templateData.avatarContainer.appendChild(dom.$('.avatar', undefined, avatarIcon));
+			} else if (icon) {
+				const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
+				templateData.avatarContainer.appendChild(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+			}
+		}
+	}
+
+	private getAgentIcon(agent: IChatAgentMetadata): URI | ThemeIcon | undefined {
+		if (agent.themeIcon) {
+			return agent.themeIcon;
+		} else {
+			return this.themeService.getColorTheme().type === ColorScheme.DARK && agent.iconDark ? agent.iconDark :
+				agent.icon;
 		}
 	}
 

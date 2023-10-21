@@ -17,7 +17,7 @@ import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { ChatAgentResultFeedbackKind } from 'vs/workbench/api/common/extHostTypes';
+import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatFollowup, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -179,13 +179,13 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 			return;
 		}
 
-		let kind: ChatAgentResultFeedbackKind;
+		let kind: extHostTypes.ChatAgentResultFeedbackKind;
 		switch (vote) {
 			case InteractiveSessionVoteDirection.Down:
-				kind = ChatAgentResultFeedbackKind.Unhelpful;
+				kind = extHostTypes.ChatAgentResultFeedbackKind.Unhelpful;
 				break;
 			case InteractiveSessionVoteDirection.Up:
-				kind = ChatAgentResultFeedbackKind.Helpful;
+				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
 				break;
 		}
 		agent.acceptFeedback(Object.freeze({ result, kind }));
@@ -215,7 +215,7 @@ class ExtHostChatAgent {
 	private _followupProvider: vscode.FollowupProvider | undefined;
 	private _description: string | undefined;
 	private _fullName: string | undefined;
-	private _iconPath: URI | undefined;
+	private _iconPath: vscode.Uri | { light: vscode.Uri; dark: vscode.Uri } | vscode.ThemeIcon | undefined;
 	private _isDefault: boolean | undefined;
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
@@ -288,7 +288,14 @@ class ExtHostChatAgent {
 				this._proxy.$updateAgent(this._handle, {
 					description: this._description ?? '',
 					fullName: this._fullName,
-					icon: this._iconPath,
+					icon: !this._iconPath ? undefined :
+						this._iconPath instanceof URI ? this._iconPath :
+							'light' in this._iconPath ? this._iconPath.light :
+								undefined,
+					iconDark: !this._iconPath ? undefined :
+						'dark' in this._iconPath ? this._iconPath.dark :
+							undefined,
+					themeIcon: this._iconPath instanceof extHostTypes.ThemeIcon ? this._iconPath : undefined,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
 					isDefault: this._isDefault,
