@@ -519,7 +519,7 @@ export interface IEditorOptions {
 	acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 	/**
 	 * Whether inline completion and suggest widget can be shown at the same times, accepted by different keys.
-	 * Defaults to true.
+	 * Defaults to false.
 	 */
 	allowInlineCompletionCoexist?: boolean;
 	/**
@@ -5220,7 +5220,7 @@ export const EditorOptions = {
 	// inspired by this discussion: https://github.com/orgs/community/discussions/9430
 	allowInlineCompletionCoexist: register(new EditorBooleanOption(
 		EditorOption.allowInlineCompletionCoexist, 'allowInlineCompletionCoexist',
-		true,
+		false,
 		{ markdownDescription: nls.localize('allowInlineCompletionCoexist', "Controls whether inline completions and drop-down suggestions can be shown at the same time even if they don't agree. If on, tab will be used to accept the inline completion, and enter will be used to accept the suggestion.") }
 	)),
 	ariaLabel: register(new EditorStringOption(

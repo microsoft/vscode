@@ -36,7 +36,7 @@ export const Context = {
 	MultipleSuggestions: new RawContextKey<boolean>('suggestWidgetMultipleSuggestions', false, localize('suggestWidgetMultipleSuggestions', "Whether there are multiple suggestions to pick from")),
 	MakesTextEdit: new RawContextKey<boolean>('suggestionMakesTextEdit', true, localize('suggestionMakesTextEdit', "Whether inserting the current suggestion yields in a change or has everything already been typed")),
 	AcceptSuggestionsOnEnter: new RawContextKey<boolean>('acceptSuggestionOnEnter', true, localize('acceptSuggestionOnEnter', "Whether suggestions are inserted when pressing Enter")),
-	AllowInlineCompletionCoexist: new RawContextKey<boolean>('allowInlineCompletionCoexist', true, localize('allowInlineCompletionCoexist', "Whether inline completions and suggestions are allowed to show at the same time even if they don't agree")),
+	AllowInlineCompletionCoexist: new RawContextKey<boolean>('allowInlineCompletionCoexist', false, localize('allowInlineCompletionCoexist', "Whether inline completions and suggestions are allowed to show at the same time even if they don't agree")),
 	HasInsertAndReplaceRange: new RawContextKey<boolean>('suggestionHasInsertAndReplaceRange', false, localize('suggestionHasInsertAndReplaceRange', "Whether the current suggestion has insert and replace behaviour")),
 	InsertMode: new RawContextKey<'insert' | 'replace'>('suggestionInsertMode', undefined, { type: 'string', description: localize('suggestionInsertMode', "Whether the default behaviour is to insert or replace") }),
 	CanResolve: new RawContextKey<boolean>('suggestionCanResolve', false, localize('suggestionCanResolve', "Whether the current suggestion supports to resolve further details")),
