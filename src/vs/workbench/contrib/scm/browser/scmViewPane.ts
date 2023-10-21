@@ -2456,7 +2456,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
-		const storageViewState = this.storageService.get(`scm.viewState`, StorageScope.WORKSPACE);
+		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
 		if (!storageViewState) {
 			return undefined;
 		}
@@ -2470,7 +2470,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private storeTreeViewState() {
-		this.storageService.store(`scm.viewState`, JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -2514,35 +2514,35 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	getChildren(inputOrElement: ISCMViewService | TreeElement): Iterable<TreeElement> | Promise<Iterable<TreeElement>> {
-		if (isSCMViewService(inputOrElement)) {
+		if (isSCMViewService(inputOrElement) && (this.viewModel().alwaysShowRepositories || this.scmViewService.visibleRepositories.length > 1)) {
 			return this.scmViewService.visibleRepositories;
-		}
-
-		if (isSCMRepository(inputOrElement)) {
+		} else if (isSCMViewService(inputOrElement) || isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
 
-			const provider = inputOrElement.provider;
+			const repository = isSCMViewService(inputOrElement) ?
+				inputOrElement.visibleRepositories[0] : inputOrElement;
+
 			const showActionButton = this.viewModel().showActionButton;
 			const repositoryCount = this.scmViewService.visibleRepositories.length;
 
 			// SCM Input
-			if (inputOrElement.input.visible) {
-				children.push(inputOrElement.input);
+			if (repository.input.visible) {
+				children.push(repository.input);
 			}
 
 			// Action Button
-			if (showActionButton && provider.actionButton) {
+			if (showActionButton && repository.provider.actionButton) {
 				children.push({
 					type: 'actionButton',
-					repository: inputOrElement,
-					button: provider.actionButton
+					repository: repository,
+					button: repository.provider.actionButton
 				} as ISCMActionButton);
 			}
 
 			// ResourceGroups
-			const hasSomeChanges = provider.groups.some(item => item.resources.length > 0);
-			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !provider.actionButton))) {
-				children.push(...provider.groups);
+			const hasSomeChanges = repository.provider.groups.some(item => item.resources.length > 0);
+			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !repository.provider.actionButton))) {
+				children.push(...repository.provider.groups);
 			}
 
 			return children;
