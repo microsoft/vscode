@@ -518,6 +518,11 @@ export interface IEditorOptions {
 	 */
 	acceptSuggestionOnEnter?: 'on' | 'smart' | 'off';
 	/**
+	 * Whether inline completion and suggest widget can be shown at the same times, accepted by different keys.
+	 * Defaults to true.
+	 */
+	allowInlineCompletionCoexist?: boolean;
+	/**
 	 * Accept suggestions on provider defined characters.
 	 * Defaults to true.
 	 */
@@ -5040,6 +5045,7 @@ export const enum EditorOption {
 	acceptSuggestionOnEnter,
 	accessibilitySupport,
 	accessibilityPageSize,
+	allowInlineCompletionCoexist,
 	ariaLabel,
 	ariaRequired,
 	autoClosingBrackets,
@@ -5211,6 +5217,12 @@ export const EditorOptions = {
 			description: nls.localize('accessibilityPageSize', "Controls the number of lines in the editor that can be read out by a screen reader at once. When we detect a screen reader we automatically set the default to be 500. Warning: this has a performance implication for numbers larger than the default."),
 			tags: ['accessibility']
 		})),
+	// inspired by this discussion: https://github.com/orgs/community/discussions/9430
+	allowInlineCompletionCoexist: register(new EditorBooleanOption(
+		EditorOption.allowInlineCompletionCoexist, 'allowInlineCompletionCoexist',
+		true,
+		{ markdownDescription: nls.localize('allowInlineCompletionCoexist', "Controls whether inline completions and drop-down suggestions can be shown at the same time even if they don't agree. If on, tab will be used to accept the inline completion, and enter will be used to accept the suggestion.") }
+	)),
 	ariaLabel: register(new EditorStringOption(
 		EditorOption.ariaLabel, 'ariaLabel', nls.localize('editorViewAccessibleLabel', "Editor content")
 	)),

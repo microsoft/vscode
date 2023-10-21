@@ -24,7 +24,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CompletionModel } from './completionModel';
-import { CompletionDurations, CompletionItem, CompletionOptions, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
+import { CompletionDurations, CompletionItem, CompletionOptions, Context, getSnippetSuggestSupport, provideSuggestionItems, QuickSuggestionsOptions, SnippetSortOrder } from './suggest';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
@@ -106,6 +106,11 @@ export const enum State {
 }
 
 function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (Boolean(contextKeyService.getContextKeyValue(Context.AllowInlineCompletionCoexist.key))) {
+		// we always allow!
+		return true;
+	}
+
 	if (!Boolean(contextKeyService.getContextKeyValue(InlineCompletionContextKeys.inlineSuggestionVisible.key))) {
 		// Allow if there is no inline suggestion.
 		return true;
@@ -118,6 +123,11 @@ function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKey
 }
 
 function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
+	if (Boolean(contextKeyService.getContextKeyValue(Context.AllowInlineCompletionCoexist.key))) {
+		// we always allow!
+		return true;
+	}
+
 	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
 		// Allow if there is no inline suggestion.
 		return true;

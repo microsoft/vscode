@@ -281,9 +281,11 @@ export class SuggestController implements IEditorContribution {
 
 		// Manage the acceptSuggestionsOnEnter context key
 		const acceptSuggestionsOnEnter = SuggestContext.AcceptSuggestionsOnEnter.bindTo(_contextKeyService);
+		const allowInlineCompletionCoexist = SuggestContext.AllowInlineCompletionCoexist.bindTo(_contextKeyService);
 		const updateFromConfig = () => {
 			const acceptSuggestionOnEnter = this.editor.getOption(EditorOption.acceptSuggestionOnEnter);
 			acceptSuggestionsOnEnter.set(acceptSuggestionOnEnter === 'on' || acceptSuggestionOnEnter === 'smart');
+			allowInlineCompletionCoexist.set(this.editor.getOption(EditorOption.allowInlineCompletionCoexist));
 		};
 		this._toDispose.add(this.editor.onDidChangeConfiguration(() => updateFromConfig()));
 		updateFromConfig();

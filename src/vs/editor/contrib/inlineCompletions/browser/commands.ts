@@ -148,7 +148,8 @@ export class AcceptInlineCompletion extends EditorAction {
 					InlineCompletionContextKeys.inlineSuggestionVisible,
 					EditorContextKeys.tabMovesFocus.toNegated(),
 					InlineCompletionContextKeys.inlineSuggestionHasIndentationLessThanTabSize,
-					SuggestContext.Visible.toNegated(),
+					// we do not want to disable this just because the suggest context exists, if we allow them to coexist
+					ContextKeyExpr.or(SuggestContext.Visible.toNegated(), SuggestContext.AllowInlineCompletionCoexist),
 					EditorContextKeys.hoverFocused.toNegated(),
 				),
 			}

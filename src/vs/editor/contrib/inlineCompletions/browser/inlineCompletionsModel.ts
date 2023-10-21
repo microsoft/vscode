@@ -5,6 +5,7 @@
 
 import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { BugIndicatingError, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ITransaction, autorun, derived, derivedHandleChanges, derivedOpts, recomputeInitiallyAndOnChange, observableSignal, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { isDefined } from 'vs/base/common/types';
@@ -24,6 +25,8 @@ import { addPositions, lengthOfText } from 'vs/editor/contrib/inlineCompletions/
 import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/suggest';
 
 export enum VersionIdChangeReason {
 	Undo,
@@ -56,6 +59,7 @@ export class InlineCompletionsModel extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ILanguageConfigurationService private readonly _languageConfigurationService: ILanguageConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super();
 
@@ -214,11 +218,16 @@ export class InlineCompletionsModel extends Disposable {
 			if (!isSuggestionPreviewEnabled && !augmentedCompletion) { return undefined; }
 
 			const edit = augmentedCompletion?.edit ?? suggestCompletion;
-			const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
 
 			const mode = this._suggestPreviewMode.read(reader);
 			const cursor = this.cursorPosition.read(reader);
-			const newGhostText = edit.computeGhostText(model, mode, cursor, editPreviewLength);
+			let newGhostText: GhostText | undefined;
+			if (Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+				newGhostText = edit.computeGhostText(model, mode, cursor);
+			} else {
+				const editPreviewLength = augmentedCompletion ? augmentedCompletion.edit.text.length - suggestCompletion.text.length : 0;
+				newGhostText = edit.computeGhostText(model, mode, cursor, editPreviewLength);
+			}
 
 			// Show an invisible ghost text to reserve space
 			const ghostText = newGhostText ?? new GhostText(edit.range.endLineNumber, []);
@@ -246,7 +255,11 @@ export class InlineCompletionsModel extends Disposable {
 		const augmentedCompletion = mapFindFirst(candidateInlineCompletions, completion => {
 			let r = completion.toSingleTextEdit(reader);
 			r = r.removeCommonPrefix(model, Range.fromPositions(r.range.getStartPosition(), suggestCompletion.range.getEndPosition()));
-			return r.augments(suggestCompletion) ? { edit: r, completion } : undefined;
+			if (Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+				return { edit: r, completion };
+			} else {
+				return r.augments(suggestCompletion) ? { edit: r, completion } : undefined;
+			}
 		});
 
 		return augmentedCompletion;
@@ -287,10 +300,25 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
+		let completion = state?.inlineCompletion?.toInlineCompletion(undefined);
 		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
+			if (!state || state.ghostText.isEmpty()) {
+				return;
+			}
+			if (!Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+				return;
+			}
+			const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
+			if (suggestWidgetInlineCompletions && suggestWidgetInlineCompletions.inlineCompletions.length > 0) {
+				completion = suggestWidgetInlineCompletions.inlineCompletions[0].toInlineCompletion(undefined);
+			} else {
+				return;
+			}
+		}
+		if (!completion) {
+			console.log("INLINE COMPLETION THIS SHOULD NEVER HAPPEN");
 			return;
 		}
-		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		editor.pushUndoStop();
 		if (completion.snippetInfo) {
@@ -325,6 +353,9 @@ export class InlineCompletionsModel extends Disposable {
 			// if automatic inline suggestions are enabled.
 			this._isActive.set(false, tx);
 		});
+		if (Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+			SuggestController.get(editor)?.cancelSuggestWidget();
+		}
 
 		if (completion.command) {
 			await this._commandService
@@ -379,11 +410,26 @@ export class InlineCompletionsModel extends Disposable {
 		}
 
 		const state = this.state.get();
+		let completion = state?.inlineCompletion?.toInlineCompletion(undefined);
 		if (!state || state.ghostText.isEmpty() || !state.inlineCompletion) {
+			if (!state || state.ghostText.isEmpty()) {
+				return;
+			}
+			if (!Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+				return;
+			}
+			const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
+			if (suggestWidgetInlineCompletions && suggestWidgetInlineCompletions.inlineCompletions.length > 0) {
+				completion = suggestWidgetInlineCompletions.inlineCompletions[0].toInlineCompletion(undefined);
+			} else {
+				return;
+			}
+		}
+		if (!completion) {
+			console.log("INLINE COMPLETION THIS SHOULD NEVER HAPPEN");
 			return;
 		}
 		const ghostText = state.ghostText;
-		const completion = state.inlineCompletion.toInlineCompletion(undefined);
 
 		if (completion.snippetInfo || completion.filterText !== completion.insertText) {
 			// not in WYSIWYG mode, partial commit might change completion, thus it is not supported
@@ -413,6 +459,12 @@ export class InlineCompletionsModel extends Disposable {
 			editor.setPosition(addPositions(position, length));
 		} finally {
 			this._isAcceptingPartially = false;
+		}
+
+		if (Boolean(this._contextKeyService.getContextKeyValue(SuggestContext.AllowInlineCompletionCoexist.key))) {
+			this._commandService
+				.executeCommand('hideSuggestWidget')
+				.then(undefined, onUnexpectedExternalError);
 		}
 
 		if (completion.source.provider.handlePartialAccept) {
