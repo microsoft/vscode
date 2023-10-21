@@ -383,12 +383,10 @@ export class Git {
 		this.env = options.env || {};
 
 		const onConfigurationChanged = (e?: ConfigurationChangeEvent) => {
-			if (e !== undefined && !e.affectsConfiguration('git.commandsToLog')) {
-				return;
+			if (e === undefined || e.affectsConfiguration('git.commandsToLog')) {
+				const config = workspace.getConfiguration('git');
+				this.commandsToLog = config.get<string[]>('commandsToLog', []);
 			}
-
-			const config = workspace.getConfiguration('git');
-			this.commandsToLog = config.get<string[]>('commandsToLog', []);
 		};
 
 		workspace.onDidChangeConfiguration(onConfigurationChanged, this);
