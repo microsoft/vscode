@@ -23,7 +23,8 @@
     "scmValidation",
     "tabInputTextMerge",
     "timeline",
-    "contribMergeEditorMenus"
+    "contribMergeEditorMenus",
+    "scmInputBoxActionButton"
   ],
   "categories": [
     "Other"

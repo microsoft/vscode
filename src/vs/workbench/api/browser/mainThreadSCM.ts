@@ -7,7 +7,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
-import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto } from '../common/extHost.protocol';
+import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ISplice, Sequence } from 'vs/base/common/sequence';
@@ -17,6 +17,19 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+
+function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
+	if (!actionButton.icon) {
+		return undefined;
+	} else if (URI.isUri(actionButton.icon)) {
+		return URI.revive(actionButton.icon);
+	} else if (ThemeIcon.isThemeIcon(actionButton.icon)) {
+		return actionButton.icon;
+	} else {
+		const icon = actionButton.icon as { light: UriComponents; dark: UriComponents };
+		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
+	}
+}
 
 function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!historyItem.icon) {
@@ -552,6 +565,16 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		}
 
 		repository.input.visible = visible;
+	}
+
+	$setInputBoxActionButton(sourceControlHandle: number, actionButton?: SCMInputActionButtonDto | null | undefined): void {
+		const repository = this._repositories.get(sourceControlHandle);
+
+		if (!repository) {
+			return;
+		}
+
+		repository.input.actionButton = actionButton ? { ...actionButton, icon: getSCMInputBoxActionButtonIcon(actionButton) } : undefined;
 	}
 
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType) {

@@ -3581,6 +3581,26 @@ export class CommandCenter {
 		}
 	}
 
+	@command('git.generateCommitMessage', { repository: true })
+	async generateCommitMessage(repository: Repository): Promise<void> {
+		if (!repository || !this.model.commitMessageProvider) {
+			return;
+		}
+
+		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+			await repository.generateCommitMessage();
+		});
+	}
+
+	@command('git.generateCommitMessageCancel', { repository: true })
+	generateCommitMessageCancel(repository: Repository): void {
+		if (!repository || !this.model.commitMessageProvider) {
+			return;
+		}
+
+		repository.generateCommitMessageCancel();
+	}
+
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {
 		const result = (...args: any[]) => {
 			let result: Promise<any>;
