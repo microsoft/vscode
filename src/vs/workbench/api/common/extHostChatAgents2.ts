@@ -217,6 +217,7 @@ class ExtHostChatAgent {
 	private _fullName: string | undefined;
 	private _iconPath: URI | undefined;
 	private _isDefault: boolean | undefined;
+	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
 
@@ -290,7 +291,8 @@ class ExtHostChatAgent {
 					icon: this._iconPath,
 					hasSlashCommands: this._slashCommandProvider !== undefined,
 					hasFollowup: this._followupProvider !== undefined,
-					isDefault: this._isDefault
+					isDefault: this._isDefault,
+					isSecondary: this._isSecondary,
 				});
 				updateScheduled = false;
 			});
@@ -343,6 +345,15 @@ class ExtHostChatAgent {
 			set isDefault(v) {
 				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
 				that._isDefault = v;
+				updateMetadataSoon();
+			},
+			get isSecondary() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				return that._isSecondary;
+			},
+			set isSecondary(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				that._isSecondary = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {
