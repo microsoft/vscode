@@ -779,11 +779,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
-								group: '1_toggleViews',
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,
