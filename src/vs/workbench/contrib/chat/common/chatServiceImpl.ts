@@ -505,7 +505,7 @@ export class ChatService extends Disposable implements IChatService {
 				let agentOrCommandFollowups: Promise<IChatFollowup[] | undefined> | undefined = undefined;
 
 				const defaultAgent = this.chatAgentService.getDefaultAgent();
-				if (agentPart || defaultAgent) {
+				if (agentPart || (defaultAgent && !commandPart)) {
 					const agent = (agentPart?.agent ?? defaultAgent)!;
 					const history: IChatMessage[] = [];
 					for (const request of model.getRequests()) {
