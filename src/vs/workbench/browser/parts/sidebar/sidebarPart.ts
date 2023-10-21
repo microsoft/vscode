@@ -27,7 +27,7 @@ import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { localize } from 'vs/nls';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -80,6 +80,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(
 			Parts.SIDEBAR_PART,
@@ -100,6 +101,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			menuService,
 		);
 
 		this.acitivityBarPart = this._register(instantiationService.createInstance(ActivitybarPart, this));
