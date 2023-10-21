@@ -655,7 +655,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			e.browserEvent.stopPropagation();
 		}));
 
-		list.layout(data.length * 22);
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(data.length, maxItemsShown);
+		const height = itemsShown * 22;
+		list.layout(height);
+		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, data);
 
 		return {
