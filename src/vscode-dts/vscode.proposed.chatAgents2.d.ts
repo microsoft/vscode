@@ -102,7 +102,16 @@ declare module 'vscode' {
 		/**
 		 * Icon for the agent shown in UI.
 		 */
-		iconPath?: Uri;
+		iconPath?: Uri | {
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		} | ThemeIcon;
 
 		slashCommandProvider?: ChatAgentSlashCommandProvider;
 
