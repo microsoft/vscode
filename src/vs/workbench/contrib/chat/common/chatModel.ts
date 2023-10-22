@@ -14,7 +14,7 @@ import { URI, UriComponents, UriDto } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
@@ -59,6 +59,7 @@ export interface IChatResponseModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly agent?: IChatAgentData;
+	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
@@ -206,6 +207,8 @@ export class Response implements IResponse {
 		} else if ('inlineReference' in responsePart) {
 			this._responseParts.push(responsePart);
 			this._updateRepr(quiet);
+		} else if ('agentName' in responsePart) {
+
 		}
 	}
 
@@ -292,10 +295,20 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	private _followups?: IChatFollowup[];
 
+	private _agent: IChatAgentData | undefined;
+	public get agent(): IChatAgentData | undefined {
+		return this._agent;
+	}
+
+	private _slashCommand: IChatAgentCommand | undefined;
+	public get slashCommand(): IChatAgentCommand | undefined {
+		return this._slashCommand;
+	}
+
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
 		public readonly session: ChatModel,
-		public readonly agent: IChatAgentData | undefined,
+		agent: IChatAgentData | undefined,
 		public readonly requestId: string,
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
@@ -305,6 +318,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
 		super();
+		this._agent = agent;
 		this._followups = followups ? [...followups] : undefined;
 		this._response = new Response(_response);
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire()));
@@ -313,6 +327,12 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	updateContent(responsePart: ResponsePart, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
+	}
+
+	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
+		this._agent = agent;
+		this._slashCommand = slashCommand;
+		this._onDidChange.fire();
 	}
 
 	setProviderResponseId(providerResponseId: string) {
@@ -372,6 +392,7 @@ export interface ISerializableChatRequestData {
 	message: string | IParsedChatRequest;
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference> | undefined;
 	agent?: ISerializableChatAgentData;
+	slashCommand?: IChatAgentCommand;
 	responseErrorDetails: IChatResponseErrorDetails | undefined;
 	followups: ReadonlyArray<IChatFollowup> | undefined;
 	isCanceled: boolean | undefined;
@@ -528,6 +549,7 @@ export class ChatModel extends Disposable implements IChatModel {
 		public readonly providerId: string,
 		private readonly initialData: ISerializableChatData | IExportableChatData | undefined,
 		@ILogService private readonly logService: ILogService,
+		@IChatAgentService private readonly chatAgentService: IChatAgentService,
 	) {
 		super();
 
@@ -676,6 +698,11 @@ export class ChatModel extends Disposable implements IChatModel {
 			request.response.updateContent(progress, quiet);
 		} else if ('documents' in progress || 'reference' in progress || 'inlineReference' in progress) {
 			request.response.updateContent(progress);
+		} else if ('agentName' in progress) {
+			const agent = this.chatAgentService.getAgent(progress.agentName);
+			if (agent) {
+				request.response.setAgent(agent, progress.command);
+			}
 		} else {
 			request.setProviderRequestId(progress.requestId);
 			request.response.setProviderResponseId(progress.requestId);
@@ -759,6 +786,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
 					agent: r.response?.agent,
+					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.response.usedContext,
 					contentReferences: r.response?.response.contentReferences
 				};

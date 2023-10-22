@@ -214,7 +214,7 @@ export class ExtHostChat implements ExtHostChatShape {
 					firstProgress = stopWatch.elapsed();
 				}
 
-				const convertedProgress = typeConvert.ChatResponseProgress.from(progress);
+				const convertedProgress = typeConvert.ChatResponseProgress.from(entry.extension, progress);
 				if ('placeholder' in progress && 'resolvedContent' in progress) {
 					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress), progress.resolvedContent]);
 					raceCancellation(resolvedContent, token).then((res) => {
