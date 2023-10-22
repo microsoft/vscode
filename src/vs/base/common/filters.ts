@@ -619,11 +619,9 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		jOffset += altChars.length - 1;
 	}
 
-	// TODO: Fix highlighting
-
 	let result: IMatch[] | null = null;
-	let nextWordIndex = j + 1;
-	result = _matchesWords(word, target, i + 1, j + jOffset + 1, contiguous);
+	let nextWordIndex = j + jOffset + 1;
+	result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
 	if (!contiguous) {
 		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
 			result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
@@ -638,10 +636,19 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
 	if (word.charCodeAt(i) !== target.charCodeAt(j)) {
-		return result;
+		const altChars = getAlternateChars(word.charCodeAt(i));
+		if (!altChars) {
+			return result;
+		}
+		// TODO: Check alt char match more gracefully
+		for (let k = 0; k < altChars.length; k++) {
+			if (altChars.charCodeAt(k) !== target.charCodeAt(j + k)) {
+				return result;
+			}
+		}
 	}
 
-	return join({ start: j, end: j + 1 }, result);
+	return join({ start: j, end: nextWordIndex }, result);
 }
 
 function nextWord(word: string, start: number): number {
