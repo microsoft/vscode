@@ -8,7 +8,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
@@ -89,7 +89,7 @@ export interface IChatResponseViewModel {
 	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly agent?: IChatAgent;
+	readonly agent?: IChatAgentData;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
