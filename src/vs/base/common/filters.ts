@@ -130,23 +130,25 @@ function isWordSeparator(code: number): boolean {
 	return isWhitespace(code) || wordSeparators.has(code);
 }
 
-let lastLog: string | undefined = undefined;
 function charactersMatch(codeA: number, codeB: number): boolean {
-	const alternateLocaleChars = getAlternateChars(codeA);
-	if (alternateLocaleChars !== lastLog) {
-		console.log(alternateLocaleChars);
-		lastLog = alternateLocaleChars;
-	}
-
 	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
+const alternateCharsCache: Map<number, string | undefined> = new Map();
 function getAlternateChars(codeA: number): string | undefined {
-	const result = disassembleHangul(codeA);
-	if (result) {
-		return String.fromCharCode(...result);
+	if (alternateCharsCache.has(codeA)) {
+		return alternateCharsCache.get(codeA);
 	}
-	return undefined;
+
+	// Korean Hangul
+	const codes = disassembleHangul(codeA);
+	let result: string | undefined;
+	if (codes) {
+		result = String.fromCharCode(...codes);
+	}
+
+	alternateCharsCache.set(codeA, result);
+	return result;
 }
 
 /**
@@ -366,6 +368,34 @@ const compatibilityJamo = new Map<number, string>([
 	// /* ㆎ */ [0x0, 'a'],
 ]);
 function disassembleHangul(codeA: number): number[] | undefined {
+	// Hangul Jamo - Modern consonants #1
+	if (codeA >= 0x1100 && codeA <= 0x1112) {
+		if (codeA - 0x1100 < modernConsonants.length) {
+			return Array.from(modernConsonants[codeA - 0x1100]).map(e => e.charCodeAt(0));
+		}
+	}
+
+	// Hangul Jamo - Modern Vowels
+	if (codeA >= 0x1161 && codeA <= 0x1175) {
+		if (codeA - 0x1161 < modernVowels.length) {
+			return Array.from(modernVowels[codeA - 0x1161]).map(e => e.charCodeAt(0));
+		}
+	}
+
+	// Hangul Jamo - Modern Consonants #2
+	if (codeA >= 0x11A9 && codeA <= 0x11C2) {
+		if (codeA - 0x11A9 < modernLatterConsonants.length) {
+			return Array.from(modernLatterConsonants[codeA - 0x11A9]).map(e => e.charCodeAt(0));
+		}
+	}
+
+	// Hangul Compatibility Jamo
+	const compatJamo = compatibilityJamo.get(codeA);
+	if (compatJamo) {
+		return Array.from(compatJamo).map(e => e.charCodeAt(0));
+	}
+
+	// Hangul Syllables
 	if (codeA >= 0xAC00 && codeA <= 0xD7A3) {
 		const hangulIndex = codeA - 0xAC00;
 		const vowelAndFinalConsonantProduct = hangulIndex % 588;
