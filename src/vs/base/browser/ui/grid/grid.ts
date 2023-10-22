@@ -5,7 +5,7 @@
 
 import { IBoundarySashes, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { equals, tail2 as tail } from 'vs/base/common/arrays';
-import { Emitter, Event } from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./gridview';
 import { Box, GridView, IGridViewOptions, IGridViewStyles, IView as IGridViewView, IViewSize, orthogonal, Sizing as GridViewSizing, GridLocation } from './gridview';
@@ -289,9 +289,7 @@ export class Grid<T extends IView = IView> extends Disposable {
 
 	private didLayout = false;
 
-	private readonly _onDidChangeViewMaximized = this._register(new Emitter<boolean>());
-	readonly onDidChangeViewMaximized = this._onDidChangeViewMaximized.event;
-
+	readonly onDidChangeViewMaximized: Event<boolean>;
 	/**
 	 * Create a new {@link Grid}. A grid must *always* have a view
 	 * inside.
@@ -315,9 +313,9 @@ export class Grid<T extends IView = IView> extends Disposable {
 			this._addView(view, 0, [0]);
 		}
 
-		this.onDidChangeViewMaximized = this.gridview.onDidChangeViewMaximized;
 		this.onDidChange = this.gridview.onDidChange;
 		this.onDidScroll = this.gridview.onDidScroll;
+		this.onDidChangeViewMaximized = this.gridview.onDidChangeViewMaximized;
 	}
 
 	style(styles: IGridStyles): void {
