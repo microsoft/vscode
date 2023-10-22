@@ -50,9 +50,12 @@ stages:
             inputs:
               scanFolder: "$(Build.SourcesDirectory)"
               outputFormat: "pre"
+
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
           - template: ./distro/download-distro.yml
 
@@ -142,11 +145,18 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
 
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: required
+              Recurse: true
+
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
               Function: "analyze"
               TargetPattern: "guardianGlob"
+              AnalyzeIgnorePdbLoadError: true
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
@@ -160,6 +170,13 @@ stages:
               TreatSignatureUpdateFailureAs: 'Warning'
               SignatureFreshness: 'OneDay'
               TreatStaleSignatureAs: 'Error'
+
+          - task: PublishSecurityAnalysisLogs@3
+            inputs:
+              ArtifactName: CodeAnalysisLogs
+              ArtifactType: Container
+              PublishProcessedResults: false
+              AllTools: true
 
           - task: TSAUpload@2
             inputs:
@@ -179,7 +196,9 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "18.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
           - template: ./distro/download-distro.yml
 

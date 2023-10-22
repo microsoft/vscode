@@ -61,7 +61,8 @@ import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/cap
 import { killTerminalIcon, newTerminalIcon } from 'vs/workbench/contrib/terminal/browser/terminalIcons';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Iterable } from 'vs/base/common/iterator';
-import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -252,7 +253,7 @@ export function registerTerminalActions() {
 		run: async (c, _, args) => {
 			const options = (isObject(args) && 'location' in args) ? args as ICreateTerminalOptions : { location: TerminalLocation.Editor };
 			const instance = await c.service.createTerminal(options);
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 
@@ -267,7 +268,7 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: editorGroupsService.activeGroup.index }
 			});
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 
@@ -278,7 +279,7 @@ export function registerTerminalActions() {
 			const instance = await c.service.createTerminal({
 				location: { viewColumn: SIDE_GROUP }
 			});
-			instance.focusWhenReady();
+			await instance.focusWhenReady();
 		}
 	});
 
@@ -365,8 +366,7 @@ export function registerTerminalActions() {
 		keybinding: [
 			{
 				primary: KeyMod.CtrlCmd | KeyCode.KeyR,
-				mac: { primary: KeyMod.WinCtrl | KeyCode.KeyR },
-				when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				when: ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal)))),
 				weight: KeybindingWeight.WorkbenchContrib
 			},
 			{
@@ -491,7 +491,7 @@ export function registerTerminalActions() {
 				return;
 			}
 			c.service.setActiveInstance(instance);
-			return c.groupService.showPanel(true);
+			focusActiveTerminal(instance, c);
 		}
 	});
 
@@ -930,7 +930,7 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.SendSequence,
 		title: terminalStrings.sendSequence,
 		f1: false,
-		description: {
+		metadata: {
 			description: terminalStrings.sendSequence.value,
 			args: [{
 				name: 'args',
@@ -952,7 +952,7 @@ export function registerTerminalActions() {
 	registerTerminalAction({
 		id: TerminalCommandId.NewWithCwd,
 		title: terminalStrings.newWithCwd,
-		description: {
+		metadata: {
 			description: terminalStrings.newWithCwd.value,
 			args: [{
 				name: 'args',
@@ -982,7 +982,7 @@ export function registerTerminalActions() {
 	registerActiveInstanceAction({
 		id: TerminalCommandId.RenameWithArgs,
 		title: terminalStrings.renameWithArgs,
-		description: {
+		metadata: {
 			description: terminalStrings.renameWithArgs.value,
 			args: [{
 				name: 'args',
@@ -1205,13 +1205,13 @@ export function registerTerminalActions() {
 			const workspaceContextService = accessor.get(IWorkspaceContextService);
 			const commandService = accessor.get(ICommandService);
 			const folders = workspaceContextService.getWorkspace().folders;
-			if (eventOrOptions && eventOrOptions instanceof MouseEvent && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
+			if (eventOrOptions && isMouseEvent(eventOrOptions) && (eventOrOptions.altKey || eventOrOptions.ctrlKey)) {
 				await c.service.createTerminal({ location: { splitActiveTerminal: true } });
 				return;
 			}
 
 			if (c.service.isProcessSupportRegistered) {
-				eventOrOptions = !eventOrOptions || eventOrOptions instanceof MouseEvent ? {} : eventOrOptions;
+				eventOrOptions = !eventOrOptions || isMouseEvent(eventOrOptions) ? {} : eventOrOptions;
 
 				let instance: ITerminalInstance | undefined;
 				if (folders.length <= 1) {
@@ -1346,7 +1346,7 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib + 1,
 			// Disable the keybinding when accessibility mode is enabled as chords include
 			// important screen reader keybindings such as cmd+k, cmd+i to show the hover
-			when: ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+			when: ContextKeyExpr.or(ContextKeyExpr.and(TerminalContextKeys.focus, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()), ContextKeyExpr.and(CONTEXT_ACCESSIBILITY_MODE_ENABLED, accessibleViewIsShown, accessibleViewCurrentProviderId.isEqualTo(AccessibleViewProviderId.Terminal))),
 		}],
 		run: (activeInstance) => activeInstance.clearBuffer()
 	});
@@ -1672,7 +1672,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 				f1: true,
 				category,
 				precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.webExtensionContributedProfile),
-				description: {
+				metadata: {
 					description: TerminalCommandId.NewWithProfile,
 					args: [{
 						name: 'args',
@@ -1708,7 +1708,7 @@ export function refreshTerminalActions(detectedProfiles: ITerminalProfile[]) {
 					throw new Error(`Could not find terminal profile "${eventOrOptionsOrProfile.profileName}"`);
 				}
 				options = { config };
-			} else if (eventOrOptionsOrProfile instanceof MouseEvent || eventOrOptionsOrProfile instanceof PointerEvent || eventOrOptionsOrProfile instanceof KeyboardEvent) {
+			} else if (isMouseEvent(eventOrOptionsOrProfile) || isPointerEvent(eventOrOptionsOrProfile) || isKeyboardEvent(eventOrOptionsOrProfile)) {
 				event = eventOrOptionsOrProfile;
 				options = profile ? { config: profile } : undefined;
 			} else {

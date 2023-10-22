@@ -15,6 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { isLinux } from 'vs/base/common/platform';
 
 //#region < --- Workbench --- >
 
@@ -77,6 +78,7 @@ export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLay
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
+export const EditorPinnedAndUnpinnedTabsContext = new RawContextKey<boolean>('editorPinnedAndUnpinnedTabsVisible', false, true);
 
 //#endregion
 
@@ -93,6 +95,13 @@ export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '
 //#region < --- Status Bar --- >
 
 export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
+
+//#endregion
+
+//#region < --- Title Bar --- >
+
+export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
+export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
 
 //#endregion
 

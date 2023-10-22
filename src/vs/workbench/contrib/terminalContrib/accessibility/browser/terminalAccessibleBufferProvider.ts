@@ -3,52 +3,55 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
-import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewService, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
-import { IXtermTerminal, ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
+import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import type { Terminal } from 'xterm';
-import { Event } from 'vs/base/common/event';
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal' };
+	id = AccessibleViewProviderId.Terminal;
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
-	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
+	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
+	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
+	private _focusedInstance: ITerminalInstance | undefined;
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
+		customHelp: () => string,
 		@IModelService _modelService: IModelService,
-		@IConfigurationService _configurationService: IConfigurationService,
-		@IContextKeyService _contextKeyService: IContextKeyService,
-		@ITerminalService _terminalService: ITerminalService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IContextKeyService _contextKeyService: IContextKeyService,
+		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
-		this.registerListeners();
+		this.options.customHelp = customHelp;
+		this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
+				this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+			}
+		}));
+		this._focusedInstance = _terminalService.activeInstance;
+		this.add(_terminalService.onDidChangeActiveInstance(() => {
+			if (_terminalService.activeInstance && this._focusedInstance?.instanceId !== _terminalService.activeInstance?.instanceId) {
+				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
+				this._focusedInstance = _terminalService.activeInstance;
+			}
+		}));
 	}
 
 	onClose() {
 		this._instance.focus();
-	}
-	registerListeners(): void {
-		if (!this._xterm) {
-			return;
-		}
-		this._xterm.raw.onWriteParsed(async () => {
-			if (this._xterm!.raw.buffer.active.baseY === 0) {
-				this._bufferTracker.update();
-				this._accessibleViewService.show(this);
-			}
-		});
-		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
-		this.add(onRequestUpdateEditor(() => this._accessibleViewService.show(this)));
 	}
 
 	provideContent(): string {
@@ -112,3 +115,4 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+

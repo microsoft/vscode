@@ -8,7 +8,7 @@ import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -23,19 +23,21 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
-import { TerminalAccessibleContentProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
+import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
 import type { Terminal } from 'xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { Event } from 'vs/base/common/event';
 
 class TextAreaSyncContribution extends DisposableStore implements ITerminalContribution {
 	static readonly ID = 'terminal.textAreaSync';
 	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
 		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
 	}
+	private _addon: TextAreaSyncAddon | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
@@ -44,10 +46,13 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	) {
 		super();
 	}
-	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
-		xterm.raw.loadAddon(addon);
-		addon.activate(xterm.raw);
+	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
+		if (this._addon) {
+			return;
+		}
+		this._addon = this.add(this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities));
+		xterm.raw.loadAddon(this._addon);
+		this._addon.activate(xterm.raw);
 	}
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
@@ -59,6 +64,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		return instance.getContribution<TerminalAccessibleViewContribution>(TerminalAccessibleViewContribution.ID);
 	}
 	private _bufferTracker: BufferContentTracker | undefined;
+	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -67,7 +73,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IConfigurationService configurationService: IConfigurationService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -77,7 +84,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return true;
 		}, TerminalContextKeys.focus));
 		this._register(_instance.onDidRunText(() => {
-			const focusAfterRun = configurationService.getValue(TerminalSettingId.FocusAfterRun);
+			const focusAfterRun = _configurationService.getValue(TerminalSettingId.FocusAfterRun);
 			if (focusAfterRun === 'terminal') {
 				_instance.focus(true);
 			} else if (focusAfterRun === 'accessible-buffer') {
@@ -90,7 +97,24 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		xterm.raw.loadAddon(addon);
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
+		this._register(this._xterm.raw.onWriteParsed(async () => {
+			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
+				this.show();
+			}
+		}));
+
+		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
+		this._register(onRequestUpdateEditor(() => {
+			if (this._isTerminalAccessibleViewOpen()) {
+				this.show();
+			}
+		}));
 	}
+
+	private _isTerminalAccessibleViewOpen(): boolean {
+		return accessibleViewCurrentProviderId.getValue(this._contextKeyService) === AccessibleViewProviderId.Terminal;
+	}
+
 	show(): void {
 		if (!this._xterm) {
 			return;
@@ -98,18 +122,16 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!this._bufferTracker) {
 			this._bufferTracker = this._register(this._instantiationService.createInstance(BufferContentTracker, this._xterm));
 		}
-		this._accessibleViewService.show(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker));
-		// wait for the render to happen so that the line count is correct and
-		// the cursor is at the bottom of the buffer
-		setTimeout(() => {
-			const lastPosition = this._accessibleViewService.getLastPosition();
-			if (lastPosition) {
-				this._accessibleViewService.setPosition(lastPosition, true);
-			}
-		}, 50);
+		if (!this._bufferProvider) {
+			this._bufferProvider = this._register(this._instantiationService.createInstance(TerminalAccessibleBufferProvider, this._instance, this._bufferTracker, () => {
+				return this._register(this._instantiationService.createInstance(TerminalAccessibilityHelpProvider, this._instance, this._xterm!)).provideContent();
+			}));
+		}
+		const position = this._configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal) : undefined;
+		this._accessibleViewService.show(this._bufferProvider, position);
 	}
 	navigateToCommand(type: NavigationType): void {
-		const currentLine = this._accessibleViewService.getPosition()?.lineNumber || this._accessibleViewService.getLastPosition()?.lineNumber;
+		const currentLine = this._accessibleViewService.getPosition(AccessibleViewProviderId.Terminal)?.lineNumber;
 		const commands = this._getCommandsWithEditorLine();
 		if (!commands?.length || !currentLine) {
 			return;
@@ -184,7 +206,7 @@ export class TerminalAccessibilityHelpContribution extends Disposable {
 			if (!terminal) {
 				return;
 			}
-			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibleContentProvider, instance, terminal));
+			accessibleViewService.show(instantiationService.createInstance(TerminalAccessibilityHelpProvider, instance, terminal));
 		}, ContextKeyExpr.or(TerminalContextKeys.focus, ContextKeyExpr.and(accessibleViewIsShown, ContextKeyExpr.equals(accessibleViewCurrentProviderId.key, AccessibleViewProviderId.Terminal)))));
 	}
 }
@@ -234,8 +256,7 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.getActiveOrCreateInstance();
-		await c.service.revealActiveTerminal();
+		const instance = await c.service.activeInstance;
 		if (!instance) {
 			return;
 		}
@@ -256,8 +277,7 @@ registerTerminalAction({
 		}
 	],
 	run: async (c) => {
-		const instance = await c.service.getActiveOrCreateInstance();
-		await c.service.revealActiveTerminal();
+		const instance = await c.service.activeInstance;
 		if (!instance) {
 			return;
 		}

@@ -31,6 +31,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { COMMENTS_SECTION, ICommentsConfiguration } from 'vs/workbench/contrib/comments/common/commentsConfiguration';
+import { localize } from 'vs/nls';
+import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
+import { LayoutableEditor } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 
@@ -45,6 +50,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	private _threadIsEmpty: IContextKey<boolean>;
 	private _styleElement: HTMLStyleElement;
 	private _commentThreadContextValue: IContextKey<string | undefined>;
+	private _focusedContextKey: IContextKey<boolean>;
 	private _onDidResize = new Emitter<dom.Dimension>();
 	onDidResize = this._onDidResize.event;
 
@@ -53,9 +59,9 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	get commentThread() {
 		return this._commentThread;
 	}
-
 	constructor(
 		readonly container: HTMLElement,
+		readonly _parentEditor: LayoutableEditor,
 		private _owner: string,
 		private _parentResourceUri: URI,
 		private _contextKeyService: IContextKeyService,
@@ -71,12 +77,14 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		},
 		@ICommentService private commentService: ICommentService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IKeybindingService private _keybindingService: IKeybindingService
 	) {
 		super();
 
 		this._threadIsEmpty = CommentContextKeys.commentThreadIsEmpty.bindTo(this._contextKeyService);
 		this._threadIsEmpty.set(!_commentThread.comments || !_commentThread.comments.length);
+		this._focusedContextKey = CommentContextKeys.commentFocused.bindTo(this._contextKeyService);
 
 		this._commentMenus = this.commentService.getCommentMenus(this._owner);
 
@@ -111,9 +119,16 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 				}
 			}
 		}));
-
+		this._register(tracker.onDidFocus(() => this._focusedContextKey.set(true)));
+		this._register(tracker.onDidBlur(() => this._focusedContextKey.reset()));
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Comments)) {
+				this._setAriaLabel();
+			}
+		}));
 		this._body = this._scopedInstantiationService.createInstance(
 			CommentThreadBody,
+			this._parentEditor,
 			this._owner,
 			this._parentResourceUri,
 			bodyElement,
@@ -124,7 +139,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			this
 		) as unknown as CommentThreadBody<T>;
 		this._register(this._body);
-
+		this._setAriaLabel();
 		this._styleElement = dom.createStyleSheet(this.container);
 
 
@@ -139,6 +154,21 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		this.currentThreadListeners();
+	}
+
+	private _setAriaLabel(): void {
+		let ariaLabel = localize('commentLabel', "Comment");
+		let keybinding: string | undefined;
+		const verbose = this.configurationService.getValue(AccessibilityVerbositySettingId.Comments);
+		if (verbose) {
+			keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp, this._contextKeyService)?.getLabel() ?? undefined;
+		}
+		if (keybinding) {
+			ariaLabel = localize('commentLabelWithKeybinding', "{0}, use ({1}) for accessibility help", ariaLabel, keybinding);
+		} else {
+			ariaLabel = localize('commentLabelWithKeybindingNoKeybinding', "{0}, run the command Open Accessibility Help which is currently not triggerable via keybinding.", ariaLabel);
+		}
+		this._body.container.ariaLabel = ariaLabel;
 	}
 
 	private updateCurrentThread(hasMouse: boolean, hasFocus: boolean) {
@@ -183,7 +213,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread);
+		this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -200,7 +230,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 	}
 
 	display(lineHeight: number) {
-		const headHeight = Math.ceil(lineHeight * 1.2);
+		const headHeight = Math.max(23, Math.ceil(lineHeight * 1.2)); // 23 is the value of `Math.ceil(lineHeight * 1.2)` with the default editor font size
 		this._header.updateHeight(headHeight);
 
 		this._body.display();
@@ -259,6 +289,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 			CommentReply,
 			this._owner,
 			this._body.container,
+			this._parentEditor,
 			this._commentThread,
 			this._scopedInstantiationService,
 			this._contextKeyService,
@@ -299,6 +330,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		return undefined;
+	}
+
+	setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this._commentReply?.setPendingComment(comment);
 	}
 
 	getDimensions() {

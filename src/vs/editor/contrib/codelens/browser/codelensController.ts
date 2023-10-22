@@ -39,7 +39,7 @@ export class CodeLensContribution implements IEditorContribution {
 	private readonly _resolveCodeLensesScheduler: RunOnceScheduler;
 
 	private _getCodeLensModelPromise: CancelablePromise<CodeLensModel> | undefined;
-	private _oldCodeLensModels = new DisposableStore();
+	private readonly _oldCodeLensModels = new DisposableStore();
 	private _currentCodeLensModel: CodeLensModel | undefined;
 	private _resolveCodeLensesPromise: CancelablePromise<any> | undefined;
 
@@ -147,13 +147,13 @@ export class CodeLensContribution implements IEditorContribution {
 			// no provider -> return but check with
 			// cached lenses. they expire after 30 seconds
 			if (cachedLenses) {
-				this._localToDispose.add(disposableTimeout(() => {
+				disposableTimeout(() => {
 					const cachedLensesNow = this._codeLensCache.get(model);
 					if (cachedLenses === cachedLensesNow) {
 						this._codeLensCache.delete(model);
 						this._onModelChange();
 					}
-				}, 30 * 1000));
+				}, 30 * 1000, this._localToDispose);
 			}
 			return;
 		}

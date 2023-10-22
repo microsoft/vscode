@@ -242,6 +242,10 @@ export class Code {
 		await this.poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
+	whenWorkbenchRestored(): Promise<void> {
+		return this.driver.whenWorkbenchRestored();
+	}
+
 	getLocaleInfo(): Promise<ILocaleInfo> {
 		return this.driver.getLocaleInfo();
 	}

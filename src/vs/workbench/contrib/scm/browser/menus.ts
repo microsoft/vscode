@@ -33,7 +33,7 @@ export class SCMTitleMenu implements IDisposable {
 	readonly onDidChangeTitle = this._onDidChangeTitle.event;
 
 	readonly menu: IMenu;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		@IMenuService menuService: IMenuService,
@@ -159,6 +159,16 @@ export class SCMRepositoryMenus implements ISCMRepositoryMenus, IDisposable {
 		}
 
 		return this._repositoryMenu;
+	}
+
+	private _inputBoxMenu: IMenu | undefined;
+	get inputBoxMenu(): IMenu {
+		if (!this._inputBoxMenu) {
+			this._inputBoxMenu = this.menuService.createMenu(MenuId.SCMInputBox, this.contextKeyService);
+			this.disposables.add(this._inputBoxMenu);
+		}
+
+		return this._inputBoxMenu;
 	}
 
 	private readonly disposables = new DisposableStore();

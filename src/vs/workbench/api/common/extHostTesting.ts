@@ -10,7 +10,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -29,7 +29,6 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -424,7 +423,6 @@ class TestRunTracker extends Disposable {
 	constructor(
 		private readonly dto: TestRunDto,
 		private readonly proxy: MainThreadTestingShape,
-		private readonly extension: Readonly<IRelaxedExtensionDescription>,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -475,10 +473,6 @@ class TestRunTracker extends Disposable {
 			const converted = messages instanceof Array
 				? messages.map(Convert.TestMessage.from)
 				: [Convert.TestMessage.from(messages)];
-
-			if (converted.some(c => c.contextValue !== undefined)) {
-				checkProposedApiEnabled(this.extension, 'testMessageContextValue');
-			}
 
 			if (test.uri && test.range) {
 				const defaultLocation: ILocationDto = { range: Convert.Range.from(test.range), uri: test.uri };
@@ -690,7 +684,7 @@ export class TestRunCoordinator {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, extension, token);
+		const tracker = new TestRunTracker(dto, this.proxy, token);
 		this.tracked.set(req, tracker);
 		Event.once(tracker.onEnd)(() => this.tracked.delete(req));
 		return tracker;
@@ -920,7 +914,7 @@ class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredC
 	 * Gets a list of root test items.
 	 */
 	public get rootTests() {
-		return super.roots;
+		return this.roots;
 	}
 
 	/**
@@ -979,7 +973,7 @@ class TestObservers {
 		return {
 			onDidChangeTest: current.tests.onDidChangeTests,
 			get tests() { return [...current.tests.rootTests].map(t => t.revived); },
-			dispose: once(() => {
+			dispose: createSingleCallFunction(() => {
 				if (--current.observers === 0) {
 					this.proxy.$unsubscribeFromDiffs();
 					this.current = undefined;

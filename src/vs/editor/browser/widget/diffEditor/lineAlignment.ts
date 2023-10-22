@@ -141,6 +141,7 @@ export class ViewZoneManager extends Disposable {
 					domNode: document.createElement('div'),
 					heightInPx: modifiedTopPaddingVal,
 					showInHiddenAreas: true,
+					suppressMouseDown: true,
 				});
 			}
 			const originalTopPaddingVal = this._originalTopPadding.read(reader);
@@ -150,6 +151,7 @@ export class ViewZoneManager extends Disposable {
 					domNode: document.createElement('div'),
 					heightInPx: originalTopPaddingVal,
 					showInHiddenAreas: true,
+					suppressMouseDown: true,
 				});
 			}
 
@@ -237,6 +239,7 @@ export class ViewZoneManager extends Disposable {
 									domNode: createFakeLinesDiv(),
 									heightInPx: (count - 1) * modLineHeight,
 									showInHiddenAreas: true,
+									suppressMouseDown: true,
 								});
 							}
 						}
@@ -249,6 +252,7 @@ export class ViewZoneManager extends Disposable {
 							marginDomNode,
 							setZoneId(id) { zoneId = id; },
 							showInHiddenAreas: true,
+							suppressMouseDown: true,
 						});
 					}
 
@@ -261,6 +265,7 @@ export class ViewZoneManager extends Disposable {
 						heightInPx: a.modifiedHeightInPx,
 						marginDomNode,
 						showInHiddenAreas: true,
+						suppressMouseDown: true,
 					});
 				} else {
 					const delta = a.modifiedHeightInPx - a.originalHeightInPx;
@@ -274,6 +279,7 @@ export class ViewZoneManager extends Disposable {
 							domNode: createFakeLinesDiv(),
 							heightInPx: delta,
 							showInHiddenAreas: true,
+							suppressMouseDown: true,
 						});
 					} else {
 						if (syncedMovedText?.lineRangeMapping.modified.delta(-1).deltaLength(2).contains(a.modifiedRange.endLineNumberExclusive - 1)) {
@@ -297,6 +303,7 @@ export class ViewZoneManager extends Disposable {
 							heightInPx: -delta,
 							marginDomNode,
 							showInHiddenAreas: true,
+							suppressMouseDown: true,
 						});
 					}
 				}
@@ -316,6 +323,7 @@ export class ViewZoneManager extends Disposable {
 						domNode: createFakeLinesDiv(),
 						heightInPx: delta,
 						showInHiddenAreas: true,
+						suppressMouseDown: true,
 					});
 				} else {
 					modViewZones.push({
@@ -323,6 +331,7 @@ export class ViewZoneManager extends Disposable {
 						domNode: createFakeLinesDiv(),
 						heightInPx: -delta,
 						showInHiddenAreas: true,
+						suppressMouseDown: true,
 					});
 				}
 			}
