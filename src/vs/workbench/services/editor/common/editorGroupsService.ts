@@ -215,7 +215,7 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
 
 	/**
-	 * An event for when the locked state of a group changes.
+	 * An event for when the maximized state of a group changes.
 	 */
 	readonly onDidChangeGroupMaximized: Event<boolean>;
 
