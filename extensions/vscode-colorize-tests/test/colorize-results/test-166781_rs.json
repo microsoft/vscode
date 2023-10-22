@@ -3,6 +3,8 @@
 		"c": "let",
 		"t": "source.rust keyword.other.rust storage.type.rust",
 		"r": {
+			"dark_modern": "storage.type: #569CD6",
+			"light_modern": "storage.type: #0000FF",
 			"dark_plus": "storage.type: #569CD6",
 			"light_plus": "storage.type: #0000FF",
 			"dark_vs": "storage.type: #569CD6",
@@ -15,6 +17,8 @@
 		"c": " ",
 		"t": "source.rust",
 		"r": {
+			"dark_modern": "default: #CCCCCC",
+			"light_modern": "default: #3B3B3B",
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
@@ -27,6 +31,8 @@
 		"c": "_",
 		"t": "source.rust variable.other.rust",
 		"r": {
+			"dark_modern": "variable: #9CDCFE",
+			"light_modern": "variable: #001080",
 			"dark_plus": "variable: #9CDCFE",
 			"light_plus": "variable: #001080",
 			"dark_vs": "default: #D4D4D4",
@@ -39,6 +45,8 @@
 		"c": " ",
 		"t": "source.rust",
 		"r": {
+			"dark_modern": "default: #CCCCCC",
+			"light_modern": "default: #3B3B3B",
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
@@ -51,6 +59,8 @@
 		"c": "=",
 		"t": "source.rust keyword.operator.assignment.equal.rust",
 		"r": {
+			"dark_modern": "keyword.operator: #D4D4D4",
+			"light_modern": "keyword.operator: #000000",
 			"dark_plus": "keyword.operator: #D4D4D4",
 			"light_plus": "keyword.operator: #000000",
 			"dark_vs": "keyword.operator: #D4D4D4",
@@ -63,6 +73,8 @@
 		"c": " ",
 		"t": "source.rust",
 		"r": {
+			"dark_modern": "default: #CCCCCC",
+			"light_modern": "default: #3B3B3B",
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
@@ -75,6 +87,8 @@
 		"c": "b",
 		"t": "source.rust string.quoted.double.rust string.quoted.byte.raw.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -87,6 +101,8 @@
 		"c": "\"",
 		"t": "source.rust string.quoted.double.rust punctuation.definition.string.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -99,6 +115,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -111,6 +129,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -123,6 +143,8 @@
 		"c": "x00",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -135,6 +157,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -147,6 +171,8 @@
 		"c": "x01",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -159,6 +185,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -171,6 +199,8 @@
 		"c": "x02",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -183,6 +213,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -195,6 +227,8 @@
 		"c": "x03",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -207,6 +241,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -219,6 +255,8 @@
 		"c": "x04",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -231,6 +269,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -243,6 +283,8 @@
 		"c": "x05",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -255,6 +297,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -267,6 +311,8 @@
 		"c": "x06",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -279,6 +325,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -291,6 +339,8 @@
 		"c": "x07",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -303,6 +353,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -315,6 +367,8 @@
 		"c": "x08",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -327,6 +381,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -339,6 +395,8 @@
 		"c": "x09",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -351,6 +409,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -363,6 +423,8 @@
 		"c": "x0a",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -375,6 +437,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -387,6 +451,8 @@
 		"c": "x0b",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -399,6 +465,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -411,6 +479,8 @@
 		"c": "x0c",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -423,6 +493,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -435,6 +507,8 @@
 		"c": "x0d",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -447,6 +521,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -459,6 +535,8 @@
 		"c": "x0e",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -471,6 +549,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -483,6 +563,8 @@
 		"c": "x0f",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -495,6 +577,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -507,6 +591,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -519,6 +605,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -531,6 +619,8 @@
 		"c": "a0",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -543,6 +633,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -555,6 +647,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -567,6 +661,8 @@
 		"c": "a1",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -579,6 +675,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -591,6 +689,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -603,6 +703,8 @@
 		"c": "a2",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -615,6 +717,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -627,6 +731,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -639,6 +745,8 @@
 		"c": "a3",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -651,6 +759,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -663,6 +773,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -675,6 +787,8 @@
 		"c": "a4",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -687,6 +801,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -699,6 +815,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -711,6 +829,8 @@
 		"c": "a5",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -723,6 +843,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -735,6 +857,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -747,6 +871,8 @@
 		"c": "a6",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -759,6 +885,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -771,6 +899,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -783,6 +913,8 @@
 		"c": "a7",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -795,6 +927,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -807,6 +941,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -819,6 +955,8 @@
 		"c": "a8",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -831,6 +969,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -843,6 +983,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -855,6 +997,8 @@
 		"c": "a9",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -867,6 +1011,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -879,6 +1025,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -891,6 +1039,8 @@
 		"c": "aa",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -903,6 +1053,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -915,6 +1067,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -927,6 +1081,8 @@
 		"c": "ab",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -939,6 +1095,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -951,6 +1109,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -963,6 +1123,8 @@
 		"c": "ac",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -975,6 +1137,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -987,6 +1151,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -999,6 +1165,8 @@
 		"c": "ad",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -1011,6 +1179,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1023,6 +1193,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1035,6 +1207,8 @@
 		"c": "ae",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -1047,6 +1221,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1059,6 +1235,8 @@
 		"c": "x",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1071,6 +1249,8 @@
 		"c": "af\\",
 		"t": "source.rust string.quoted.double.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -1083,6 +1263,8 @@
 		"c": "\\",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.backslash.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1095,6 +1277,8 @@
 		"c": "n",
 		"t": "source.rust string.quoted.double.rust constant.character.escape.rust constant.character.escape.bit.rust",
 		"r": {
+			"dark_modern": "constant.character.escape: #D7BA7D",
+			"light_modern": "constant.character.escape: #EE0000",
 			"dark_plus": "constant.character.escape: #D7BA7D",
 			"light_plus": "constant.character.escape: #EE0000",
 			"dark_vs": "string: #CE9178",
@@ -1107,6 +1291,8 @@
 		"c": "\"",
 		"t": "source.rust string.quoted.double.rust punctuation.definition.string.rust",
 		"r": {
+			"dark_modern": "string: #CE9178",
+			"light_modern": "string: #A31515",
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
 			"dark_vs": "string: #CE9178",
@@ -1119,6 +1305,8 @@
 		"c": ";",
 		"t": "source.rust punctuation.semi.rust",
 		"r": {
+			"dark_modern": "default: #CCCCCC",
+			"light_modern": "default: #3B3B3B",
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
