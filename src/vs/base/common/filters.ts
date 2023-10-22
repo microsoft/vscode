@@ -599,6 +599,8 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 }
 
 function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] | null {
+	let jOffset = 0;
+
 	if (i === word.length) {
 		return [];
 	} else if (j === target.length) {
@@ -614,13 +616,14 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 				return null;
 			}
 		}
+		jOffset += altChars.length - 1;
 	}
 
 	// TODO: Fix highlighting
 
 	let result: IMatch[] | null = null;
 	let nextWordIndex = j + 1;
-	result = _matchesWords(word, target, i + 1, j + 1, contiguous);
+	result = _matchesWords(word, target, i + 1, j + jOffset + 1, contiguous);
 	if (!contiguous) {
 		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
 			result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
