@@ -1787,6 +1787,10 @@ export class GridView implements IDisposable {
 	 * this method is a no-op.
 	 */
 	trySet2x2(): void {
+		if (this.maximizedNode) {
+			this.exitMaximizedView();
+		}
+
 		this.disposable2x2.dispose();
 		this.disposable2x2 = Disposable.None;
 
