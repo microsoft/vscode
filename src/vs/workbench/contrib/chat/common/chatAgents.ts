@@ -34,9 +34,8 @@ export interface IChatAgentCommand {
 
 export interface IChatAgentMetadata {
 	description?: string;
-	// subCommands: IChatAgentCommand[];
-	requireCommand?: boolean; // Do some agents not have a default action?
 	isDefault?: boolean; // The agent invoked when no agent is specified
+	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
 	fullName?: string;
 	icon?: URI;
 }
@@ -54,7 +53,7 @@ export interface IChatAgentResult {
 	followUp?: IChatFollowup[];
 	errorDetails?: IChatResponseErrorDetails;
 	timings?: {
-		firstProgress: number;
+		firstProgress?: number;
 		totalElapsed: number;
 	};
 }
@@ -70,6 +69,7 @@ export interface IChatAgentService {
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
 	getDefaultAgent(): IChatAgent | undefined;
+	getSecondaryAgent(): IChatAgent | undefined;
 	hasAgent(id: string): boolean;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -115,6 +115,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	getDefaultAgent(): IChatAgent | undefined {
 		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isDefault)?.agent;
+	}
+
+	getSecondaryAgent(): IChatAgent | undefined {
+		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isSecondary)?.agent;
 	}
 
 	getAgents(): Array<IChatAgent> {

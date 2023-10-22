@@ -26,6 +26,7 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 export type Recording = {
 	when: Date;
@@ -281,7 +282,8 @@ export class ErrorResponse {
 export class MarkdownResponse {
 	constructor(
 		readonly localUri: URI,
-		readonly raw: IInlineChatMessageResponse
+		readonly raw: IInlineChatMessageResponse,
+		readonly mdContent: IMarkdownString,
 	) { }
 }
 

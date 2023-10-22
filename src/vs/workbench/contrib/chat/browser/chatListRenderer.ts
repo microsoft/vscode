@@ -622,7 +622,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const container = $('.chat-used-context', undefined, buttonElement);
 		collapseButton.label = referencesLabel;
 		collapseButton.element.append(iconElement);
-
+		this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 		listDisposables.add(collapseButton.onDidClick(() => {
 			iconElement.classList.remove(...ThemeIcon.asClassNameArray(icon(element)));
@@ -630,6 +630,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			iconElement.classList.add(...ThemeIcon.asClassNameArray(icon(element)));
 			container.classList.toggle('chat-used-context-collapsed', !element.usedReferencesExpanded);
 			this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight });
+			this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
 		const ref = listDisposables.add(this._contentReferencesListPool.get());
@@ -654,7 +655,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			e.browserEvent.stopPropagation();
 		}));
 
-		list.layout(data.length * 22);
+		const maxItemsShown = 6;
+		const itemsShown = Math.min(data.length, maxItemsShown);
+		const height = itemsShown * 22;
+		list.layout(height);
+		list.getHTMLElement().style.height = `${height}px`;
 		list.splice(0, list.length, data);
 
 		return {
@@ -663,6 +668,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				listDisposables.dispose();
 			}
 		};
+	}
+
+	private updateAriaLabel(element: HTMLElement, label: string, expanded?: boolean): void {
+		element.ariaLabel = expanded ? localize('usedReferencesExpanded', "{0}, expanded", label) : localize('usedReferencesCollapsed', "{0}, collapsed", label);
 	}
 
 	private renderPlaceholder(markdown: IMarkdownString, templateData: IChatListItemTemplate): IMarkdownRenderResult {
@@ -1020,7 +1029,9 @@ class ContentReferencesListPool extends Disposable {
 			container,
 			new ContentReferencesListDelegate(),
 			[new ContentReferencesListRenderer(resourceLabels)],
-			{});
+			{
+				alwaysConsumeMouseWheel: false,
+			});
 
 		return list;
 	}
@@ -1068,10 +1079,12 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
+		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
+		templateData.label.setFile(uri, {
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },
+			range: 'range' in element.reference ? element.reference.range : undefined
 		});
 	}
 

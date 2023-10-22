@@ -247,6 +247,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 	protected readonly _instantiationService: IInstantiationService;
 	protected readonly _contextKeyService: IContextKeyService;
+	get contextKeyService() { return this._contextKeyService; }
 	private readonly _notificationService: INotificationService;
 	protected readonly _codeEditorService: ICodeEditorService;
 	private readonly _commandService: ICommandService;

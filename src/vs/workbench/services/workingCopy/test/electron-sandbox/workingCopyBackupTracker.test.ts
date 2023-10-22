@@ -162,7 +162,7 @@ suite('WorkingCopyBackupTracker (native)', function () {
 		const part = await createEditorPart(instantiationService, disposables);
 		instantiationService.stub(IEditorGroupsService, part);
 
-		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService));
+		const editorService: EditorService = disposables.add(instantiationService.createInstance(EditorService, undefined));
 		instantiationService.stub(IEditorService, editorService);
 
 		accessor = instantiationService.createInstance(TestServiceAccessor);

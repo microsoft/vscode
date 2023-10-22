@@ -1106,6 +1106,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
@@ -1238,8 +1243,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.runtime.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
-			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+			if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
+				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: config.showTabs }));
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
@@ -2311,7 +2316,7 @@ type ZenModeConfiguration = {
 	hideActivityBar: boolean;
 	hideLineNumbers: boolean;
 	hideStatusBar: boolean;
-	hideTabs: boolean;
+	showTabs: 'multiple' | 'single' | 'none';
 	restore: boolean;
 	silentNotifications: boolean;
 };
