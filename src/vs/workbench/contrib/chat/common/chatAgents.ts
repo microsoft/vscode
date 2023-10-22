@@ -16,9 +16,12 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 //#region agent service, commands etc
 
-export interface IChatAgent {
+export interface IChatAgentData {
 	id: string;
 	metadata: IChatAgentMetadata;
+}
+
+export interface IChatAgent extends IChatAgentData {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
