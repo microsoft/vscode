@@ -135,7 +135,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private readonly editorPartsView: IEditorPartsView,
-		private readonly groupsView: IEditorGroupsView,
+		public readonly groupsView: IEditorGroupsView,
 		private readonly groupsLabel: string,
 		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
