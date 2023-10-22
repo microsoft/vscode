@@ -5,7 +5,7 @@
   "enabledApiProposals": [
     "externalUriOpener"
   ],
-  "version": "1.0.0",
+  "version": "1.0.1",
   "icon": "media/icon.png",
   "publisher": "vscode",
   "license": "MIT",
@@ -51,7 +51,13 @@
             "default": true,
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
-          }
+          },
+					"simpleBrowser.defaultURL": {
+						"type": "string",
+						"default": "http://localhost:3000",
+						"title": "Default URL",
+						"description": "The default URL in the input field when starting Simple Browser."
+					}
         }
       }
     ]
