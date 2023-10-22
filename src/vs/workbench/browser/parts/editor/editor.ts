@@ -136,7 +136,7 @@ export interface IEditorGroupsView {
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -172,6 +172,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidOpenEditorFail: Event<EditorInput>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly groupsView: IEditorGroupsView;
 
 	/**
 	 * A promise that resolves when the group has been restored.
