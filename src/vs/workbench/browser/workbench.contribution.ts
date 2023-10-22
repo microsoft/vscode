@@ -791,19 +791,15 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 				value = value ? 'expand' : 'off';
 			}
 			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: newValue }]];
-
-Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
+		}
+	}, {
 		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
 			if (typeof value === 'boolean') {
 				value = value ? 'multiple' : 'single';
 			}
 			return [['workbench.editor.showTabs', { value: value }]];
 		}
-	}]);
-
-Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
-	.registerConfigurationMigrations([{
+	}, {
 		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
