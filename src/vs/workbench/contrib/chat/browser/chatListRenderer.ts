@@ -56,7 +56,7 @@ import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/cont
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
-import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -226,7 +226,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
 		const username = dom.append(user, $('h3.username'));
-		const detail = dom.append(user, $('.detail'));
+		const detailContainer = dom.append(user, $('span.detail-container'));
+		const detail = dom.append(detailContainer, $('span.detail'));
+		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
 		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
@@ -276,16 +278,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		templateData.rowContainer.classList.toggle('interactive-response', isResponseVM(element));
 		templateData.rowContainer.classList.toggle('interactive-welcome', isWelcomeVM(element));
 		templateData.rowContainer.classList.toggle('filtered-response', isFiltered);
+		templateData.rowContainer.classList.toggle('show-progress', isResponseVM(element) && !element.isComplete);
 		templateData.username.textContent = element.username;
-		dom.clearNode(templateData.detail);
 		this.renderAvatar(element, templateData);
 
-		const shouldDoProgressiveRender = isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData);
-		if (shouldDoProgressiveRender) {
-			templateData.detail.textContent = element.agent && !element.agent.metadata.isDefault ?
-				localize('usingAgent', "using {0}{1}", chatAgentLeader, element.agent.id) :
-				localize('thinking', "Thinking");
-			templateData.detail.appendChild(dom.$('span.chat-animated-ellipsis'));
+		dom.clearNode(templateData.detail);
+		if (isResponseVM(element)) {
+			this.renderProgressMessage(element, templateData);
 		}
 
 		// Do a progressive render if
@@ -294,7 +293,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		// - And, the feature is not disabled in configuration
-		if (shouldDoProgressiveRender && element.response.value.length) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData) && element.response.value.length) {
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
@@ -325,7 +324,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate) {
+	private renderProgressMessage(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		let progressMsg: string = '';
+		if (element.agent && !element.agent.metadata.isDefault) {
+			let usingMsg = chatAgentLeader + element.agent.id;
+			if (element.slashCommand) {
+				usingMsg += ` ${chatSubcommandLeader}${element.slashCommand.name}`;
+			}
+
+			if (element.isComplete) {
+				progressMsg = localize('usedAgent', "used {0}", usingMsg);
+			} else {
+				progressMsg = localize('usingAgent', "using {0}", usingMsg);
+			}
+		} else if (!element.isComplete) {
+			progressMsg = localize('thinking', "Thinking");
+		}
+
+		templateData.detail.textContent = progressMsg;
+		templateData.detail.title = element.slashCommand?.description ?? '';
+	}
+
+	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
 		if (element.avatarIconUri) {
 			const avatarImgIcon = dom.$<HTMLImageElement>('img.icon');
 			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
@@ -364,10 +384,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
-		if (isResponseVM(element) && element.isComplete) {
-			templateData.detail.textContent = element.agent && !element.agent.metadata.isDefault ?
-				localize('usedAgent', "used {0}{1}", chatAgentLeader, element.agent.id) :
-				'';
+		if (isResponseVM(element)) {
+			this.renderProgressMessage(element, templateData);
 		}
 
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);

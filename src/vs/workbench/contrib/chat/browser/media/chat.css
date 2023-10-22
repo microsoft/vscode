@@ -43,9 +43,13 @@
 	font-weight: 600;
 }
 
-.interactive-item-container .header .detail {
+.interactive-item-container .header .detail-container {
 	font-size: 0.9em;
 	opacity: 0.7;
+}
+
+.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+	display: none;
 }
 
 @keyframes ellipsis {
