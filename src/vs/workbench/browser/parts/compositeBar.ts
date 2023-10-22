@@ -565,9 +565,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			}
 		});
 		compositesToRemove.reverse().forEach(index => {
-			const actionViewItem = compositeSwitcherBar.viewItems[index];
 			compositeSwitcherBar.pull(index);
-			actionViewItem.dispose();
 			this.visibleComposites.splice(index, 1);
 		});
 
@@ -576,9 +574,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			const currentIndex = this.visibleComposites.indexOf(compositeId);
 			if (newIndex !== currentIndex) {
 				if (currentIndex !== -1) {
-					const actionViewItem = compositeSwitcherBar.viewItems[currentIndex];
 					compositeSwitcherBar.pull(currentIndex);
-					actionViewItem.dispose();
 					this.visibleComposites.splice(currentIndex, 1);
 				}
 
@@ -589,10 +585,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 
 		// Add overflow action as needed
 		if (totalComposites > compositesToShow.length && !this.compositeOverflowAction) {
-			this.compositeOverflowAction = this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
+			this.compositeOverflowAction = this._register(this.instantiationService.createInstance(CompositeOverflowActivityAction, () => {
 				this.compositeOverflowActionViewItem?.showMenu();
-			});
-			this.compositeOverflowActionViewItem = this.instantiationService.createInstance(
+			}));
+			this.compositeOverflowActionViewItem = this._register(this.instantiationService.createInstance(
 				CompositeOverflowActivityActionViewItem,
 				this.compositeOverflowAction,
 				() => this.getOverflowingComposites(),
@@ -604,7 +600,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 				this.options.getOnCompositeClickAction,
 				this.options.colors,
 				this.options.activityHoverOptions
-			);
+			));
 
 			compositeSwitcherBar.push(this.compositeOverflowAction, { label: false, icon: true });
 		}
