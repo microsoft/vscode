@@ -1593,12 +1593,8 @@ export class GridView implements IDisposable {
 		this._onDidChangeViewMaximized.fire(false);
 	}
 
-	isViewMaximized(location: GridLocation): boolean {
-		const [, node] = this.getNode(location);
-		if (!(node instanceof LeafNode)) {
-			throw new Error('Location is not a LeafNode');
-		}
-		return node === this.maximizedNode;
+	hasMaximizedView(): boolean {
+		return this.maximizedNode !== undefined;
 	}
 
 	/**

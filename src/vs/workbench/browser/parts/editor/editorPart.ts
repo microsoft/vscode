@@ -386,7 +386,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	toggleMaximizeGroup(target: IEditorGroupView = this.activeGroup): void {
-		if (this.isGroupMaximized(target)) {
+		if (this.hasMaximizedGroup()) {
 			this.unmaximizeGroup();
 		} else {
 			this.arrangeGroups(GroupsArrangement.MAXIMIZE, target);
@@ -405,11 +405,11 @@ export class EditorPart extends Part implements IEditorPart {
 		this.gridWidget.exitMaximizedView();
 	}
 
-	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
-		return this.gridWidget.isViewMaximized(targetGroup);
+	private hasMaximizedGroup(): boolean {
+		return this.gridWidget.hasMaximizedView();
 	}
 
-	private isGroupExpanded(targetGroup: IEditorGroupView): boolean {
+	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
 		return this.gridWidget.isViewExpanded(targetGroup);
 	}
 
@@ -651,10 +651,6 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doSetGroupActive(group: IEditorGroupView): void {
 		if (this._activeGroup !== group) {
-			if (this._activeGroup && this.isGroupMaximized(this._activeGroup)) {
-				this.unmaximizeGroup();
-			}
-
 			const previousActiveGroup = this._activeGroup;
 			this._activeGroup = group;
 
@@ -684,6 +680,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doRestoreGroup(group: IEditorGroupView): void {
 		if (this.gridWidget) {
+			if (this.hasMaximizedGroup()) {
+				this.unmaximizeGroup();
+			}
+
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
 				this.arrangeGroups(GroupsArrangement.EXPAND, group);
@@ -1048,7 +1048,7 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	centerLayout(active: boolean): void {
-		if (this.isGroupMaximized(this.activeGroup)) {
+		if (this.hasMaximizedGroup()) {
 			this.unmaximizeGroup();
 		}
 
@@ -1181,7 +1181,7 @@ export class EditorPart extends Part implements IEditorPart {
 		this.gridWidgetDisposables.clear();
 		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
-		this._onDidChangeGroupMaximized.fire(this.activeGroup && this.isGroupMaximized(this.activeGroup));
+		this._onDidChangeGroupMaximized.fire(this.hasMaximizedGroup());
 
 		this.onDidSetGridWidget.fire(undefined);
 	}
