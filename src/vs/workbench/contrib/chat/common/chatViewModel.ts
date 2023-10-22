@@ -336,7 +336,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return this.response.value.length === 0;
+		return !this.isComplete;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
@@ -399,19 +399,23 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 			// new data -> new id, new content to render
 			this._modelChangeCount++;
+			// new data -> new id, new content to render
+			this._modelChangeCount++;
 
 			this._onDidChange.fire();
 		}));
-	}
+		this._onDidChange.fire();
+	}));
+}
 
 	private trace(tag: string, message: string) {
-		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
-	}
+	this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
+}
 
-	setVote(vote: InteractiveSessionVoteDirection): void {
-		this._modelChangeCount++;
-		this._model.setVote(vote);
-	}
+setVote(vote: InteractiveSessionVoteDirection): void {
+	this._modelChangeCount++;
+	this._model.setVote(vote);
+}
 }
 
 export interface IChatWelcomeMessageViewModel {
