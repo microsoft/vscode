@@ -43,6 +43,44 @@
 	font-weight: 600;
 }
 
+.interactive-item-container .header .detail-container {
+	font-size: 0.9em;
+	opacity: 0.7;
+}
+
+.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+	display: none;
+}
+
+@keyframes ellipsis {
+	0% {
+		content: ".";
+	}
+	33% {
+		content: "..";
+	}
+	66% {
+		content: "...";
+	}
+	100% {
+		content: ".";
+	}
+}
+
+.chat-animated-ellipsis::after {
+	content: '';
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3em;
+	animation: ellipsis steps(4, end) 1s infinite;
+}
+
+.interactive-item-container .header .avatar-container {
+	display: flex;
+	pointer-events: none;
+	user-select: none;
+}
+
 .interactive-item-container .header .avatar {
 	display: flex;
 	align-items: center;
@@ -50,9 +88,14 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+}
+
+.interactive-item-container .header .avatar.codicon-avatar {
 	background: var(--vscode-badge-background);
-	pointer-events: none;
-	user-select: none;
+}
+
+.interactive-item-container .header .avatar+.avatar {
+	margin-left: -10px;
 }
 
 .interactive-item-container .header .avatar .icon {
