@@ -1204,7 +1204,7 @@ export class GridView implements IDisposable {
 	 * @param location The {@link GridLocation location} to insert the view on.
 	 */
 	addView(view: IView, size: number | Sizing, location: GridLocation): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1261,7 +1261,7 @@ export class GridView implements IDisposable {
 	 * @param sizing Whether to distribute other {@link IView view}'s sizes.
 	 */
 	removeView(location: GridLocation, sizing?: DistributeSizing | AutoSizing): IView {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1351,7 +1351,7 @@ export class GridView implements IDisposable {
 	 * @param to The index where the {@link IView view} should move to.
 	 */
 	moveView(parentLocation: GridLocation, from: number, to: number): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1373,7 +1373,7 @@ export class GridView implements IDisposable {
 	 * @param to The {@link GridLocation location} of another view.
 	 */
 	swapViews(from: GridLocation, to: GridLocation): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1425,7 +1425,7 @@ export class GridView implements IDisposable {
 	 * @param size The size the view should be. Optionally provide a single dimension.
 	 */
 	resizeView(location: GridLocation, size: Partial<IViewSize>): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1495,7 +1495,7 @@ export class GridView implements IDisposable {
 	 * @param location The {@link GridLocation location} of the view.
 	 */
 	expandView(location: GridLocation): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1516,7 +1516,7 @@ export class GridView implements IDisposable {
 	 * @param location The {@link GridLocation location} of the view.
 	 */
 	isViewExpanded(location: GridLocation): boolean {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			// No view can be expanded when a view is maximized
 			return false;
 		}
@@ -1546,7 +1546,7 @@ export class GridView implements IDisposable {
 			return;
 		}
 
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1607,7 +1607,7 @@ export class GridView implements IDisposable {
 	 * in the entire grid.
 	 */
 	distributeViewSizes(location?: GridLocation): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 		}
 
@@ -1648,7 +1648,7 @@ export class GridView implements IDisposable {
 	 * @param location The {@link GridLocation location} of the view.
 	 */
 	setViewVisible(location: GridLocation, visible: boolean): void {
-		if (this.maximizedNode) {
+		if (this.hasMaximizedView()) {
 			this.exitMaximizedView();
 			return;
 		}
