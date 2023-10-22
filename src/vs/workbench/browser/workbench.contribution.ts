@@ -790,7 +790,7 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			if (typeof value === 'boolean') {
 				value = value ? 'expand' : 'off';
 			}
-			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: newValue }]];
+			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: value }]];
 		}
 	}, {
 		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
