@@ -119,14 +119,15 @@ export class Menu extends ActionBar {
 
 		this._register(Gesture.addTarget(menuElement));
 
-		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
-			const event = new StandardKeyboardEvent(e);
+		this._register(
+			addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+				const event = new StandardKeyboardEvent(e);
 
-			// Stop tab navigation of menus
-			if (event.equals(KeyCode.Tab)) {
-				e.preventDefault();
-			}
-		});
+				// Stop tab navigation of menus
+				if (event.equals(KeyCode.Tab)) {
+					e.preventDefault();
+				}
+			}));
 
 		if (options.enableMnemonics) {
 			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
