@@ -116,7 +116,6 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		'restoreViewState',
 		'splitOnDragAndDrop',
 		'centeredLayoutFixedWidth',
-		'doubleClickTabToToggleEditorGroupSizes'
 	];
 	for (const option of booleanOptions) {
 		if (typeof option === 'string') {
@@ -149,6 +148,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		['labelFormat', ['default', 'short', 'medium', 'long']],
 		['splitInGroupLayout', ['vertical', 'horizontal']],
 		['splitSizing', ['distribute', 'split', 'auto']],
+		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']]
 	];
 	for (const [option, allowed] of stringOptions) {
 		if (typeof option === 'string') {
