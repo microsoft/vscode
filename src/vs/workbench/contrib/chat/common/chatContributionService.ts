@@ -18,6 +18,8 @@ export interface IChatContributionService {
 	_serviceBrand: undefined;
 
 	registeredProviders: IChatProviderContribution[];
+	registerChatProvider(provider: IChatProviderContribution): void;
+	deregisterChatProvider(providerId: string): void;
 	getViewIdForProvider(providerId: string): string;
 }
 

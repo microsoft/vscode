@@ -7,8 +7,11 @@ import * as assert from 'assert';
 import { IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ListView } from 'vs/base/browser/ui/list/listView';
 import { range } from 'vs/base/common/arrays';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ListView', function () {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('all rows get disposed', function () {
 		const element = document.createElement('div');
 		element.style.height = '200px';

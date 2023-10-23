@@ -14,7 +14,9 @@ use crate::tunnels::paths::{get_server_folder_name, SERVER_FOLDER_NAME};
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
-use crate::util::command::{capture_command, kill_tree};
+use crate::util::command::{
+	capture_command, capture_command_and_check_status, kill_tree, new_script_command,
+};
 use crate::util::errors::{wrap, AnyError, CodeError, ExtensionInstallFailed, WrappedError};
 use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
@@ -416,11 +418,23 @@ impl<'a> ServerBuilder<'a> {
 				)
 				.await?;
 
-				unzip_downloaded_release(
-					&archive_path,
-					&target_dir.join(SERVER_FOLDER_NAME),
-					SilentCopyProgress(),
-				)?;
+				let server_dir = target_dir.join(SERVER_FOLDER_NAME);
+				unzip_downloaded_release(&archive_path, &server_dir, SilentCopyProgress())?;
+
+				let output = capture_command_and_check_status(
+					server_dir
+						.join("bin")
+						.join(self.server_params.release.quality.server_entrypoint()),
+					&["--version"],
+				)
+				.await
+				.map_err(|e| wrap(e, "error checking server integrity"))?;
+
+				trace!(
+					self.logger,
+					"Server integrity verified, version: {}",
+					String::from_utf8_lossy(&output.stdout).replace('\n', " / ")
+				);
 
 				Ok(())
 			})
@@ -496,7 +510,7 @@ impl<'a> ServerBuilder<'a> {
 		let (mut origin, listen_rx) =
 			monitor_server::<SocketMatcher, PathBuf>(child, Some(log_file), plog, false);
 
-		let socket = match timeout(Duration::from_secs(8), listen_rx).await {
+		let socket = match timeout(Duration::from_secs(30), listen_rx).await {
 			Err(e) => {
 				origin.kill().await;
 				Err(wrap(e, "timed out looking for socket"))
@@ -575,17 +589,7 @@ impl<'a> ServerBuilder<'a> {
 	}
 
 	fn get_base_command(&self) -> Command {
-		#[cfg(not(windows))]
-		let mut cmd = Command::new(&self.server_paths.executable);
-		#[cfg(windows)]
-		let mut cmd = {
-			let mut cmd = Command::new("cmd");
-			cmd.arg("/Q");
-			cmd.arg("/C");
-			cmd.arg(&self.server_paths.executable);
-			cmd
-		};
-
+		let mut cmd = new_script_command(&self.server_paths.executable);
 		cmd.stdin(std::process::Stdio::null())
 			.args(self.server_params.code_server_args.command_arguments());
 		cmd

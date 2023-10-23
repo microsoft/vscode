@@ -11,14 +11,18 @@ import { isCancellationError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Async', () => {
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('cancelablePromise', function () {
 		test('set token, don\'t wait for inner promise', function () {
 			let canceled = 0;
 			const promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
+				store.add(token.onCancellationRequested(_ => { canceled += 1; }));
 				return new Promise(resolve => { /*never*/ });
 			});
 			const result = promise.then(_ => assert.ok(false), err => {
@@ -33,7 +37,7 @@ suite('Async', () => {
 		test('cancel despite inner promise being resolved', function () {
 			let canceled = 0;
 			const promise = async.createCancelablePromise(token => {
-				token.onCancellationRequested(_ => { canceled += 1; });
+				store.add(token.onCancellationRequested(_ => { canceled += 1; }));
 				return Promise.resolve(1234);
 			});
 			const result = promise.then(_ => assert.ok(false), err => {
@@ -51,7 +55,7 @@ suite('Async', () => {
 
 			const cancellablePromise = async.createCancelablePromise(token => {
 				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
 				return Promise.resolve(1234);
 			});
 
@@ -73,7 +77,7 @@ suite('Async', () => {
 
 			const cancellablePromise = async.createCancelablePromise(token => {
 				order.push('in callback');
-				token.onCancellationRequested(_ => order.push('cancelled'));
+				store.add(token.onCancellationRequested(_ => order.push('cancelled')));
 				return new Promise(c => setTimeout(c.bind(1234), 0));
 			});
 
@@ -185,9 +189,14 @@ suite('Async', () => {
 			const promises: Promise<any>[] = [];
 
 			throttler.dispose();
-			assert.throws(() => promises.push(throttler.queue(factory)));
-			assert.strictEqual(factoryCalls, 0);
-			await Promise.all(promises);
+			promises.push(throttler.queue(factory));
+
+			try {
+				await Promise.all(promises);
+				assert.fail('should fail');
+			} catch (err) {
+				assert.strictEqual(factoryCalls, 0);
+			}
 		});
 	});
 
@@ -787,52 +796,123 @@ suite('Async', () => {
 
 		test('cancel executing', async function () {
 			const sequentializer = new async.TaskSequentializer();
+			const ctsTimeout = store.add(new CancellationTokenSource());
 
 			let pendingCancelled = false;
-			sequentializer.run(1, async.timeout(1), () => pendingCancelled = true);
+			const timeout = async.timeout(1, ctsTimeout.token);
+			sequentializer.run(1, timeout, () => pendingCancelled = true);
 			sequentializer.cancelRunning();
 
 			assert.ok(pendingCancelled);
+			ctsTimeout.cancel();
+		});
+	});
+
+	suite('disposableTimeout', () => {
+		test('handler only success', async () => {
+			let cb = false;
+			const t = async.disposableTimeout(() => cb = true);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+
+			t.dispose();
+		});
+
+		test('handler only cancel', async () => {
+			let cb = false;
+			const t = async.disposableTimeout(() => cb = true);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+		});
+
+		test('store managed success', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, true);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via disposable', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			const t = async.disposableTimeout(() => cb = true, 0, s);
+			t.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
+
+			s.dispose();
+		});
+
+		test('store managed cancel via store', async () => {
+			let cb = false;
+			const s = new DisposableStore();
+			async.disposableTimeout(() => cb = true, 0, s);
+			s.dispose();
+
+			await async.timeout(0);
+
+			assert.strictEqual(cb, false);
 		});
 	});
 
 	test('raceCancellation', async () => {
-		const cts = new CancellationTokenSource();
+		const cts = store.add(new CancellationTokenSource());
+		const ctsTimeout = store.add(new CancellationTokenSource());
 
 		let triggered = false;
-		const p = async.raceCancellation(async.timeout(100).then(() => triggered = true), cts.token);
+		const timeout = async.timeout(100, ctsTimeout.token);
+		const p = async.raceCancellation(timeout.then(() => triggered = true), cts.token);
 		cts.cancel();
 
 		await p;
 
 		assert.ok(!triggered);
+		ctsTimeout.cancel();
 	});
 
 	test('raceTimeout', async () => {
-		const cts = new CancellationTokenSource();
+		const cts = store.add(new CancellationTokenSource());
 
 		// timeout wins
 		let timedout = false;
 		let triggered = false;
 
-		const p1 = async.raceTimeout(async.timeout(100).then(() => triggered = true), 1, () => timedout = true);
+		const ctsTimeout1 = store.add(new CancellationTokenSource());
+		const timeout1 = async.timeout(100, ctsTimeout1.token);
+		const p1 = async.raceTimeout(timeout1.then(() => triggered = true), 1, () => timedout = true);
 		cts.cancel();
 
 		await p1;
 
 		assert.ok(!triggered);
 		assert.strictEqual(timedout, true);
+		ctsTimeout1.cancel();
 
 		// promise wins
 		timedout = false;
 
-		const p2 = async.raceTimeout(async.timeout(1).then(() => triggered = true), 100, () => timedout = true);
+		const ctsTimeout2 = store.add(new CancellationTokenSource());
+		const timeout2 = async.timeout(1, ctsTimeout2.token);
+		const p2 = async.raceTimeout(timeout2.then(() => triggered = true), 100, () => timedout = true);
 		cts.cancel();
 
 		await p2;
 
 		assert.ok(triggered);
 		assert.strictEqual(timedout, false);
+		ctsTimeout2.cancel();
 	});
 
 	test('SequencerByKey', async () => {
@@ -1111,11 +1191,11 @@ suite('Async', () => {
 				}
 			};
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			// Work less than chunk size
 
@@ -1223,11 +1303,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: 5,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			let worked = worker.work([1, 2, 3]);
 			assert.strictEqual(worked, true);
@@ -1249,11 +1329,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: 5,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 
 			let worked = worker.work([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
 			assert.strictEqual(worked, false);
@@ -1268,11 +1348,11 @@ suite('Async', () => {
 			const handled: number[] = [];
 			const handler = (units: readonly number[]) => handled.push(...units);
 
-			const worker = new async.ThrottledWorker<number>({
+			const worker = store.add(new async.ThrottledWorker<number>({
 				maxWorkChunkSize: 5,
 				maxBufferedWork: undefined,
 				throttleDelay: 1
-			}, handler);
+			}, handler));
 			worker.dispose();
 			const worked = worker.work([1, 2, 3]);
 

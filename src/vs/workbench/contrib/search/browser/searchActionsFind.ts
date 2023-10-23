@@ -172,7 +172,7 @@ registerAction2(class FindInFilesAction extends Action2 {
 				mnemonicTitle: nls.localize({ key: 'miFindInFiles', comment: ['&& denotes a mnemonic'] }, "Find &&in Files"),
 				original: 'Find in Files'
 			},
-			description: {
+			metadata: {
 				description: nls.localize('findInFiles.description', "Open a workspace search"),
 				args: [
 					{

@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IExtensionsProfileScannerService, IProfileExtensionsScanOptions } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { AbstractExtensionsScannerService, ExtensionScannerInput, IExtensionsScannerService, IScannedExtensionManifest, Translations } from 'vs/platform/extensionManagement/common/extensionsScannerService';
@@ -55,7 +55,7 @@ class ExtensionsScannerService extends AbstractExtensionsScannerService implemen
 
 suite('NativeExtensionsScanerService Test', () => {
 
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 
 	setup(async () => {
@@ -64,7 +64,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
 		const systemExtensionsLocation = joinPath(ROOT, 'system');
@@ -77,21 +77,19 @@ suite('NativeExtensionsScanerService Test', () => {
 			cacheHome: joinPath(ROOT, 'cache'),
 		});
 		instantiationService.stub(IProductService, { version: '1.66.0' });
-		const uriIdentityService = new UriIdentityService(fileService);
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
 		instantiationService.stub(IUriIdentityService, uriIdentityService);
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
-		instantiationService.stub(IExtensionsProfileScannerService, new ExtensionsProfileScannerService(environmentService, fileService, userDataProfilesService, uriIdentityService, NullTelemetryService, logService));
+		instantiationService.stub(IExtensionsProfileScannerService, disposables.add(new ExtensionsProfileScannerService(environmentService, fileService, userDataProfilesService, uriIdentityService, NullTelemetryService, logService)));
 		await fileService.createFolder(systemExtensionsLocation);
 		await fileService.createFolder(userExtensionsLocation);
 	});
 
-	teardown(() => disposables.clear());
-
 	test('scan system extension', async () => {
 		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
 		const extensionLocation = await aSystemExtension(manifest);
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanSystemExtensions({});
 
@@ -110,7 +108,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan user extension', async () => {
 		const manifest: Partial<IScannedExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub', __metadata: { id: 'uuid' } });
 		const extensionLocation = await aUserExtension(manifest);
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -130,7 +128,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan existing extension', async () => {
 		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
 		const extensionLocation = await aUserExtension(manifest);
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanExistingExtension(extensionLocation, ExtensionType.User, {});
 
@@ -149,7 +147,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan single extension', async () => {
 		const manifest: Partial<IExtensionManifest> = anExtensionManifest({ 'name': 'name', 'publisher': 'pub' });
 		const extensionLocation = await aUserExtension(manifest);
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanOneOrMultipleExtensions(extensionLocation, ExtensionType.User, {});
 
@@ -168,7 +166,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan multiple extensions', async () => {
 		const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub' }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanOneOrMultipleExtensions(dirname(extensionLocation), ExtensionType.User, {});
 
@@ -180,7 +178,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan user extension with different versions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2' }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -192,7 +190,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan user extension include all versions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2' }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({ includeAllVersions: true });
 
@@ -206,7 +204,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan user extension with different versions and higher version is not compatible', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.2', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -218,7 +216,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan exclude invalid extensions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -230,7 +228,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(URI.file(instantiationService.get(INativeEnvironmentService).extensionsPath), '.obsolete'), VSBuffer.fromString(JSON.stringify({ 'pub.name2-1.0.0': true })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -242,7 +240,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(URI.file(instantiationService.get(INativeEnvironmentService).extensionsPath), '.obsolete'), VSBuffer.fromString(JSON.stringify({ 'pub.name2-1.0.0': true })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({ includeUninstalled: true });
 
@@ -254,7 +252,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan include invalid extensions', async () => {
 		await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }));
 		await aUserExtension(anExtensionManifest({ 'name': 'name2', 'publisher': 'pub', engines: { vscode: '^1.67.0' } }));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({ includeInvalid: true });
 
@@ -275,7 +273,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		const extensionLocation = await anExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub' }), joinPath(ROOT, 'additional'));
 		await aSystemExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', version: '1.0.1' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(instantiationService.get(INativeEnvironmentService).userHome, '.vscode-oss-dev', 'extensions', 'control.json'), VSBuffer.fromString(JSON.stringify({ 'pub.name2': 'disabled', 'pub.name': extensionLocation.fsPath })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanSystemExtensions({ checkControlFile: true });
 
@@ -287,7 +285,7 @@ suite('NativeExtensionsScanerService Test', () => {
 	test('scan extension with default nls replacements', async () => {
 		const extensionLocation = await aUserExtension(anExtensionManifest({ 'name': 'name', 'publisher': 'pub', displayName: '%displayName%' }));
 		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		const actual = await testObject.scanUserExtensions({});
 
@@ -301,7 +299,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
 		const nlsLocation = joinPath(extensionLocation, 'package.en.json');
 		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ contents: { package: { displayName: 'Hello World EN' } } })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		translations = { 'pub.name': nlsLocation.fsPath };
 		const actual = await testObject.scanUserExtensions({ language: 'en' });
@@ -316,7 +314,7 @@ suite('NativeExtensionsScanerService Test', () => {
 		await instantiationService.get(IFileService).writeFile(joinPath(extensionLocation, 'package.nls.json'), VSBuffer.fromString(JSON.stringify({ displayName: 'Hello World' })));
 		const nlsLocation = joinPath(extensionLocation, 'package.en.json');
 		await instantiationService.get(IFileService).writeFile(nlsLocation, VSBuffer.fromString(JSON.stringify({ contents: { package: { displayName: 'Hello World EN' } } })));
-		const testObject: IExtensionsScannerService = instantiationService.createInstance(ExtensionsScannerService);
+		const testObject: IExtensionsScannerService = disposables.add(instantiationService.createInstance(ExtensionsScannerService));
 
 		translations = { 'pub.name2': nlsLocation.fsPath };
 		const actual = await testObject.scanUserExtensions({ language: 'en' });

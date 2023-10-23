@@ -6,7 +6,6 @@
 import { memoize } from 'vs/base/common/decorators';
 import { join } from 'vs/base/common/path';
 import { isLinux } from 'vs/base/common/platform';
-import { URI } from 'vs/base/common/uri';
 import { createStaticIPCHandle } from 'vs/base/parts/ipc/node/ipc.net';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
 import { NativeEnvironmentService } from 'vs/platform/environment/node/environmentService';
@@ -68,9 +67,6 @@ export class EnvironmentMainService extends NativeEnvironmentService implements 
 
 	@memoize
 	get useCodeCache(): boolean { return !!this.codeCachePath; }
-
-	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome; }
 
 	unsetSnapExportedVariables() {
 		if (!isLinux) {

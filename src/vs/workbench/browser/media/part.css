@@ -82,16 +82,12 @@
 	display: none;
 }
 
-.monaco-workbench .part > .title > .title-actions .action-label.codicon {
-	color: inherit;
-}
-
 .monaco-workbench .part > .content {
 	font-size: 13px;
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container,
-.monaco-workbench .part.editor > .content .monaco-progress-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
@@ -100,10 +96,6 @@
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container .progress-bit,
-.monaco-workbench
-	.part.editor
-	> .content
-	.monaco-progress-container
-	.progress-bit {
+.monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container .progress-bit {
 	height: 2px;
 }

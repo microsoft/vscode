@@ -191,12 +191,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		const handle = setTimeout(() => {
 
 			// Clear disposable
-			this.pendingAutoSavesAfterDelay.delete(workingCopy);
+			this.discardAutoSave(workingCopy);
 
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);

@@ -12,6 +12,7 @@ use crate::state::LauncherPaths;
 use crate::tunnels::protocol::{HttpRequestParams, METHOD_CHALLENGE_ISSUE};
 use crate::tunnels::socket_signal::CloseReason;
 use crate::update_service::{Platform, Release, TargetKind, UpdateService};
+use crate::util::command::new_tokio_command;
 use crate::util::errors::{
 	wrap, AnyError, CodeError, MismatchedLaunchModeError, NoAttachedServerError,
 };
@@ -20,6 +21,7 @@ use crate::util::http::{
 };
 use crate::util::io::SilentCopyProgress;
 use crate::util::is_integrated_cli;
+use crate::util::machine::kill_pid;
 use crate::util::os::os_release;
 use crate::util::sync::{new_barrier, Barrier, BarrierOpener};
 
@@ -28,6 +30,7 @@ use futures::FutureExt;
 use opentelemetry::trace::SpanKind;
 use opentelemetry::KeyValue;
 use std::collections::HashMap;
+use std::path::PathBuf;
 use std::process::Stdio;
 use tokio::pin;
 use tokio::process::{ChildStderr, ChildStdin};
@@ -50,9 +53,10 @@ use super::port_forwarder::{PortForwarding, PortForwardingProcessor};
 use super::protocol::{
 	AcquireCliParams, CallServerHttpParams, CallServerHttpResult, ChallengeIssueParams,
 	ChallengeIssueResponse, ChallengeVerifyParams, ClientRequestMethod, EmptyObject, ForwardParams,
-	ForwardResult, FsStatRequest, FsStatResponse, GetEnvResponse, GetHostnameResponse,
-	HttpBodyParams, HttpHeadersParams, ServeParams, ServerLog, ServerMessageParams, SpawnParams,
-	SpawnResult, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
+	ForwardResult, FsReadDirEntry, FsReadDirResponse, FsRenameRequest, FsSinglePathRequest,
+	FsStatResponse, GetEnvResponse, GetHostnameResponse, HttpBodyParams, HttpHeadersParams,
+	ServeParams, ServerLog, ServerMessageParams, SpawnParams, SpawnResult, SysKillRequest,
+	SysKillResponse, ToClientRequest, UnforwardParams, UpdateParams, UpdateResult, VersionResponse,
 	METHOD_CHALLENGE_VERIFY,
 };
 use super::server_bridge::ServerBridge;
@@ -278,8 +282,8 @@ fn make_socket_rpc(
 	port_forwarding: Option<PortForwarding>,
 	requires_auth: AuthRequired,
 	platform: Platform,
+	http_requests: HttpRequestsMap,
 ) -> RpcDispatcher<MsgPackSerializer, HandlerContext> {
-	let http_requests = Arc::new(std::sync::Mutex::new(HashMap::new()));
 	let server_bridges = ServerMultiplexer::new();
 	let mut rpc = RpcBuilder::new(MsgPackSerializer {}).methods(HandlerContext {
 		did_update: Arc::new(AtomicBool::new(false)),
@@ -305,9 +309,53 @@ fn make_socket_rpc(
 
 	rpc.register_sync("ping", |_: EmptyObject, _| Ok(EmptyObject {}));
 	rpc.register_sync("gethostname", |_: EmptyObject, _| handle_get_hostname());
-	rpc.register_sync("fs_stat", |p: FsStatRequest, c| {
+	rpc.register_sync("sys_kill", |p: SysKillRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_sys_kill(p.pid)
+	});
+	rpc.register_sync("fs_stat", |p: FsSinglePathRequest, c| {
 		ensure_auth(&c.auth_state)?;
 		handle_stat(p.path)
+	});
+	rpc.register_duplex(
+		"fs_read",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_read(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"fs_write",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_write(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_duplex(
+		"fs_connect",
+		1,
+		move |mut streams, p: FsSinglePathRequest, c| async move {
+			ensure_auth(&c.auth_state)?;
+			handle_fs_connect(streams.remove(0), p.path).await
+		},
+	);
+	rpc.register_async("fs_rm", move |p: FsSinglePathRequest, c| async move {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_remove(p.path).await
+	});
+	rpc.register_sync("fs_mkdirp", |p: FsSinglePathRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_mkdirp(p.path)
+	});
+	rpc.register_sync("fs_rename", |p: FsRenameRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_rename(p.from_path, p.to_path)
+	});
+	rpc.register_sync("fs_readdir", |p: FsSinglePathRequest, c| {
+		ensure_auth(&c.auth_state)?;
+		handle_fs_readdir(p.path)
 	});
 	rpc.register_sync("get_env", |_: EmptyObject, c| {
 		ensure_auth(&c.auth_state)?;
@@ -377,7 +425,10 @@ fn make_socket_rpc(
 	);
 	rpc.register_sync("httpheaders", |p: HttpHeadersParams, c| {
 		if let Some(req) = c.http_requests.lock().unwrap().get(&p.req_id) {
+			trace!(c.log, "got {} response for req {}", p.status_code, p.req_id);
 			req.initial_response(p.status_code, p.headers);
+		} else {
+			warning!(c.log, "got response for unknown req {}", p.req_id);
 		}
 		Ok(EmptyObject {})
 	});
@@ -388,6 +439,7 @@ fn make_socket_rpc(
 				req.body(p.segment);
 			}
 			if p.complete {
+				trace!(c.log, "delegated request {} completed", p.req_id);
 				reqs.remove(&p.req_id);
 			}
 		}
@@ -441,6 +493,7 @@ async fn process_socket(
 		port_forwarding,
 		requires_auth,
 		platform,
+		http_requests.clone(),
 	);
 
 	{
@@ -497,6 +550,7 @@ async fn process_socket(
 					}),
 				})
 				.unwrap();
+
 				http_requests.lock().unwrap().insert(id, r);
 
 				tx_counter += serialized.len();
@@ -771,6 +825,8 @@ async fn handle_update(
 	let latest_release = updater.get_current_release().await?;
 	let up_to_date = updater.is_up_to_date_with(&latest_release);
 
+	let _ = updater.cleanup_old_update();
+
 	if !params.do_update || up_to_date {
 		return Ok(UpdateResult {
 			up_to_date,
@@ -811,14 +867,85 @@ fn handle_stat(path: String) -> Result<FsStatResponse, AnyError> {
 		.map(|m| FsStatResponse {
 			exists: true,
 			size: Some(m.len()),
-			kind: Some(match m.file_type() {
-				t if t.is_dir() => "dir",
-				t if t.is_file() => "file",
-				t if t.is_symlink() => "link",
-				_ => "unknown",
-			}),
+			kind: Some(m.file_type().into()),
 		})
 		.unwrap_or_default())
+}
+
+async fn handle_fs_read(mut out: DuplexStream, path: String) -> Result<EmptyObject, AnyError> {
+	let mut f = tokio::fs::File::open(path)
+		.await
+		.map_err(|e| wrap(e, "file not found"))?;
+
+	tokio::io::copy(&mut f, &mut out)
+		.await
+		.map_err(|e| wrap(e, "error reading file"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_fs_write(mut input: DuplexStream, path: String) -> Result<EmptyObject, AnyError> {
+	let mut f = tokio::fs::File::create(path)
+		.await
+		.map_err(|e| wrap(e, "file not found"))?;
+
+	tokio::io::copy(&mut input, &mut f)
+		.await
+		.map_err(|e| wrap(e, "error writing file"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_fs_connect(
+	mut stream: DuplexStream,
+	path: String,
+) -> Result<EmptyObject, AnyError> {
+	let mut s = get_socket_rw_stream(&PathBuf::from(path))
+		.await
+		.map_err(|e| wrap(e, "could not connect to socket"))?;
+
+	tokio::io::copy_bidirectional(&mut stream, &mut s)
+		.await
+		.map_err(|e| wrap(e, "error copying stream data"))?;
+
+	Ok(EmptyObject {})
+}
+
+async fn handle_fs_remove(path: String) -> Result<EmptyObject, AnyError> {
+	tokio::fs::remove_dir_all(path)
+		.await
+		.map_err(|e| wrap(e, "error removing directory"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_rename(from_path: String, to_path: String) -> Result<EmptyObject, AnyError> {
+	std::fs::rename(from_path, to_path).map_err(|e| wrap(e, "error renaming"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_mkdirp(path: String) -> Result<EmptyObject, AnyError> {
+	std::fs::create_dir_all(path).map_err(|e| wrap(e, "error creating directory"))?;
+	Ok(EmptyObject {})
+}
+
+fn handle_fs_readdir(path: String) -> Result<FsReadDirResponse, AnyError> {
+	let mut entries = std::fs::read_dir(path).map_err(|e| wrap(e, "error listing directory"))?;
+
+	let mut contents = Vec::new();
+	while let Some(Ok(child)) = entries.next() {
+		contents.push(FsReadDirEntry {
+			name: child.file_name().to_string_lossy().into_owned(),
+			kind: child.file_type().ok().map(|v| v.into()),
+		});
+	}
+
+	Ok(FsReadDirResponse { contents })
+}
+
+fn handle_sys_kill(pid: u32) -> Result<SysKillResponse, AnyError> {
+	Ok(SysKillResponse {
+		success: kill_pid(pid),
+	})
 }
 
 fn handle_get_env() -> Result<GetEnvResponse, AnyError> {
@@ -1011,7 +1138,7 @@ where
 		};
 	}
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 	p.envs(&params.env);
 	p.stdin(pipe_if!(stdin.is_some()));
@@ -1020,6 +1147,9 @@ where
 	if let Some(cwd) = &params.cwd {
 		p.current_dir(cwd);
 	}
+
+	#[cfg(target_os = "windows")]
+	p.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
 
 	let mut p = p.spawn().map_err(CodeError::ProcessSpawnFailed)?;
 
@@ -1049,7 +1179,7 @@ async fn handle_spawn_cli(
 		"requested to spawn cli {} with args {:?}", params.command, params.args
 	);
 
-	let mut p = tokio::process::Command::new(&params.command);
+	let mut p = new_tokio_command(&params.command);
 	p.args(&params.args);
 
 	// CLI args to spawn a server; contracted with clients that they should _not_ provide these.
@@ -1098,13 +1228,7 @@ async fn wait_for_process_exit(
 	mut process: tokio::process::Child,
 	futs: FuturesUnordered<std::pin::Pin<Box<TokioCopyFuture>>>,
 ) -> Result<SpawnResult, AnyError> {
-	let closed = process.wait();
-	pin!(closed);
-
-	let r = tokio::select! {
-		_ = futures::future::join_all(futs) => closed.await,
-		r = &mut closed => r
-	};
+	let (_, r) = tokio::join!(futures::future::join_all(futs), process.wait());
 
 	let r = match r {
 		Ok(e) => SpawnResult {

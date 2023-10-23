@@ -278,18 +278,14 @@
 		}
 	],
 	"colors": {
-
 		"editor.background": "#000c18",
 		"editor.foreground": "#6688cc",
-
 		// Base
 		// "foreground": "",
 		"focusBorder": "#596F99",
 		// "contrastActiveBorder": "",
 		// "contrastBorder": "",
-
 		// "widget.shadow": "",
-
 		"input.background": "#181f2f",
 		// "input.border": "",
 		// "input.foreground": "",
@@ -300,17 +296,13 @@
 		"inputValidation.warningBorder": "#5B7E7A",
 		"inputValidation.errorBackground": "#A22D44",
 		"inputValidation.errorBorder": "#AB395B",
-
 		"badge.background": "#0063a5",
 		"progressBar.background": "#0063a5",
-
 		"dropdown.background": "#181f2f",
 		// "dropdown.foreground": "",
 		// "dropdown.border": "",
-
 		"button.background": "#2B3C5D",
 		// "button.foreground": "",
-
 		"list.activeSelectionBackground": "#08286b",
 		// "list.activeSelectionForeground": "",
 		"quickInputList.focusBackground": "#08286b",
@@ -318,12 +310,10 @@
 		"list.inactiveSelectionBackground": "#152037",
 		"list.dropBackground": "#041D52",
 		"list.highlightForeground": "#0063a5",
-
 		"scrollbar.shadow": "#515E91AA",
 		"scrollbarSlider.activeBackground": "#3B3F5188",
 		"scrollbarSlider.background": "#1F2230AA",
 		"scrollbarSlider.hoverBackground": "#3B3F5188",
-
 		// Editor
 		"editorWidget.background": "#262641",
 		"editorCursor.foreground": "#ddbb88",
@@ -350,14 +340,12 @@
 		// "editor.selectionHighlightBackground": "",
 		// "editor.wordHighlightBackground": "",
 		// "editor.wordHighlightStrongBackground": "",
-
 		// Editor: Suggest Widget
 		// "editorSuggestWidget.background": "",
 		// "editorSuggestWidget.border": "",
 		// "editorSuggestWidget.foreground": "",
 		// "editorSuggestWidget.highlightForeground": "",
 		// "editorSuggestWidget.selectedBackground": "",
-
 		// Editor: Peek View
 		"peekViewResult.background": "#060621",
 		// "peekViewResult.lineForeground": "",
@@ -371,7 +359,6 @@
 		"peekViewResult.matchHighlightBackground": "#eeeeee44",
 		// "peekViewTitleLabel.foreground": "",
 		// "peekViewTitleDescription.foreground": "",
-
 		// Ports
 		"ports.iconRunningProcessForeground": "#80a2c2",
 		// Editor: Diff
@@ -379,23 +366,18 @@
 		// "diffEditor.insertedTextBorder": "",
 		"diffEditor.removedTextBackground": "#892F4688",
 		// "diffEditor.removedTextBorder": "",
-
-
 		// Editor: Minimap
 		"minimap.selectionHighlight": "#750000",
-
 		// Workbench: Title
 		"titleBar.activeBackground": "#10192c",
 		// "titleBar.activeForeground": "",
 		// "titleBar.inactiveBackground": "",
 		// "titleBar.inactiveForeground": "",
-
 		// Workbench: Editors
 		// "editorGroupHeader.noTabsBackground": "",
 		"editorGroup.border": "#2b2b4a",
 		"editorGroup.dropBackground": "#25375daa",
 		"editorGroupHeader.tabsBackground": "#1c1c2a",
-
 		// Workbench: Tabs
 		"tab.border": "#2b2b4a",
 		// "tab.activeBackground": "",
@@ -403,26 +385,21 @@
 		// "tab.activeForeground": "",
 		// "tab.inactiveForeground": "",
 		"tab.lastPinnedBorder": "#2b3c5d",
-
 		// Workbench: Activity Bar
 		"activityBar.background": "#051336",
 		// "activityBar.foreground": "",
 		// "activityBarBadge.background": "",
 		// "activityBarBadge.foreground": "",
-		"activityBarItem.profilesBackground": "#082877",
-
 		// Workbench: Panel
 		// "panel.background": "",
 		"panel.border": "#2b2b4a",
 		// "panelTitle.activeBorder": "",
 		// "panelTitle.activeForeground": "",
 		// "panelTitle.inactiveForeground": "",
-
 		// Workbench: Side Bar
 		"sideBar.background": "#060621",
 		// "sideBarTitle.foreground": "",
 		"sideBarSectionHeader.background": "#10192c",
-
 		// Workbench: Status Bar
 		"statusBar.background": "#10192c",
 		"statusBar.noFolderBackground": "#10192c",
@@ -433,20 +410,16 @@
 		"statusBarItem.prominentHoverBackground": "#0063a5dd",
 		// "statusBarItem.activeBackground": "",
 		// "statusBarItem.hoverBackground": "",
-
 		// Workbench: Debug
 		"debugToolBar.background": "#051336",
 		"debugExceptionWidget.background": "#051336",
 		"debugExceptionWidget.border": "#AB395B",
-
 		// Workbench: Quick Open
 		"pickerGroup.border": "#596F99",
 		"pickerGroup.foreground": "#596F99",
-
 		// Workbench: Extensions
 		"extensionButton.prominentBackground": "#5f8b3b",
 		"extensionButton.prominentHoverBackground": "#5f8b3bbb",
-
 		// Workbench: Terminal
 		"terminal.ansiBlack": "#111111",
 		"terminal.ansiRed": "#ff9da4",

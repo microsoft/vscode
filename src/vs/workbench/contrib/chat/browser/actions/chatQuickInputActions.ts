@@ -5,12 +5,13 @@
 
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { Selection } from 'vs/editor/common/core/selection';
 import { localize } from 'vs/nls';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
-import { IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 
 export const ASK_QUICK_QUESTION_ACTION_ID = 'workbench.action.quickchat.toggle';
@@ -83,13 +84,49 @@ class QuickChatGlobalAction extends Action2 {
 				linux: {
 					primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyMod.Alt | KeyCode.KeyI
 				}
-			}
+			},
+			metadata: {
+				description: localize('toggle.desc', 'Toggle the quick chat'),
+				args: [{
+					name: 'args',
+					schema: {
+						anyOf: [
+							{
+								type: 'object',
+								required: ['query'],
+								properties: {
+									query: {
+										description: localize('toggle.query', "The query to open the quick chat with"),
+										type: 'string'
+									},
+									isPartialQuery: {
+										description: localize('toggle.isPartialQuery', "Whether the query is partial; it will wait for more user input"),
+										type: 'boolean'
+									}
+								},
+							},
+							{
+								type: 'string',
+								description: localize('toggle.query', "The query to open the quick chat with")
+							}
+						]
+					}
+				}]
+			},
 		});
 	}
 
-	override run(accessor: ServicesAccessor, query?: string): void {
+	override run(accessor: ServicesAccessor, query?: string | Omit<IQuickChatOpenOptions, 'selection'>): void {
 		const quickChatService = accessor.get(IQuickChatService);
-		quickChatService.toggle(undefined, query);
+		let options: IQuickChatOpenOptions | undefined;
+		switch (typeof query) {
+			case 'string': options = { query }; break;
+			case 'object': options = query; break;
+		}
+		if (options?.query) {
+			options.selection = new Selection(1, options.query.length + 1, 1, options.query.length + 1);
+		}
+		quickChatService.toggle(undefined, options);
 	}
 }
 
@@ -114,7 +151,7 @@ export function getQuickChatActionForProvider(id: string, label: string) {
 
 		override run(accessor: ServicesAccessor, query?: string): void {
 			const quickChatService = accessor.get(IQuickChatService);
-			quickChatService.toggle(id, query);
+			quickChatService.toggle(id, query ? { query } : undefined);
 		}
 	};
 }

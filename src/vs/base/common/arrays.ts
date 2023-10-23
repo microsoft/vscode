@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { ISplice } from 'vs/base/common/sequence';
+import { findFirstIdxMonotonousOrArrLen } from './arraysFind';
 
 /**
  * Returns the last element of an array.
@@ -106,27 +107,6 @@ export function binarySearch2(length: number, compareToKey: (index: number) => n
 	return -(low + 1);
 }
 
-/**
- * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
- * are located before all elements where p(x) is true.
- * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
- */
-export function findFirstInSorted<T>(array: ReadonlyArray<T>, p: (x: T) => boolean): number {
-	let low = 0, high = array.length;
-	if (high === 0) {
-		return 0; // no children
-	}
-	while (low < high) {
-		const mid = Math.floor((low + high) / 2);
-		if (p(array[mid])) {
-			high = mid;
-		} else {
-			low = mid + 1;
-		}
-	}
-	return low;
-}
-
 type Compare<T> = (a: T, b: T) => number;
 
 
@@ -175,6 +155,42 @@ export function groupBy<T>(data: ReadonlyArray<T>, compare: (a: T, b: T) => numb
 		}
 	}
 	return result;
+}
+
+/**
+ * Splits the given items into a list of (non-empty) groups.
+ * `shouldBeGrouped` is used to decide if two consecutive items should be in the same group.
+ * The order of the items is preserved.
+ */
+export function* groupAdjacentBy<T>(items: Iterable<T>, shouldBeGrouped: (item1: T, item2: T) => boolean): Iterable<T[]> {
+	let currentGroup: T[] | undefined;
+	let last: T | undefined;
+	for (const item of items) {
+		if (last !== undefined && shouldBeGrouped(last, item)) {
+			currentGroup!.push(item);
+		} else {
+			if (currentGroup) {
+				yield currentGroup;
+			}
+			currentGroup = [item];
+		}
+		last = item;
+	}
+	if (currentGroup) {
+		yield currentGroup;
+	}
+}
+
+export function forEachAdjacent<T>(arr: T[], f: (item1: T | undefined, item2: T | undefined) => void): void {
+	for (let i = 0; i <= arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], i === arr.length ? undefined : arr[i]);
+	}
+}
+
+export function forEachWithNeighbors<T>(arr: T[], f: (before: T | undefined, element: T, after: T | undefined) => void): void {
+	for (let i = 0; i < arr.length; i++) {
+		f(i === 0 ? undefined : arr[i - 1], arr[i], i + 1 === arr.length ? undefined : arr[i + 1]);
+	}
 }
 
 interface IMutableSplice<T> extends ISplice<T> {
@@ -315,7 +331,7 @@ function topStep<T>(array: ReadonlyArray<T>, compare: (a: T, b: T) => number, re
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirstInSorted(result, e => compare(element, e) < 0);
+			const j = findFirstIdxMonotonousOrArrLen(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
@@ -331,7 +347,7 @@ export function coalesce<T>(array: ReadonlyArray<T | undefined | null>): T[] {
 /**
  * Remove all falsy values from `array`. The original array IS modified.
  */
-export function coalesceInPlace<T>(array: Array<T | undefined | null>): void {
+export function coalesceInPlace<T>(array: Array<T | undefined | null>): asserts array is Array<T> {
 	let to = 0;
 	for (let i = 0; i < array.length; i++) {
 		if (!!array[i]) {
@@ -395,26 +411,6 @@ export function uniqueFilter<T, R>(keyFn: (t: T) => R): (t: T) => boolean {
 		seen.add(key);
 		return true;
 	};
-}
-
-export function findLast<T>(arr: readonly T[], predicate: (item: T) => boolean): T | undefined {
-	const idx = findLastIndex(arr, predicate);
-	if (idx === -1) {
-		return undefined;
-	}
-	return arr[idx];
-}
-
-export function findLastIndex<T>(array: ReadonlyArray<T>, fn: (item: T) => boolean): number {
-	for (let i = array.length - 1; i >= 0; i--) {
-		const element = array[i];
-
-		if (fn(element)) {
-			return i;
-		}
-	}
-
-	return -1;
 }
 
 export function firstOrDefault<T, NotFound = T>(array: ReadonlyArray<T>, notFoundValue: NotFound): T | NotFound;
@@ -593,20 +589,6 @@ export function getRandomElement<T>(arr: T[]): T | undefined {
 }
 
 /**
- * Returns the first mapped value of the array which is not undefined.
- */
-export function mapFind<T, R>(array: Iterable<T>, mapFn: (value: T) => R | undefined): R | undefined {
-	for (const value of array) {
-		const mapped = mapFn(value);
-		if (mapped !== undefined) {
-			return mapped;
-		}
-	}
-
-	return undefined;
-}
-
-/**
  * Insert the new items in the array.
  * @param array The original array.
  * @param start The zero-based location in the array from which to start inserting elements.
@@ -637,7 +619,11 @@ export function insertInto<T>(array: T[], start: number, newItems: T[]): void {
  */
 export function splice<T>(array: T[], start: number, deleteCount: number, newItems: T[]): T[] {
 	const index = getActualStartIndex(array, start);
-	const result = array.splice(index, deleteCount);
+	let result = array.splice(index, deleteCount);
+	if (result === undefined) {
+		// see https://bugs.webkit.org/show_bug.cgi?id=261140
+		result = [];
+	}
 	insertInto(array, index, newItems);
 	return result;
 }
@@ -715,64 +701,6 @@ export const booleanComparator: Comparator<boolean> = (a, b) => numberComparator
 
 export function reverseOrder<TItem>(comparator: Comparator<TItem>): Comparator<TItem> {
 	return (a, b) => -comparator(a, b);
-}
-
-/**
- * Returns the first item that is equal to or greater than every other item.
-*/
-export function findMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	if (items.length === 0) {
-		return undefined;
-	}
-
-	let max = items[0];
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (comparator(item, max) > 0) {
-			max = item;
-		}
-	}
-	return max;
-}
-
-/**
- * Returns the last item that is equal to or greater than every other item.
-*/
-export function findLastMaxBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	if (items.length === 0) {
-		return undefined;
-	}
-
-	let max = items[0];
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (comparator(item, max) >= 0) {
-			max = item;
-		}
-	}
-	return max;
-}
-
-/**
- * Returns the first item that is equal to or less than every other item.
-*/
-export function findMinBy<T>(items: readonly T[], comparator: Comparator<T>): T | undefined {
-	return findMaxBy(items, (a, b) => -comparator(a, b));
-}
-
-export function findMaxIdxBy<T>(items: readonly T[], comparator: Comparator<T>): number {
-	if (items.length === 0) {
-		return -1;
-	}
-
-	let maxIdx = 0;
-	for (let i = 1; i < items.length; i++) {
-		const item = items[i];
-		if (comparator(item, items[maxIdx]) > 0) {
-			maxIdx = i;
-		}
-	}
-	return maxIdx;
 }
 
 export class ArrayQueue<T> {

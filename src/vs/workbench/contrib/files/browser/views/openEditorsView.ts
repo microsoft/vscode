@@ -51,6 +51,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { extUriIgnorePathCase } from 'vs/base/common/resources';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const $ = dom.$;
 
@@ -59,12 +60,12 @@ export class OpenEditorsView extends ViewPane {
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	private static readonly DEFAULT_MIN_VISIBLE_OPEN_EDITORS = 0;
 	static readonly ID = 'workbench.explorer.openEditorsView';
-	static readonly NAME = nls.localize({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
+	static readonly NAME: ILocalizedString = nls.localize2({ key: 'openEditors', comment: ['Open is an adjective'] }, "Open Editors");
 
 	private dirtyCountElement!: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler | undefined;
 	private structuralRefreshDelay: number;
-	private list!: WorkbenchList<OpenEditor | IEditorGroup>;
+	private list: WorkbenchList<OpenEditor | IEditorGroup> | undefined;
 	private listLabels: ResourceLabels | undefined;
 	private needsRefresh = false;
 	private elements: (OpenEditor | IEditorGroup)[] = [];
@@ -127,7 +128,6 @@ export class OpenEditorsView extends ViewPane {
 				const index = this.getIndex(group, e.editor);
 				switch (e.kind) {
 					case GroupModelChangeKind.EDITOR_ACTIVE:
-					case GroupModelChangeKind.GROUP_ACTIVE:
 						this.focusActiveEditor();
 						break;
 					case GroupModelChangeKind.GROUP_INDEX:
@@ -160,6 +160,7 @@ export class OpenEditorsView extends ViewPane {
 			updateWholeList();
 		}));
 		this._register(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
+		this._register(this.editorGroupService.onDidChangeActiveGroup(() => this.focusActiveEditor()));
 		this._register(this.editorGroupService.onDidRemoveGroup(group => {
 			dispose(groupDisposables.get(group.id));
 			updateWholeList();
@@ -278,7 +279,7 @@ export class OpenEditorsView extends ViewPane {
 			if (!e.element) {
 				return;
 			} else if (e.element instanceof OpenEditor) {
-				if (e.browserEvent instanceof MouseEvent && e.browserEvent.button === 1) {
+				if (dom.isMouseEvent(e.browserEvent) && e.browserEvent.button === 1) {
 					return; // middle click already handled above: closes the editor
 				}
 
@@ -304,11 +305,8 @@ export class OpenEditorsView extends ViewPane {
 
 	override focus(): void {
 		super.focus();
-		this.list.domFocus();
-	}
 
-	getList(): WorkbenchList<OpenEditor | IEditorGroup> {
-		return this.list;
+		this.list?.domFocus();
 	}
 
 	protected override layoutBody(height: number, width: number): void {
@@ -378,7 +376,7 @@ export class OpenEditorsView extends ViewPane {
 			if (!preserveActivateGroup) {
 				this.editorGroupService.activateGroup(element.group); // needed for https://github.com/microsoft/vscode/issues/6672
 			}
-			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : this.editorGroupService.activeGroup;
+			const targetGroup = options.sideBySide ? this.editorGroupService.sideGroup : element.group;
 			targetGroup.openEditor(element.editor, options);
 		}
 	}
@@ -393,13 +391,17 @@ export class OpenEditorsView extends ViewPane {
 		this.contextMenuService.showContextMenu({
 			menuId: MenuId.OpenEditorsContext,
 			menuActionOptions: { shouldForwardArgs: true, arg: element instanceof OpenEditor ? EditorResourceAccessor.getOriginalUri(element.editor) : {} },
-			contextKeyService: this.list.contextKeyService,
+			contextKeyService: this.list?.contextKeyService,
 			getAnchor: () => e.anchor,
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.group.getIndexOfEditor(element.editor) } : { groupId: element.id }
 		});
 	}
 
 	private focusActiveEditor(): void {
+		if (!this.list) {
+			return;
+		}
+
 		if (this.list.length && this.editorGroupService.activeGroup) {
 			const index = this.getIndex(this.editorGroupService.activeGroup, this.editorGroupService.activeGroup.activeEditor);
 			if (index >= 0) {
@@ -490,6 +492,10 @@ export class OpenEditorsView extends ViewPane {
 	}
 
 	override getOptimalWidth(): number {
+		if (!this.list) {
+			return super.getOptimalWidth();
+		}
+
 		const parentNode = this.list.getHTMLElement();
 		const childNodes: HTMLElement[] = [].slice.call(parentNode.querySelectorAll('.open-editor > a'));
 
@@ -708,9 +714,11 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 			});
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), index);
+			this.dropHandler.handleDrop(originalEvent, () => group, () => group.focus(), { index });
 		}
 	}
+
+	dispose(): void { }
 }
 
 class OpenEditorsAccessibilityProvider implements IListAccessibilityProvider<OpenEditor | IEditorGroup> {

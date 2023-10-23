@@ -17,6 +17,7 @@ import { IEditableData } from 'vs/workbench/common/views';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceFileEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IExplorerService {
 	readonly _serviceBrand: undefined;
@@ -62,7 +63,8 @@ export interface IExplorerView {
 
 function getFocus(listService: IListService): unknown | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		let focus: unknown;
 		if (list instanceof List) {
 			const focused = list.getFocusedElements();
@@ -101,7 +103,8 @@ export function getResourceForCommand(resource: URI | object | undefined, listSe
 
 export function getMultiSelectedResources(resource: URI | object | undefined, listService: IListService, editorService: IEditorService, explorerService: IExplorerService): Array<URI> {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Explorer
 		if (list instanceof AsyncDataTree && list.getFocus().every(item => item instanceof ExplorerItem)) {
 			// Explorer
@@ -136,7 +139,8 @@ export function getMultiSelectedResources(resource: URI | object | undefined, li
 
 export function getOpenEditorsViewMultiSelection(listService: IListService, editorGroupService: IEditorGroupsService): Array<IEditorIdentifier> | undefined {
 	const list = listService.lastFocusedList;
-	if (list?.getHTMLElement() === document.activeElement) {
+	const element = list?.getHTMLElement();
+	if (element && isActiveElement(element)) {
 		// Open editors view
 		if (list instanceof List) {
 			const selection = coalesce(list.getSelectedElements().filter(s => s instanceof OpenEditor));

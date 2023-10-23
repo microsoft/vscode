@@ -6,6 +6,8 @@
 import * as assert from 'assert';
 import { importAMDNodeModule } from 'vs/amdX';
 import { isWindows } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -13,19 +15,21 @@ import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuS
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILoggerService, NullLogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
+import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { ITerminalConfiguration } from 'vs/workbench/contrib/terminal/common/terminal';
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestLoggerService } from 'vs/workbench/test/common/workbenchTestServices';
 import type { Terminal } from 'xterm';
 
@@ -41,6 +45,8 @@ const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 };
 
 suite('Buffer Content Tracker', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let themeService: TestThemeService;
@@ -50,33 +56,33 @@ suite('Buffer Content Tracker', () => {
 	let bufferTracker: BufferContentTracker;
 	const prompt = 'vscode-git:(prompt/more-tests)';
 	const promptPlusData = 'vscode-git:(prompt/more-tests) ' + 'some data';
+
 	setup(async () => {
 		configurationService = new TestConfigurationService({ terminal: { integrated: defaultTerminalConfig } });
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		themeService = new TestThemeService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IThemeService, themeService);
 		instantiationService.stub(ITerminalLogService, new NullLogService());
-		instantiationService.stub(ILoggerService, new TestLoggerService());
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
-		instantiationService.stub(IContextKeyService, new MockContextKeyService());
-		configHelper = instantiationService.createInstance(TerminalConfigHelper);
-		capabilities = new TerminalCapabilityStore();
+		instantiationService.stub(ILoggerService, store.add(new TestLoggerService()));
+		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
+		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
+		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
+		instantiationService.stub(IAccessibleNotificationService, store.add(new TestAccessibleNotificationService()));
+		instantiationService.stub(ILayoutService, new TestLayoutService());
+		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
+		capabilities = store.add(new TerminalCapabilityStore());
 		if (!isWindows) {
 			capabilities.add(TerminalCapability.NaiveCwdDetection, null!);
 		}
 		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		xterm = instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true);
+		xterm = store.add(instantiationService.createInstance(XtermTerminal, TerminalCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilities, '', new MockContextKeyService().createKey('', true)!, true));
 		const container = document.createElement('div');
 		xterm.raw.open(container);
 		configurationService = new TestConfigurationService({ terminal: { integrated: { tabs: { separator: ' - ', title: '${cwd}', description: '${cwd}' } } } });
-		configHelper = new TerminalConfigHelper(configurationService, null!, null!, null!, null!);
-		bufferTracker = instantiationService.createInstance(BufferContentTracker, xterm);
+		bufferTracker = store.add(instantiationService.createInstance(BufferContentTracker, xterm));
 	});
-	teardown(() => {
-		instantiationService.dispose();
-	});
+
 	test('should not clear the prompt line', async () => {
 		assert.strictEqual(bufferTracker.lines.length, 0);
 		await writeP(xterm.raw, prompt);

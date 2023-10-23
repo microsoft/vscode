@@ -1,8 +1,0 @@
-hello_world__0.snap:
-  { cool: true }
-hello_world__1.snap:
-  { nifty: true }
-hello_world__fourthTest.snap:
-  { customName: 2 }
-hello_world__thirdTest.txt:
-  { customName: 1 }

@@ -36,10 +36,12 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ASK_QUICK_QUESTION_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatQuickInputActions';
 import { CommandInformationResult, IAiRelatedInformationService, RelatedInformationType } from 'vs/workbench/services/aiRelatedInformation/common/aiRelatedInformation';
+import { CHAT_OPEN_ACTION_ID } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
+import { isLocalizedString } from 'vs/platform/action/common/action';
 
 export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAccessProvider {
 
-	private static AI_RELATED_INFORMATION_MAX_PICKS = 3;
+	private static AI_RELATED_INFORMATION_MAX_PICKS = 5;
 	private static AI_RELATED_INFORMATION_THRESHOLD = 0.8;
 	private static AI_RELATED_INFORMATION_DEBOUNCE = 200;
 
@@ -164,13 +166,6 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 			return [];
 		}
 
-		if (additionalPicks.length) {
-			additionalPicks.unshift({
-				type: 'separator',
-				label: localize('similarCommands', "similar commands")
-			});
-		}
-
 		if (picksSoFar.length || additionalPicks.length) {
 			additionalPicks.push({
 				type: 'separator'
@@ -181,7 +176,7 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 		if (info) {
 			additionalPicks.push({
 				label: localize('askXInChat', "Ask {0}: {1}", info.displayName, filter),
-				commandId: ASK_QUICK_QUESTION_ACTION_ID,
+				commandId: this.configuration.experimental.askChatLocation === 'quickChat' ? ASK_QUICK_QUESTION_ACTION_ID : CHAT_OPEN_ACTION_ID,
 				args: [filter]
 			});
 		}
@@ -241,10 +236,16 @@ export class CommandsQuickAccessProvider extends AbstractEditorCommandsQuickAcce
 				aliasCategory ? `${aliasCategory}: ${aliasLabel}` : `${category}: ${aliasLabel}` :
 				aliasLabel;
 
+			const metadataDescription = action.item.metadata?.description;
+			const commandDescription = metadataDescription === undefined || isLocalizedString(metadataDescription)
+				? metadataDescription
+				// TODO: this type will eventually not be a string and when that happens, this should simplified.
+				: { value: metadataDescription, original: metadataDescription };
 			globalCommandPicks.push({
 				commandId: action.item.id,
 				commandAlias,
-				label: stripIcons(label)
+				label: stripIcons(label),
+				commandDescription,
 			});
 		}
 

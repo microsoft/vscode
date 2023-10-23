@@ -6,7 +6,8 @@
 import * as DomUtils from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
 import { memoize } from 'vs/base/common/decorators';
-import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Event as EventUtils } from 'vs/base/common/event';
+import { Disposable, IDisposable, markAsSingleton, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 
 export namespace EventType {
@@ -89,9 +90,12 @@ export class Gesture extends Disposable {
 		this.activeTouches = {};
 		this.handle = null;
 		this._lastSetTapCountTime = 0;
-		this._register(DomUtils.addDisposableListener(document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
-		this._register(DomUtils.addDisposableListener(document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-		this._register(DomUtils.addDisposableListener(document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
+
+		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
+		}, { window, disposables: this._store }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -99,7 +103,7 @@ export class Gesture extends Disposable {
 			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+			Gesture.INSTANCE = markAsSingleton(new Gesture());
 		}
 
 		const remove = Gesture.INSTANCE.targets.push(element);
@@ -111,7 +115,7 @@ export class Gesture extends Disposable {
 			return Disposable.None;
 		}
 		if (!Gesture.INSTANCE) {
-			Gesture.INSTANCE = new Gesture();
+			Gesture.INSTANCE = markAsSingleton(new Gesture());
 		}
 
 		const remove = Gesture.INSTANCE.ignoreTargets.push(element);

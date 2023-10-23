@@ -14,10 +14,10 @@
 }
 
 .interactive-item-container {
-	padding: 16px 20px 0px 20px;
+	padding: 16px 20px;
 	display: flex;
 	flex-direction: column;
-	gap: 6px;
+	gap: 8px;
 	color: var(--vscode-interactive-session-foreground);
 
 	cursor: default;
@@ -43,6 +43,44 @@
 	font-weight: 600;
 }
 
+.interactive-item-container .header .detail-container {
+	font-size: 0.9em;
+	opacity: 0.7;
+}
+
+.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+	display: none;
+}
+
+@keyframes ellipsis {
+	0% {
+		content: ".";
+	}
+	33% {
+		content: "..";
+	}
+	66% {
+		content: "...";
+	}
+	100% {
+		content: ".";
+	}
+}
+
+.chat-animated-ellipsis::after {
+	content: '';
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3em;
+	animation: ellipsis steps(4, end) 1s infinite;
+}
+
+.interactive-item-container .header .avatar-container {
+	display: flex;
+	pointer-events: none;
+	user-select: none;
+}
+
 .interactive-item-container .header .avatar {
 	display: flex;
 	align-items: center;
@@ -50,9 +88,14 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+}
+
+.interactive-item-container .header .avatar.codicon-avatar {
 	background: var(--vscode-badge-background);
-	pointer-events: none;
-	user-select: none;
+}
+
+.interactive-item-container .header .avatar+.avatar {
+	margin-left: -10px;
 }
 
 .interactive-item-container .header .avatar .icon {
@@ -95,27 +138,28 @@
 	width: 100%;
 }
 
-.interactive-item-container .value table {
+.interactive-item-container .value .rendered-markdown table {
 	width: 100%;
 	text-align: left;
 	margin-bottom: 16px;
 }
 
-.interactive-item-container .value table,
-.interactive-item-container .value table td,
-.interactive-item-container .value table th {
+.interactive-item-container .value .rendered-markdown table,
+.interactive-item-container .value .rendered-markdown table td,
+.interactive-item-container .value .rendered-markdown table th {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-collapse: collapse;
 	padding: 4px 6px;
 }
 
-.interactive-item-container .value a,
-.interactive-item-container .value a code {
+.interactive-item-container .value .rendered-markdown a,
+.interactive-item-container .value .interactive-session-followups,
+.interactive-item-container .value .rendered-markdown a code {
 	color: var(--vscode-textLink-foreground);
 }
 
-.interactive-item-container .value a:hover,
-.interactive-item-container .value a:active {
+.interactive-item-container .value .rendered-markdown a:hover,
+.interactive-item-container .value .rendered-markdown a:active {
 	color: var(--vscode-textLink-activeForeground);
 }
 
@@ -130,56 +174,61 @@
 
 .interactive-item-container .value {
 	white-space: normal;
-	min-height: 36px;
 	word-wrap: break-word;
 }
 
-.interactive-item-container .value > :last-child:not(.rendered-markdown) {
-	/* The container has padding on all sides except the bottom. The last element needs to provide this margin. rendered-markdown has its own margin.
-		TODO Another approach could be removing the margin on the very last element inside the markdown container? */
-	margin-bottom: 16px;
+.interactive-item-container .value > :last-child.rendered-markdown > :last-child {
+	margin-bottom: 0px;
 }
 
-.interactive-item-container .value > .interactive-response-error-details:not(:last-child) {
-	margin-bottom: 8px;
-}
-
-.interactive-item-container .value h1 {
+.interactive-item-container .value .rendered-markdown h1 {
 	font-size: 20px;
 	font-weight: 600;
 	margin: 16px 0;
 
 }
 
-.interactive-item-container .value h2 {
+.interactive-item-container .value .rendered-markdown h2 {
 	font-size: 16px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-item-container .value h3 {
+.interactive-item-container .value .rendered-markdown h3 {
 	font-size: 14px;
 	font-weight: 600;
 	margin: 16px 0;
 }
 
-.interactive-item-container .value p {
+.interactive-item-container .value .rendered-markdown p {
 	margin: 0 0 16px 0;
-	line-height: 1.6em;
+	line-height: 1.5em;
 }
 
-.interactive-item-container .value li {
-	line-height: 1.5rem;
+.interactive-item-container .value .rendered-markdown ul {
+	padding-inline-start: 24px;
+}
+
+.interactive-item-container .value .rendered-markdown ol {
+	padding-inline-start: 28px;
+}
+
+.interactive-item-container .value .rendered-markdown li {
+	line-height: 1.3rem;
 }
 
 .interactive-item-container .monaco-tokenized-source,
 .interactive-item-container code {
 	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
 }
 
 .interactive-item-container.interactive-item-compact {
-	padding: 8px 20px 0 20px;
+	padding: 8px 20px;
 }
 
 .interactive-item-container.interactive-item-compact .header {
@@ -200,24 +249,24 @@
 	min-height: 0;
 }
 
-.interactive-item-container.interactive-item-compact .value p {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value h1 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h1 {
 	margin: 8px 0;
 
 }
 
-.interactive-item-container.interactive-item-compact .value h2 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h2 {
 	margin: 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value h3 {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown h3 {
 	margin: 8px 0;
 }
 
-.interactive-item-container.interactive-item-compact .value p {
+.interactive-item-container.interactive-item-compact .value .rendered-markdown p {
 	margin: 0 0 8px 0;
 }
 
@@ -238,7 +287,7 @@
 
 .interactive-session .interactive-input-and-side-toolbar {
 	display: flex;
-	gap: 6px;
+	gap: 4px;
 	align-items: center;
 }
 
@@ -263,70 +312,28 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper {
-	position: relative;
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .margin,
+.interactive-response .interactive-result-code-block .interactive-result-editor .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-interactive-result-editor-background-color) !important;
 }
 
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar {
-	display: none;
-	position: absolute;
-	top: -13px;
-	right: 10px;
-	height: 26px;
-	background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
-	border: 1px solid var(--vscode-chat-requestBorder);
-	z-index: 100;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item {
-	height: 24px;
-	width: 24px;
-	margin: 1px 2px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar .action-item .codicon {
-	margin: 1px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper:hover .monaco-toolbar,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-toolbar:focus-within,
-.interactive-item-container .interactive-result-editor-wrapper.focused .monaco-toolbar {
-	display: initial;
-	border-radius: 2px;
-}
-
-.interactive-item-container .interactive-result-editor-wrapper {
-	margin: 16px 0;
-}
-
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor,
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .margin,
-.interactive-session .interactive-item-container.interactive-response .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-interactive-result-editor-background-color);
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor {
-	border: 1px solid var(--vscode-input-border, transparent);
-}
-
-.interactive-item-container .interactive-result-editor-wrapper .interactive-result-editor .monaco-editor.focused {
-	border-color: var(--vscode-focusBorder, transparent);
-}
-
-.interactive-item-container .interactive-result-editor-wrapper,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-editor,
-.interactive-item-container .interactive-result-editor-wrapper .monaco-editor .overflow-guard {
-	border-radius: 4px;
-}
-
-.interactive-item-container.interactive-item-compact .interactive-result-editor-wrapper {
+.interactive-item-compact .interactive-result-code-block {
 	margin: 0 0 8px 0;
+}
+
+.interactive-item-container .interactive-result-code-block .monaco-toolbar .monaco-action-bar .actions-container {
+	padding-inline-start: unset;
 }
 
 .interactive-response .interactive-response-error-details {
 	display: flex;
 	align-items: start;
 	gap: 6px;
+}
+
+.interactive-response .interactive-response-error-details .rendered-markdown :last-child {
+	margin-bottom: 0px;
 }
 
 .interactive-response .interactive-response-error-details .codicon {
@@ -354,7 +361,7 @@
 .interactive-session-followups {
 	display: flex;
 	flex-direction: column;
-	gap: 8px;
+	gap: 6px;
 	align-items: start;
 }
 
@@ -383,10 +390,12 @@
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button {
 	display: block;
 	color: var(--vscode-textLink-foreground);
+	font-size: 12px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups code {
 	font-family: var(--monaco-monospace-font);
+	font-size: 11px;
 }
 
 .interactive-session .interactive-input-part .interactive-input-followups .interactive-session-followups .monaco-button .codicon-sparkle {
@@ -395,8 +404,6 @@
 
 .interactive-session-followups .monaco-button.interactive-followup-reply {
 	padding: 0px;
-	font-size: 12px;
-	font-weight: 600;
 	border: none;
 }
 
@@ -409,7 +416,7 @@
 	color: var(--vscode-icon-foreground) !important;
 }
 
-.interactive-item-container.filtered-response .value .rendered-markdown {
+.interactive-item-container.filtered-response .value > .rendered-markdown {
 	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 	mask-image: linear-gradient(rgba(0, 0, 0, 0.85), rgba(0, 0, 0, 0.05));
 }
@@ -427,6 +434,7 @@
 .quick-input-widget .interactive-session .interactive-input-and-execute-toolbar {
 	margin: 0;
 	border-radius: 2px;
+	padding: 0 4px 0 6px;
 }
 
 .quick-input-widget .interactive-list {
@@ -436,7 +444,7 @@
 
 /* #endregion */
 
-.interactive-response-progress-tree .monaco-tl-row:hover {
+.interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
@@ -463,8 +471,71 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list .monaco-scrollable-element .monaco-list-rows {
-	border: 1px solid var(--vscode-input-border,transparent);
+.interactive-response-progress-tree .monaco-list,
+.chat-used-context-list .monaco-list {
+	border: none;
 	border-radius: 4px;
 	width: auto;
+}
+
+.interactive-item-container .chat-resource-widget {
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+	border-radius: 4px;
+	white-space: nowrap;
+	padding: 1px 3px;
+}
+
+.interactive-session .chat-used-context.chat-used-context-collapsed .chat-used-context-list {
+	display: none;
+}
+
+.interactive-session .chat-used-context {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+}
+
+.interactive-session .chat-used-context-list {
+	border: 1px solid var(--vscode-chat-requestBorder);
+	border-radius: 4px;
+	padding: 4px;
+	margin-bottom: 8px;
+}
+
+.interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
+	border-radius: 2px;
+}
+
+.interactive-session .chat-used-context-label {
+	font-size: 12px;
+	color: var(--vscode-foreground);
+	opacity: 0.8;
+	user-select: none;
+}
+
+.interactive-session .chat-used-context-label:hover {
+	opacity: unset;
+}
+
+.interactive-session .chat-used-context-label .monaco-button {
+	/* unset Button styles */
+	display: inline-flex;
+	width: 100%;
+	border: none;
+	padding: 0;
+	text-align: initial;
+	justify-content: initial;
+}
+
+.interactive-session .chat-used-context-label .monaco-text-button:focus {
+	outline: none;
+}
+
+.interactive-session .chat-used-context-label .monaco-text-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+}
+
+.interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
+	margin: 0 0 0 4px;
 }

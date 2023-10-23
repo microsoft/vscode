@@ -67,7 +67,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	}
 
 	const logger = new Logger(vscode.l10n.t('Port Forwarding'));
-	const provider = new TunnelProvider(logger);
+	const provider = new TunnelProvider(logger, context);
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand('tunnel-forwarding.showLog', () => logger.show()),
@@ -120,6 +120,8 @@ class Logger {
 	}
 }
 
+const didWarnPublicKey = 'didWarnPublic';
+
 class TunnelProvider implements vscode.TunnelProvider {
 	private readonly tunnels = new Set<Tunnel>();
 	private readonly stateChange = new vscode.EventEmitter<StateT>();
@@ -136,10 +138,16 @@ class TunnelProvider implements vscode.TunnelProvider {
 
 	public readonly onDidStateChange = this.stateChange.event;
 
-	constructor(private readonly logger: Logger) { }
+	constructor(private readonly logger: Logger, private readonly context: vscode.ExtensionContext) { }
 
 	/** @inheritdoc */
-	public async provideTunnel(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel> {
+	public async provideTunnel(tunnelOptions: vscode.TunnelOptions): Promise<vscode.Tunnel | undefined> {
+		if (tunnelOptions.privacy === TunnelPrivacyId.Public) {
+			if (!(await this.consentPublicPort(tunnelOptions.remoteAddress.port))) {
+				return;
+			}
+		}
+
 		const tunnel = new Tunnel(
 			tunnelOptions.remoteAddress,
 			(tunnelOptions.privacy as TunnelPrivacyId) || TunnelPrivacyId.Private,
@@ -182,6 +190,31 @@ class TunnelProvider implements vscode.TunnelProvider {
 		this.killRunningProcess();
 		await this.setupPortForwardingProcess(); // will show progress
 		this.updateActivePortsIfRunning();
+	}
+
+	private async consentPublicPort(portNumber: number) {
+		const didWarn = this.context.globalState.get(didWarnPublicKey, false);
+		if (didWarn) {
+			return true;
+		}
+
+		const continueOpt = vscode.l10n.t('Continue');
+		const dontShowAgain = vscode.l10n.t("Don't show again");
+		const r = await vscode.window.showWarningMessage(
+			vscode.l10n.t("You're about to create a publicly forwarded port. Anyone on the internet will be able to connect to the service listening on port {0}. You should only proceed if this service is secure and non-sensitive.", portNumber),
+			{ modal: true },
+			continueOpt,
+			dontShowAgain,
+		);
+		if (r === continueOpt) {
+			// continue
+		} else if (r === dontShowAgain) {
+			await this.context.globalState.update(didWarnPublicKey, true);
+		} else {
+			return false;
+		}
+
+		return true;
 	}
 
 	private isInStateWithProcess(process: ChildProcessWithoutNullStreams) {
@@ -231,8 +264,8 @@ class TunnelProvider implements vscode.TunnelProvider {
 		];
 
 		this.logger.log('info', '[forwarding] starting CLI');
-		const process = spawn(cliPath, args, { stdio: 'pipe' });
-		this.state = { state: State.Starting, process };
+		const child = spawn(cliPath, args, { stdio: 'pipe', env: { ...process.env, NO_COLOR: '1' } });
+		this.state = { state: State.Starting, process: child };
 
 		const progressP = new DeferredPromise<void>();
 		vscode.window.withProgress(
@@ -248,29 +281,29 @@ class TunnelProvider implements vscode.TunnelProvider {
 		);
 
 		let lastPortFormat: string | undefined;
-		process.on('exit', status => {
+		child.on('exit', status => {
 			const msg = `[forwarding] exited with code ${status}`;
 			this.logger.log('info', msg);
 			progressP.complete(); // make sure to clear progress on unexpected exit
-			if (this.isInStateWithProcess(process)) {
+			if (this.isInStateWithProcess(child)) {
 				this.state = { state: State.Error, error: msg };
 			}
 		});
 
-		process.on('error', err => {
+		child.on('error', err => {
 			this.logger.log('error', `[forwarding] ${err}`);
 			progressP.complete(); // make sure to clear progress on unexpected exit
-			if (this.isInStateWithProcess(process)) {
+			if (this.isInStateWithProcess(child)) {
 				this.state = { state: State.Error, error: String(err) };
 			}
 		});
 
-		process.stdout
+		child.stdout
 			.pipe(splitNewLines())
 			.on('data', line => this.logger.log('info', `[forwarding] ${line}`))
 			.resume();
 
-		process.stderr
+		child.stderr
 			.pipe(splitNewLines())
 			.on('data', line => {
 				try {
@@ -278,7 +311,7 @@ class TunnelProvider implements vscode.TunnelProvider {
 					if (l.port_format && l.port_format !== lastPortFormat) {
 						this.state = {
 							state: State.Active,
-							portFormat: l.port_format, process,
+							portFormat: l.port_format, process: child,
 							cleanupTimeout: 'cleanupTimeout' in this.state ? this.state.cleanupTimeout : undefined,
 						};
 						progressP.complete();
@@ -290,8 +323,8 @@ class TunnelProvider implements vscode.TunnelProvider {
 			.resume();
 
 		await new Promise((resolve, reject) => {
-			process.on('spawn', resolve);
-			process.on('error', reject);
+			child.on('spawn', resolve);
+			child.on('error', reject);
 		});
 	}
 }
