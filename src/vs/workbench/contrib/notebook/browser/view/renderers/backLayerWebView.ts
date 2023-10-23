@@ -982,19 +982,18 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (href.startsWith('/')) {
+			linkToOpen = await this.pathService.fileURI(href);
 			const folders = this.workspaceContextService.getWorkspace().folders;
 			if (folders.length) {
-				linkToOpen = (await this.pathService.fileURI(href)).with({
+				linkToOpen = linkToOpen.with({
 					scheme: folders[0].uri.scheme,
 					authority: folders[0].uri.authority
 				});
-			} else {
-				linkToOpen = await this.pathService.fileURI(href);
 			}
 		} else if (href.startsWith('~')) {
 			const userHome = await this.pathService.userHome();
 			if (userHome) {
-				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
+				linkToOpen = userHome.with({ path: osPath.join(userHome.fsPath, href.substring(1)) });
 			}
 		} else {
 			if (this.documentUri.scheme === Schemas.untitled) {
