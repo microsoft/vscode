@@ -91,7 +91,7 @@
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
-	background: var(--vscode-badge-background);
+	background: var(--vscode-chat-agentAvatarBackground);
 }
 
 .interactive-item-container .header .avatar+.avatar {
@@ -105,7 +105,7 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground) !important;
+	color: var(--vscode-chat-agentAvatarForeground);
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
