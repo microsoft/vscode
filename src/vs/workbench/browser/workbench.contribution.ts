@@ -775,8 +775,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: any) => {
-			const result: ConfigurationKeyValuePairs = [['workbench.activityBar.visible', { value: undefined }]];
+		key: 'workbench.activityBar.visible', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push(['workbench.activityBar.visible', { value: undefined }]);
+			}
 			if (value === false) {
 				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
 			}
