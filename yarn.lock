@@ -1414,13 +1414,13 @@
     https-proxy-agent "^7.0.2"
     proxy-from-env "^1.1.0"
 
-"@vscode/spdlog@^0.13.11":
-  version "0.13.11"
-  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.11.tgz#1c65c3527dd8e9679ada7f427c4d9e4af2ea097a"
-  integrity sha512-4qk6G3XKTJNsrqsGwmo9lr8NPaH84WeLsoFVPrpvoEC1t1tFu7H6l4RRMgzKNeE92nwRbjejLv1nATJNoabRfA==
+"@vscode/spdlog@^0.13.12":
+  version "0.13.12"
+  resolved "https://registry.yarnpkg.com/@vscode/spdlog/-/spdlog-0.13.12.tgz#8b8e3308468fd7d613c350ecd7fcfaa27064960a"
+  integrity sha512-8Qw8VwBzFkH6AWVKh+ULeVDff0lwTh/PkEKUOwRpyuu7Mr7W2zQoc+oAaGmTWKb1NPmvVeXmo+qF9X+jXuBCOg==
   dependencies:
     bindings "^1.5.0"
-    mkdirp "^0.5.5"
+    mkdirp "^1.0.4"
     nan "^2.17.0"
 
 "@vscode/sqlite3@5.1.6-vscode":
@@ -6684,13 +6684,6 @@ mkdirp-classic@^0.5.2, mkdirp-classic@^0.5.3:
   integrity sha512-NKmAlESf6jMGym1++R0Ra7wvhV+wFW63FaSOFPwRahvea0gMUcGUhVeAg/0BC0wiv9ih5NYPB1Wn1UEI1/L+xQ==
   dependencies:
     minimist "^1.2.5"
-
-mkdirp@^0.5.5:
-  version "0.5.6"
-  resolved "https://registry.yarnpkg.com/mkdirp/-/mkdirp-0.5.6.tgz#7def03d2432dcae4ba1d611445c48396062255f6"
-  integrity sha512-FP+p8RB8OWpF3YZBCrP5gtADmtXApB5AMLn+vdyA+PyxCjrCs00mjyUozssO33cwDeT3wNGdLxJ5M//YqtHAJw==
-  dependencies:
-    minimist "^1.2.6"
 
 mkdirp@^1.0.3, mkdirp@^1.0.4:
   version "1.0.4"
