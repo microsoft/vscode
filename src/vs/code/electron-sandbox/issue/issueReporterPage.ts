@@ -86,19 +86,20 @@ export default (): string => `
 		<div class="instructions" id="issue-description-subtitle">
 			<!-- To be dynamically filled -->
 		</div>
-		<div class="block block-extension-data">
-			<input class="send-extension-data" aria-label="${sendExtensionData}" type="checkbox" id="includeExtensionData" checked/>
-			<label class="extension-caption" for="includeExtensionData">
-				${sendExtensionData}
-			</label>
-		</div>
-		<div class="block-info-text">
-			<textarea name="extension-data" id="extension-data" placeholder="${escape(localize('details', "Please enter details."))}"></textarea>
-		</div>
-		<div id="description-empty-error" class="validation-error hidden" role="alert">${escape(localize('descriptionEmptyValidation', "A description is required."))}</div>
 	</div>
 
 	<div class="system-info" id="block-container">
+		<div class="block block-extension-data">
+			<input class="send-extension-data" aria-label="${sendExtensionData}" type="checkbox" id="includeExtensionData" checked/>
+			<label class="extension-caption" id="extension-caption" for="includeExtensionData">
+				${sendExtensionData}
+				(<span id="ext-loading" hidden>Loading extension data...</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a>)
+			</label>
+			<div class="block-info hidden">
+				<textarea name="extension-data" id="extension-data" placeholder="${escape(localize('details', "Please enter details."))}"></textarea>
+			</div>
+		</div>
+
 		<div class="block block-system">
 			<input class="sendData" aria-label="${sendSystemInfoLabel}" type="checkbox" id="includeSystemInfo" checked/>
 			<label class="caption" for="includeSystemInfo">

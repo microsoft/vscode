@@ -72,9 +72,9 @@ export class IssueReporter extends Disposable {
 
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
-			this.progress = this._register(new ProgressBar(issueReporterElement));
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
+			this.progress = new ProgressBar(issueReporterElement);
 		}
 
 		const issueTitle = configuration.data.issueTitle;
@@ -736,7 +736,6 @@ export class IssueReporter extends Disposable {
 
 		const titleTextArea = this.getElementById('issue-title-container')!;
 		const descriptionTextArea = this.getElementById('description')!;
-
 		const extensionDataTextArea = this.getElementById('extension-data')!;
 
 		// Hide all by default
@@ -1125,6 +1124,9 @@ export class IssueReporter extends Disposable {
 						const fullTextArea = (descriptionTextArea as HTMLTextAreaElement).value += template;
 						this.issueReporterModel.update({ issueDescription: fullTextArea });
 
+						const extensionDataBlock = document.querySelector('.block-extension-data')!;
+						show(extensionDataBlock);
+
 						// Start loading for extension data.
 						this.setLoading();
 						const data = await this.getIssueDataFromExtension(matches[0]);
@@ -1177,15 +1179,28 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setLoading() {
+		// Start progress bar loading
 		this.progress.infinite().show();
 		this.previewButton.label = 'Loading Extension Data...';
 		this.previewButton.enabled = false;
+
+		const extensionDataCaption = this.getElementById('extension-id')!;
+		hide(extensionDataCaption);
+
+		const showLoading = this.getElementById('ext-loading')!;
+		show(showLoading);
 	}
 
 	private removeLoading() {
 		this.previewButton.enabled = true;
 		this.updatePreviewButtonState();
 		this.progress.done().hide();
+
+		const extensionDataCaption = this.getElementById('extension-id')!;
+		show(extensionDataCaption);
+
+		const hideLoading = this.getElementById('ext-loading')!;
+		hide(hideLoading);
 	}
 
 	private setExtensionValidationMessage(): void {
