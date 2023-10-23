@@ -20,6 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { Verbosity } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class CommandCenterControl {
@@ -179,7 +180,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							if (that._windowTitle.isCustomTitleFormat()) {
 								label = that._windowTitle.getWindowTitle();
 							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
-								label = that._windowTitle.fileName ?? label;
+								label = that._editorGroupService.activeGroup.activeEditor?.getTitle(Verbosity.SHORT) ?? label;
 							}
 
 							if (!label) {
