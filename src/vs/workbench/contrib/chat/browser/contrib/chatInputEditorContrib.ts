@@ -410,6 +410,7 @@ class AgentCompletions extends Disposable {
 							label: withSlash,
 							insertText: `${withSlash} `,
 							detail: c.description,
+							documentation: c.description,
 							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
@@ -446,9 +447,11 @@ class AgentCompletions extends Disposable {
 						const agentLabel = `@${agent.id}`;
 						const withSlash = `/${c.name}`;
 						return <CompletionItem>{
-							label: { label: withSlash, description: agentLabel },
+							label: withSlash,
+							description: agentLabel,
 							insertText: `${agentLabel} ${withSlash} `,
 							detail: `(${agentLabel}) ${c.description}`,
+							documentation: c.description,
 							range: new Range(1, 1, 1, 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
