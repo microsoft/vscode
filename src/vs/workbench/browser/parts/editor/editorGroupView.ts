@@ -1930,6 +1930,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
 
+		this.element.style.setProperty('--editor-group-tabs-height', `${this.titleHeight.offset}px`);
+
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleControlSize.height);
 		this.editorContainer.style.height = `${editorHeight}px`;
