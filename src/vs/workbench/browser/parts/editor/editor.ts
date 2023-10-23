@@ -194,8 +194,6 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
 	relayout(): void;
-
-	updateGroupTabsHeight(): void;
 }
 
 export function fillActiveEditorViewState(group: IEditorGroup, expectedActiveEditor?: EditorInput, presetOptions?: IEditorOptions): IEditorOptions {

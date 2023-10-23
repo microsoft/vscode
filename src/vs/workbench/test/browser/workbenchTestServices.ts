@@ -942,7 +942,6 @@ export class TestEditorGroupView implements IEditorGroupView {
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
 	relayout() { }
-	updateGroupTabsHeight() { }
 }
 
 export class TestEditorGroupAccessor implements IEditorGroupsView {
