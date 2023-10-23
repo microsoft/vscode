@@ -20,6 +20,7 @@ import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlin
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { Range } from 'vs/editor/common/core/range';
+import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -40,7 +41,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
@@ -68,6 +70,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
 				return;
 			}
+			const onWillStartSession = this._inlineChatSessionService.onWillStartSession(() => {
+				if (this._gutterDecorationID) {
+					this._removeGutterDecoration(this._gutterDecorationID);
+					onWillStartSession.dispose();
+				}
+			});
+			const onDidEndSession = this._inlineChatSessionService.onDidEndSession(() => {
+				const selection = editor.getSelection();
+				const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
+				if (isEnabled) {
+					this._addGutterDecoration(selection.startLineNumber);
+				}
+				onDidEndSession.dispose();
+			});
 			InlineChatController.get(this._editor)?.run();
 		}));
 		this._localToDispose.add({
