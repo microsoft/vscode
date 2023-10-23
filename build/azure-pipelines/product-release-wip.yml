@@ -60,7 +60,7 @@ steps:
       $Policy = Create-TmpJson @{
         Version = "1.0.0"
         Audience = "InternalLimited"
-        Intent = "download"
+        Intent = "distribution"
         ContentType = "InstallPackage"
       }
 
@@ -97,6 +97,9 @@ steps:
           )
           AccessPermissions = @{
             MainPublisher = "VSCode"
+            ChannelDownloadEntityDetails = @{
+              Consumer = @("VSCode")
+            }
           }
           CreatedBy = @{
             UserPrincipalName = "jomo@microsoft.com"
