@@ -34,6 +34,23 @@ export interface IChatAgentFragment {
 export interface IChatAgentCommand {
 	name: string;
 	description: string;
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+	/**
+	 * Whether executing the command puts the
+	 * chat into a persistent mode, where the
+	 * slash command is prepended to the chat input.
+	 */
+	shouldRepopulate?: boolean;
+	/**
+	 * Placeholder text to render in the chat input
+	 * when the slash command has been repopulated.
+	 * Has no effect if `shouldRepopulate` is `false`.
+	 */
+	followupPlaceholder?: string;
 }
 
 export interface IChatAgentMetadata {

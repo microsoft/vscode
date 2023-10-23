@@ -259,7 +259,7 @@ class ExtHostChatAgent {
 			return [];
 		}
 		this._lastSlashCommands = result;
-		return result.map(c => ({ name: c.name, description: c.description }));
+		return result.map(c => ({ name: c.name, description: c.description, followupPlaceholder: c.followupPlaceholder, shouldRepopulate: c.shouldRepopulate }));
 	}
 
 	async provideFollowups(result: vscode.ChatAgentResult2, token: CancellationToken): Promise<IChatFollowup[]> {
