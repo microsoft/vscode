@@ -79,6 +79,7 @@ export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVe
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
 export const EditorPinnedAndUnpinnedTabsContext = new RawContextKey<boolean>('editorPinnedAndUnpinnedTabsVisible', false, true);
+export const MaximizedEditorGroupContext = new RawContextKey<boolean>('maximizedEditorGroup', false, localize('editorGroupMaximized', "Editor group is maximized"));
 
 //#endregion
 

@@ -80,6 +80,9 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
+export const MAXIMIZE_EDITOR_GROUP = 'workbench.action.maximizeEditorGroup';
+export const UNMAXIMIZE_EDITOR_GROUP = 'workbench.action.unmaximizeEditorGroup';
+
 export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';
 export const TOGGLE_SPLIT_EDITOR_IN_GROUP = 'workbench.action.toggleSplitEditorInGroup';
 export const JOIN_EDITOR_IN_GROUP = 'workbench.action.joinEditorInGroup';
@@ -104,7 +107,8 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	SPLIT_EDITOR,
 	CLOSE_EDITOR_COMMAND_ID,
 	UNPIN_EDITOR_COMMAND_ID,
-	UNLOCK_GROUP_COMMAND_ID
+	UNLOCK_GROUP_COMMAND_ID,
+	UNMAXIMIZE_EDITOR_GROUP
 ];
 
 export interface ActiveEditorMoveCopyArguments {
@@ -1464,7 +1468,7 @@ function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI |
 	};
 }
 
-function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
+export function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
 	if (URI.isUri(resourceOrContext)) {
 		return context;
 	}
@@ -1480,7 +1484,7 @@ function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, co
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup; editor?: EditorInput } {
+export function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup; editor?: EditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;

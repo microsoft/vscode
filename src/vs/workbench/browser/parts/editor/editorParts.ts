@@ -97,6 +97,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		disposables.add(part.onDidRemoveGroup(group => this._onDidRemoveGroup.fire(group)));
 		disposables.add(part.onDidMoveGroup(group => this._onDidMoveGroup.fire(group)));
 		disposables.add(part.onDidActivateGroup(group => this._onDidActivateGroup.fire(group)));
+		disposables.add(part.onDidChangeGroupMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
@@ -176,6 +177,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
+	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<boolean>());
+	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
+
 	//#endregion
 
 	//#region Editor Groups Service
@@ -227,11 +231,19 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	setSize(group: IEditorGroupView | GroupIdentifier, size: { width: number; height: number }): void {
-		return this.getPart(group).setSize(group, size);
+		this.getPart(group).setSize(group, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement): void {
-		return this.activePart.arrangeGroups(arrangement);
+	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView): void {
+		(group !== undefined ? this.getPart(group) : this.activePart).arrangeGroups(arrangement, group);
+	}
+
+	toggleMaximizeGroup(group?: IEditorGroupView): void {
+		(group !== undefined ? this.getPart(group) : this.activePart).toggleMaximizeGroup(group);
+	}
+
+	toggleExpandGroup(group?: IEditorGroupView): void {
+		(group !== undefined ? this.getPart(group) : this.activePart).toggleExpandGroup(group);
 	}
 
 	restoreGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
@@ -239,7 +251,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		return this.activePart.applyLayout(layout);
+		this.activePart.applyLayout(layout);
 	}
 
 	getLayout(): EditorGroupLayout {
@@ -247,7 +259,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	centerLayout(active: boolean): void {
-		return this.activePart.centerLayout(active);
+		this.activePart.centerLayout(active);
 	}
 
 	isLayoutCentered(): boolean {
@@ -259,7 +271,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
-		return this.activePart.setGroupOrientation(orientation);
+		this.activePart.setGroupOrientation(orientation);
 	}
 
 	findGroup(scope: IFindGroupScope, source?: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
@@ -275,7 +287,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 	}
 
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
-		return this.getPart(group).removeGroup(group);
+		this.getPart(group).removeGroup(group);
 	}
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
