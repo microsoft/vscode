@@ -458,7 +458,7 @@ class AgentCompletions extends Disposable {
 }
 
 class BuiltinDynamicCompletions extends Disposable {
-	private static readonly VariableNameDef = /\$\w*/g; // MUST be using `g`-flag
+	private static readonly VariableNameDef = new RegExp(`${chatVariableLeader}\\w*`, 'g'); // MUST be using `g`-flag
 
 	constructor(
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
@@ -470,7 +470,7 @@ class BuiltinDynamicCompletions extends Disposable {
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
 			_debugDisplayName: 'chatDynamicCompletions',
-			triggerCharacters: ['$'],
+			triggerCharacters: [chatVariableLeader],
 			provideCompletionItems: async (model: ITextModel, position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const fileVariablesEnabled = this.configurationService.getValue('chat.experimental.fileVariables') ?? this.productService.quality !== 'stable';
 				if (!fileVariablesEnabled) {
@@ -501,8 +501,8 @@ class BuiltinDynamicCompletions extends Disposable {
 				return <CompletionList>{
 					suggestions: [
 						<CompletionItem>{
-							label: '$file',
-							insertText: '$file:',
+							label: `${chatVariableLeader}file`,
+							insertText: `${chatVariableLeader}file:`,
 							detail: localize('pickFileLabel', "Pick a file"),
 							range: { insert, replace },
 							kind: CompletionItemKind.Text,
