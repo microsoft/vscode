@@ -20,6 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 export class CommandCenterControl {
 
@@ -81,6 +82,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
+		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 	}
@@ -157,6 +159,14 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 								hover.update(this.getTooltip());
 								labelElement.innerText = this._getLabel();
 							}));
+
+							// update label & tooltip when tabs visibility changes
+							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
+								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
+									hover.update(this.getTooltip());
+									labelElement.innerText = this._getLabel();
+								}
+							}));
 						}
 
 						protected override getTooltip() {
@@ -165,7 +175,13 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 						private _getLabel(): string {
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							let label = that._windowTitle.isCustomTitleFormat() ? that._windowTitle.getWindowTitle() : that._windowTitle.workspaceName;
+							let label = that._windowTitle.workspaceName;
+							if (that._windowTitle.isCustomTitleFormat()) {
+								label = that._windowTitle.getWindowTitle();
+							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
+								label = that._windowTitle.fileName ?? label;
+							}
+
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}
