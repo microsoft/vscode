@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
+import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Delayer } from 'vs/base/common/async';
+import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
 import { debounce } from 'vs/base/common/decorators';
@@ -14,12 +14,14 @@ import { CancellationError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { isLinuxSnap, isMacintosh } from 'vs/base/common/platform';
 import { escape } from 'vs/base/common/strings';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { IssueReporterModel, IssueReporterData as IssueReporterModelData } from 'vs/code/electron-sandbox/issue/issueReporterModel';
 import { localize } from 'vs/nls';
 import { isRemoteDiagnosticError } from 'vs/platform/diagnostics/common/diagnostics';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, IssueReporterWindowConfiguration, IssueType } from 'vs/platform/issue/common/issue';
 import { normalizeGitHubUrl } from 'vs/platform/issue/common/issueReporterUtil';
 import { INativeHostService } from 'vs/platform/native/common/native';
+import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 
 // GitHub has let us know that we could up our limit here to 8k. We chose 7500 to play it safe.
@@ -110,6 +112,19 @@ export class IssueReporter extends Disposable {
 		if (window.document.documentElement.lang !== 'en') {
 			show(this.getElementById('english'));
 		}
+
+		const codiconStyleSheet = createStyleSheet();
+		codiconStyleSheet.id = 'codiconStyles';
+
+		// TODO: Is there a way to use the IThemeService here instead
+		const iconsStyleSheet = getIconsStyleSheet(undefined);
+		function updateAll() {
+			codiconStyleSheet.textContent = iconsStyleSheet.getCSS();
+		}
+
+		const delayer = new RunOnceScheduler(updateAll, 0);
+		iconsStyleSheet.onDidChange(() => delayer.schedule());
+		delayer.schedule();
 
 		this.setUpTypes();
 		this.setEventHandlers();
@@ -1183,11 +1198,15 @@ export class IssueReporter extends Disposable {
 
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
+
+		const iconElement = document.createElement('span');
+		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+		showLoading.append(iconElement);
 	}
 
 	private removeLoading() {
 		this.previewButton.enabled = true;
-		this.updatePreviewButtonState();
+		// this.updatePreviewButtonState();
 		this.progress.done().hide();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
