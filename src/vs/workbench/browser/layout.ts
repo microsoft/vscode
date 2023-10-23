@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -1106,6 +1106,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			return true;
 		}
 
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
+			return true;
+		}
+
 		// macOS desktop does not need a title bar when full screen
 		if (isMacintosh && isNative) {
 			return !this.state.runtime.fullscreen;
@@ -1238,8 +1243,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.runtime.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
-			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+			if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
+				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: config.showTabs }));
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
@@ -1463,8 +1468,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(window, Math.abs(sizeChangeWidth));
-		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(window, Math.abs(sizeChangeHeight));
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 
@@ -2311,7 +2316,7 @@ type ZenModeConfiguration = {
 	hideActivityBar: boolean;
 	hideLineNumbers: boolean;
 	hideStatusBar: boolean;
-	hideTabs: boolean;
+	showTabs: 'multiple' | 'single' | 'none';
 	restore: boolean;
 	silentNotifications: boolean;
 };

@@ -45,7 +45,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)), ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)),
 });
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
@@ -1065,6 +1065,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 			this.paneItems[0].pane.collapsible = true;
 		} else {
 			if (this.paneItems.length === 1) {
+				this.paneItems[0].pane.headerVisible = true;
 				this.paneItems[0].pane.setExpanded(true);
 				this.paneItems[0].pane.collapsible = false;
 			} else {

@@ -25,7 +25,7 @@ export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
+	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
@@ -85,7 +85,19 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
+	validateEditorPartOptions(options);
+
 	return options;
+}
+
+function validateEditorPartOptions(options: IEditorPartOptions) {
+	// showTabs ensure correct enum value
+	if (typeof options.showTabs === 'boolean') {
+		// Migration service kicks in very late and can cause a flicker otherwise
+		options.showTabs = options.showTabs ? 'multiple' : 'single';
+	} else if (options.showTabs !== 'multiple' && options.showTabs !== 'single' && options.showTabs !== 'none') {
+		options.showTabs = 'multiple';
+	}
 }
 
 /**
@@ -124,7 +136,7 @@ export interface IEditorGroupsView {
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -160,6 +172,8 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidOpenEditorFail: Event<EditorInput>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly groupsView: IEditorGroupsView;
 
 	/**
 	 * A promise that resolves when the group has been restored.

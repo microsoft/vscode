@@ -17,11 +17,15 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidRegisterWindow } = (function () {
+export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
 	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposableStore: DisposableStore }>();
+	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
+		onWillUnregisterWindow: onWillUnregisterWindow.event,
+		onDidUnregisterWindow: onDidUnregisterWindow.event,
 		registerWindow(window: Window & typeof globalThis): IDisposable {
 			if (windows.has(window)) {
 				return Disposable.None;
@@ -32,9 +36,14 @@ export const { registerWindow, getWindows, onDidRegisterWindow } = (function () 
 			const disposableStore = new DisposableStore();
 			disposableStore.add(toDisposable(() => {
 				windows.delete(window);
+				onDidUnregisterWindow.fire(window);
 			}));
 
 			onDidRegisterWindow.fire({ window, disposableStore });
+
+			disposableStore.add(addDisposableListener(window, 'beforeunload', () => {
+				onWillUnregisterWindow.fire(window);
+			}));
 
 			return disposableStore;
 		},
@@ -602,14 +611,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
-		}
-		testChild = testChild.parentNode;
-	}
-
-	return false;
+	return Boolean(testAncestor?.contains(testChild));
 }
 
 const parentFlowToDataKey = 'parentFlowToElementId';

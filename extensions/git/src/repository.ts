@@ -24,6 +24,7 @@ import { IPostCommitCommandsProviderRegistry, CommitCommandsCenter } from './pos
 import { Operation, OperationKind, OperationManager, OperationResult } from './operation';
 import { GitBranchProtectionProvider, IBranchProtectionProviderRegistry } from './branchProtection';
 import { GitHistoryProvider } from './historyProvider';
+import { GenerateCommitMessageActionButton, ICommitMessageProviderRegistry } from './commitMessageProvider';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -673,6 +674,12 @@ export class Repository implements Disposable {
 	private _onDidChangeBranchProtection = new EventEmitter<void>();
 	readonly onDidChangeBranchProtection: Event<void> = this._onDidChangeBranchProtection.event;
 
+	private _onDidStartCommitMessageGeneration = new EventEmitter<void>();
+	readonly onDidStartCommitMessageGeneration: Event<void> = this._onDidStartCommitMessageGeneration.event;
+
+	private _onDidEndCommitMessageGeneration = new EventEmitter<void>();
+	readonly onDidEndCommitMessageGeneration: Event<void> = this._onDidEndCommitMessageGeneration.event;
+
 	@memoize
 	get onDidChangeOperations(): Event<void> {
 		return anyEvent(this.onRunOperation as Event<any>, this.onDidRunOperation as Event<any>);
@@ -797,6 +804,7 @@ export class Repository implements Disposable {
 	private commitCommandCenter: CommitCommandsCenter;
 	private resourceCommandResolver = new ResourceCommandResolver(this);
 	private updateModelStateCancellationTokenSource: CancellationTokenSource | undefined;
+	private generateCommitMessageCancellationTokenSource: CancellationTokenSource | undefined;
 	private disposables: Disposable[] = [];
 
 	constructor(
@@ -806,6 +814,7 @@ export class Repository implements Disposable {
 		remoteSourcePublisherRegistry: IRemoteSourcePublisherRegistry,
 		postCommitCommandsProviderRegistry: IPostCommitCommandsProviderRegistry,
 		private readonly branchProtectionProviderRegistry: IBranchProtectionProviderRegistry,
+		private readonly commitMessageProviderRegistry: ICommitMessageProviderRegistry,
 		globalState: Memento,
 		private readonly logger: LogOutputChannel,
 		private telemetryReporter: TelemetryReporter
@@ -850,6 +859,12 @@ export class Repository implements Disposable {
 
 		this._sourceControl.acceptInputCommand = { command: 'git.commit', title: l10n.t('Commit'), arguments: [this._sourceControl] };
 		this._sourceControl.inputBox.validateInput = this.validateInput.bind(this);
+
+		const inputActionButton = new GenerateCommitMessageActionButton(this, commitMessageProviderRegistry);
+		this.disposables.push(inputActionButton);
+		inputActionButton.onDidChange(() => this._sourceControl.inputBox.actionButton = inputActionButton.button);
+		this._sourceControl.inputBox.actionButton = inputActionButton.button;
+
 		this.disposables.push(this._sourceControl);
 
 		this.updateInputBoxPlaceholder();
@@ -2004,6 +2019,54 @@ export class Repository implements Disposable {
 				child.on('exit', onExit);
 			});
 		});
+	}
+
+	async generateCommitMessage(): Promise<void> {
+		if (!this.commitMessageProviderRegistry.commitMessageProvider) {
+			return;
+		}
+
+		this._onDidStartCommitMessageGeneration.fire();
+		this.generateCommitMessageCancellationTokenSource?.cancel();
+		this.generateCommitMessageCancellationTokenSource = new CancellationTokenSource();
+
+		try {
+			const diff: string[] = [];
+			if (this.indexGroup.resourceStates.length !== 0) {
+				for (const file of this.indexGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+					diff.push(await this.diffIndexWithHEAD(file));
+				}
+			} else {
+				for (const file of this.workingTreeGroup.resourceStates.map(r => r.resourceUri.fsPath)) {
+					diff.push(await this.diffWithHEAD(file));
+				}
+			}
+
+			if (diff.length === 0) {
+				return;
+			}
+
+			const token = this.generateCommitMessageCancellationTokenSource.token;
+			const provider = this.commitMessageProviderRegistry.commitMessageProvider;
+			const commitMessage = await provider.provideCommitMessage(new ApiRepository(this), diff, token);
+			if (commitMessage) {
+				this.inputBox.value = commitMessage;
+			}
+		}
+		catch (err) {
+			this.logger.error(err);
+		}
+		finally {
+			this._onDidEndCommitMessageGeneration.fire();
+		}
+	}
+
+	generateCommitMessageCancel(): void {
+		this.generateCommitMessageCancellationTokenSource?.cancel();
+		this.generateCommitMessageCancellationTokenSource?.dispose();
+		this.generateCommitMessageCancellationTokenSource = undefined;
+
+		this._onDidEndCommitMessageGeneration.fire();
 	}
 
 	// Parses output of `git check-ignore -v -z` and returns only those paths

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -20,12 +19,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
-import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -34,33 +31,6 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
-
-export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
-
-	edits = edits.filter(edit => edit.range);
-	if (!edits.length) {
-		return;
-	}
-
-	let { range } = edits[0];
-	for (let i = 1; i < edits.length; i++) {
-		range = Range.plusRange(range, edits[i].range);
-	}
-	const { startLineNumber, endLineNumber } = range;
-	if (startLineNumber === endLineNumber) {
-		if (edits.length === 1) {
-			alert(nls.localize('hint11', "Made 1 formatting edit on line {0}", startLineNumber));
-		} else {
-			alert(nls.localize('hintn1', "Made {0} formatting edits on line {1}", edits.length, startLineNumber));
-		}
-	} else {
-		if (edits.length === 1) {
-			alert(nls.localize('hint1n', "Made 1 formatting edit between lines {0} and {1}", startLineNumber, endLineNumber));
-		} else {
-			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
-		}
-	}
-}
 
 export function getRealAndSyntheticDocumentFormattersOrdered(
 	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,
@@ -280,7 +250,6 @@ export async function formatDocumentRangesWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -374,7 +343,6 @@ export async function formatDocumentWithProvider(
 		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
 
 		if (mode !== FormattingMode.Silent) {
-			alertFormattingEdits(edits);
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 

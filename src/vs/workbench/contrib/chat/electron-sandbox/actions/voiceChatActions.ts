@@ -31,7 +31,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { isExecuteActionContext } from 'vs/workbench/contrib/chat/browser/actions/chatExecuteActions';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
-import { ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
+import { HasSpeechProvider, ISpeechService, SpeechToTextStatus } from 'vs/workbench/contrib/speech/common/speechService';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BADGE_BACKGROUND } from 'vs/workbench/common/theme';
@@ -260,7 +260,7 @@ class VoiceChatSessions {
 		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession(cts.token));
 
 		let transcription: string = '';
-		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 2000));
+		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 1200));
 		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -368,7 +368,7 @@ export class VoiceChatInChatViewAction extends Action2 {
 				original: 'Voice Chat in Chat View'
 			},
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_PROVIDER_EXISTS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS),
 			f1: true
 		});
 	}
@@ -395,7 +395,7 @@ export class InlineVoiceChatAction extends Action2 {
 				original: 'Inline Voice Chat'
 			},
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(CONTEXT_PROVIDER_EXISTS, ActiveEditorContext),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext),
 			f1: true
 		});
 	}
@@ -422,7 +422,7 @@ export class QuickVoiceChatAction extends Action2 {
 				original: 'Quick Voice Chat'
 			},
 			category: CHAT_CATEGORY,
-			precondition: CONTEXT_PROVIDER_EXISTS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS),
 			f1: true
 		});
 	}
@@ -449,15 +449,15 @@ export class StartVoiceChatAction extends Action2 {
 				original: 'Start Voice Chat'
 			},
 			icon: Codicon.mic,
-			precondition: CONTEXT_VOICE_CHAT_GETTING_READY.negate(),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: ContextKeyExpr.and(CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),
 				group: 'navigation',
 				order: -1
 			}, {
 				id: MENU_INLINE_CHAT_WIDGET,
-				when: CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate(),
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS.negate()),
 				group: 'main',
 				order: -1
 			}]
@@ -504,10 +504,10 @@ export class StopVoiceChatAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: CONTEXT_VOICE_CHAT_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS),
 				primary: KeyCode.Escape
 			},
-			precondition: CONTEXT_VOICE_CHAT_IN_PROGRESS
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)
 		});
 	}
 
@@ -530,14 +530,14 @@ export class StopVoiceChatInChatViewAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
 				primary: KeyCode.Escape
 			},
-			precondition: CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS),
 				group: 'navigation',
 				order: -1
 			}]
@@ -563,14 +563,14 @@ export class StopVoiceChatInChatEditorAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
 				primary: KeyCode.Escape
 			},
-			precondition: CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS),
 				group: 'navigation',
 				order: -1
 			}]
@@ -596,14 +596,14 @@ export class StopQuickVoiceChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
 				primary: KeyCode.Escape
 			},
-			precondition: CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
 				id: MenuId.ChatExecute,
-				when: CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS),
 				group: 'navigation',
 				order: -1
 			}]
@@ -629,14 +629,14 @@ export class StopInlineVoiceChatAction extends Action2 {
 			category: CHAT_CATEGORY,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib + 100,
-				when: CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 				primary: KeyCode.Escape
 			},
-			precondition: CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS,
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 			icon: spinningLoading,
 			menu: [{
 				id: MENU_INLINE_CHAT_WIDGET,
-				when: CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS,
+				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_INLINE_VOICE_CHAT_IN_PROGRESS),
 				group: 'main',
 				order: -1
 			}]
@@ -661,7 +661,7 @@ export class StopVoiceChatAndSubmitAction extends Action2 {
 			},
 			category: CHAT_CATEGORY,
 			f1: true,
-			precondition: CONTEXT_VOICE_CHAT_IN_PROGRESS
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_PROGRESS)
 		});
 	}
 
@@ -683,8 +683,8 @@ registerThemingParticipant((theme, collector) => {
 
 	// Show a "microphone" icon when recording is in progress that glows via outline.
 	collector.addRule(`
-		.monaco-workbench .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):not(:hover),
-		.monaco-workbench .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):not(:hover) {
+		.monaco-workbench:not(.reduce-motion) .interactive-input-part .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):not(:hover),
+		.monaco-workbench:not(.reduce-motion) .inline-chat .monaco-action-bar .action-label.codicon-loading.codicon-modifier-spin:not(.disabled):not(:hover) {
 			color: ${activeRecordingColor};
 			outline: 1px solid ${activeRecordingColor};
 			outline-offset: -1px;

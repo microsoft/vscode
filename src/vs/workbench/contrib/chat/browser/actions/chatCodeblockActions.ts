@@ -11,6 +11,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
@@ -28,7 +29,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatCopyAction, IChatService, IChatUserActionEvent, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCopyAction, IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -106,7 +107,7 @@ export function registerChatCodeBlockActions() {
 
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
-				chatService.notifyUserAction(<IChatUserActionEvent>{
+				chatService.notifyUserAction({
 					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
@@ -330,13 +331,14 @@ export function registerChatCodeBlockActions() {
 		private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
 			if (isResponseVM(context.element)) {
 				const chatService = accessor.get(IChatService);
-				chatService.notifyUserAction(<IChatUserActionEvent>{
+				chatService.notifyUserAction({
 					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId,
+						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 					}
@@ -378,13 +380,14 @@ export function registerChatCodeBlockActions() {
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
 
 			if (isResponseVM(context.element)) {
-				chatService.notifyUserAction(<IChatUserActionEvent>{
+				chatService.notifyUserAction({
 					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId,
+						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 						newFile: true
@@ -394,6 +397,10 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
+	const shellLangIds = [
+		'powershell',
+		'shellscript'
+	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
@@ -409,9 +416,21 @@ export function registerChatCodeBlockActions() {
 				menu: [{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						ContextKeyExpr.or(...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e)))
+					),
+				},
+				{
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
 					isHiddenByDefault: true,
-					when: CONTEXT_IN_CHAT_SESSION,
-				}, {
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					)
+				},
+				{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: CTX_INLINE_CHAT_VISIBLE,
@@ -463,13 +482,14 @@ export function registerChatCodeBlockActions() {
 			terminal.sendText(context.code, false, true);
 
 			if (isResponseVM(context.element)) {
-				chatService.notifyUserAction(<IChatUserActionEvent>{
+				chatService.notifyUserAction({
 					providerId: context.element.providerId,
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
 					action: {
 						kind: 'runInTerminal',
-						responseId: context.element.providerResponseId,
+						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						languageId: context.languageId,
 					}
