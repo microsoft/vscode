@@ -357,6 +357,7 @@ class AgentCompletions extends Disposable {
 							label: withAt,
 							insertText: `${withAt} `,
 							detail: c.metadata.description,
+							documentation: c.metadata.description,
 							range,
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway
 						};
