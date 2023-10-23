@@ -21,6 +21,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { Range } from 'vs/editor/common/core/range';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -34,6 +35,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private static readonly GUTTER_DECORATION = ModelDecorationOptions.register({
 		description: 'inline-chat-decoration',
 		glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
+		glyphMarginHoverMessage: new MarkdownString('Start Inline Chat'),
 		glyphMargin: { position: GlyphMarginLane.Left },
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 	});
