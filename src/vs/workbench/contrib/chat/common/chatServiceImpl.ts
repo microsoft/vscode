@@ -678,9 +678,9 @@ export class ChatService extends Disposable implements IChatService {
 		}
 	}
 
-	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<void> {
+	async sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): Promise<{ responseCompletePromise: Promise<void> } | undefined> {
 		this.trace('sendRequestToProvider', `sessionId: ${sessionId}`);
-		await this.sendRequest(sessionId, message.message);
+		return await this.sendRequest(sessionId, message.message);
 	}
 
 	getProviders(): string[] {

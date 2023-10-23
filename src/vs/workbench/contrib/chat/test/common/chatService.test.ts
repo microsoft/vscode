@@ -230,7 +230,8 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		const response = await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		await response?.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
