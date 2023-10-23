@@ -270,10 +270,10 @@ class EditorWordWrapContextKeyTracker extends Disposable implements IWorkbenchCo
 		@IContextKeyService private readonly _contextService: IContextKeyService,
 	) {
 		super();
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => {
-			disposableStore.add(addDisposableListener(window, 'focus', () => this._update(), true));
-			disposableStore.add(addDisposableListener(window, 'blur', () => this._update(), true));
-		}, { window, disposableStore: this._store }));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, 'focus', () => this._update(), true));
+			disposables.add(addDisposableListener(window, 'blur', () => this._update(), true));
+		}, { window, disposables: this._store }));
 		this._editorService.onDidActiveEditorChange(() => this._update());
 		this._canToggleWordWrap = CAN_TOGGLE_WORD_WRAP.bindTo(this._contextService);
 		this._editorWordWrap = EDITOR_WORD_WRAP.bindTo(this._contextService);
