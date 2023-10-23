@@ -576,7 +576,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
 			// Reload local user configuration again to load user tasks
-			this._register(runWhenIdle(() => this.reloadLocalUserConfiguration()));
+			this._register(runWhenIdle(() => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
 		}
 	}
 
@@ -645,8 +645,8 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 		return { local, remote };
 	}
 
-	async reloadLocalUserConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
-		const model = await this.localUserConfiguration.loadTasks(this._configuration.localUserConfiguration);
+	async reloadLocalUserConfiguration(donotTrigger?: boolean, settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
+		const model = await this.localUserConfiguration.reload(settingsConfiguration);
 		if (!donotTrigger) {
 			this.onLocalUserConfigurationChanged(model);
 		}

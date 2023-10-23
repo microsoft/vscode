@@ -201,7 +201,7 @@ export class UserConfiguration extends Disposable {
 		return this.userConfiguration.value!.loadConfiguration();
 	}
 
-	async loadTasks(settingsConfiguration: ConfigurationModel): Promise<ConfigurationModel> {
+	async reload(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		if (this.hasTasksLoaded) {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
