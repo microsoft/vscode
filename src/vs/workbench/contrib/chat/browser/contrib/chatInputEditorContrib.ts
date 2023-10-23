@@ -298,6 +298,7 @@ class SlashCommandCompletions extends Disposable {
 							label: withSlash,
 							insertText: c.executeImmediately ? '' : `${withSlash} `,
 							detail: c.detail,
+							documentation: c.detail,
 							range: new Range(1, 1, 1, 1),
 							sortText: c.sortText ?? 'a'.repeat(i + 1),
 							kind: CompletionItemKind.Text, // The icons are disabled here anyway,
