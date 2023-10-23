@@ -445,8 +445,8 @@ export class StartVoiceChatAction extends Action2 {
 		super({
 			id: StartVoiceChatAction.ID,
 			title: {
-				value: localize('workbench.action.chat.startVoiceChat', "Start Voice Chat"),
-				original: 'Start Voice Chat'
+				value: localize('workbench.action.chat.startVoiceChat', "Chat by Voice"),
+				original: 'Chat by Voice'
 			},
 			icon: Codicon.mic,
 			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate()),
