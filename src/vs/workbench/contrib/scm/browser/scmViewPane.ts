@@ -1959,8 +1959,6 @@ class SCMInputWidget {
 		updateEnablement(input.enabled);
 
 		// ActionBar
-		this.actionBar.context = input.repository.provider;
-
 		const onDidChangeActionButton = () => {
 			this.actionBar.clear();
 			if (!input.actionButton) {

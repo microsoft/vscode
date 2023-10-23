@@ -542,47 +542,50 @@ export class EditorPart extends Part implements IEditorPart {
 		return false;
 	}
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
-		const restoreFocus = this.shouldRestoreFocus(locationView.element);
+		let newGroupView: IEditorGroupView;
 
-		const group = this.doAddGroup(locationView, direction);
+		// Same groups view: add to grid widget directly
+		if (locationView.groupsView === this) {
+			const restoreFocus = this.shouldRestoreFocus(locationView.element);
 
-		// Restore focus if we had it previously after completing the grid
-		// operation. That operation might cause reparenting of grid views
-		// which moves focus to the <body> element otherwise.
-		if (restoreFocus) {
-			locationView.focus();
+			const shouldExpand = this.groupViews.size > 1 && this.isGroupExpanded(locationView);
+			newGroupView = this.doCreateGroupView(groupToCopy);
+
+			// Add to grid widget
+			this.gridWidget.addView(
+				newGroupView,
+				this.getSplitSizingStyle(),
+				locationView,
+				this.toGridViewDirection(direction),
+			);
+      
+			// Update container
+			this.updateContainer();
+
+			// Event
+			this._onDidAddGroup.fire(newGroupView);
+
+			// Notify group index change given a new group was added
+			this.notifyGroupIndexChange();
+
+			// Expand new group, if the reference view was previously expanded
+			if (shouldExpand) {
+				this.arrangeGroups(GroupsArrangement.EXPAND, newGroupView);
+			}
+
+			// Restore focus if we had it previously after completing the grid
+			// operation. That operation might cause reparenting of grid views
+			// which moves focus to the <body> element otherwise.
+			if (restoreFocus) {
+				locationView.focus();
+			}
 		}
-
-		return group;
-	}
-
-	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
-		const shouldExpand = this.groupViews.size > 1 && this.isGroupExpanded(locationView);
-		const newGroupView = this.doCreateGroupView(groupToCopy);
-
-		// Add to grid widget
-		this.gridWidget.addView(
-			newGroupView,
-			this.getSplitSizingStyle(),
-			locationView,
-			this.toGridViewDirection(direction),
-		);
-
-		// Update container
-		this.updateContainer();
-
-		// Event
-		this._onDidAddGroup.fire(newGroupView);
-
-		// Notify group index change given a new group was added
-		this.notifyGroupIndexChange();
-
-		// Expand new group, if the reference view was previously expanded
-		if (shouldExpand) {
-			this.arrangeGroups(GroupsArrangement.EXPAND, newGroupView);
+		// Different group view: add to grid widget of that group
+		else {
+			newGroupView = locationView.groupsView.addGroup(locationView, direction, groupToCopy);
 		}
 
 		return newGroupView;
@@ -797,24 +800,35 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 
 		const restoreFocus = this.shouldRestoreFocus(sourceView.element);
+		let movedView: IEditorGroupView;
 
-		// Move through grid widget API
-		this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
+		// Same groups view: move via grid widget API
+		if (sourceView.groupsView === targetView.groupsView) {
+			this.gridWidget.moveView(sourceView, this.getSplitSizingStyle(), targetView, this.toGridViewDirection(direction));
+			movedView = sourceView;
+		}
+
+		// Different groups view: move via groups view API
+		else {
+			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
+			sourceView.closeAllEditors();
+			this.removeGroup(sourceView);
+		}
 
 		// Restore focus if we had it previously after completing the grid
 		// operation. That operation might cause reparenting of grid views
 		// which moves focus to the <body> element otherwise.
 		if (restoreFocus) {
-			sourceView.focus();
+			movedView.focus();
 		}
 
 		// Event
-		this._onDidMoveGroup.fire(sourceView);
+		this._onDidMoveGroup.fire(movedView);
 
 		// Notify group index change given a group was moved
 		this.notifyGroupIndexChange();
 
-		return sourceView;
+		return movedView;
 	}
 
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
@@ -824,7 +838,7 @@ export class EditorPart extends Part implements IEditorPart {
 		const restoreFocus = this.shouldRestoreFocus(groupView.element);
 
 		// Copy the group view
-		const copiedGroupView = this.doAddGroup(locationView, direction, groupView);
+		const copiedGroupView = this.addGroup(locationView, direction, groupView);
 
 		// Restore focus if we had it
 		if (restoreFocus) {

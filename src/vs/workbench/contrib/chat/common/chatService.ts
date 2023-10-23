@@ -11,6 +11,7 @@ import { URI } from 'vs/base/common/uri';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ProviderResult, Location } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -92,6 +93,11 @@ export interface IChatContentInlineReference {
 	name?: string;
 }
 
+export interface IChatAgentDetection {
+	agentName: string;
+	command?: IChatAgentCommand;
+}
+
 export type IChatProgress =
 	| { content: string | IMarkdownString }
 	| { requestId: string }
@@ -99,7 +105,8 @@ export type IChatProgress =
 	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
 	| IUsedContext
 	| IChatContentReference
-	| IChatContentInlineReference;
+	| IChatContentInlineReference
+	| IChatAgentDetection;
 
 export interface IPersistedChatState { }
 export interface IChatProvider {
