@@ -88,10 +88,11 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+	outline: 1px solid var(--vscode-chat-requestBorder)
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
-	background: var(--vscode-chat-agentAvatarBackground);
+	background: var(--vscode-chat-providerAvatarBackground);
 }
 
 .interactive-item-container .header .avatar+.avatar {
@@ -105,7 +106,8 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-chat-agentAvatarForeground);
+	color: var(--vscode-chat-providerAvatarForeground);
+	font-size: 14px;
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,

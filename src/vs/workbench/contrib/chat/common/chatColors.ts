@@ -5,11 +5,11 @@
 
 import { Color, RGBA } from 'vs/base/common/color';
 import { localize } from 'vs/nls';
-import { badgeBackground, badgeForeground, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { badgeBackground, badgeForeground, contrastBorder, foreground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 
 export const chatRequestBorder = registerColor(
 	'chat.requestBorder',
-	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: null, hcLight: null, },
+	{ dark: new Color(new RGBA(255, 255, 255, 0.10)), light: new Color(new RGBA(0, 0, 0, 0.10)), hcDark: contrastBorder, hcLight: contrastBorder, },
 	localize('chat.requestBorder', 'The border color of a chat request.')
 );
 
@@ -25,26 +25,14 @@ export const chatSlashCommandForeground = registerColor(
 	localize('chat.slashCommandForeground', 'The foreground color of a chat slash command.')
 );
 
-export const chatProviderAvatarBackground = registerColor(
+export const chatAvatarBackground = registerColor(
 	'chat.providerAvatarBackground',
-	{ dark: null, light: null, hcDark: null, hcLight: null, },
+	{ dark: '#ffffff0f', light: '#0000000f', hcDark: null, hcLight: null, },
 	localize('chat.avatarBackground', 'The background color of a chat avatar.')
 );
 
-export const chatProviderAvatarForeground = registerColor(
+export const chatAvatarForeground = registerColor(
 	'chat.providerAvatarForeground',
 	{ dark: foreground, light: foreground, hcDark: foreground, hcLight: foreground, },
-	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
-);
-
-export const chatAgentAvatarBackground = registerColor(
-	'chat.agentAvatarBackground',
-	{ dark: badgeBackground, light: badgeBackground, hcDark: badgeBackground, hcLight: badgeBackground, },
-	localize('chat.avatarBackground', 'The background color of a chat avatar.')
-);
-
-export const chatAgentAvatarForeground = registerColor(
-	'chat.agentAvatarForeground',
-	{ dark: badgeForeground, light: badgeForeground, hcDark: badgeForeground, hcLight: badgeForeground, },
 	localize('chat.avatarForeground', 'The foreground color of a chat avatar.')
 );
