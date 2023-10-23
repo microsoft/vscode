@@ -411,6 +411,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'handleIssueUri');
 				return extHostIssueReporter.registerIssueUriRequestHandler(extension, handler);
 			},
+			registerIssueDataProvider(handler: vscode.IssueDataProvider) {
+				checkProposedApiEnabled(extension, 'handleIssueUri');
+				return extHostIssueReporter.registerIssueDataProvider(extension, handler);
+			},
 			get appQuality(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
 				return initData.quality;
