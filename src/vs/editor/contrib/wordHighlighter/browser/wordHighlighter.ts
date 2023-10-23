@@ -147,45 +147,6 @@ class SemanticOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
 	}
 }
 
-class TextualOccurenceAtPositionRequest extends OccurenceAtPositionRequest {
-
-	private readonly _selectionIsEmpty: boolean;
-
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string) {
-		super(model, selection, wordSeparators);
-		this._selectionIsEmpty = selection.isEmpty();
-	}
-
-	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>> {
-		return timeout(250, token).then(() => {
-			if (!selection.isEmpty()) {
-				return new ResourceMap<DocumentHighlight[]>();
-			}
-
-			const word = model.getWordAtPosition(selection.getPosition());
-
-			if (!word || word.word.length > 1000) {
-				return new ResourceMap<DocumentHighlight[]>();
-			}
-			const matches = model.findMatches(word.word, true, false, true, wordSeparators, false);
-			const highlight: DocumentHighlight[] = matches.map(m => ({
-				range: m.range,
-				kind: DocumentHighlightKind.Text
-			}));
-			const res = new ResourceMap<DocumentHighlight[]>();
-			res.set(model.uri, highlight);
-			return res;
-		});
-	}
-
-	public override isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean {
-		const currentSelectionIsEmpty = selection.isEmpty();
-		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
-			return false;
-		}
-		return super.isValid(model, selection, decorations);
-	}
-}
 class MultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 	private readonly _providers: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
 	private readonly _otherModels: ITextModel[];
@@ -206,14 +167,16 @@ class MultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 	}
 }
 
-// class TextualOccurenceRequest extends OccurenceAtPositionRequest {
-class TextualMultiModelOccurenceRequest extends OccurenceAtPositionRequest {
+class TextualOccurenceRequest extends OccurenceAtPositionRequest {
+	// class TextualMultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 
 	private readonly _otherModels: ITextModel[];
+	private readonly _selectionIsEmpty: boolean;
 
 	constructor(model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]) {
 		super(model, selection, wordSeparators);
 		this._otherModels = otherModels;
+		this._selectionIsEmpty = selection.isEmpty();
 	}
 
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>> {
@@ -241,20 +204,28 @@ class TextualMultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 			return result;
 		});
 	}
+
+	public override isValid(model: ITextModel, selection: Selection, decorations: IEditorDecorationsCollection): boolean {
+		const currentSelectionIsEmpty = selection.isEmpty();
+		if (this._selectionIsEmpty !== currentSelectionIsEmpty) {
+			return false;
+		}
+		return super.isValid(model, selection, decorations);
+	}
 }
 
 function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
 	if (registry.has(model)) {
 		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
 	}
-	return new TextualOccurenceAtPositionRequest(model, selection, wordSeparators);
+	return new TextualOccurenceRequest(model, selection, wordSeparators, []);
 }
 
 function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]): IOccurenceAtPositionRequest {
 	if (registry.has(model)) {
 		return new MultiModelOccurenceRequest(model, selection, wordSeparators, registry, otherModels);
 	}
-	return new TextualMultiModelOccurenceRequest(model, selection, wordSeparators, otherModels);
+	return new TextualOccurenceRequest(model, selection, wordSeparators, otherModels);
 }
 
 registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
@@ -639,10 +610,10 @@ class WordHighlighter {
 			const newDecorations: IModelDeltaDecoration[] = [];
 			const uri = editor.getModel()?.uri;
 			if (uri && this.workerRequestValue.has(uri)) {
-				const oldDecorations: string[] | undefined = WordHighlighter.storedDecorations.get(uri);
-				const highlights = this.workerRequestValue.get(uri);
-				if (highlights) {
-					for (const highlight of highlights) {
+				const oldDecorationIDs: string[] | undefined = WordHighlighter.storedDecorations.get(uri);
+				const newDocumentHighlights = this.workerRequestValue.get(uri);
+				if (newDocumentHighlights) {
+					for (const highlight of newDocumentHighlights) {
 						newDecorations.push({
 							range: highlight.range,
 							options: getHighlightDecorationOptions(highlight.kind)
@@ -652,7 +623,7 @@ class WordHighlighter {
 
 				let newDecorationIDs: string[] = [];
 				editor.changeDecorations((changeAccessor) => {
-					newDecorationIDs = changeAccessor.deltaDecorations(oldDecorations ?? [], newDecorations);
+					newDecorationIDs = changeAccessor.deltaDecorations(oldDecorationIDs ?? [], newDecorations);
 				});
 				WordHighlighter.storedDecorations = WordHighlighter.storedDecorations.set(uri, newDecorationIDs);
 
