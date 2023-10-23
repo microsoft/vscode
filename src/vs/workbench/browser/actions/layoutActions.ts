@@ -489,7 +489,7 @@ export class HideEditorTabsAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		return configurationService.updateValue('workbench.editor.showTabs', 'none');
 	}
@@ -515,7 +515,7 @@ export class ShowMultipleEditorTabsAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		return configurationService.updateValue('workbench.editor.showTabs', 'multiple');
 	}
@@ -541,7 +541,7 @@ export class ShowSingleEditorTabAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 		return configurationService.updateValue('workbench.editor.showTabs', 'single');
 	}
@@ -550,13 +550,11 @@ registerAction2(ShowSingleEditorTabAction);
 
 // --- Toggle Pinned Tabs On Separate Row
 
-export class ToggleSeparatePinnedTabsAction extends Action2 {
-
-	static readonly ID = 'workbench.action.toggleSeparatePinnedEditorTabs';
+registerAction2(class extends Action2 {
 
 	constructor() {
 		super({
-			id: ToggleSeparatePinnedTabsAction.ID,
+			id: 'workbench.action.toggleSeparatePinnedEditorTabs',
 			title: {
 				value: localize('toggleSeparatePinnedEditorTabs', "Separate Pinned Editor Tabs"),
 				original: 'Separate Pinned Editor Tabs'
@@ -567,7 +565,7 @@ export class ToggleSeparatePinnedTabsAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor): Promise<void> {
+	run(accessor: ServicesAccessor): Promise<void> {
 		const configurationService = accessor.get(IConfigurationService);
 
 		const oldettingValue = configurationService.getValue<string>('workbench.editor.pinnedTabsOnSeparateRow');
@@ -575,8 +573,7 @@ export class ToggleSeparatePinnedTabsAction extends Action2 {
 
 		return configurationService.updateValue('workbench.editor.pinnedTabsOnSeparateRow', newSettingValue);
 	}
-}
-registerAction2(ToggleSeparatePinnedTabsAction);
+});
 
 // --- Toggle Zen Mode
 
