@@ -54,16 +54,19 @@
 
 @keyframes ellipsis {
 	0% {
+		content: "";
+	}
+	25% {
 		content: ".";
 	}
-	33% {
+	50% {
 		content: "..";
 	}
-	66% {
+	75% {
 		content: "...";
 	}
 	100% {
-		content: ".";
+		content: "";
 	}
 }
 
