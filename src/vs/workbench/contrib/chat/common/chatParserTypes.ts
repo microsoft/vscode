@@ -100,11 +100,11 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 
 	get text(): string {
-		return `${chatVariableLeader}${this.slashCommand.command}`;
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
 	}
 
 	get promptText(): string {
-		return `${chatVariableLeader}${this.slashCommand.command}`;
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
 	}
 }
 
