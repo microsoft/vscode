@@ -561,7 +561,7 @@ export class EditorPart extends Part implements IEditorPart {
 				locationView,
 				this.toGridViewDirection(direction),
 			);
-      
+
 			// Update container
 			this.updateContainer();
 
@@ -583,6 +583,7 @@ export class EditorPart extends Part implements IEditorPart {
 				locationView.focus();
 			}
 		}
+
 		// Different group view: add to grid widget of that group
 		else {
 			newGroupView = locationView.groupsView.addGroup(locationView, direction, groupToCopy);
