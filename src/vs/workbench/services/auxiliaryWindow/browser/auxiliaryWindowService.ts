@@ -240,6 +240,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			onWillLayout.fire(dimension);
 		}));
 
+		this._register(addDisposableListener(container, EventType.SCROLL, () => container.scrollTop = 0)); // // Prevent container from scrolling (#55456)
+
 		if (isWeb) {
 			disposables.add(addDisposableListener(container, EventType.DROP, e => EventHelper.stop(e, true))); 					// Prevent default navigation on drop
 			disposables.add(addDisposableListener(container, EventType.WHEEL, e => e.preventDefault(), { passive: false })); 	// Prevent the back/forward gestures in macOS
