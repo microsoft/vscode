@@ -7155,7 +7155,7 @@ declare namespace monaco.languages {
 		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 		 * with shared symbols.
 		 */
-		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, wordSeparators: string, token: CancellationToken, otherModels: editor.ITextModel[]): ProviderResult<Map<Uri, DocumentHighlight[]>>;
+		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
 	}
 
 	/**

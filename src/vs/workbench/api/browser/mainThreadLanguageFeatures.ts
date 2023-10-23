@@ -33,6 +33,7 @@ import * as search from 'vs/workbench/contrib/search/common/search';
 import * as typeh from 'vs/workbench/contrib/typeHierarchy/common/typeHierarchy';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostLanguageFeaturesShape, ICallHierarchyItemDto, ICodeActionDto, ICodeActionProviderMetadataDto, IdentifiableInlineCompletion, IdentifiableInlineCompletions, IDocumentDropEditProviderMetadata, IDocumentFilterDto, IIndentationRuleDto, IInlayHintDto, ILanguageConfigurationDto, ILanguageWordDefinitionDto, ILinkDto, ILocationDto, ILocationLinkDto, IOnEnterRuleDto, IPasteEditProviderMetadataDto, IRegExpDto, ISignatureHelpProviderMetadataDto, ISuggestDataDto, ISuggestDataDtoField, ISuggestResultDtoField, ITypeHierarchyItemDto, IWorkspaceSymbolDto, MainContext, MainThreadLanguageFeaturesShape } from '../common/extHost.protocol';
+import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/core/wordHelper';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures extends Disposable implements MainThreadLanguageFeaturesShape {
@@ -300,7 +301,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 				}
 			}),
 			this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
-				provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, wordSeparators: string, token: CancellationToken, otherModels: ITextModel[]): Promise<Map<URI, languages.DocumentHighlight[]>> => {
+				provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]>> => {
 					const res = this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 					if (!res) {
 						return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
@@ -317,12 +318,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 							column: position.column
 						});
 
-						for (const otherModel of otherModels) {
-							if (!word) {
-								return new Map<URI, languages.DocumentHighlight[]>();
-							}
+						if (!word) {
+							return new Map<URI, languages.DocumentHighlight[]>();
+						}
 
-							const matches = otherModel.findMatches(word.word, true, false, true, wordSeparators, false);
+						for (const otherModel of otherModels) {
+							const matches = otherModel.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
 							const highlights = matches.map(m => ({
 								range: m.range,
 								kind: languages.DocumentHighlightKind.Text

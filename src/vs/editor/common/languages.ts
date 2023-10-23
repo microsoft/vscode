@@ -973,7 +973,7 @@ export interface MultiDocumentHighlightProvider {
 	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 	 * with shared symbols.
 	 */
-	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, wordSeparators: string, token: CancellationToken, otherModels: model.ITextModel[]): ProviderResult<Map<URI, DocumentHighlight[]>>;
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
 }
 
 /**
