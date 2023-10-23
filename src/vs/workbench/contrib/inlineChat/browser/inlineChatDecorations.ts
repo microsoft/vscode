@@ -70,20 +70,6 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
 				return;
 			}
-			const onWillStartSession = this._inlineChatSessionService.onWillStartSession(() => {
-				if (this._gutterDecorationID) {
-					this._removeGutterDecoration(this._gutterDecorationID);
-					onWillStartSession.dispose();
-				}
-			});
-			const onDidEndSession = this._inlineChatSessionService.onDidEndSession(() => {
-				const selection = editor.getSelection();
-				const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
-				if (isEnabled) {
-					this._addGutterDecoration(selection.startLineNumber);
-				}
-				onDidEndSession.dispose();
-			});
 			InlineChatController.get(this._editor)?.run();
 		}));
 		this._localToDispose.add({
@@ -93,6 +79,18 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				}
 			}
 		});
+		const onWillStartSession = this._inlineChatSessionService.onWillStartSession(() => {
+			if (this._gutterDecorationID) {
+				this._removeGutterDecoration(this._gutterDecorationID);
+			}
+			onWillStartSession.dispose();
+			this._localToDispose.clear();
+		});
+		const onDidEndSession = this._inlineChatSessionService.onDidEndSession(() => {
+			onDidEndSession.dispose();
+			this._onEnablementOrModelChanged();
+		});
+		decorationUpdateScheduler.schedule();
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
