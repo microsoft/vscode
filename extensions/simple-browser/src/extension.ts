@@ -44,7 +44,7 @@ export function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(vscode.commands.registerCommand(showCommand, async (url?: string) => {
 		const configuration = vscode.workspace.getConfiguration('simpleBrowser');
-		const defaultURL = configuration.get<string>('defaultURL', 'http://localhost:3000');
+		const defaultURL = configuration.get<string>('default.URL', 'http://localhost:3000');
 		if (!url) {
 			url = await vscode.window.showInputBox({
 				value: vscode.l10n.t(defaultURL),
