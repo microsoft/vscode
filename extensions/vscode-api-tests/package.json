@@ -6,8 +6,11 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "chatAgents2",
+    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
+    "createFileSystemWatcher",
     "customEditorMove",
     "diffCommand",
     "documentFiltersExclusive",
@@ -19,6 +22,7 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
     "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
@@ -28,6 +32,7 @@
     "portsAttributes",
     "quickPickSortByLabel",
     "readonlyMessage",
+    "languageStatusText",
     "resolvers",
     "saveEditor",
     "scmActionButton",
@@ -40,11 +45,10 @@
     "tunnels",
     "testCoverage",
     "testObserver",
-    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
-	  "treeViewActiveItem",
+    "treeViewActiveItem",
     "treeViewReveal",
     "workspaceTrust",
     "telemetry",
@@ -161,6 +165,12 @@
             "program": "${workspaceFolder}/file.md"
           }
         ]
+      }
+    ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
       }
     ],
     "notebooks": [

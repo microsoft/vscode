@@ -1,7 +1,9 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -23,6 +25,7 @@ steps:
     displayName: Download all artifacts_processed text files
 
   - task: AzureCLI@2
+    displayName: Fetch secrets
     inputs:
       azureSubscription: "vscode-builds-subscription"
       scriptType: pscore
@@ -34,6 +37,7 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
   - task: AzureCLI@2
+    displayName: Fetch Mooncake secrets
     inputs:
       azureSubscription: "vscode-builds-mooncake-subscription"
       scriptType: pscore
@@ -75,7 +79,7 @@ steps:
 
   - publish: $(Pipeline.Workspace)/artifacts_processed_$(System.StageAttempt)/artifacts_processed_$(System.StageAttempt).txt
     artifact: artifacts_processed_$(System.StageAttempt)
-    displayName: Publish what artifacts were published for this stage attempt
+    displayName: Publish the artifacts processed for this stage attempt
     condition: always()
 
   - pwsh: |

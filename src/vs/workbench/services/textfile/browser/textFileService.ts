@@ -45,9 +45,6 @@ import { Codicon } from 'vs/base/common/codicons';
 import { listErrorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { firstOrDefault } from 'vs/base/common/arrays';
 
-/**
- * The workbench file service implementation implements the raw file service spec and adds additional methods on top.
- */
 export abstract class AbstractTextFileService extends Disposable implements ITextFileService {
 
 	declare readonly _serviceBrand: undefined;

@@ -40,6 +40,7 @@ import { extname } from 'vs/base/common/resources';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IUntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -79,6 +80,8 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
+export const TOGGLE_MAXIMIZE_EDITOR_GROUP = 'workbench.action.toggleMaximizeEditorGroup';
+
 export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';
 export const TOGGLE_SPLIT_EDITOR_IN_GROUP = 'workbench.action.toggleSplitEditorInGroup';
 export const JOIN_EDITOR_IN_GROUP = 'workbench.action.joinEditorInGroup';
@@ -103,7 +106,8 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	SPLIT_EDITOR,
 	CLOSE_EDITOR_COMMAND_ID,
 	UNPIN_EDITOR_COMMAND_ID,
-	UNLOCK_GROUP_COMMAND_ID
+	UNLOCK_GROUP_COMMAND_ID,
+	TOGGLE_MAXIMIZE_EDITOR_GROUP
 ];
 
 export interface ActiveEditorMoveCopyArguments {
@@ -158,7 +162,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
 		handler: (accessor, args) => moveCopyActiveEditor(true, args, accessor),
-		description: {
+		metadata: {
 			description: localize('editorCommand.activeEditorMove.description', "Move the active editor by tabs or groups"),
 			args: [
 				{
@@ -177,7 +181,7 @@ function registerActiveEditorMoveCopyCommand(): void {
 		when: EditorContextKeys.editorTextFocus,
 		primary: 0,
 		handler: (accessor, args) => moveCopyActiveEditor(false, args, accessor),
-		description: {
+		metadata: {
 			description: localize('editorCommand.activeEditorCopy.description', "Copy the active editor by groups"),
 			args: [
 				{
@@ -322,7 +326,7 @@ function registerEditorGroupsLayoutCommands(): void {
 	CommandsRegistry.registerCommand({
 		id: 'vscode.setEditorLayout',
 		handler: (accessor: ServicesAccessor, args: EditorGroupLayout) => applyEditorLayout(accessor, args),
-		description: {
+		metadata: {
 			description: 'Set Editor Layout',
 			args: [{
 				name: 'args',
@@ -352,7 +356,7 @@ function registerEditorGroupsLayoutCommands(): void {
 
 			return editorGroupService.getLayout();
 		},
-		description: {
+		metadata: {
 			description: 'Get Editor Layout',
 			args: [],
 			returns: 'An editor layout object, in the same format as vscode.setEditorLayout'
@@ -525,7 +529,7 @@ function registerOpenEditorAPICommands(): void {
 		handler: (accessor, arg) => {
 			accessor.get(ICommandService).executeCommand(API_OPEN_EDITOR_COMMAND_ID, arg);
 		},
-		description: {
+		metadata: {
 			description: 'Opens the provided resource in the editor.',
 			args: [{ name: 'Uri' }]
 		}
@@ -583,7 +587,7 @@ function registerOpenEditorAPICommands(): void {
 		handler: (accessor, left, right, label) => {
 			accessor.get(ICommandService).executeCommand(API_OPEN_DIFF_EDITOR_COMMAND_ID, left, right, label);
 		},
-		description: {
+		metadata: {
 			description: 'Opens the provided resources in the diff editor to compare their contents.',
 			args: [
 				{ name: 'left', description: 'Left-hand side resource of the diff editor' },
@@ -1463,7 +1467,7 @@ function getEditorsContext(accessor: ServicesAccessor, resourceOrContext?: URI |
 	};
 }
 
-function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
+export function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext | undefined {
 	if (URI.isUri(resourceOrContext)) {
 		return context;
 	}
@@ -1479,7 +1483,7 @@ function getCommandsContext(resourceOrContext?: URI | IEditorCommandsContext, co
 	return undefined;
 }
 
-function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup; editor?: EditorInput } {
+export function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup; editor?: EditorInput } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
@@ -1502,7 +1506,7 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
-	if (list instanceof List && list.getHTMLElement() === document.activeElement) {
+	if (list instanceof List && list.getHTMLElement() === getActiveElement()) {
 		const elementToContext = (element: IEditorIdentifier | IEditorGroup) => {
 			if (isEditorGroup(element)) {
 				return { groupId: element.id, editorIndex: undefined };

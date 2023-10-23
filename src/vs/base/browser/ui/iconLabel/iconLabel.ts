@@ -23,6 +23,7 @@ export interface IIconLabelCreationOptions {
 export interface IIconLabelValueOptions {
 	title?: string | ITooltipMarkdownString;
 	descriptionTitle?: string;
+	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
 	italic?: boolean;
@@ -85,9 +86,11 @@ export class IconLabel extends Disposable {
 	private readonly creationOptions?: IIconLabelCreationOptions;
 
 	private readonly domNode: FastLabelNode;
+	private readonly nameContainer: HTMLElement;
 	private readonly nameNode: Label | LabelWithHighlights;
 
 	private descriptionNode: FastLabelNode | HighlightedLabel | undefined;
+	private suffixNode: FastLabelNode | undefined;
 
 	private readonly labelContainer: HTMLElement;
 
@@ -102,12 +105,12 @@ export class IconLabel extends Disposable {
 
 		this.labelContainer = dom.append(this.domNode.element, dom.$('.monaco-icon-label-container'));
 
-		const nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
+		this.nameContainer = dom.append(this.labelContainer, dom.$('span.monaco-icon-name-container'));
 
 		if (options?.supportHighlights || options?.supportIcons) {
-			this.nameNode = new LabelWithHighlights(nameContainer, !!options.supportIcons);
+			this.nameNode = new LabelWithHighlights(this.nameContainer, !!options.supportIcons);
 		} else {
-			this.nameNode = new Label(nameContainer);
+			this.nameNode = new Label(this.nameContainer);
 		}
 
 		this.hoverDelegate = options?.hoverDelegate;
@@ -138,7 +141,11 @@ export class IconLabel extends Disposable {
 				containerClasses.push('disabled');
 			}
 			if (options.title) {
-				ariaLabel += options.title;
+				if (typeof options.title === 'string') {
+					ariaLabel += options.title;
+				} else {
+					ariaLabel += label;
+				}
 			}
 		}
 
@@ -159,6 +166,11 @@ export class IconLabel extends Disposable {
 				this.setupHover(descriptionNode.element, options?.descriptionTitle || '');
 				descriptionNode.empty = !description;
 			}
+		}
+
+		if (options?.suffix || this.suffixNode) {
+			const suffixNode = this.getOrCreateSuffixNode();
+			suffixNode.textContent = options?.suffix ?? '';
 		}
 	}
 
@@ -190,6 +202,15 @@ export class IconLabel extends Disposable {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+	}
+
+	private getOrCreateSuffixNode() {
+		if (!this.suffixNode) {
+			const suffixContainer = this._register(new FastLabelNode(dom.after(this.nameContainer, dom.$('span.monaco-icon-suffix-container'))));
+			this.suffixNode = this._register(new FastLabelNode(dom.append(suffixContainer.element, dom.$('span.label-suffix'))));
+		}
+
+		return this.suffixNode;
 	}
 
 	private getOrCreateDescriptionNode() {

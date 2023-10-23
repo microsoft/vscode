@@ -13,7 +13,7 @@ import { EnablementState, IExtensionManagementServerService, IWorkbenchExtension
 import { IExtensionIgnoredRecommendationsService, IExtensionRecommendationsService } from 'vs/workbench/services/extensionRecommendations/common/extensionRecommendations';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY } from 'vs/workbench/contrib/extensions/common/extensions';
+import { VIEWLET_ID, IExtensionsWorkbenchService, IExtensionsViewPaneContainer, TOGGLE_IGNORE_EXTENSION_ACTION_ID, INSTALL_EXTENSION_FROM_VSIX_COMMAND_ID, WORKSPACE_RECOMMENDATIONS_VIEW_ID, IWorkspaceRecommendedExtensionsView, AutoUpdateConfigurationKey, HasOutdatedExtensionsContext, SELECT_INSTALL_VSIX_EXTENSION_COMMAND_ID, LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID, ExtensionEditorTab, THEME_ACTIONS_GROUP, INSTALL_ACTIONS_GROUP, OUTDATED_EXTENSIONS_VIEW_ID, CONTEXT_HAS_GALLERY, IExtension } from 'vs/workbench/contrib/extensions/common/extensions';
 import { ReinstallAction, InstallSpecificVersionOfExtensionAction, ConfigureWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction, PromptExtensionInstallFailureAction, SearchExtensionsAction, SwitchToPreReleaseVersionAction, SwitchToReleasedVersionAction, SetColorThemeAction, SetFileIconThemeAction, SetProductIconThemeAction, ClearLanguageAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/contrib/extensions/common/extensionsInput';
 import { ExtensionEditor } from 'vs/workbench/contrib/extensions/browser/extensionEditor';
@@ -285,7 +285,7 @@ CommandsRegistry.registerCommand('extension.open', async (accessor: ServicesAcce
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.installExtension',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.installExtension.description', "Install the given extension"),
 		args: [
 			{
@@ -364,7 +364,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.uninstallExtension',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.uninstallExtension.description', "Uninstall the given extension"),
 		args: [
 			{
@@ -400,7 +400,7 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: 'workbench.extensions.search',
-	description: {
+	metadata: {
 		description: localize('workbench.extensions.search.description', "Search for a specific extension"),
 		args: [
 			{
@@ -672,14 +672,17 @@ class ExtensionsContributions extends Disposable implements IWorkbenchContributi
 				}
 			],
 			icon: installWorkspaceRecommendedIcon,
-			run: () => {
-				return Promise.all(this.extensionsWorkbenchService.outdated.map(async extension => {
-					try {
-						await this.extensionsWorkbenchService.install(extension, extension.local?.preRelease ? { installPreReleaseVersion: true } : undefined);
-					} catch (err) {
-						runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, err));
+			run: async () => {
+				const outdated = this.extensionsWorkbenchService.outdated;
+				const results = await this.extensionsWorkbenchService.updateAll();
+				results.forEach((result) => {
+					if (result.error) {
+						const extension: IExtension | undefined = outdated.find((extension) => areSameExtensions(extension.identifier, result.identifier));
+						if (extension) {
+							runAction(this.instantiationService.createInstance(PromptExtensionInstallFailureAction, extension, extension.latestVersion, InstallOperation.Update, result.error));
+						}
 					}
-				}));
+				});
 			}
 		});
 

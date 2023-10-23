@@ -75,8 +75,8 @@ export class CellDragAndDropController extends Disposable {
 
 		this.listInsertionIndicator = DOM.append(notebookListContainer, $('.cell-list-insertion-indicator'));
 
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
-		this._register(DOM.addDisposableListener(document.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
+		this._register(DOM.addDisposableListener(notebookListContainer.ownerDocument.body, DOM.EventType.DRAG_START, this.onGlobalDragStart.bind(this), true));
+		this._register(DOM.addDisposableListener(notebookListContainer.ownerDocument.body, DOM.EventType.DRAG_END, this.onGlobalDragEnd.bind(this), true));
 
 		const addCellDragListener = (eventType: string, handler: (e: CellDragEvent) => void, useCapture = false) => {
 			this._register(DOM.addDisposableListener(

@@ -134,9 +134,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateGutterDecorationVisibility(): void {
-		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
-		for (const commandDecorationElement of commandDecorationElements) {
-			this._updateCommandDecorationVisibility(commandDecorationElement);
+		const commandDecorationElements = this._terminal?.element?.querySelectorAll(DecorationSelector.CommandDecoration);
+		if (commandDecorationElements) {
+			for (const commandDecorationElement of commandDecorationElements) {
+				this._updateCommandDecorationVisibility(commandDecorationElement);
+			}
 		}
 	}
 

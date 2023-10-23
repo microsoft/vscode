@@ -10,7 +10,7 @@ import { IBulkEditService, ResourceEdit } from 'vs/editor/browser/services/bulkE
 import { BulkEditPane } from 'vs/workbench/contrib/bulkEdit/browser/preview/bulkEditPane';
 import { IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewsRegistry, IViewsService } from 'vs/workbench/common/views';
 import { FocusedViewContext } from 'vs/workbench/common/contextkeys';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 import { RawContextKey, IContextKeyService, IContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -166,8 +166,8 @@ registerAction2(class ApplyAction extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.apply',
-			title: { value: localize('apply', "Apply Refactoring"), original: 'Apply Refactoring' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('apply', "Apply Refactoring"),
+			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.check,
 			precondition: ContextKeyExpr.and(BulkEditPreviewContribution.ctxEnabled, BulkEditPane.ctxHasCheckedChanges),
 			menu: [{
@@ -195,8 +195,8 @@ registerAction2(class DiscardAction extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.discard',
-			title: { value: localize('Discard', "Discard Refactoring"), original: 'Discard Refactoring' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('Discard', "Discard Refactoring"),
+			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.clearAll,
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			menu: [{
@@ -220,8 +220,8 @@ registerAction2(class ToggleAction extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.toggleCheckedState',
-			title: { value: localize('toogleSelection', "Toggle Change"), original: 'Toggle Change' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('toogleSelection', "Toggle Change"),
+			category: localize2('cat', "Refactor Preview"),
 			precondition: BulkEditPreviewContribution.ctxEnabled,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -249,8 +249,8 @@ registerAction2(class GroupByFile extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.groupByFile',
-			title: { value: localize('groupByFile', "Group Changes By File"), original: 'Group Changes By File' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('groupByFile', "Group Changes By File"),
+			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.ungroupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile.negate(), BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -274,8 +274,8 @@ registerAction2(class GroupByType extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.groupByType',
-			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('groupByType', "Group Changes By Type"),
+			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.groupByRefType,
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPane.ctxGroupByFile, BulkEditPreviewContribution.ctxEnabled),
 			menu: [{
@@ -299,8 +299,8 @@ registerAction2(class ToggleGrouping extends Action2 {
 	constructor() {
 		super({
 			id: 'refactorPreview.toggleGrouping',
-			title: { value: localize('groupByType', "Group Changes By Type"), original: 'Group Changes By Type' },
-			category: { value: localize('cat', "Refactor Preview"), original: 'Refactor Preview' },
+			title: localize2('groupByType', "Group Changes By Type"),
+			category: localize2('cat', "Refactor Preview"),
 			icon: Codicon.listTree,
 			toggled: BulkEditPane.ctxGroupByFile.negate(),
 			precondition: ContextKeyExpr.and(BulkEditPane.ctxHasCategories, BulkEditPreviewContribution.ctxEnabled),
@@ -326,7 +326,7 @@ const refactorPreviewViewIcon = registerIcon('refactor-preview-view-icon', Codic
 
 const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: BulkEditPane.ID,
-	title: { value: localize('panel', "Refactor Preview"), original: 'Refactor Preview' },
+	title: localize2('panel', "Refactor Preview"),
 	hideIfEmpty: true,
 	ctorDescriptor: new SyncDescriptor(
 		ViewPaneContainer,
@@ -338,7 +338,7 @@ const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.V
 
 Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry).registerViews([{
 	id: BulkEditPane.ID,
-	name: localize('panel', "Refactor Preview"),
+	name: localize2('panel', "Refactor Preview"),
 	when: BulkEditPreviewContribution.ctxEnabled,
 	ctorDescriptor: new SyncDescriptor(BulkEditPane),
 	containerIcon: refactorPreviewViewIcon,

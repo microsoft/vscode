@@ -188,21 +188,23 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/** The number of restored terminal groups on startup. */
 	readonly restoredGroupCount: number;
 
-	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
-	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	readonly onDidCreateInstance: Event<ITerminalInstance>;
-	readonly onDidReceiveProcessId: Event<ITerminalInstance>;
 	readonly onDidChangeInstanceDimensions: Event<ITerminalInstance>;
-	readonly onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	readonly onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	readonly onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	readonly onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	readonly onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
-	readonly onDidInputInstanceData: Event<ITerminalInstance>;
-	readonly onDidChangeSelection: Event<ITerminalInstance>;
 	readonly onDidRegisterProcessSupport: Event<void>;
 	readonly onDidChangeConnectionState: Event<void>;
+
+	// Group events
+	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
+
+	// Multiplexed events
+	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
+	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;
+	readonly onAnyInstancePrimaryStatusChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
+	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
 
 	/**
 	 * Creates a terminal.
@@ -269,7 +271,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * instances and removing old instances as needed.
 	 * @param getEvent Maps the instance to the event.
 	 */
-	onInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): IDynamicListEventMultiplexer<T>;
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T>;
 
 	/**
 	 * Creates a capability event listener that listens to capabilities on all instances,
@@ -277,7 +279,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	 * @param capabilityId The capability type to listen to an event on.
 	 * @param getEvent Maps the capability to the event.
 	 */
-	onInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
+	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 

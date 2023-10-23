@@ -5,7 +5,7 @@
 
 import { isFirefox } from 'vs/base/browser/browser';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
-import { $, addDisposableListener, append, clearNode, createStyleSheet, Dimension, EventHelper, EventLike, EventType, getActiveElement, IDomNodePagePosition, isAncestor, isInShadowDOM } from 'vs/base/browser/dom';
+import { $, addDisposableListener, append, clearNode, createStyleSheet, Dimension, EventHelper, EventLike, EventType, getActiveElement, getWindow, IDomNodePagePosition, isAncestor, isInShadowDOM } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionBar, ActionsOrientation, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -85,7 +85,6 @@ interface ISubMenuData {
 
 export class Menu extends ActionBar {
 	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
-	private readonly menuDisposables: DisposableStore;
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
 	static globalStyleSheet: HTMLStyleElement;
@@ -113,23 +112,21 @@ export class Menu extends ActionBar {
 
 		this.actionsList.tabIndex = 0;
 
-		this.menuDisposables = this._register(new DisposableStore());
-
 		this.initializeOrUpdateStyleSheet(container, menuStyles);
 
 		this._register(Gesture.addTarget(menuElement));
 
-		addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 			const event = new StandardKeyboardEvent(e);
 
 			// Stop tab navigation of menus
 			if (event.equals(KeyCode.Tab)) {
 				e.preventDefault();
 			}
-		});
+		}));
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
@@ -259,6 +256,7 @@ export class Menu extends ActionBar {
 			e.preventDefault();
 		}));
 
+		const window = getWindow(container);
 		menuElement.style.maxHeight = `${Math.max(10, window.innerHeight - container.getBoundingClientRect().top - 35)}px`;
 
 		actions = actions.filter(a => {
@@ -899,6 +897,7 @@ class SubmenuMenuActionViewItem extends BaseMenuActionViewItem {
 
 			const viewBox = this.submenuContainer.getBoundingClientRect();
 
+			const window = getWindow(this.element);
 			const { top, left } = this.calculateSubmenuMenuLayout(new Dimension(window.innerWidth, window.innerHeight), Dimension.lift(viewBox), entryBoxUpdated, this.expandDirection);
 			// subtract offsets caused by transform parent
 			this.submenuContainer.style.left = `${left - viewBox.left}px`;

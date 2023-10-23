@@ -7,13 +7,14 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IAuthenticationProvider, SyncStatus, SyncResource, IUserDataSyncResource, IResourcePreview } from 'vs/platform/userDataSync/common/userDataSync';
 import { Event } from 'vs/base/common/event';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IView } from 'vs/workbench/common/views';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IAction2Options } from 'vs/platform/actions/common/actions';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export interface IUserDataSyncAccount {
 	readonly authenticationProviderId: string;
@@ -72,8 +73,7 @@ export interface IUserDataSyncConflictsView extends IView {
 	open(conflict: IResourcePreview): Promise<void>;
 }
 
-export const SYNC_ORIGINAL_TITLE = 'Settings Sync';
-export const SYNC_TITLE = localize('sync category', "Settings Sync");
+export const SYNC_TITLE: ILocalizedString = localize2('sync category', "Settings Sync");
 
 export const SYNC_VIEW_ICON = registerIcon('settings-sync-view-icon', Codicon.sync, localize('syncViewIcon', 'View icon of the Settings Sync view.'));
 
