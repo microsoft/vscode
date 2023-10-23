@@ -1960,6 +1960,9 @@ class SCMInputWidget {
 
 		// ActionBar
 		const onDidChangeActionButton = () => {
+			// Update placeholder width to accommodate for the action bar
+			this.placeholderTextContainer.style.width = input.actionButton ? 'calc(100% - 26px)' : '100%';
+
 			this.actionBar.clear();
 			if (!input.actionButton) {
 				return;
@@ -1973,9 +1976,6 @@ class SCMInputWidget {
 				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
 			this.actionBar.push(action, { icon: true, label: false });
-
-			// Update placeholder width to accommodate for the action bar
-			this.placeholderTextContainer.style.width = input.actionButton ? 'calc(100% - 26px)' : '100%';
 		};
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
