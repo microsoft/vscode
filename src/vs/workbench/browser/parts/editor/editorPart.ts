@@ -409,6 +409,10 @@ export class EditorPart extends Part implements IEditorPart {
 		return this.gridWidget.hasMaximizedView();
 	}
 
+	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+		return this.gridWidget.isViewMaximized(targetGroup);
+	}
+
 	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
 		return this.gridWidget.isViewExpanded(targetGroup);
 	}
@@ -684,7 +688,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doRestoreGroup(group: IEditorGroupView): void {
 		if (this.gridWidget) {
-			if (this.hasMaximizedGroup()) {
+			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
 				this.unmaximizeGroup();
 			}
 

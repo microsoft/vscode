@@ -1598,6 +1598,19 @@ export class GridView implements IDisposable {
 	}
 
 	/**
+	 * Returns whether the {@link IView view} is maximized.
+	 *
+	 * @param location The {@link GridLocation location} of the view.
+	 */
+	isViewMaximized(location: GridLocation): boolean {
+		const [, node] = this.getNode(location);
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Location is not a LeafNode');
+		}
+		return node === this.maximizedNode;
+	}
+
+	/**
 	 * Distribute the size among all {@link IView views} within the entire
 	 * grid or within a single {@link SplitView}.
 	 *
