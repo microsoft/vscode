@@ -227,4 +227,59 @@ suite('Objects', () => {
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'MIXEDCASE'));
 		assert.strictEqual(obj1.mIxEdCaSe, objects.getCaseInsensitive(obj1, 'mixedcase'));
 	});
+
+	test('ensureOptionalBooleanValue', () => {
+		const obj = {
+			a: true,
+			b: false,
+			c: undefined
+		};
+
+		objects.ensureOptionalBooleanValue(obj, 'a', false);
+		assert.strictEqual(obj.a, true);
+
+		objects.ensureOptionalBooleanValue(obj, 'b', true);
+		assert.strictEqual(obj.b, false);
+
+		objects.ensureOptionalBooleanValue(obj, 'c', true);
+		assert.strictEqual(obj.c, undefined);
+	});
+
+	test('ensureOptionalNumberValue', () => {
+		const obj = {
+			a: 1,
+			b: 0,
+			c: undefined
+		};
+
+		objects.ensureOptionalNumberValue(obj, 'a', 0);
+		assert.strictEqual(obj.a, 1);
+
+		objects.ensureOptionalNumberValue(obj, 'b', 1);
+		assert.strictEqual(obj.b, 0);
+
+		objects.ensureOptionalNumberValue(obj, 'c', 1);
+		assert.strictEqual(obj.c, undefined);
+	});
+
+	test('ensureOptionalStringValue', () => {
+		const obj = {
+			a: 'hello',
+			b: 'world',
+			c: undefined,
+			d: 'earth'
+		};
+
+		objects.ensureOptionalStringValue(obj, 'a', ['hello', 'world'], 'world');
+		assert.strictEqual(obj.a, 'hello');
+
+		objects.ensureOptionalStringValue(obj, 'b', ['hello', 'world'], 'hello');
+		assert.strictEqual(obj.b, 'world');
+
+		objects.ensureOptionalStringValue(obj, 'c', ['hello', 'world'], 'world');
+		assert.strictEqual(obj.c, undefined);
+
+		objects.ensureOptionalStringValue(obj, 'd', ['hello', 'world'], 'world');
+		assert.strictEqual(obj.d, 'world');
+	});
 });
