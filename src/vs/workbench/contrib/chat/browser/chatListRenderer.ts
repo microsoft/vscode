@@ -1147,6 +1147,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },
+			range: 'range' in element.reference ? element.reference.range : undefined
 		});
 	}
 
