@@ -91,11 +91,11 @@ export class Gesture extends Disposable {
 		this.handle = null;
 		this._lastSetTapCountTime = 0;
 
-		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposableStore }) => {
-			disposableStore.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
-			disposableStore.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
-			disposableStore.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
-		}, { window, disposableStore: this._store }));
+		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
+		}, { window, disposables: this._store }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {

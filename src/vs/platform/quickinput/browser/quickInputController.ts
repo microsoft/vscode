@@ -58,7 +58,7 @@ export class QuickInputController extends Disposable {
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
 		this.styles = options.styles;
-		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposableStore }) => this.registerKeyModsListeners(window, disposableStore), { window, disposableStore: this._store }));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window, disposables: this._store }));
 		this._register(dom.onWillUnregisterWindow(window => {
 			if (this.ui && dom.getWindow(this.ui.container) === window) {
 				// The window this quick input is contained in is about to
