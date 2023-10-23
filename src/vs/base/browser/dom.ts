@@ -19,7 +19,7 @@ import { URI } from 'vs/base/common/uri';
 
 export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
-	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposableStore: DisposableStore }>();
+	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
 	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	return {
@@ -33,19 +33,21 @@ export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregister
 
 			windows.add(window);
 
-			const disposableStore = new DisposableStore();
-			disposableStore.add(toDisposable(() => {
+			const disposables = new DisposableStore();
+			disposables.add(toDisposable(() => {
 				windows.delete(window);
 				onDidUnregisterWindow.fire(window);
 			}));
 
-			onDidRegisterWindow.fire({ window, disposableStore });
-
-			disposableStore.add(addDisposableListener(window, 'beforeunload', () => {
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
 				onWillUnregisterWindow.fire(window);
 			}));
 
-			return disposableStore;
+			const eventDisposables = new DisposableStore();
+			disposables.add(eventDisposables);
+			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+
+			return disposables;
 		},
 		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
@@ -1652,7 +1654,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => this.registerListeners(window, disposableStore), { window, disposableStore: this._subscriptions }));
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window, disposables: this._subscriptions }));
 	}
 
 	private registerListeners(window: Window, disposables: DisposableStore): void {
