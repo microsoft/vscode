@@ -1129,13 +1129,7 @@ export class IssueReporter extends Disposable {
 
 						// Start loading for extension data.
 						this.setLoading();
-						const data = await this.getIssueDataFromExtension(matches[0]);
-
-						if (typeof data === 'string') {
-							matches[0].extensionData = data;
-							this.issueReporterModel.update({ extensionData: data });
-						}
-
+						await this.getIssueDataFromExtension(matches[0]);
 						this.removeLoading();
 					} else {
 						this.validateSelectedExtension();
