@@ -90,7 +90,7 @@ export default (): string => `
 			<input class="send-extension-data" aria-label="${sendExtensionData}" type="checkbox" id="includeExtensionData" checked/>
 			<label class="extension-caption" id="extension-caption" for="includeExtensionData">
 				${sendExtensionData}
-				(<span id="ext-loading" hidden>Loading extension data...</span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a>)
+				(<span id="ext-loading" hidden></span><a href="#" class="showInfo" id="extension-id">${escape(localize('show', "show"))}</a>)
 			</label>
 			<div class="block-info hidden">
 				<textarea name="extension-data" id="extension-data" placeholder="${escape(localize('details', "Please enter details."))}"></textarea>

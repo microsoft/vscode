@@ -5,7 +5,6 @@
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
@@ -48,9 +47,6 @@ export class IssueReporter extends Disposable {
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
 	private delayedSubmit = new Delayer<void>(300);
-
-	private progress!: ProgressBar;
-
 	private readonly previewButton!: Button;
 
 	constructor(
@@ -72,11 +68,12 @@ export class IssueReporter extends Disposable {
 			selectedExtension: targetExtension
 		});
 
+		//TODO: Handle case where extension is not activated
+
 		const issueReporterElement = this.getElementById('issue-reporter');
 		if (issueReporterElement) {
 			this.previewButton = new Button(issueReporterElement, unthemedButtonStyles);
 			this.updatePreviewButtonState();
-			this.progress = new ProgressBar(issueReporterElement);
 		}
 
 		const issueTitle = configuration.data.issueTitle;
@@ -1188,8 +1185,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private setLoading() {
-		// Start progress bar loading
-		this.progress.infinite().show();
+		// Show loading
 		this.previewButton.label = 'Loading Extension Data...';
 		this.previewButton.enabled = false;
 
@@ -1206,8 +1202,7 @@ export class IssueReporter extends Disposable {
 
 	private removeLoading() {
 		this.previewButton.enabled = true;
-		// this.updatePreviewButtonState();
-		this.progress.done().hide();
+		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		show(extensionDataCaption);
