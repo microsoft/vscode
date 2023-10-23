@@ -43,6 +43,7 @@ export class IssueReporter extends Disposable {
 	private readonly issueReporterModel: IssueReporterModel;
 	private numberOfSearchResultsDisplayed = 0;
 	private receivedSystemInfo = false;
+	private receivedExtensionData = false;
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 	private hasBeenSubmitted = false;
@@ -255,6 +256,7 @@ export class IssueReporter extends Disposable {
 		try {
 			const data = await this.issueMainService.$getIssueReporterData(extension.id);
 			extension.extensionData = data;
+			this.receivedExtensionData = true;
 			return data;
 		} catch (e) {
 			extension.hasIssueDataProviders = false;
@@ -467,6 +469,11 @@ export class IssueReporter extends Disposable {
 
 	private isPreviewEnabled() {
 		const issueType = this.issueReporterModel.getData().issueType;
+
+		if (this.issueReporterModel.getData().selectedExtension?.hasIssueDataProviders && !this.receivedExtensionData) {
+			return false;
+		}
+
 		if (issueType === IssueType.Bug && this.receivedSystemInfo) {
 			return true;
 		}
@@ -1182,8 +1189,7 @@ export class IssueReporter extends Disposable {
 
 	private setLoading() {
 		// Show loading
-		this.previewButton.label = 'Loading Extension Data...';
-		this.previewButton.enabled = false;
+		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		hide(extensionDataCaption);
@@ -1200,7 +1206,6 @@ export class IssueReporter extends Disposable {
 	}
 
 	private removeLoading() {
-		this.previewButton.enabled = true;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
