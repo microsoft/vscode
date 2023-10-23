@@ -229,10 +229,12 @@ suite('Objects', () => {
 	});
 
 	test('ensureOptionalBooleanValue', () => {
-		const obj = {
+		const obj: any = {
 			a: true,
 			b: false,
-			c: undefined
+			c: undefined,
+			d: 5,
+			e: 'foo'
 		};
 
 		objects.ensureOptionalBooleanValue(obj, 'a', false);
@@ -243,13 +245,21 @@ suite('Objects', () => {
 
 		objects.ensureOptionalBooleanValue(obj, 'c', true);
 		assert.strictEqual(obj.c, undefined);
+
+		objects.ensureOptionalBooleanValue(obj, 'd', true);
+		assert.strictEqual(obj.d, true);
+
+		objects.ensureOptionalBooleanValue(obj, 'e', true);
+		assert.strictEqual(obj.e, true);
 	});
 
 	test('ensureOptionalNumberValue', () => {
-		const obj = {
+		const obj: any = {
 			a: 1,
 			b: 0,
-			c: undefined
+			c: undefined,
+			d: true,
+			e: 'foo'
 		};
 
 		objects.ensureOptionalNumberValue(obj, 'a', 0);
@@ -260,14 +270,22 @@ suite('Objects', () => {
 
 		objects.ensureOptionalNumberValue(obj, 'c', 1);
 		assert.strictEqual(obj.c, undefined);
+
+		objects.ensureOptionalNumberValue(obj, 'd', 1);
+		assert.strictEqual(obj.d, 1);
+
+		objects.ensureOptionalNumberValue(obj, 'e', 1);
+		assert.strictEqual(obj.e, 1);
 	});
 
 	test('ensureOptionalStringValue', () => {
-		const obj = {
+		const obj: any = {
 			a: 'hello',
 			b: 'world',
 			c: undefined,
-			d: 'earth'
+			d: 'earth',
+			e: 5,
+			f: true
 		};
 
 		objects.ensureOptionalStringValue(obj, 'a', ['hello', 'world'], 'world');
@@ -281,5 +299,12 @@ suite('Objects', () => {
 
 		objects.ensureOptionalStringValue(obj, 'd', ['hello', 'world'], 'world');
 		assert.strictEqual(obj.d, 'world');
+
+		objects.ensureOptionalStringValue(obj, 'e', ['hello', 'world'], 'world');
+		assert.strictEqual(obj.e, 'world');
+
+		objects.ensureOptionalStringValue(obj, 'f', ['hello', 'world'], 'world');
+		assert.strictEqual(obj.f, 'world');
+
 	});
 });
