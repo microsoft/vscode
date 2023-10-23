@@ -85,7 +85,6 @@ interface ISubMenuData {
 
 export class Menu extends ActionBar {
 	private mnemonics: Map<string, Array<BaseMenuActionViewItem>>;
-	private readonly menuDisposables: DisposableStore;
 	private scrollableElement: DomScrollableElement;
 	private menuElement: HTMLElement;
 	static globalStyleSheet: HTMLStyleElement;
@@ -113,24 +112,21 @@ export class Menu extends ActionBar {
 
 		this.actionsList.tabIndex = 0;
 
-		this.menuDisposables = this._register(new DisposableStore());
-
 		this.initializeOrUpdateStyleSheet(container, menuStyles);
 
 		this._register(Gesture.addTarget(menuElement));
 
-		this._register(
-			addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
-				const event = new StandardKeyboardEvent(e);
+		this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			const event = new StandardKeyboardEvent(e);
 
-				// Stop tab navigation of menus
-				if (event.equals(KeyCode.Tab)) {
-					e.preventDefault();
-				}
-			}));
+			// Stop tab navigation of menus
+			if (event.equals(KeyCode.Tab)) {
+				e.preventDefault();
+			}
+		}));
 
 		if (options.enableMnemonics) {
-			this.menuDisposables.add(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
+			this._register(addDisposableListener(menuElement, EventType.KEY_DOWN, (e) => {
 				const key = e.key.toLocaleLowerCase();
 				if (this.mnemonics.has(key)) {
 					EventHelper.stop(e, true);
