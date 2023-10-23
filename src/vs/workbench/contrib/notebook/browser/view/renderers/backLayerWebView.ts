@@ -986,7 +986,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			if (folders.length) {
 				linkToOpen = (await this.pathService.fileURI(href)).with({
 					scheme: folders[0].uri.scheme,
-					authority: folders[0].uri.scheme
+					authority: folders[0].uri.authority
 				});
 			} else {
 				linkToOpen = await this.pathService.fileURI(href);
