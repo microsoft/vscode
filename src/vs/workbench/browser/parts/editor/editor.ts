@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitConfiguration, IEditorPartDecorationsConfiguration } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -13,9 +13,10 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isObject } from 'vs/base/common/types';
+import { OptionalBooleanKey, OptionalNumberKey, OptionalStringKey, isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
+import { ensureOptionalBooleanValue, ensureOptionalNumberValue, ensureOptionalStringValue } from 'vs/base/common/objects';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -90,13 +91,102 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 	return options;
 }
 
-function validateEditorPartOptions(options: IEditorPartOptions) {
-	// showTabs ensure correct enum value
+function validateEditorPartOptions(options: IEditorPartOptions): void {
+
+	// Migrate: Show tabs (config migration kicks in very late and can cause flicker otherwise)
 	if (typeof options.showTabs === 'boolean') {
-		// Migration service kicks in very late and can cause a flicker otherwise
 		options.showTabs = options.showTabs ? 'multiple' : 'single';
-	} else if (options.showTabs !== 'multiple' && options.showTabs !== 'single' && options.showTabs !== 'none') {
-		options.showTabs = 'multiple';
+	}
+
+	// Boolean options
+	const booleanOptions: Array<OptionalBooleanKey<IEditorPartOptions>> = [
+		'wrapTabs',
+		'scrollToSwitchTabs',
+		'highlightModifiedTabs',
+		'pinnedTabsOnSeparateRow',
+		'focusRecentEditorAfterClose',
+		'showIcons',
+		'enablePreview',
+		'enablePreviewFromQuickOpen',
+		'enablePreviewFromCodeNavigation',
+		'closeOnFileDelete',
+		'closeEmptyGroups',
+		'revealIfOpen',
+		'mouseBackForwardToNavigate',
+		'restoreViewState',
+		'splitOnDragAndDrop',
+		'centeredLayoutFixedWidth',
+		'doubleClickTabToToggleEditorGroupSizes'
+	];
+	for (const option of booleanOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalBooleanValue(options, option, Boolean(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// Number options
+	const numberOptions: Array<OptionalNumberKey<IEditorPartOptions>> = [
+		'tabSizingFixedMinWidth',
+		'tabSizingFixedMaxWidth'
+	];
+	for (const option of numberOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalNumberValue(options, option, Number(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// String options
+	const stringOptions: Array<[OptionalStringKey<IEditorPartOptions>, Array<string>]> = [
+		['showTabs', ['multiple', 'single', 'none']],
+		['tabCloseButton', ['left', 'right', 'off']],
+		['tabSizing', ['fit', 'shrink', 'fixed']],
+		['pinnedTabSizing', ['normal', 'compact', 'shrink']],
+		['tabHeight', ['default', 'compact']],
+		['preventPinnedEditorClose', ['keyboardAndMouse', 'keyboard', 'mouse', 'never']],
+		['titleScrollbarSizing', ['default', 'large']],
+		['openPositioning', ['left', 'right', 'first', 'last']],
+		['openSideBySideDirection', ['right', 'down']],
+		['labelFormat', ['default', 'short', 'medium', 'long']],
+		['splitInGroupLayout', ['vertical', 'horizontal']],
+		['splitSizing', ['distribute', 'split', 'auto']],
+	];
+	for (const [option, allowed] of stringOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalStringValue(options, option, allowed, String(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// Complex options
+	if (options.autoLockGroups && !(options.autoLockGroups instanceof Set)) {
+		options.autoLockGroups = undefined;
+	}
+	if (options.limit && !isObject(options.limit)) {
+		options.limit = undefined;
+	} else if (options.limit) {
+		const booleanLimitOptions: Array<OptionalBooleanKey<IEditorPartLimitConfiguration>> = [
+			'enabled',
+			'excludeDirty',
+			'perEditorGroup'
+		];
+		for (const option of booleanLimitOptions) {
+			if (typeof option === 'string') {
+				ensureOptionalBooleanValue(options.limit, option, undefined);
+			}
+		}
+		ensureOptionalNumberValue(options.limit, 'value', undefined);
+	}
+	if (options.decorations && !isObject(options.decorations)) {
+		options.decorations = undefined;
+	} else if (options.decorations) {
+		const booleanDecorationOptions: Array<OptionalBooleanKey<IEditorPartDecorationsConfiguration>> = [
+			'badges',
+			'colors'
+		];
+		for (const option of booleanDecorationOptions) {
+			if (typeof option === 'string') {
+				ensureOptionalBooleanValue(options.decorations, option, undefined);
+			}
+		}
 	}
 }
 
