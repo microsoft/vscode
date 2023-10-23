@@ -37,7 +37,7 @@ export class StartSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
+			title: { value: localize('run', 'Start Inline Chat'), original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
@@ -64,7 +64,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			title: { value: localize('unstash', 'Resume Last Dismissed Inline Chat'), original: 'Resume Last Dismissed Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
