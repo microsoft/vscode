@@ -10,7 +10,6 @@ export interface IssueReporterData {
 	issueType: IssueType;
 	issueDescription?: string;
 	extensionData?: string;
-	extensionTemplate?: string;
 
 	versionInfo?: any;
 	systemInfo?: SystemInfo;
@@ -163,7 +162,7 @@ ${this.getInfos()}
 	}
 
 	private getExtensionData(): string {
-		return this._data.extensionData ? this._data.extensionData.toString() : '';
+		return this._data.extensionData ?? '';
 	}
 
 	private generateSystemInfoMd(): string {

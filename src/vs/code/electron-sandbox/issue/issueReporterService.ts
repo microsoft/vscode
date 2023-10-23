@@ -270,9 +270,6 @@ export class IssueReporter extends Disposable {
 			extension.extensionTemplate = data;
 			return data;
 		} catch (e) {
-			extension.hasIssueDataProviders = false;
-			// The issue handler failed so fall back to old issue reporter experience.
-			this.renderBlocks();
 			throw e;
 		}
 	}
@@ -496,8 +493,7 @@ export class IssueReporter extends Disposable {
 	}
 
 	private getExtensionData(): string | undefined {
-		const selectedExtension = this.issueReporterModel.getData().selectedExtension;
-		return selectedExtension && selectedExtension.extensionData;
+		return this.issueReporterModel.getData().selectedExtension?.extensionData;
 	}
 
 	private searchVSCodeIssues(title: string, issueDescription?: string): void {
@@ -1192,6 +1188,9 @@ export class IssueReporter extends Disposable {
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		hide(extensionDataCaption);
 
+		const extensionDataCaption2 = Array.from(document.querySelectorAll('.ext-parens'));
+		extensionDataCaption2.forEach(extensionDataCaption2 => hide(extensionDataCaption2));
+
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 
@@ -1206,6 +1205,9 @@ export class IssueReporter extends Disposable {
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
 		show(extensionDataCaption);
+
+		const extensionDataCaption2 = Array.from(document.querySelectorAll('.ext-parens'));
+		extensionDataCaption2.forEach(extensionDataCaption2 => show(extensionDataCaption2));
 
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
