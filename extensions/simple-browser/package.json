@@ -52,11 +52,11 @@
             "title": "Focus Lock Indicator Enabled",
             "description": "%configuration.focusLockIndicator.enabled.description%"
           },
-					"simpleBrowser.defaultURL": {
+					"simpleBrowser.default.URL": {
 						"type": "string",
 						"default": "http://localhost:3000",
 						"title": "Default URL",
-						"description": "The default URL in the input field when starting Simple Browser."
+						"description": "%configuration.default.URL.description%"
 					}
         }
       }
