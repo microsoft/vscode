@@ -75,7 +75,6 @@ import 'vs/workbench/services/environment/electron-sandbox/shellEnvironmentServi
 import 'vs/workbench/services/integrity/electron-sandbox/integrityService';
 import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import 'vs/workbench/services/checksum/electron-sandbox/checksumService';
-import 'vs/workbench/services/voiceRecognition/electron-sandbox/workbenchVoiceRecognitionService';
 import 'vs/platform/remote/electron-sandbox/sharedProcessTunnelService';
 import 'vs/workbench/services/tunnel/electron-sandbox/tunnelService';
 import 'vs/platform/diagnostics/electron-sandbox/diagnosticsService';
@@ -88,6 +87,7 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistorySer
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';

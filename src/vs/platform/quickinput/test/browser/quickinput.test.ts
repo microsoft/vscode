@@ -84,7 +84,8 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 				}
 			}
 		},
-			new TestThemeService()));
+			new TestThemeService(),
+			{ activeContainer: fixture } as any));
 
 		// initial layout
 		controller.layout({ height: 20, width: 40 }, 0);

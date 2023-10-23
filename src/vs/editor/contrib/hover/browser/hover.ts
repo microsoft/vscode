@@ -380,7 +380,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 					'If the hover is already visible, it will take focus.'
 				]
 			}, "Show or Focus Hover"),
-			description: {
+			metadata: {
 				description: `Show or Focus Hover`,
 				args: [{
 					name: 'args',

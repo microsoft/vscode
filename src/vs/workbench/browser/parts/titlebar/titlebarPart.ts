@@ -36,7 +36,10 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
+import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from 'vs/workbench/browser/parts/globalCompositeBar';
+import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -101,7 +104,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IHoverService hoverService: IHoverService
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle));
+		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, window, 'main'));
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -280,6 +283,23 @@ export class TitlebarPart extends Part implements ITitleService {
 				contextMenu: MenuId.TitleBarContext,
 				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: action => {
+					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
+				}
+			}));
+
+			const globalActionControls = append(this.rightContent, $('div.global-actions-container.show-control'));
+
+			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, globalActionControls, MenuId.TitleBarGlobalControlMenu, {
+				contextMenu: MenuId.TitleBarContext,
+				toolbarOptions: { primaryGroup: () => true },
+				hiddenItemStrategy: HiddenItemStrategy.NoHide,
+				actionViewItemProvider: action => {
+					if (action.id === GLOBAL_ACTIVITY_ID) {
+						return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW });
+					}
+					if (action.id === ACCOUNTS_ACTIVITY_ID) {
+						return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW });
+					}
 					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
 				}
 			}));

@@ -11,7 +11,7 @@ import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
 import { Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $ } from 'vs/base/browser/dom';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, getActiveDocument } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -63,15 +63,16 @@ class InspectContextKeysAction extends Action2 {
 		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
 
 		const hoverFeedback = document.createElement('div');
-		document.body.appendChild(hoverFeedback);
-		disposables.add(toDisposable(() => document.body.removeChild(hoverFeedback)));
+		const activeDocument = getActiveDocument();
+		activeDocument.body.appendChild(hoverFeedback);
+		disposables.add(toDisposable(() => activeDocument.body.removeChild(hoverFeedback)));
 
 		hoverFeedback.style.position = 'absolute';
 		hoverFeedback.style.pointerEvents = 'none';
 		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
 		hoverFeedback.style.zIndex = '1000';
 
-		const onMouseMove = disposables.add(new DomEmitter(document.body, 'mousemove', true));
+		const onMouseMove = disposables.add(new DomEmitter(activeDocument, 'mousemove', true));
 		disposables.add(onMouseMove.event(e => {
 			const target = e.target as HTMLElement;
 			const position = getDomNodePagePosition(target);
@@ -82,10 +83,10 @@ class InspectContextKeysAction extends Action2 {
 			hoverFeedback.style.height = `${position.height}px`;
 		}));
 
-		const onMouseDown = disposables.add(new DomEmitter(document.body, 'mousedown', true));
+		const onMouseDown = disposables.add(new DomEmitter(activeDocument, 'mousedown', true));
 		Event.once(onMouseDown.event)(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
 
-		const onMouseUp = disposables.add(new DomEmitter(document.body, 'mouseup', true));
+		const onMouseUp = disposables.add(new DomEmitter(activeDocument, 'mouseup', true));
 		Event.once(onMouseUp.event)(e => {
 			e.preventDefault();
 			e.stopPropagation();
@@ -353,8 +354,8 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
 
-		if (fromCommandsRegistry && fromCommandsRegistry.description?.description) {
-			return { title: fromCommandsRegistry.description.description };
+		if (fromCommandsRegistry && fromCommandsRegistry.metadata?.description) {
+			return { title: typeof fromCommandsRegistry.metadata.description === 'string' ? fromCommandsRegistry.metadata.description : fromCommandsRegistry.metadata.description.value };
 		}
 
 		return undefined;

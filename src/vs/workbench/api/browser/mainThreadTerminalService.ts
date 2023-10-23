@@ -76,14 +76,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}));
 
 		this._store.add(_terminalService.onDidDisposeInstance(instance => this._onTerminalDisposed(instance)));
-		this._store.add(_terminalService.onDidReceiveProcessId(instance => this._onTerminalProcessIdReady(instance)));
+		this._store.add(_terminalService.onAnyInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._store.add(_terminalService.onDidChangeInstanceDimensions(instance => this._onInstanceDimensionsChanged(instance)));
-		this._store.add(_terminalService.onDidMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
+		this._store.add(_terminalService.onAnyInstanceMaximumDimensionsChange(instance => this._onInstanceMaximumDimensionsChanged(instance)));
 		this._store.add(_terminalService.onDidRequestStartExtensionTerminal(e => this._onRequestStartExtensionTerminal(e)));
 		this._store.add(_terminalService.onDidChangeActiveInstance(instance => this._onActiveTerminalChanged(instance ? instance.instanceId : null)));
-		this._store.add(_terminalService.onDidChangeInstanceTitle(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
-		this._store.add(_terminalService.onDidInputInstanceData(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
-		this._store.add(_terminalService.onDidChangeSelection(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
+		this._store.add(_terminalService.onAnyInstanceTitleChange(instance => instance && this._onTitleChanged(instance.instanceId, instance.title)));
+		this._store.add(_terminalService.onAnyInstanceDataInput(instance => this._proxy.$acceptTerminalInteraction(instance.instanceId)));
+		this._store.add(_terminalService.onAnyInstanceSelectionChange(instance => this._proxy.$acceptTerminalSelection(instance.instanceId, instance.selection)));
 
 		// Set initial ext host state
 		for (const instance of this._terminalService.instances) {
@@ -231,12 +231,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $startSendingCommandEvents(): void {
-		this._logService.info('$startSendingCommandEvents');
 		if (this._sendCommandEventListener.value) {
 			return;
 		}
 
-		const multiplexer = this._terminalService.onInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
+		const multiplexer = this._terminalService.createOnInstanceCapabilityEvent(TerminalCapability.CommandDetection, capability => capability.onCommandFinished);
 		multiplexer.event(e => {
 			this._onDidExecuteCommand(e.instance.instanceId, {
 				commandLine: e.data.command,
@@ -250,7 +249,6 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $stopSendingCommandEvents(): void {
-		this._logService.info('$stopSendingCommandEvents');
 		this._sendCommandEventListener.clear();
 	}
 

@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { triggerDownload } from 'vs/base/browser/dom';
+import { isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -105,7 +105,7 @@ export class BrowserFileUpload {
 	}
 
 	private toTransfer(source: DragEvent | FileList): IWebkitDataTransfer {
-		if (source instanceof DragEvent) {
+		if (isDragEvent(source)) {
 			return source.dataTransfer as unknown as IWebkitDataTransfer;
 		}
 

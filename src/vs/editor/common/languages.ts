@@ -746,6 +746,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	isAI?: boolean;
 	disabled?: string;
 }
 
@@ -1791,6 +1792,7 @@ export interface PendingCommentThread {
 	range: IRange;
 	uri: URI;
 	owner: string;
+	isReply: boolean;
 }
 
 /**

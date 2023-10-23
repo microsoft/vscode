@@ -457,7 +457,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _actualRender(): void {
-		if (!dom.isInDOM(this.domNode.domNode)) {
+		if (!this.domNode.domNode.isConnected) {
 			return;
 		}
 

@@ -26,7 +26,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);

@@ -29,7 +29,6 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -424,7 +423,6 @@ class TestRunTracker extends Disposable {
 	constructor(
 		private readonly dto: TestRunDto,
 		private readonly proxy: MainThreadTestingShape,
-		private readonly extension: Readonly<IRelaxedExtensionDescription>,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -475,10 +473,6 @@ class TestRunTracker extends Disposable {
 			const converted = messages instanceof Array
 				? messages.map(Convert.TestMessage.from)
 				: [Convert.TestMessage.from(messages)];
-
-			if (converted.some(c => c.contextValue !== undefined)) {
-				checkProposedApiEnabled(this.extension, 'testMessageContextValue');
-			}
 
 			if (test.uri && test.range) {
 				const defaultLocation: ILocationDto = { range: Convert.Range.from(test.range), uri: test.uri };
@@ -690,7 +684,7 @@ export class TestRunCoordinator {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, extension, token);
+		const tracker = new TestRunTracker(dto, this.proxy, token);
 		this.tracked.set(req, tracker);
 		Event.once(tracker.onEnd)(() => this.tracked.delete(req));
 		return tracker;

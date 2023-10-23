@@ -43,7 +43,7 @@ export class PartsSplash {
 		}, undefined, this._disposables);
 
 		let lastIdleSchedule: IDisposable | undefined;
-		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout, _themeService.onDidColorThemeChange)(() => {
+		Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(() => {
 			lastIdleSchedule?.dispose();
 			lastIdleSchedule = runWhenIdle(() => this._savePartsSplash(), 800);
 		}, undefined, this._disposables);
