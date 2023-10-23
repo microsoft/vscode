@@ -646,7 +646,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 	}
 
 	async reloadLocalUserConfiguration(donotTrigger?: boolean): Promise<ConfigurationModel> {
-		const model = await this.localUserConfiguration.reload();
+		const model = await this.localUserConfiguration.loadTasks(this._configuration.localUserConfiguration);
 		if (!donotTrigger) {
 			this.onLocalUserConfigurationChanged(model);
 		}
