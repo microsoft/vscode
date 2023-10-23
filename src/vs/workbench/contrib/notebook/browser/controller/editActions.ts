@@ -349,7 +349,7 @@ registerAction2(class ChangeCellLanguageAction extends NotebookCellAction<ICellR
 		super({
 			id: CHANGE_CELL_LANGUAGE,
 			title: localize('changeLanguage', 'Change Cell Language'),
-			description: {
+			metadata: {
 				description: localize('changeLanguage', 'Change Cell Language'),
 				args: [
 					{

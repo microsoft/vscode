@@ -20,7 +20,7 @@ import { RemoteAgentService } from 'vs/workbench/services/remote/browser/remoteA
 import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
 import { IRemoteAuthorityResolverService, RemoteConnectionType } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { FileService } from 'vs/platform/files/common/fileService';
 import { Schemas, connectionTokenCookieName } from 'vs/base/common/network';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, isTemporaryWorkspace, isWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
@@ -261,7 +261,7 @@ export class BrowserMain extends Disposable {
 		// Files
 		const fileLogger = new BufferLogger();
 		const fileService = this._register(new FileService(fileLogger));
-		serviceCollection.set(IWorkbenchFileService, fileService);
+		serviceCollection.set(IFileService, fileService);
 
 		// Logger
 		const loggerService = new FileLoggerService(getLogLevel(environmentService), logsPath, fileService);
@@ -429,7 +429,8 @@ export class BrowserMain extends Disposable {
 		}
 	}
 
-	private async registerIndexedDBFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IWorkbenchFileService, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
+	private async registerIndexedDBFileSystemProviders(environmentService: IWorkbenchEnvironmentService, fileService: IFileService, logService: ILogService, loggerService: ILoggerService, logsPath: URI): Promise<void> {
+
 		// IndexedDB is used for logging and user data
 		let indexedDB: IndexedDB | undefined;
 		const userDataStore = 'vscode-userdata-store';

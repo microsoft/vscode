@@ -7,6 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -42,6 +43,7 @@ export function registerClearActions() {
 			});
 		}
 		async run(accessor: ServicesAccessor, ...args: any[]) {
+			announceChatCleared(accessor);
 			await clearChatEditor(accessor);
 		}
 	});
@@ -71,6 +73,7 @@ export function registerClearActions() {
 		}
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
+			announceChatCleared(accessor);
 			const widgetService = accessor.get(IChatWidgetService);
 
 			const widget = widgetService.lastFocusedWidget;
@@ -108,7 +111,12 @@ export function getClearAction(viewId: string, providerId: string) {
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+			announceChatCleared(accessor);
 			await view.clear();
 		}
 	};
+}
+
+function announceChatCleared(accessor: ServicesAccessor): void {
+	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
 }

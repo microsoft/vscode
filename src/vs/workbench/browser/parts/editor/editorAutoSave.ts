@@ -196,7 +196,6 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);

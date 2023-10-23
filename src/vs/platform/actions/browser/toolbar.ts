@@ -116,12 +116,12 @@ export class WorkbenchToolBar extends ToolBar {
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
-		const primary = _primary.slice();
+		const primary: Array<IAction | undefined> = _primary.slice(); // for hiding and overflow we set some items to undefined
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 		let toggleActionsCheckedCount: number = 0;
 
-		const extraSecondary: IAction[] = [];
+		const extraSecondary: Array<IAction | undefined> = [];
 
 		let someAreHidden = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
@@ -145,7 +145,7 @@ export class WorkbenchToolBar extends ToolBar {
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
 					someAreHidden = true;
-					primary[i] = undefined!;
+					primary[i] = undefined;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
 					}
@@ -156,7 +156,7 @@ export class WorkbenchToolBar extends ToolBar {
 		// count for max
 		if (this._options?.overflowBehavior !== undefined) {
 
-			const exemptedIds = intersection(new Set(this._options.overflowBehavior.exempted), Iterable.map(primary, a => a.id));
+			const exemptedIds = intersection(new Set(this._options.overflowBehavior.exempted), Iterable.map(primary, a => a?.id));
 			const maxItems = this._options.overflowBehavior.maxItems - exemptedIds.size;
 
 			let count = 0;
@@ -170,12 +170,13 @@ export class WorkbenchToolBar extends ToolBar {
 					continue;
 				}
 				if (count >= maxItems) {
-					primary[i] = undefined!;
+					primary[i] = undefined;
 					extraSecondary[i] = action;
 				}
 			}
 		}
 
+		// coalesce turns Array<IAction|undefined> into IAction[]
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
 		super.setActions(primary, Separator.join(extraSecondary, secondary));
@@ -327,6 +328,7 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				{ primary, secondary },
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
+			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
 			super.setActions(primary, secondary);
 		};
 

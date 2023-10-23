@@ -14,7 +14,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { INotificationsCenterController, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { isAncestor, Dimension } from 'vs/base/browser/dom';
+import { Dimension, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { localize } from 'vs/nls';
@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { NotificationsCenterVisibleContext } from 'vs/workbench/common/contextkeys';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class NotificationsCenter extends Themable implements INotificationsCenterController {
 
@@ -53,6 +54,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 		super(themeService);
 
@@ -220,7 +222,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 				notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
-				focusEditor = isAncestor(document.activeElement, notificationsCenterContainer);
+				focusEditor = isAncestorOfActiveElement(notificationsCenterContainer);
 				notificationsList.updateNotificationsList(e.index, 1);
 				e.item.updateVisibility(false);
 				break;
@@ -245,7 +247,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			return; // already hidden
 		}
 
-		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
+		const focusEditor = isAncestorOfActiveElement(this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
@@ -329,6 +331,7 @@ export class NotificationsCenter extends Themable implements INotificationsCente
 			if (!notification.hasProgress) {
 				notification.close();
 			}
+			this.accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 		}
 	}
 }

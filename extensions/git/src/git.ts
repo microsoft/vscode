@@ -1083,6 +1083,17 @@ export class Repository {
 		return parseGitCommits(result.stdout);
 	}
 
+	async reflog(ref: string, pattern: string): Promise<string[]> {
+		const args = ['reflog', ref, `--grep-reflog=${pattern}`];
+		const result = await this.exec(args);
+		if (result.exitCode) {
+			return [];
+		}
+
+		return result.stdout.split('\n')
+			.filter(entry => !!entry);
+	}
+
 	async bufferString(object: string, encoding: string = 'utf8', autoGuessEncoding = false): Promise<string> {
 		const stdout = await this.buffer(object);
 
@@ -2402,7 +2413,7 @@ export class Repository {
 			args.push('--ignore-case');
 		}
 
-		if (/^refs\/(head|remotes)\//i.test(name)) {
+		if (/^refs\/(heads|remotes)\//i.test(name)) {
 			args.push(name);
 		} else {
 			args.push(`refs/heads/${name}`, `refs/remotes/${name}`);
@@ -2542,6 +2553,18 @@ export class Repository {
 		const [ahead, behind] = result.stdout.trim().split('\t');
 
 		return { ahead: Number(ahead) || 0, behind: Number(behind) || 0 };
+	}
+
+	async revParse(ref: string): Promise<string | undefined> {
+		try {
+			const result = await this.exec(['rev-parse', ref]);
+			if (result.stderr) {
+				return undefined;
+			}
+			return result.stdout.trim();
+		} catch (err) {
+			return undefined;
+		}
 	}
 
 	async updateSubmodules(paths: string[]): Promise<void> {

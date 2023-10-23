@@ -277,6 +277,10 @@ async function createCheckoutItems(repository: Repository, detached = false): Pr
 		.filter(p => !!p) as CheckoutProcessor[];
 
 	for (const ref of refs) {
+		if (!detached && ref.name === 'origin/HEAD') {
+			continue;
+		}
+
 		for (const processor of processors) {
 			processor.onRef(ref);
 		}
@@ -3575,6 +3579,26 @@ export class CommandCenter {
 			await this.model.openRepository(unsafeRepository);
 			this.model.deleteUnsafeRepository(unsafeRepository);
 		}
+	}
+
+	@command('git.generateCommitMessage', { repository: true })
+	async generateCommitMessage(repository: Repository): Promise<void> {
+		if (!repository || !this.model.commitMessageProvider) {
+			return;
+		}
+
+		await window.withProgress({ location: ProgressLocation.SourceControl }, async () => {
+			await repository.generateCommitMessage();
+		});
+	}
+
+	@command('git.generateCommitMessageCancel', { repository: true })
+	generateCommitMessageCancel(repository: Repository): void {
+		if (!repository || !this.model.commitMessageProvider) {
+			return;
+		}
+
+		repository.generateCommitMessageCancel();
 	}
 
 	private createCommand(id: string, key: string, method: Function, options: ScmCommandOptions): (...args: any[]) => any {

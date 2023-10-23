@@ -30,11 +30,11 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -407,10 +407,9 @@ class BlurAction extends Action2 {
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (isHTMLElement(el)) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
 		}
 	}
 }

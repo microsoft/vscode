@@ -14,7 +14,9 @@ parameters:
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../cli/cli-apply-patches.yml

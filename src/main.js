@@ -201,16 +201,15 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'disable-hardware-acceleration',
 
 		// override for the color profile to use
-		'force-color-profile',
-
-		// override which password-store is used
-		'password-store'
+		'force-color-profile'
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -219,7 +218,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -270,6 +272,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						for (const value of argvValue) {
 							process.argv.push('--log', value);
 						}
+					}
+					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
 					}
 					break;
 			}
@@ -403,9 +411,6 @@ function configureCrashReporter() {
 			if (uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
 						case 'x64':
 							submitURL = appCenter['win32-x64'];
 							break;

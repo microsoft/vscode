@@ -15,7 +15,7 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { ICommentController, ICommentInfo, ICommentService, INotebookCommentInfo } from 'vs/workbench/contrib/comments/browser/commentService';
 import { CommentsPanel } from 'vs/workbench/contrib/comments/browser/commentsView';
 import { CommentProviderFeatures, ExtHostCommentsShape, ExtHostContext, MainContext, MainThreadCommentsShape, CommentThreadChanges } from '../common/extHost.protocol';
-import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE, COMMENTS_VIEW_ORIGINAL_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
+import { COMMENTS_VIEW_ID, COMMENTS_VIEW_STORAGE_ID, COMMENTS_VIEW_TITLE } from 'vs/workbench/contrib/comments/browser/commentsTreeViewer';
 import { ViewContainer, IViewContainersRegistry, Extensions as ViewExtensions, ViewContainerLocation, IViewsRegistry, IViewsService, IViewDescriptorService } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
@@ -25,7 +25,6 @@ import { localize } from 'vs/nls';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
 import { Schemas } from 'vs/base/common/network';
-
 
 export class MainThreadCommentThread<T> implements languages.CommentThread<T> {
 	private _input?: languages.CommentInput;
@@ -451,8 +450,8 @@ export class MainThreadCommentController implements ICommentController {
 		return ret;
 	}
 
-	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): void {
-		this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
+	createCommentThreadTemplate(resource: UriComponents, range: IRange | undefined): Promise<void> {
+		return this._proxy.$createCommentThreadTemplate(this.handle, resource, range);
 	}
 
 	async updateCommentThreadTemplate(threadHandle: number, range: IRange) {
@@ -508,7 +507,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	$registerCommentController(handle: number, id: string, label: string, extensionId: string): void {
-		const providerId = `${label}-${extensionId}`;
+		const providerId = `${id}-${extensionId}`;
 		this._handlers.set(handle, providerId);
 
 		const provider = new MainThreadCommentController(this._proxy, this._commentService, handle, providerId, id, label, {});
@@ -601,7 +600,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		if (!commentsViewAlreadyRegistered) {
 			const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 				id: COMMENTS_VIEW_ID,
-				title: { value: COMMENTS_VIEW_TITLE, original: COMMENTS_VIEW_ORIGINAL_TITLE },
+				title: COMMENTS_VIEW_TITLE,
 				ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [COMMENTS_VIEW_ID, { mergeViewWithContainerWhenSingleView: true }]),
 				storageId: COMMENTS_VIEW_STORAGE_ID,
 				hideIfEmpty: true,

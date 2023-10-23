@@ -9,13 +9,14 @@ import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
-import { inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -50,19 +51,20 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		if (!widget) {
 			return false;
 		}
-		return dom.isAncestor(document.activeElement, widget);
+		return dom.isAncestorOfActiveElement(widget);
 	}
 
-	toggle(providerId?: string, query?: string | undefined): void {
-		// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
-		if (this.focused) {
+	toggle(providerId?: string, options?: IQuickChatOpenOptions): void {
+		// If the input is already shown, hide it. This provides a toggle behavior of the quick
+		// pick. This should not happen when there is a query.
+		if (this.focused && !options?.query) {
 			this.close();
 		} else {
-			this.open(providerId, query);
+			this.open(providerId, options);
 		}
 	}
 
-	open(providerId?: string, query?: string | undefined): void {
+	open(providerId?: string, options?: IQuickChatOpenOptions): void {
 		if (this._input) {
 			return this.focus();
 		}
@@ -107,9 +109,11 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 		this._currentChat.focus();
 
-		if (query) {
-			this._currentChat.setValue(query);
-			this._currentChat.acceptInput();
+		if (options?.query) {
+			this._currentChat.setValue(options.query, options.selection);
+			if (!options.isPartialQuery) {
+				this._currentChat.acceptInput();
+			}
 		}
 	}
 	focus(): void {
@@ -155,12 +159,12 @@ class QuickChat extends Disposable {
 		this.widget.inputEditor.setValue('');
 	}
 
-	focus(): void {
+	focus(selection?: Selection): void {
 		if (this.widget) {
 			this.widget.focusInput();
 			const value = this.widget.inputEditor.getValue();
 			if (value) {
-				this.widget.inputEditor.setSelection({
+				this.widget.inputEditor.setSelection(selection ?? {
 					startLineNumber: 1,
 					startColumn: 1,
 					endLineNumber: 1,
@@ -207,12 +211,13 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
+				{ resource: true },
+				{ renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
 					inputEditorBackground: inputBackground,
-					resultEditorBackground: quickInputBackground
+					resultEditorBackground: editorBackground
 				}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
@@ -290,9 +295,9 @@ class QuickChat extends Disposable {
 		widget.focusInput();
 	}
 
-	setValue(value: string): void {
+	setValue(value: string, selection?: Selection): void {
 		this.widget.inputEditor.setValue(value);
-		this.focus();
+		this.focus(selection);
 	}
 
 	private updateModel(): void {

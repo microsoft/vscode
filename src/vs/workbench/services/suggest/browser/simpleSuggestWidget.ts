@@ -395,7 +395,7 @@ export class SimpleSuggestWidget implements IDisposable {
 		// 	return;
 		// }
 
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this._container.ownerDocument.body);
 		const info = this._getLayoutInfo();
 
 		if (!size) {

@@ -16,10 +16,8 @@
 	"win32DirName": "Microsoft Code OSS",
 	"win32NameVersion": "Microsoft Code OSS",
 	"win32RegValueName": "CodeOSS",
-	"win32AppId": "{{E34003BB-9E10-4501-8C11-BE3FAA83F23F}",
 	"win32x64AppId": "{{D77B7E06-80BA-4137-BCF4-654B95CCEBC5}",
 	"win32arm64AppId": "{{D1ACE434-89C5-48D1-88D3-E2991DF85475}",
-	"win32UserAppId": "{{C6065F05-9603-4FC4-8101-B9781A25D88E}",
 	"win32x64UserAppId": "{{CC6B787D-37A0-49E8-AE24-8559A032BE0C}",
 	"win32arm64UserAppId": "{{3AEBF0C8-F733-4AD4-BADE-FDB816D53D7B}",
 	"win32AppUserModelId": "Microsoft.CodeOSS",
@@ -52,8 +50,8 @@
 		},
 		{
 			"name": "ms-vscode.js-debug",
-			"version": "1.82.0",
-			"sha256": "4fba41b4b764c3f5a6591d6d9a5bdc59b417f2d799071c889c2b54163f256282",
+			"version": "1.83.1",
+			"sha256": "1452fdbab8d0d83ca5765bb66170d50b005c97ca4dcd13e154c3401d842a92d4",
 			"repo": "https://github.com/microsoft/vscode-js-debug",
 			"metadata": {
 				"id": "25629058-ddac-4e17-abba-74678e126c5d",

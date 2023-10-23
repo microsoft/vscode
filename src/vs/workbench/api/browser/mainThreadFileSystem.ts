@@ -6,17 +6,10 @@
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, DisposableStore, DisposableMap } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFilesConfiguration, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
+import { IFileWriteOptions, FileSystemProviderCapabilities, IFileChange, IFileService, IStat, IWatchOptions, FileType, IFileOverwriteOptions, IFileDeleteOptions, IFileOpenOptions, FileOperationError, FileOperationResult, FileSystemProviderErrorCode, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileFolderCopyCapability, FilePermission, toFileSystemProviderErrorCode, IFileStatWithPartialMetadata, IFileStat } from 'vs/platform/files/common/files';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
 import { ExtHostContext, ExtHostFileSystemShape, IFileChangeDto, MainContext, MainThreadFileSystemShape } from '../common/extHost.protocol';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { ILogService } from 'vs/platform/log/common/log';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files';
-import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
-import { GLOBSTAR } from 'vs/base/common/glob';
-import { rtrim } from 'vs/base/common/strings';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
@@ -25,14 +18,10 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	private readonly _proxy: ExtHostFileSystemShape;
 	private readonly _fileProvider = new DisposableMap<number, RemoteFileSystemProvider>();
 	private readonly _disposables = new DisposableStore();
-	private readonly _watches = new DisposableMap<number>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IWorkbenchFileService private readonly _fileService: IWorkbenchFileService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystem);
 
@@ -48,7 +37,6 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 	dispose(): void {
 		this._disposables.dispose();
 		this._fileProvider.dispose();
-		this._watches.dispose();
 	}
 
 	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities, readonlyMessage?: IMarkdownString): Promise<void> {
@@ -165,99 +153,7 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		return this._fileService.activateProvider(scheme);
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
-		const uri = URI.revive(resource);
-		const workspaceFolder = this._contextService.getWorkspaceFolder(uri);
 
-		const opts = { ...unvalidatedOpts };
-
-		// Convert a recursive watcher to a flat watcher if the path
-		// turns out to not be a folder. Recursive watching is only
-		// possible on folders, so we help all file watchers by checking
-		// early.
-		if (opts.recursive) {
-			try {
-				const stat = await this._fileService.stat(uri);
-				if (!stat.isDirectory) {
-					opts.recursive = false;
-				}
-			} catch (error) {
-				this._logService.error(`MainThreadFileSystem#$watch(): failed to stat a resource for file watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}): ${error}`);
-			}
-		}
-
-		// Refuse to watch anything that is already watched via
-		// our workspace watchers in case the request is a
-		// recursive file watcher.
-		// Still allow for non-recursive watch requests as a way
-		// to bypass configured exclude rules though
-		// (see https://github.com/microsoft/vscode/issues/146066)
-		if (workspaceFolder && opts.recursive) {
-			this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-			return;
-		}
-
-		this._logService.trace(`MainThreadFileSystem#$watch(): request to start watching (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-
-		// Automatically add `files.watcherExclude` patterns when watching
-		// recursively to give users a chance to configure exclude rules
-		// for reducing the overhead of watching recursively
-		if (opts.recursive) {
-			const config = this._configurationService.getValue<IFilesConfiguration>();
-			if (config.files?.watcherExclude) {
-				for (const key in config.files.watcherExclude) {
-					if (config.files.watcherExclude[key] === true) {
-						opts.excludes.push(key);
-					}
-				}
-			}
-		}
-
-		// Non-recursive watching inside the workspace will overlap with
-		// our standard workspace watchers. To prevent duplicate events,
-		// we only want to include events for files that are otherwise
-		// excluded via `files.watcherExclude`. As such, we configure
-		// to include each configured exclude pattern so that only those
-		// events are reported that are otherwise excluded.
-		// However, we cannot just use the pattern as is, because a pattern
-		// such as `bar` for a exclude, will work to exclude any of
-		// `<workspace path>/bar` but will not work as include for files within
-		// `bar` unless a suffix of `/**` if added.
-		// (https://github.com/microsoft/vscode/issues/148245)
-		else if (workspaceFolder) {
-			const config = this._configurationService.getValue<IFilesConfiguration>();
-			if (config.files?.watcherExclude) {
-				for (const key in config.files.watcherExclude) {
-					if (config.files.watcherExclude[key] === true) {
-						if (!opts.includes) {
-							opts.includes = [];
-						}
-
-						const includePattern = `${rtrim(key, '/')}/${GLOBSTAR}`;
-						opts.includes.push(normalizeWatcherPattern(workspaceFolder.uri.fsPath, includePattern));
-					}
-				}
-			}
-
-			// Still ignore watch request if there are actually no configured
-			// exclude rules, because in that case our default recursive watcher
-			// should be able to take care of all events.
-			if (!opts.includes || opts.includes.length === 0) {
-				this._logService.trace(`MainThreadFileSystem#$watch(): ignoring request to start watching because path is inside workspace and no excludes are configured (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
-				return;
-			}
-		}
-
-		const subscription = this._fileService.watch(uri, opts);
-		this._watches.set(session, subscription);
-	}
-
-	$unwatch(session: number): void {
-		if (this._watches.has(session)) {
-			this._logService.trace(`MainThreadFileSystem#$unwatch(): request to stop watching (session: ${session})`);
-			this._watches.deleteAndDispose(session);
-		}
-	}
 }
 
 class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, IFileSystemProviderWithFileFolderCopyCapability {

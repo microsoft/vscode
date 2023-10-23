@@ -4,12 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DisposableMap } from 'vs/base/common/lifecycle';
-import { IInlineChatBulkEditResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatBulkEditResponse, IInlineChatProgressItem, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { reviveWorkspaceEditDto } from 'vs/workbench/api/browser/mainThreadBulkEdits';
 import { ExtHostContext, ExtHostInlineChatShape, MainContext, MainThreadInlineChatShape as MainThreadInlineChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { TextEdit } from 'vs/editor/common/languages';
 import { IProgress } from 'vs/platform/progress/common/progress';
 
 @extHostNamedCustomer(MainContext.MainThreadInlineChat)
@@ -18,7 +17,7 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 	private readonly _registrations = new DisposableMap<number>();
 	private readonly _proxy: ExtHostInlineChatShape;
 
-	private readonly _progresses = new Map<string, IProgress<any>>();
+	private readonly _progresses = new Map<string, IProgress<IInlineChatProgressItem>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -68,8 +67,8 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 		this._registrations.set(handle, unreg);
 	}
 
-	async $handleProgressChunk(requestId: string, chunk: { message?: string | undefined; edits?: TextEdit[] | undefined }): Promise<void> {
-		this._progresses.get(requestId)?.report(chunk);
+	async $handleProgressChunk(requestId: string, chunk: IInlineChatProgressItem): Promise<void> {
+		await Promise.resolve(this._progresses.get(requestId)?.report(chunk));
 	}
 
 	async $unregisterInteractiveEditorProvider(handle: number): Promise<void> {

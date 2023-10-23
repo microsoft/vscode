@@ -21,7 +21,6 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IOverlayWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { WebviewWindowDragMonitor } from 'vs/workbench/contrib/webview/browser/webviewWindowDragMonitor';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
-import { IEditorDropService } from 'vs/workbench/services/editor/browser/editorDropService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
@@ -56,20 +55,19 @@ export class WebviewEditor extends EditorPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkbenchLayoutService private readonly _workbenchLayoutService: IWorkbenchLayoutService,
-		@IEditorDropService private readonly _editorDropService: IEditorDropService,
 		@IHostService private readonly _hostService: IHostService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, storageService);
 
 		this._register(Event.any(
-			editorGroupsService.onDidScroll,
-			editorGroupsService.onDidAddGroup,
-			editorGroupsService.onDidRemoveGroup,
-			editorGroupsService.onDidMoveGroup,
+			_editorGroupsService.activePart.onDidScroll,
+			_editorGroupsService.activePart.onDidAddGroup,
+			_editorGroupsService.activePart.onDidRemoveGroup,
+			_editorGroupsService.activePart.onDidMoveGroup,
 		)(() => {
 			if (this.webview && this._visible) {
 				this.synchronizeWebviewContainerDimensions(this.webview);
@@ -186,7 +184,7 @@ export class WebviewEditor extends EditorPane {
 		this._webviewVisibleDisposables.clear();
 
 		// Webviews are not part of the normal editor dom, so we have to register our own drag and drop handler on them.
-		this._webviewVisibleDisposables.add(this._editorDropService.createEditorDropTarget(input.webview.container, {
+		this._webviewVisibleDisposables.add(this._editorGroupsService.createEditorDropTarget(input.webview.container, {
 			containsGroup: (group) => this.group?.id === group.id
 		}));
 

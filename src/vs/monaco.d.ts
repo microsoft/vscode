@@ -4353,6 +4353,11 @@ declare namespace monaco.editor {
 		 * Defaults to false.
 		 */
 		scrollByPage?: boolean;
+		/**
+		 * When set, the horizontal scrollbar will not increase content height.
+		 * Defaults to false.
+		 */
+		ignoreHorizontalScrollbarInContentHeight?: boolean;
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -4369,6 +4374,7 @@ declare namespace monaco.editor {
 		readonly verticalScrollbarSize: number;
 		readonly verticalSliderSize: number;
 		readonly scrollByPage: boolean;
+		readonly ignoreHorizontalScrollbarInContentHeight: boolean;
 	}
 
 	export type InUntrustedWorkspace = 'inUntrustedWorkspace';
@@ -6986,6 +6992,7 @@ declare namespace monaco.languages {
 		diagnostics?: editor.IMarkerData[];
 		kind?: string;
 		isPreferred?: boolean;
+		isAI?: boolean;
 		disabled?: string;
 	}
 
@@ -7627,6 +7634,7 @@ declare namespace monaco.languages {
 		range: IRange;
 		uri: Uri;
 		owner: string;
+		isReply: boolean;
 	}
 
 	export interface CodeLens {

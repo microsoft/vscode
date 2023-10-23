@@ -48,6 +48,25 @@
 			"orientation",
 			"context"
 		], // non-complete list of globals that are easy to access unintentionally
+		"no-restricted-syntax": [
+			"warn",
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+				"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+				"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+				"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+			},
+			{
+				"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+				"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+			}
+		],
 		"no-var": "warn",
 		"jsdoc/no-types": "warn",
 		"semi": "off",
@@ -121,7 +140,18 @@
 			"rules": {
 				"local/code-no-test-only": "error",
 				"local/code-no-test-async-suite": "warn",
-				"local/code-no-unexternalized-strings": "off"
+				"local/code-no-unexternalized-strings": "off",
+				"local/code-must-use-result": [
+					"warn",
+					[
+						{
+							"message": "Expression must be awaited",
+							"functions": [
+								"assertSnapshot"
+							]
+						}
+					]
+				]
 			}
 		},
 		{
