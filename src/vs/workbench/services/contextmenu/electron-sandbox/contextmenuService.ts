@@ -107,7 +107,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 			let y: number | undefined;
 
 			let zoom = getZoomFactor();
-			if (dom.isHTMLElement(anchor)) {
+			if (anchor instanceof HTMLElement) {
 				const elementPosition = dom.getDomNodePagePosition(anchor);
 
 				// When drawing context menus, we adjust the pixel position for native menus using zoom level
@@ -129,6 +129,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					}
 
 					if (!isMacintosh) {
+						const window = dom.getWindow(anchor);
 						const availableHeightForMenu = window.screen.height - y;
 						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
 							// this is a guess to detect whether the context menu would

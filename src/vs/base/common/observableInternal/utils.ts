@@ -223,7 +223,7 @@ export interface IObservableSignal<TChange> extends IObservable<void, TChange> {
 
 class ObservableSignal<TChange> extends BaseObservable<void, TChange> implements IObservableSignal<TChange> {
 	public get debugName() {
-		return getDebugName(this._debugName, undefined, this._owner, this) ?? 'Observable Signal';
+		return getDebugName(this, this._debugName, undefined, this._owner, this) ?? 'Observable Signal';
 	}
 
 	constructor(

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, dialog, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
+import { app, BrowserWindow, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from 'vs/base/node/unc';
 import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { hostname, release } from 'os';
@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas } from 'vs/base/common/network';
+import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
@@ -105,12 +105,11 @@ import { ExtensionsScannerService } from 'vs/platform/extensionManagement/node/e
 import { UserDataProfilesHandler } from 'vs/platform/userDataProfile/electron-main/userDataProfilesHandler';
 import { ProfileStorageChangesListenerChannel } from 'vs/platform/userDataProfile/electron-main/userDataProfileStorageIpc';
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
-import { resolveMachineId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
+import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/electron-main/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LoggerChannel } from 'vs/platform/log/electron-main/logIpc';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { IInitialProtocolUrls, IProtocolUrl } from 'vs/platform/url/electron-main/url';
-import { massageMessageBoxOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IUtilityProcessWorkerMainService, UtilityProcessWorkerMainService } from 'vs/platform/utilityProcess/electron-main/utilityProcessWorkerMainService';
 import { ipcUtilityProcessWorkerChannelName } from 'vs/platform/utilityProcess/common/utilityProcessWorkerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
@@ -119,6 +118,8 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 
 /**
  * The main VS Code application. There will only ever be one instance,
@@ -126,7 +127,13 @@ import { Lazy } from 'vs/base/common/lazy';
  */
 export class CodeApplication extends Disposable {
 
+	private static readonly SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY = {
+		[Schemas.file]: 'security.promptForLocalFileProtocolHandling' as const,
+		[Schemas.vscodeRemote]: 'security.promptForRemoteFileProtocolHandling' as const
+	};
+
 	private windowsMainService: IWindowsMainService | undefined;
+	private auxiliaryWindowsMainService: IAuxiliaryWindowsMainService | undefined;
 	private nativeHostMainService: INativeHostMainService | undefined;
 
 	constructor(
@@ -141,7 +148,7 @@ export class CodeApplication extends Disposable {
 		@IStateService private readonly stateService: IStateService,
 		@IFileService private readonly fileService: IFileService,
 		@IProductService private readonly productService: IProductService,
-		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService,
+		@IUserDataProfilesMainService private readonly userDataProfilesMainService: IUserDataProfilesMainService
 	) {
 		super();
 
@@ -158,10 +165,6 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInMainFrame = new Set(
-			this.productService.quality === 'stable' ? [] : ['media']
-		);
-
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
@@ -172,20 +175,12 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
-				return callback(allowedPermissionsInMainFrame.has(permission));
-			}
-
 			return callback(false);
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
-			}
-
-			if (details.isMainFrame && details.securityOrigin === 'vscode-file://vscode-app/') {
-				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -378,16 +373,41 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
+			// Child Window: delegate to `AuxiliaryWindow` class
+			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
+			if (isChildWindow) {
+				this.auxiliaryWindowsMainService?.registerWindow(contents);
+			}
+
+			// Block any in-page navigation
 			contents.on('will-navigate', event => {
 				this.logService.error('webContents#will-navigate: Prevented webcontent navigation');
 
 				event.preventDefault();
 			});
 
-			contents.setWindowOpenHandler(({ url }) => {
-				this.nativeHostMainService?.openExternal(undefined, url);
+			// All Windows: only allow about:blank child windows to open
+			// For all other URLs, delegate to the OS.
+			contents.setWindowOpenHandler(handler => {
 
-				return { action: 'deny' };
+				// about:blank windows can open as window witho our default options
+				if (handler.url === 'about:blank') {
+					this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
+
+					return {
+						action: 'allow',
+						overrideBrowserWindowOptions: this.auxiliaryWindowsMainService?.createWindow()
+					};
+				}
+
+				// Any other URL: delegate to OS
+				else {
+					this.logService.trace(`webContents#setWindowOpenHandler: Prevented opening window with URL ${handler.url}}`);
+
+					this.nativeHostMainService?.openExternal(undefined, handler.url);
+
+					return { action: 'deny' };
+				}
 			});
 		});
 
@@ -428,6 +448,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#region Bootstrap IPC Handlers
+
+		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
@@ -562,14 +584,17 @@ export class CodeApplication extends Disposable {
 
 		// Resolve unique machine ID
 		this.logService.trace('Resolving machine identifier...');
-		const machineId = await resolveMachineId(this.stateService, this.logService);
+		const [machineId, sqmId] = await Promise.all([
+			resolveMachineId(this.stateService, this.logService),
+			resolveSqmId(this.stateService, this.logService)
+		]);
 		this.logService.trace(`Resolved machine identifier: ${machineId}`);
 
 		// Shared process
-		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId);
+		const { sharedProcessReady, sharedProcessClient } = this.setupSharedProcess(machineId, sqmId);
 
 		// Services
-		const appInstantiationService = await this.initServices(machineId, sharedProcessReady);
+		const appInstantiationService = await this.initServices(machineId, sqmId, sharedProcessReady);
 
 		// Auth Handler
 		this._register(appInstantiationService.createInstance(ProxyAuthHandler));
@@ -581,7 +606,7 @@ export class CodeApplication extends Disposable {
 		appInstantiationService.invokeFunction(accessor => this.initChannels(accessor, mainProcessElectronServer, sharedProcessClient));
 
 		// Setup Protocol URL Handlers
-		const initialProtocolUrls = appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
+		const initialProtocolUrls = await appInstantiationService.invokeFunction(accessor => this.setupProtocolUrlHandlers(accessor, mainProcessElectronServer));
 
 		// Setup vscode-remote-resource protocol handler.
 		this.setupManagedRemoteResourceUrlHandler(mainProcessElectronServer);
@@ -605,10 +630,11 @@ export class CodeApplication extends Disposable {
 		eventuallyPhaseScheduler.schedule();
 	}
 
-	private setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): IInitialProtocolUrls | undefined {
+	private async setupProtocolUrlHandlers(accessor: ServicesAccessor, mainProcessElectronServer: ElectronIPCServer): Promise<IInitialProtocolUrls | undefined> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
 		const urlService = accessor.get(IURLService);
 		const nativeHostMainService = this.nativeHostMainService = accessor.get(INativeHostMainService);
+		const dialogMainService = accessor.get(IDialogMainService);
 
 		// Install URL handlers that deal with protocl URLs either
 		// from this process by opening windows and/or by forwarding
@@ -617,7 +643,7 @@ export class CodeApplication extends Disposable {
 		const app = this;
 		urlService.registerHandler({
 			async handleURL(uri: URI, options?: IOpenURLOptions): Promise<boolean> {
-				return app.handleProtocolUrl(windowsMainService, urlService, uri, options);
+				return app.handleProtocolUrl(windowsMainService, dialogMainService, urlService, uri, options);
 			}
 		});
 
@@ -631,7 +657,7 @@ export class CodeApplication extends Disposable {
 		const urlHandlerChannel = mainProcessElectronServer.getChannel('urlHandler', urlHandlerRouter);
 		urlService.registerHandler(new URLHandlerChannelClient(urlHandlerChannel));
 
-		const initialProtocolUrls = this.resolveInitialProtocolUrls();
+		const initialProtocolUrls = await this.resolveInitialProtocolUrls(windowsMainService, dialogMainService);
 		this._register(new ElectronURLListener(initialProtocolUrls?.urls, urlService, windowsMainService, this.environmentMainService, this.productService, this.logService));
 
 		return initialProtocolUrls;
@@ -659,7 +685,7 @@ export class CodeApplication extends Disposable {
 		});
 	}
 
-	private resolveInitialProtocolUrls(): IInitialProtocolUrls | undefined {
+	private async resolveInitialProtocolUrls(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<IInitialProtocolUrls | undefined> {
 
 		/**
 		 * Protocol URL handling on startup is complex, refer to
@@ -682,8 +708,7 @@ export class CodeApplication extends Disposable {
 			return undefined;
 		}
 
-		const openables: IWindowOpenable[] = [];
-		const urls = [
+		const protocolUrls = [
 			...protocolUrlsFromCommandLine,
 			...protocolUrlsFromEvent
 		].map(url => {
@@ -694,53 +719,85 @@ export class CodeApplication extends Disposable {
 
 				return undefined;
 			}
-		}).filter((obj): obj is IProtocolUrl => {
-			if (!obj) {
-				return false; // invalid
-			}
-
-			if (this.shouldBlockURI(obj.uri)) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', obj.uri.toString(true));
-
-				return false; // blocked
-			}
-
-			const windowOpenable = this.getWindowOpenableFromProtocolUrl(obj.uri);
-			if (windowOpenable) {
-				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', obj.uri.toString(true), windowOpenable);
-
-				openables.push(windowOpenable);
-
-				return false; // handled as window to open
-			}
-
-			this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', obj.uri.toString(true));
-
-			return true; // handled within active window
 		});
+
+		const openables: IWindowOpenable[] = [];
+		const urls: IProtocolUrl[] = [];
+		for (const protocolUrl of protocolUrls) {
+			if (!protocolUrl) {
+				continue; // invalid
+			}
+
+			if (await this.shouldBlockURI(protocolUrl.uri, windowsMainService, dialogMainService)) {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url was blocked:', protocolUrl.uri.toString(true));
+
+				continue; // blocked
+			}
+
+			const windowOpenable = this.getWindowOpenableFromProtocolUrl(protocolUrl.uri);
+			if (windowOpenable) {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be handled as window to open:', protocolUrl.uri.toString(true), windowOpenable);
+
+				openables.push(windowOpenable); // handled as window to open
+			} else {
+				this.logService.trace('app#resolveInitialProtocolUrls() protocol url will be passed to active window for handling:', protocolUrl.uri.toString(true));
+
+				urls.push(protocolUrl); // handled within active window
+			}
+		}
 
 		return { urls, openables };
 	}
 
-	private shouldBlockURI(uri: URI): boolean {
-		if (uri.authority === Schemas.file && isWindows) {
-			const { options, buttonIndeces } = massageMessageBoxOptions({
-				type: 'warning',
-				buttons: [
-					localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
-					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
-				],
-				message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", getPathLabel(uri, { os: OS, tildify: this.environmentMainService }), this.productService.nameShort),
-				detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-			}, this.productService);
+	private async shouldBlockURI(uri: URI, windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService): Promise<boolean> {
+		if (uri.authority !== Schemas.file && uri.authority !== Schemas.vscodeRemote) {
 
-			const res = buttonIndeces[dialog.showMessageBoxSync(options)];
-			if (res === 1) {
-				return true;
-			}
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			//
+			// NOTE: we currently only ask for confirmation for `file` and `vscode-remote`
+			// authorities here. There is an additional confirmation for `extension.id`
+			// authorities from within the window.
+			//
+			// IF YOU ARE PLANNING ON ADDING ANOTHER AUTHORITY HERE, MAKE SURE TO ALSO
+			// ADD IT TO THE CONFIRMATION CODE BELOW OR INSIDE THE WINDOW!
+			//
+			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+			return false;
 		}
 
-		return false;
+		const askForConfirmation = this.configurationService.getValue<unknown>(CodeApplication.SECURITY_PROTOCOL_HANDLING_CONFIRMATION_SETTING_KEY[uri.authority]);
+		if (askForConfirmation === false) {
+			return false; // not blocked via settings
+		}
+
+		const { response, checkboxChecked } = await dialogMainService.showMessageBox({
+			type: 'warning',
+			buttons: [
+				localize({ key: 'open', comment: ['&& denotes a mnemonic'] }, "&&Yes"),
+				localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&No")
+			],
+			message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", uri.authority === Schemas.file ? getPathLabel(uri, { os: OS, tildify: this.environmentMainService }) : uri.toString(true), this.productService.nameShort),
+			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
+			checkboxLabel: uri.authority === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
+			cancelId: 1
+		});
+
+		if (response !== 0) {
+			return true; // blocked by user choice
+		}
+
+		if (checkboxChecked) {
+			// Due to https://github.com/microsoft/vscode/issues/195436, we can only
+			// update settings from within a window. But we do not know if a window
+			// is about to open or can already handle the request, so we have to send
+			// to any current window and any newly opening window.
+			const request = { channel: 'vscode:disablePromptForProtocolHandling', args: uri.authority === Schemas.file ? 'local' : 'remote' };
+			windowsMainService.sendToFocused(request.channel, request.args);
+			windowsMainService.sendToOpeningWindow(request.channel, request.args);
+		}
+
+		return false; // not blocked by user choice
 	}
 
 	private getWindowOpenableFromProtocolUrl(uri: URI): IWindowOpenable | undefined {
@@ -798,7 +855,7 @@ export class CodeApplication extends Disposable {
 		return undefined;
 	}
 
-	private async handleProtocolUrl(windowsMainService: IWindowsMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
+	private async handleProtocolUrl(windowsMainService: IWindowsMainService, dialogMainService: IDialogMainService, urlService: IURLService, uri: URI, options?: IOpenURLOptions): Promise<boolean> {
 		this.logService.trace('app#handleProtocolUrl():', uri.toString(true), options);
 
 		// Support 'workspace' URLs (https://github.com/microsoft/vscode/issues/124263)
@@ -811,7 +868,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// If URI should be blocked, behave as if it's handled
-		if (this.shouldBlockURI(uri)) {
+		if (await this.shouldBlockURI(uri, windowsMainService, dialogMainService)) {
 			this.logService.trace('app#handleProtocolUrl() protocol url was blocked:', uri.toString(true));
 
 			return true;
@@ -890,8 +947,8 @@ export class CodeApplication extends Disposable {
 		return false;
 	}
 
-	private setupSharedProcess(machineId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
-		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId));
+	private setupSharedProcess(machineId: string, sqmId: string): { sharedProcessReady: Promise<MessagePortClient>; sharedProcessClient: Promise<MessagePortClient> } {
+		const sharedProcess = this._register(this.mainInstantiationService.createInstance(SharedProcess, machineId, sqmId));
 
 		const sharedProcessClient = (async () => {
 			this.logService.trace('Main->SharedProcess#connect');
@@ -912,7 +969,7 @@ export class CodeApplication extends Disposable {
 		return { sharedProcessReady, sharedProcessClient };
 	}
 
-	private async initServices(machineId: string, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
+	private async initServices(machineId: string, sqmId: string, sharedProcessReady: Promise<MessagePortClient>): Promise<IInstantiationService> {
 		const services = new ServiceCollection();
 
 		// Update
@@ -935,7 +992,8 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Windows
-		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, this.userEnv], false));
+		services.set(IWindowsMainService, new SyncDescriptor(WindowsMainService, [machineId, sqmId, this.userEnv], false));
+		services.set(IAuxiliaryWindowsMainService, new SyncDescriptor(AuxiliaryWindowsMainService, undefined, false));
 
 		// Dialogs
 		const dialogMainService = new DialogMainService(this.logService, this.productService);
@@ -1014,7 +1072,7 @@ export class CodeApplication extends Disposable {
 			const isInternal = isInternalTelemetry(this.productService, this.configurationService);
 			const channel = getDelayedChannel(sharedProcessReady.then(client => client.getChannel('telemetryAppender')));
 			const appender = new TelemetryAppenderClient(channel);
-			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, isInternal);
+			const commonProperties = resolveCommonProperties(release(), hostname(), process.arch, this.productService.commit, this.productService.version, machineId, sqmId, isInternal);
 			const piiPaths = getPiiPathsFromEnvironment(this.environmentMainService);
 			const config: ITelemetryServiceConfig = { appenders: [appender], commonProperties, piiPaths, sendErrorTelemetry: true };
 
@@ -1154,6 +1212,7 @@ export class CodeApplication extends Disposable {
 
 	private async openFirstWindow(accessor: ServicesAccessor, initialProtocolUrls: IInitialProtocolUrls | undefined): Promise<ICodeWindow[]> {
 		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService);
+		this.auxiliaryWindowsMainService = accessor.get(IAuxiliaryWindowsMainService);
 
 		const context = isLaunchedFromCli(process.env) ? OpenContext.CLI : OpenContext.DESKTOP;
 		const args = this.environmentMainService.args;

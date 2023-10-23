@@ -8,7 +8,7 @@ import { Dimension, clearNode } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { BreadcrumbsControl, BreadcrumbsControlFactory } from 'vs/workbench/browser/parts/editor/breadcrumbsControl';
-import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsView, IEditorGroupTitleHeight, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IEditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { MultiEditorTabsControl } from 'vs/workbench/browser/parts/editor/multiEditorTabsControl';
 import { SingleEditorTabsControl } from 'vs/workbench/browser/parts/editor/singleEditorTabsControl';
@@ -17,6 +17,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MultiRowEditorControl } from 'vs/workbench/browser/parts/editor/multiRowEditorTabsControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { NoEditorTabsControl } from 'vs/workbench/browser/parts/editor/noEditorTabsControl';
 
 export interface IEditorTitleControlDimensions {
 
@@ -42,10 +43,11 @@ export class EditorTitleControl extends Themable {
 	private get breadcrumbsControl() { return this.breadcrumbsControlFactory?.control; }
 
 	constructor(
-		private parent: HTMLElement,
-		private groupsView: IEditorGroupsView,
-		private groupView: IEditorGroupView,
-		private model: IReadonlyEditorGroupModel,
+		private readonly parent: HTMLElement,
+		private readonly editorPartsView: IEditorPartsView,
+		private readonly groupsView: IEditorGroupsView,
+		private readonly groupView: IEditorGroupView,
+		private readonly model: IReadonlyEditorGroupModel,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -56,23 +58,27 @@ export class EditorTitleControl extends Themable {
 	}
 
 	private createEditorTabsControl(): IEditorTabsControl {
-		let control: IEditorTabsControl;
-		if (this.groupsView.partOptions.showTabs) {
-			if (this.groupsView.partOptions.pinnedTabsOnSeparateRow) {
-				control = this.instantiationService.createInstance(MultiRowEditorControl, this.parent, this.groupsView, this.groupView, this.model);
-			} else {
-				control = this.instantiationService.createInstance(MultiEditorTabsControl, this.parent, this.groupsView, this.groupView, this.model);
-			}
-		} else {
-			control = this.instantiationService.createInstance(SingleEditorTabsControl, this.parent, this.groupsView, this.groupView, this.model);
+		let tabsControlType;
+		switch (this.groupsView.partOptions.showTabs) {
+			case 'none':
+				tabsControlType = NoEditorTabsControl;
+				break;
+			case 'single':
+				tabsControlType = SingleEditorTabsControl;
+				break;
+			case 'multiple':
+			default:
+				tabsControlType = this.groupsView.partOptions.pinnedTabsOnSeparateRow ? MultiRowEditorControl : MultiEditorTabsControl;
+				break;
 		}
 
+		const control = this.instantiationService.createInstance(tabsControlType, this.parent, this.editorPartsView, this.groupsView, this.groupView, this.model);
 		return this.editorTabsControlDisposable.add(control);
 	}
 
 	private createBreadcrumbsControl(): BreadcrumbsControlFactory | undefined {
-		if (!this.groupsView.partOptions.showTabs) {
-			return undefined; // single tabs have breadcrumbs inlined
+		if (this.groupsView.partOptions.showTabs !== 'multiple') {
+			return undefined; // Single tabs have breadcrumbs inlined. No tabs have no breadcrumbs.
 		}
 
 		// Breadcrumbs container
@@ -86,13 +92,13 @@ export class EditorTitleControl extends Themable {
 			showDecorationColors: false,
 			showPlaceholder: true
 		}));
-		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.handleBreadcrumbsEnablementChange()));
+
+		// Breadcrumbs enablement & visibility change have an impact on layout
+		// so we need to relayout the editor group when that happens.
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidEnablementChange(() => this.groupView.relayout()));
+		this.breadcrumbsControlDisposables.add(breadcrumbsControlFactory.onDidVisibilityChange(() => this.groupView.relayout()));
 
 		return breadcrumbsControlFactory;
-	}
-
-	private handleBreadcrumbsEnablementChange(): void {
-		this.groupView.relayout(); // relayout when breadcrumbs are enable/disabled
 	}
 
 	openEditor(editor: EditorInput, options?: IInternalEditorOpenOptions): void {
@@ -169,7 +175,7 @@ export class EditorTitleControl extends Themable {
 		// Update editor tabs control if options changed
 		if (
 			oldOptions.showTabs !== newOptions.showTabs ||
-			(newOptions.showTabs && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
+			(newOptions.showTabs === 'multiple' && oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow)
 		) {
 			// Clear old
 			this.editorTabsControlDisposable.clear();

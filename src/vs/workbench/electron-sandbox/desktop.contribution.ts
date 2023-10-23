@@ -10,7 +10,7 @@ import { IConfigurationRegistry, Extensions as ConfigurationExtensions, Configur
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ExperimentalSplitWindowAction } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -26,7 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import product from 'vs/platform/product/common/product';
 
 // Actions
 (function registerActions(): void {
@@ -40,6 +41,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+	if (product.quality !== 'stable') {
+		// TODO@bpasero revisit
+		registerAction2(ExperimentalSplitWindowAction);
+	}
 
 	if (isMacintosh) {
 		// macOS: behave like other native apps that have documents
@@ -294,6 +299,25 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			}
 		}
 	});
+
+	// Security
+	registry.registerConfiguration({
+		...securityConfigurationNodeBase,
+		'properties': {
+			'security.promptForLocalFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			},
+			'security.promptForRemoteFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			}
+		}
+	});
 })();
 
 // JSON Schemas
@@ -342,6 +366,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'disable-chromium-sandbox': {
 				type: 'boolean',
 				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
+			},
+			'use-inmemory-secretstorage': {
+				type: 'boolean',
+				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
 			}
 		}
 	};
@@ -349,6 +377,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 		schema.properties!['force-renderer-accessibility'] = {
 			type: 'boolean',
 			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+		schema.properties!['password-store'] = {
+			type: 'string',
+			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
 	}
 

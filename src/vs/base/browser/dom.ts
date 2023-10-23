@@ -12,29 +12,44 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidCreateWindow } = (function () {
-	const windows: Window[] = [];
-	const onDidCreateWindow = new event.Emitter<{ window: Window; disposableStore: DisposableStore }>();
+export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+	const windows = new Set([window]);
+	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
+	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	return {
-		onDidCreateWindow: onDidCreateWindow.event,
-		registerWindow(window: Window): IDisposable {
-			windows.push(window);
-			const disposableStore = new DisposableStore();
-			disposableStore.add(toDisposable(() => {
-				const index = windows.indexOf(window);
-				if (index !== -1) {
-					windows.splice(index, 1);
-				}
+		onDidRegisterWindow: onDidRegisterWindow.event,
+		onWillUnregisterWindow: onWillUnregisterWindow.event,
+		onDidUnregisterWindow: onDidUnregisterWindow.event,
+		registerWindow(window: Window & typeof globalThis): IDisposable {
+			if (windows.has(window)) {
+				return Disposable.None;
+			}
+
+			windows.add(window);
+
+			const disposables = new DisposableStore();
+			disposables.add(toDisposable(() => {
+				windows.delete(window);
+				onDidUnregisterWindow.fire(window);
 			}));
-			onDidCreateWindow.fire({ window, disposableStore });
-			return disposableStore;
+
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
+				onWillUnregisterWindow.fire(window);
+			}));
+
+			const eventDisposables = new DisposableStore();
+			disposables.add(eventDisposables);
+			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+
+			return disposables;
 		},
-		getWindows(): Window[] {
+		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
 		}
 	};
@@ -44,13 +59,6 @@ export function clearNode(node: HTMLElement): void {
 	while (node.firstChild) {
 		node.firstChild.remove();
 	}
-}
-
-/**
- * @deprecated Use node.isConnected directly
- */
-export function isInDOM(node: Node | null): boolean {
-	return node?.isConnected ?? false;
 }
 
 class DomListener implements IDisposable {
@@ -605,14 +613,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
-		}
-		testChild = testChild.parentNode;
-	}
-
-	return false;
+	return Boolean(testAncestor?.contains(testChild));
 }
 
 const parentFlowToDataKey = 'parentFlowToElementId';
@@ -721,12 +722,57 @@ export function getActiveElement(): Element | null {
 }
 
 /**
+ * Returns whether the active element of the `document` that owns
+ * the `element` is `element`.
+ */
+export function isActiveElement(element: Element): boolean {
+	return element.ownerDocument.activeElement === element;
+}
+
+/**
+ * Returns whether the active element of the `document` that owns
+ * the `ancestor` is contained in `ancestor`.
+ */
+export function isAncestorOfActiveElement(ancestor: Element): boolean {
+	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+}
+
+/**
  * Returns the active document across all child windows.
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
 export function getActiveDocument(): Document {
-	const documents = [document, ...getWindows().map(w => w.document)];
+	const documents = Array.from(getWindows()).map(window => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
+}
+
+export function getActiveWindow(): Window & typeof globalThis {
+	const document = getActiveDocument();
+	return document.defaultView?.window ?? window;
+}
+
+export function getWindow(element: Node): Window & typeof globalThis;
+export function getWindow(event: UIEvent): Window & typeof globalThis;
+export function getWindow(obj: unknown): Window & typeof globalThis;
+export function getWindow(e: unknown): Window & typeof globalThis {
+	const candidateNode = e as Node | undefined;
+	if (candidateNode?.ownerDocument?.defaultView) {
+		return candidateNode.ownerDocument.defaultView.window;
+	}
+
+	const candidateEvent = e as UIEvent | undefined;
+	if (candidateEvent?.view) {
+		return candidateEvent.view.window;
+	}
+
+	return window;
+}
+
+export function focusWindow(element: Node): void {
+	const window = getWindow(element);
+	if (window !== getActiveWindow()) {
+		window.focus();
+	}
 }
 
 export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
@@ -791,11 +837,24 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	}
 }
 
-export function isHTMLElement(o: any): o is HTMLElement {
-	if (typeof HTMLElement === 'object') {
-		return o instanceof HTMLElement;
-	}
-	return o && typeof o === 'object' && o.nodeType === 1 && typeof o.nodeName === 'string';
+export function isMouseEvent(e: unknown): e is MouseEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
+}
+
+export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
+}
+
+export function isPointerEvent(e: unknown): e is PointerEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
+}
+
+export function isDragEvent(e: unknown): e is DragEvent {
+	// eslint-disable-next-line no-restricted-syntax
+	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
 }
 
 export const EventType = {
@@ -915,11 +974,12 @@ class FocusTracker extends Disposable implements IFocusTracker {
 	private _refreshStateHandler: () => void;
 
 	private static hasFocusWithin(element: HTMLElement | Window): boolean {
-		if (isHTMLElement(element)) {
+		if (element instanceof HTMLElement) {
 			const shadowRoot = getShadowRoot(element);
 			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
 			return isAncestor(activeElement, element);
 		} else {
+			const window = element;
 			return isAncestor(window.document.activeElement, window.document);
 		}
 	}
@@ -1170,7 +1230,7 @@ export function domContentLoaded(): Promise<unknown> {
  * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
  * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
  */
-export function computeScreenAwareSize(cssPx: number): number {
+export function computeScreenAwareSize(window: Window, cssPx: number): number {
 	const screenPx = window.devicePixelRatio * cssPx;
 	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }
@@ -1594,7 +1654,11 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window, disposables: this._subscriptions }));
+	}
+
+	private registerListeners(window: Window, disposables: DisposableStore): void {
+		disposables.add(addDisposableListener(window, 'keydown', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1631,7 +1695,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+		disposables.add(addDisposableListener(window, 'keyup', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1663,21 +1727,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+		disposables.add(addDisposableListener(window.document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
+		disposables.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}
@@ -1941,4 +2005,59 @@ export function h(tag: string, ...args: [] | [attributes: { $: string } & Partia
 
 function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
+}
+
+interface IObserver extends IDisposable {
+	readonly onDidChangeAttribute: event.Event<string>;
+}
+
+function observeAttributes(element: Element, filter?: string[]): IObserver {
+	const onDidChangeAttribute = new event.Emitter<string>();
+
+	const observer = new MutationObserver(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				onDidChangeAttribute.fire(mutation.attributeName);
+			}
+		}
+	});
+
+	observer.observe(element, {
+		attributes: true,
+		attributeFilter: filter
+	});
+
+	return {
+		onDidChangeAttribute: onDidChangeAttribute.event,
+		dispose: () => {
+			observer.disconnect();
+			onDidChangeAttribute.dispose();
+		}
+	};
+}
+
+export function copyAttributes(from: Element, to: Element): void {
+	for (const { name, value } of from.attributes) {
+		to.setAttribute(name, value);
+	}
+}
+
+function copyAttribute(from: Element, to: Element, name: string): void {
+	const value = from.getAttribute(name);
+	if (value) {
+		to.setAttribute(name, value);
+	} else {
+		to.removeAttribute(name);
+	}
+}
+
+export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
+	copyAttributes(from, to);
+
+	const observer = observeAttributes(from, filter);
+
+	return combinedDisposable(
+		observer,
+		observer.onDidChangeAttribute(name => copyAttribute(from, to, name))
+	);
 }

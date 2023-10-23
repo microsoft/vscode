@@ -20,7 +20,9 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: UsePythonVersion@0
     inputs:
@@ -103,6 +105,7 @@ steps:
       exec { git checkout v9.4.0 } "Checking out v9.4.0 failed"
       exec { git am --3way --whitespace=fix ../../build/npm/gyp/patches/gyp_spectre_mitigation_support.patch } "Apply spectre patch failed"
       exec { npm install } "Building node-gyp failed"
+      exec { python3 -m pip install setuptools } "Installing setuptools failed"
     displayName: Install custom node-gyp
     workingDirectory: .build/node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
@@ -151,7 +154,7 @@ steps:
     - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Transpile
+      displayName: Transpile client and extensions
 
   - ${{ else }}:
     - ${{ if and(ne(parameters.VSCODE_CIBUILD, true), eq(parameters.VSCODE_QUALITY, 'insider')) }}:
@@ -240,7 +243,7 @@ steps:
         displayName: Find ESRP CLI
 
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.dll,*.exe,*.node'
-        displayName: Codesign
+        displayName: Codesign executables and shared libraries
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'insider') }}:
       - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows-appx $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(CodeSigningFolderPath) '*.appx'
@@ -321,17 +324,18 @@ steps:
       - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
         displayName: Generate SBOM (server)
         inputs:
+          BuildComponentPath: $(Build.SourcesDirectory)/remote
           BuildDropPath: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)
           PackageName: Visual Studio Code Server
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (client)
-        artifact: $(ARTIFACT_PREFIX)sbom_client_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_win32_$(VSCODE_ARCH)
 
       - publish: $(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)/_manifest
         displayName: Publish SBOM (server)
-        artifact: $(ARTIFACT_PREFIX)sbom_server_win32_$(VSCODE_ARCH)
+        artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_win32_$(VSCODE_ARCH)
         condition: and(succeeded(), ne(variables['VSCODE_ARCH'], 'arm64'))
 
       - publish: $(CLIENT_PATH)

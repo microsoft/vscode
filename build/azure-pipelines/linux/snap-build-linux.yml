@@ -1,7 +1,9 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - task: DownloadPipelineArtifact@0
     displayName: "Download Pipeline Artifact"
@@ -48,6 +50,19 @@ steps:
       # Export SNAP_PATH
       echo "##vso[task.setvariable variable=SNAP_PATH]$SNAP_PATH"
     displayName: Prepare for publish
+
+  - script: mkdir -p $(agent.builddirectory)/vscode-snap-linux-$(VSCODE_ARCH)
+    displayName: Make folder for SBOM
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-snap-linux-$(VSCODE_ARCH)
+      PackageName: Visual Studio Code Snap
+
+  - publish: $(agent.builddirectory)/vscode-snap-linux-$(VSCODE_ARCH)/_manifest
+    displayName: Publish SBOM
+    artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_linux_snap_$(VSCODE_ARCH)
 
   - publish: $(SNAP_PATH)
     artifact: vscode_client_linux_$(VSCODE_ARCH)_snap
