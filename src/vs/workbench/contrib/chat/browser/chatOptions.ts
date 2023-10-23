@@ -79,7 +79,7 @@ export class ChatEditorOptions extends Disposable {
 		private readonly resultEditorBackgroundColor: string,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IThemeService private readonly themeService: IThemeService,
-		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService
+		@IViewDescriptorService readonly viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 

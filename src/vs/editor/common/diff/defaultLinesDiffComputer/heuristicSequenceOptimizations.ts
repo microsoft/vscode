@@ -3,13 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { forEachWithNeighbors } from 'vs/base/common/arrays';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
-import { ISequence, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
+import { ISequence, OffsetPair, SequenceDiff } from 'vs/editor/common/diff/defaultLinesDiffComputer/algorithms/diffAlgorithm';
 import { LineSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/lineSequence';
 import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffComputer/linesSliceCharSequence';
 
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
+	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
+	// Sometimes, calling this function twice improves the result.
+	// Uncomment the second invocation and run the tests to see the difference.
 	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
 	result = shiftSequenceDiffs(sequence1, sequence2, result);
 	return result;
@@ -78,8 +82,8 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 			let d;
 			for (d = 0; d < length; d++) {
 				if (
-					sequence1.getElement(cur.seq1Range.start + d) !== sequence1.getElement(cur.seq1Range.endExclusive + d) ||
-					sequence2.getElement(cur.seq2Range.start + d) !== sequence2.getElement(cur.seq2Range.endExclusive + d)
+					!sequence1.isStronglyEqual(cur.seq1Range.start + d, cur.seq1Range.endExclusive + d) ||
+					!sequence2.isStronglyEqual(cur.seq2Range.start + d, cur.seq2Range.endExclusive + d)
 				) {
 					break;
 				}
@@ -425,28 +429,33 @@ export function removeVeryShortMatchingTextBetweenLongDiffs(sequence1: LinesSlic
 		diffs = result;
 	} while (counter++ < 10 && shouldRepeat);
 
-	// Remove short suffixes/prefixes
-	for (let i = 0; i < diffs.length; i++) {
-		const cur = diffs[i];
+	const newDiffs: SequenceDiff[] = [];
 
-		let range1 = cur.seq1Range;
-		let range2 = cur.seq2Range;
+	// Remove short suffixes/prefixes
+	forEachWithNeighbors(diffs, (prev, cur, next) => {
+		let newDiff = cur;
+
+		function shouldMarkAsChanged(text: string): boolean {
+			return text.length > 0 && text.trim().length <= 3 && cur.seq1Range.length + cur.seq2Range.length > 100;
+		}
 
 		const fullRange1 = sequence1.extendToFullLines(cur.seq1Range);
 		const prefix = sequence1.getText(new OffsetRange(fullRange1.start, cur.seq1Range.start));
-		if (prefix.length > 0 && prefix.trim().length <= 3 && cur.seq1Range.length + cur.seq2Range.length > 100) {
-			range1 = cur.seq1Range.deltaStart(-prefix.length);
-			range2 = cur.seq2Range.deltaStart(-prefix.length);
+		if (shouldMarkAsChanged(prefix)) {
+			newDiff = newDiff.deltaStart(-prefix.length);
 		}
-
 		const suffix = sequence1.getText(new OffsetRange(cur.seq1Range.endExclusive, fullRange1.endExclusive));
-		if (suffix.length > 0 && (suffix.trim().length <= 3 && cur.seq1Range.length + cur.seq2Range.length > 150)) {
-			range1 = range1.deltaEnd(suffix.length);
-			range2 = range2.deltaEnd(suffix.length);
+		if (shouldMarkAsChanged(suffix)) {
+			newDiff = newDiff.deltaEnd(suffix.length);
 		}
 
-		diffs[i] = new SequenceDiff(range1, range2);
-	}
+		const availableSpace = SequenceDiff.fromOffsetPairs(
+			prev ? prev.getEndExclusives() : OffsetPair.zero,
+			next ? next.getStarts() : OffsetPair.max,
+		);
+		const result = newDiff.intersect(availableSpace)!;
+		newDiffs.push(result);
+	});
 
-	return diffs;
+	return newDiffs;
 }

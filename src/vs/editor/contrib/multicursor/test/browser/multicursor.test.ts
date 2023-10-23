@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Handler } from 'vs/editor/common/editorCommon';
@@ -14,6 +15,8 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { IStorageService, InMemoryStorageService } from 'vs/platform/storage/common/storage';
 
 suite('Multicursor', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #26393: Multiple cursors + Word wrap', () => {
 		withTestCodeEditor([

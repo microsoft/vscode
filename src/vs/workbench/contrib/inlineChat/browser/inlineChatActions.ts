@@ -21,15 +21,12 @@ import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/commo
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { Range } from 'vs/editor/common/core/range';
-import { Selection } from 'vs/editor/common/core/selection';
 import { fromNow } from 'vs/base/common/date';
 import { IInlineChatSessionService, Recording } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { runAccessibilityHelpAction } from 'vs/workbench/contrib/chat/browser/actions/chatAccessibilityHelp';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
@@ -40,7 +37,7 @@ export class StartSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
+			title: { value: localize('run', 'Start Inline Chat'), original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
@@ -52,23 +49,11 @@ export class StartSessionAction extends EditorAction2 {
 		});
 	}
 
-	private _isInteractivEditorOptions(options: any): options is InlineChatRunOptions {
-		const { initialSelection, initialRange, message, autoSend, position } = options;
-		if (
-			typeof message !== 'undefined' && typeof message !== 'string'
-			|| typeof autoSend !== 'undefined' && typeof autoSend !== 'boolean'
-			|| typeof initialRange !== 'undefined' && !Range.isIRange(initialRange)
-			|| typeof initialSelection !== 'undefined' && !Selection.isISelection(initialSelection)
-			|| typeof position !== 'undefined' && !Position.isIPosition(position)) {
-			return false;
-		}
-		return true;
-	}
 
 	override runEditorCommand(_accessor: ServicesAccessor, editor: ICodeEditor, ..._args: any[]) {
 		let options: InlineChatRunOptions | undefined;
 		const arg = _args[0];
-		if (arg && this._isInteractivEditorOptions(arg)) {
+		if (arg && InlineChatRunOptions.isInteractiveEditorOptions(arg)) {
 			options = arg;
 		}
 		InlineChatController.get(editor)?.run(options);
@@ -79,7 +64,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			title: { value: localize('unstash', 'Resume Last Dismissed Inline Chat'), original: 'Resume Last Dismissed Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
@@ -346,7 +331,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 	}
 }
 
@@ -372,7 +357,7 @@ export class DiscardToClipboardAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			clipboardService.writeText(changedText);
 		}
@@ -396,7 +381,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
 			editorService.openEditor(input, SIDE_GROUP);
@@ -483,9 +468,10 @@ export class ApplyPreviewEdits extends AbstractInlineChatAction {
 	constructor() {
 		super({
 			id: ACTION_ACCEPT_CHANGES,
-			title: localize('apply1', 'Accept Changes'),
+			title: { value: localize('apply1', 'Accept Changes'), original: 'Accept Changes' },
 			shortTitle: localize('apply2', 'Accept'),
 			icon: Codicon.check,
+			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, ContextKeyExpr.or(CTX_INLINE_CHAT_DOCUMENT_CHANGED.toNegated(), CTX_INLINE_CHAT_EDIT_MODE.notEqualsTo(EditMode.Preview))),
 			keybinding: [{
 				weight: KeybindingWeight.EditorContrib + 10,
@@ -493,7 +479,7 @@ export class ApplyPreviewEdits extends AbstractInlineChatAction {
 			}, {
 				primary: KeyCode.Escape,
 				weight: KeybindingWeight.EditorContrib,
-				when: CTX_INLINE_CHAT_USER_DID_EDIT,
+				when: CTX_INLINE_CHAT_USER_DID_EDIT
 			}],
 			menu: {
 				when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChateResponseTypes.OnlyMessages),

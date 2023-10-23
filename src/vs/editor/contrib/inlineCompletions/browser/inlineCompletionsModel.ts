@@ -35,7 +35,7 @@ export enum VersionIdChangeReason {
 export class InlineCompletionsModel extends Disposable {
 	private readonly _source = this._register(this._instantiationService.createInstance(InlineCompletionsSource, this.textModel, this.textModelVersionId, this._debounceValue));
 	private readonly _isActive = observableValue<boolean, InlineCompletionTriggerKind | void>(this, false);
-	private readonly _forceUpdate = observableSignal<InlineCompletionTriggerKind>('forceUpdate');
+	readonly _forceUpdateSignal = observableSignal<InlineCompletionTriggerKind>('forceUpdate');
 
 	// We use a semantic id to keep the same inline completion selected even if the provider reorders the completions.
 	private readonly _selectedInlineCompletionId = observableValue<string | undefined>(this, undefined);
@@ -92,13 +92,13 @@ export class InlineCompletionsModel extends Disposable {
 			/** @description fetch inline completions */
 			if (ctx.didChange(this.textModelVersionId) && this._preserveCurrentCompletionReasons.has(ctx.change)) {
 				changeSummary.preserveCurrentCompletion = true;
-			} else if (ctx.didChange(this._forceUpdate)) {
+			} else if (ctx.didChange(this._forceUpdateSignal)) {
 				changeSummary.inlineCompletionTriggerKind = ctx.change;
 			}
 			return true;
 		},
 	}, (reader, changeSummary) => {
-		this._forceUpdate.read(reader);
+		this._forceUpdateSignal.read(reader);
 		const shouldUpdate = (this._enabled.read(reader) && this.selectedSuggestItem.read(reader)) || this._isActive.read(reader);
 		if (!shouldUpdate) {
 			this._source.cancelUpdate();
@@ -117,7 +117,7 @@ export class InlineCompletionsModel extends Disposable {
 			const inlineCompletions = this._source.inlineCompletions.get();
 			transaction(tx => {
 				/** @description Seed inline completions with (newer) suggest widget inline completions */
-				if (inlineCompletions && suggestWidgetInlineCompletions.request.versionId > inlineCompletions.request.versionId) {
+				if (!inlineCompletions || suggestWidgetInlineCompletions.request.versionId > inlineCompletions.request.versionId) {
 					this._source.inlineCompletions.set(suggestWidgetInlineCompletions.clone(), tx);
 				}
 				this._source.clearSuggestWidgetInlineCompletions(tx);
@@ -140,7 +140,7 @@ export class InlineCompletionsModel extends Disposable {
 	public async triggerExplicitly(tx?: ITransaction): Promise<void> {
 		subtransaction(tx, tx => {
 			this._isActive.set(true, tx);
-			this._forceUpdate.trigger(tx, InlineCompletionTriggerKind.Explicit);
+			this._forceUpdateSignal.trigger(tx, InlineCompletionTriggerKind.Explicit);
 		});
 		await this._fetchInlineCompletions.get();
 	}
@@ -179,9 +179,8 @@ export class InlineCompletionsModel extends Disposable {
 		return filteredCompletions[idx];
 	});
 
-	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined> = this._source.inlineCompletions.map(
-		v => /** @description lastTriggerKind */ v?.request.context.triggerKind
-	);
+	public readonly lastTriggerKind: IObservable<InlineCompletionTriggerKind | undefined>
+		= this._source.inlineCompletions.map(this, v => v?.request.context.triggerKind);
 
 	public readonly inlineCompletionsCount = derived<number | undefined>(this, reader => {
 		if (this.lastTriggerKind.read(reader) === InlineCompletionTriggerKind.Explicit) {

@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { template } from 'vs/base/common/labels';
 import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
@@ -25,6 +25,7 @@ import { Schemas } from 'vs/base/common/network';
 import { getVirtualWorkspaceLocation } from 'vs/platform/workspace/common/virtualWorkspace';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IViewsService } from 'vs/workbench/common/views';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 const enum WindowSettingNames {
 	titleSeparator = 'window.titleSeparator',
@@ -44,29 +45,32 @@ export class WindowTitle extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
+	get value() { return this.title ?? ''; }
+	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
 	private title: string | undefined;
+	private titleIncludesFocusedView: boolean = false;
+
+	private readonly editorService: IEditorService;
 
 	constructor(
+		private readonly targetWindow: Window & typeof globalThis,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
 		@IViewsService private readonly viewsService: IViewsService
 	) {
 		super();
+
+		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+
+		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
-	}
-
-	get value() {
-		return this.title ?? '';
-	}
-
-	get workspaceName() {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	private registerListeners(): void {
@@ -77,13 +81,26 @@ export class WindowTitle extends Disposable {
 		this._register(this.contextService.onDidChangeWorkspaceName(() => this.titleUpdater.schedule()));
 		this._register(this.labelService.onDidChangeFormatters(() => this.titleUpdater.schedule()));
 		this._register(this.userDataProfileService.onDidChangeCurrentProfile(() => this.titleUpdater.schedule()));
-		this._register(this.viewsService.onDidChangeFocusedView(() => this.titleUpdater.schedule()));
+		this._register(this.viewsService.onDidChangeFocusedView(() => {
+			if (this.titleIncludesFocusedView) {
+				this.titleUpdater.schedule();
+			}
+		}));
 	}
 
 	private onConfigurationChanged(event: IConfigurationChangeEvent): void {
+		if (event.affectsConfiguration(WindowSettingNames.title)) {
+			this.updateTitleIncludesFocusedView();
+		}
+
 		if (event.affectsConfiguration(WindowSettingNames.title) || event.affectsConfiguration(WindowSettingNames.titleSeparator)) {
 			this.titleUpdater.schedule();
 		}
+	}
+
+	private updateTitleIncludesFocusedView(): void {
+		const titleTemplate = this.configurationService.getValue<unknown>(WindowSettingNames.title);
+		this.titleIncludesFocusedView = typeof titleTemplate === 'string' && titleTemplate.includes('${focusedView}');
 	}
 
 	private onActiveEditorChange(): void {
@@ -100,17 +117,35 @@ export class WindowTitle extends Disposable {
 			this.activeEditorListeners.add(activeEditor.onDidChangeDirty(() => this.titleUpdater.schedule()));
 			this.activeEditorListeners.add(activeEditor.onDidChangeLabel(() => this.titleUpdater.schedule()));
 		}
+
+		// Apply listeners for tracking focused code editor
+		if (this.titleIncludesFocusedView) {
+			const activeTextEditorControl = this.editorService.activeTextEditorControl;
+			const textEditorControls: ICodeEditor[] = [];
+			if (isCodeEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl);
+			} else if (isDiffEditor(activeTextEditorControl)) {
+				textEditorControls.push(activeTextEditorControl.getOriginalEditor(), activeTextEditorControl.getModifiedEditor());
+			}
+
+			for (const textEditorControl of textEditorControls) {
+				this.activeEditorListeners.add(textEditorControl.onDidBlurEditorText(() => this.titleUpdater.schedule()));
+				this.activeEditorListeners.add(textEditorControl.onDidFocusEditorText(() => this.titleUpdater.schedule()));
+			}
+		}
 	}
 
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
 		if (title !== this.title) {
+
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
-			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+
+			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -118,26 +153,30 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
-			window.document.title = nativeTitle;
+
+			this.targetWindow.document.title = nativeTitle;
 			this.title = title;
+
 			this.onDidChangeEmitter.fire();
 		}
 	}
 
 	private getFullWindowTitle(): string {
-		let title = this.getWindowTitle() || this.productService.nameLong;
 		const { prefix, suffix } = this.getTitleDecorations();
+
+		let title = this.getWindowTitle() || this.productService.nameLong;
 		if (prefix) {
 			title = `${prefix} ${title}`;
 		}
+
 		if (suffix) {
 			title = `${title} ${suffix}`;
 		}
+
 		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
-		return title;
+		return title.replace(/[^\S ]/g, ' ');
 	}
 
 	getTitleDecorations() {
@@ -147,6 +186,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.prefix) {
 			prefix = this.properties.prefix;
 		}
+
 		if (this.environmentService.isExtensionDevelopment) {
 			prefix = !prefix
 				? WindowTitle.NLS_EXTENSION_HOST
@@ -156,6 +196,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.isAdmin) {
 			suffix = WindowTitle.NLS_USER_IS_ADMIN;
 		}
+
 		return { prefix, suffix };
 	}
 
@@ -189,6 +230,7 @@ export class WindowTitle extends Disposable {
 	 * {appName}: e.g. VS Code
 	 * {remoteName}: e.g. SSH
 	 * {dirty}: indicator
+	 * {focusedView}: e.g. Terminal
 	 * {separator}: conditional separator
 	 */
 	getWindowTitle(): string {
@@ -276,6 +318,7 @@ export class WindowTitle extends Disposable {
 	isCustomTitleFormat(): boolean {
 		const title = this.configurationService.inspect<string>(WindowSettingNames.title);
 		const titleSeparator = this.configurationService.inspect<string>(WindowSettingNames.titleSeparator);
+
 		return title.value !== title.defaultValue || titleSeparator.value !== titleSeparator.defaultValue;
 	}
 }

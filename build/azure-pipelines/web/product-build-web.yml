@@ -1,7 +1,9 @@
 steps:
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - template: ../distro/download-distro.yml
 
@@ -106,6 +108,7 @@ steps:
     displayName: Build
 
   - task: AzureCLI@2
+    displayName: Fetch secrets from Azure
     inputs:
       azureSubscription: "vscode-builds-subscription"
       scriptType: pscore
@@ -149,6 +152,16 @@ steps:
   - script: echo "##vso[task.setvariable variable=ARTIFACT_PREFIX]attempt$(System.JobAttempt)_"
     condition: and(succeededOrFailed(), notIn(variables['Agent.JobStatus'], 'Succeeded', 'SucceededWithIssues'))
     displayName: Generate artifact prefix
+
+  - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
+    displayName: Generate SBOM
+    inputs:
+      BuildDropPath: $(agent.builddirectory)/vscode-web
+      PackageName: Visual Studio Code Web
+
+  - publish: $(agent.builddirectory)/vscode-web/_manifest
+    displayName: Publish SBOM (client)
+    artifact: $(ARTIFACT_PREFIX)sbom_vscode_web
 
   - publish: $(WEB_PATH)
     artifact: $(ARTIFACT_PREFIX)vscode_web_linux_standalone_archive-unsigned

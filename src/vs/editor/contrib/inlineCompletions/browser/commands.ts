@@ -5,6 +5,7 @@
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { transaction } from 'vs/base/common/observable';
+import { asyncTransaction } from 'vs/base/common/observableInternal/base';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -72,7 +73,11 @@ export class TriggerInlineSuggestionAction extends EditorAction {
 
 	public async run(accessor: ServicesAccessor | undefined, editor: ICodeEditor): Promise<void> {
 		const controller = InlineCompletionsController.get(editor);
-		controller?.model.get()?.triggerExplicitly();
+		await asyncTransaction(async tx => {
+			/** @description triggerExplicitly from command */
+			await controller?.model.get()?.triggerExplicitly(tx);
+			controller?.playAudioCue(tx);
+		});
 	}
 }
 

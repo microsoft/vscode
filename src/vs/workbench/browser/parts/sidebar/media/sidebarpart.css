@@ -59,3 +59,15 @@
 	width: 16px;
 	height: 16px;
 }
+
+.monaco-workbench .sidebar.pane-composite-part > .title > .composite-bar-container {
+	flex: 1;
+}
+
+.monaco-workbench .sidebar.part.pane-composite-part > .composite.title.has-composite-bar > .title-actions {
+	flex: inherit;
+}
+
+.monaco-workbench .sidebar.pane-composite-part > .title.has-composite-bar > .title-actions .monaco-action-bar .action-item {
+	max-width: 150px;
+}

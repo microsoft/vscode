@@ -20,7 +20,9 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -143,7 +145,7 @@ steps:
         VSCODE_HOST_MOUNT: "/mnt/vss/_work/1/s"
         ${{ if or(eq(parameters.VSCODE_ARCH, 'x64'), eq(parameters.VSCODE_ARCH, 'arm64')) }}:
           VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-$(VSCODE_ARCH)
-      displayName: Install dependencies
+      displayName: Install dependencies (non-OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
     - script: node build/azure-pipelines/distro/mixin-npm
@@ -172,7 +174,7 @@ steps:
         ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Install dependencies
+      displayName: Install dependencies (OSS)
       condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
   - script: |
@@ -251,7 +253,7 @@ steps:
     - script: yarn gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Transpile
+      displayName: Transpile client and extensions
 
   - ${{ if or(eq(parameters.VSCODE_RUN_UNIT_TESTS, true), eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true), eq(parameters.VSCODE_RUN_SMOKE_TESTS, true)) }}:
     - template: product-build-linux-test.yml
@@ -330,6 +332,7 @@ steps:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
+        BuildComponentPath: $(Build.SourcesDirectory)/remote
         BuildDropPath: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
@@ -370,4 +373,3 @@ steps:
       artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package
-

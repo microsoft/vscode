@@ -42,7 +42,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IQuickInputService, IQuickPickItem, QuickPickInput } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClassesForLanguageId } from 'vs/editor/common/services/getIconClasses';
 import { Promises, timeout } from 'vs/base/common/async';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IStatusbarEntryAccessor, IStatusbarService, StatusbarAlignment, IStatusbarEntry } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { IMarker, IMarkerService, MarkerSeverity, IMarkerData } from 'vs/platform/markers/common/markers';
@@ -54,7 +54,7 @@ import { Action2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { TabFocusMode } from 'vs/workbench/browser/parts/editor/tabFocus';
+import { TabFocus } from 'vs/editor/browser/config/tabFocus';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -278,6 +278,36 @@ class State {
 	}
 }
 
+class TabFocusMode extends Disposable {
+
+	private readonly _onDidChange = this._register(new Emitter<boolean>());
+	readonly onDidChange = this._onDidChange.event;
+
+	constructor(@IConfigurationService private readonly configurationService: IConfigurationService) {
+		super();
+
+		this.registerListeners();
+
+		const tabFocusModeConfig = configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+		TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+		this._onDidChange.fire(tabFocusModeConfig);
+	}
+
+	private registerListeners(): void {
+		this._register(TabFocus.onDidChangeTabFocus(tabFocusMode => this._onDidChange.fire(tabFocusMode)));
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('editor.tabFocusMode')) {
+				const tabFocusModeConfig = this.configurationService.getValue<boolean>('editor.tabFocusMode') === true ? true : false;
+				TabFocus.setTabFocusMode(tabFocusModeConfig);
+
+				this._onDidChange.fire(tabFocusModeConfig);
+			}
+		}));
+	}
+}
+
 const nlsSingleSelectionRange = localize('singleSelectionRange', "Ln {0}, Col {1} ({2} selected)");
 const nlsSingleSelection = localize('singleSelection', "Ln {0}, Col {1}");
 const nlsMultiSelectionRange = localize('multiSelectionRange', "{0} selections ({1} characters selected)");
@@ -300,11 +330,14 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private readonly state = new State();
 	private readonly activeEditorListeners = this._register(new DisposableStore());
 	private readonly delayedRender = this._register(new MutableDisposable());
-	private toRender: StateChange | null = null;
-	private tabFocusMode: TabFocusMode;
+	private readonly tabFocusMode = this.instantiationService.createInstance(TabFocusMode);
+
+	private toRender: StateChange | undefined = undefined;
+
+	private editorService: IEditorService;
 
 	constructor(
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@ITextFileService private readonly textFileService: ITextFileService,
@@ -313,7 +346,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) {
 		super();
-		this.tabFocusMode = instantiationService.createInstance(TabFocusMode);
+
+		this.editorService = editorService.createScoped('main', this._store);
+
 		this.registerCommands();
 		this.registerListeners();
 	}
@@ -531,9 +566,9 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
-				this.toRender = null;
+				this.toRender = undefined;
 				if (toRender) {
-					this.doRenderNow(toRender);
+					this.doRenderNow();
 				}
 			});
 		} else {
@@ -541,7 +576,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		}
 	}
 
-	private doRenderNow(changed: StateChange): void {
+	private doRenderNow(): void {
 		this.updateTabFocusModeElement(!!this.state.tabFocusMode);
 		this.updateColumnSelectionModeElement(!!this.state.columnSelectionMode);
 		this.updateIndentationElement(this.state.indentation);

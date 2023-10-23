@@ -30,10 +30,51 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
+export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
+
+class QuickChatGlobalAction extends Action2 {
+	constructor() {
+		super({
+			id: CHAT_OPEN_ACTION_ID,
+			title: { value: localize('quickChat', "Quick Chat"), original: 'Quick Chat' },
+			precondition: CONTEXT_PROVIDER_EXISTS,
+			icon: Codicon.commentDiscussion,
+			f1: false,
+			category: CHAT_CATEGORY,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyI,
+				mac: {
+					primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KeyI
+				}
+			}
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, query?: string): Promise<void> {
+		const chatService = accessor.get(IChatService);
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const providers = chatService.getProviderInfos();
+		if (!providers.length) {
+			return;
+		}
+		const chatWidget = await chatWidgetService.revealViewForProvider(providers[0].id);
+		if (!chatWidget) {
+			return;
+		}
+		if (query) {
+			chatWidget.acceptInput(query);
+		}
+		chatWidget.focusInput();
+	}
+}
 
 export function registerChatActions() {
+	registerAction2(QuickChatGlobalAction);
 	registerEditorAction(class ChatAcceptInput extends EditorAction {
 		constructor() {
 			super({
@@ -54,6 +95,36 @@ export function registerChatActions() {
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
 				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
+			}
+		}
+	});
+
+	registerEditorAction(class ChatSubmitSecondaryAgent extends EditorAction {
+		constructor() {
+			super({
+				id: 'chat.action.submitSecondaryAgent',
+				label: localize({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+				alias: 'Submit to Secondary Agent',
+				precondition: CONTEXT_IN_CHAT_INPUT,
+				kbOpts: {
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+			const editorUri = editor.getModel()?.uri;
+			if (editorUri) {
+				const agentService = accessor.get(IChatAgentService);
+				const secondaryAgent = agentService.getSecondaryAgent();
+				if (!secondaryAgent) {
+					return;
+				}
+
+				const widgetService = accessor.get(IChatWidgetService);
+				widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
 			}
 		}
 	});

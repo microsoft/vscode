@@ -49,15 +49,23 @@ suite('EditorsObserver', function () {
 		return [part, instantiationService];
 	}
 
-	async function createEditorObserver(): Promise<[EditorPart, EditorsObserver, IInstantiationService]> {
+	async function createEditorObserver(scoped = false): Promise<[EditorPart, EditorsObserver, IInstantiationService]> {
 		const [part, instantiationService] = await createPart();
 
-		const observer = disposables.add(new EditorsObserver(part, disposables.add(new TestStorageService())));
+		const observer = disposables.add(new EditorsObserver(scoped ? part : undefined, part, disposables.add(new TestStorageService())));
 
 		return [part, observer, instantiationService];
 	}
 
 	test('basics (single group)', async () => {
+		await testSingleGroupBasics();
+	});
+
+	test('basics (single group, scoped)', async () => {
+		await testSingleGroupBasics(true);
+	});
+
+	async function testSingleGroupBasics(scoped = false) {
 		const [part, observer] = await createEditorObserver();
 
 		let onDidMostRecentlyActiveEditorsChangeCalled = false;
@@ -136,7 +144,7 @@ suite('EditorsObserver', function () {
 		assert.strictEqual(observer.hasEditor({ resource: input1.resource, typeId: input1.typeId, editorId: input1.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input2.resource, typeId: input2.typeId, editorId: input2.editorId }), false);
 		assert.strictEqual(observer.hasEditor({ resource: input3.resource, typeId: input3.typeId, editorId: input3.editorId }), false);
-	});
+	}
 
 	test('basics (multi group)', async () => {
 		const [part, observer] = await createEditorObserver();
@@ -361,7 +369,7 @@ suite('EditorsObserver', function () {
 		await rootGroup.openEditor(input3, { pinned: true });
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
@@ -378,7 +386,7 @@ suite('EditorsObserver', function () {
 
 		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
+		const restoredObserver = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
@@ -410,7 +418,7 @@ suite('EditorsObserver', function () {
 		await sideGroup.openEditor(input3, { pinned: true });
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
@@ -427,7 +435,7 @@ suite('EditorsObserver', function () {
 
 		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
+		const restoredObserver = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
@@ -453,7 +461,7 @@ suite('EditorsObserver', function () {
 		await rootGroup.openEditor(input1, { pinned: true });
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		let currentEditorsMRU = observer.editors;
@@ -464,7 +472,7 @@ suite('EditorsObserver', function () {
 
 		storage.testEmitWillSaveState(WillSaveStateReason.SHUTDOWN);
 
-		const restoredObserver = disposables.add(new EditorsObserver(part, storage));
+		const restoredObserver = disposables.add(new EditorsObserver(undefined, part, storage));
 		await part.whenReady;
 
 		currentEditorsMRU = restoredObserver.editors;
@@ -477,7 +485,7 @@ suite('EditorsObserver', function () {
 		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 
 		const rootGroup = part.activeGroup;
 		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
@@ -538,7 +546,7 @@ suite('EditorsObserver', function () {
 		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3, perEditorGroup: true } }));
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 
 		const rootGroup = part.activeGroup;
 		const sideGroup = disposables.add(part.addGroup(rootGroup, GroupDirection.RIGHT));
@@ -605,7 +613,7 @@ suite('EditorsObserver', function () {
 		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 
 		const rootGroup = part.activeGroup;
 
@@ -635,7 +643,7 @@ suite('EditorsObserver', function () {
 		disposables.add(part.enforcePartOptions({ limit: { enabled: true, value: 3 } }));
 
 		const storage = disposables.add(new TestStorageService());
-		const observer = disposables.add(new EditorsObserver(part, storage));
+		const observer = disposables.add(new EditorsObserver(undefined, part, storage));
 
 		const rootGroup = part.activeGroup;
 

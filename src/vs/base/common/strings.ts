@@ -42,6 +42,9 @@ const _format2Regexp = /{([^}]+)}/g;
  * Similar to `format` but with objects instead of positional arguments.
  */
 export function format2(template: string, values: Record<string, unknown>): string {
+	if (Object.keys(values).length === 0) {
+		return template;
+	}
 	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
 }
 

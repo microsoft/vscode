@@ -5,10 +5,15 @@
 
 import { BugIndicatingError } from 'vs/base/common/errors';
 
+export interface IOffsetRange {
+	readonly start: number;
+	readonly endExclusive: number;
+}
+
 /**
  * A range of offsets (0-based).
 */
-export class OffsetRange {
+export class OffsetRange implements IOffsetRange {
 	public static addRange(range: OffsetRange, sortedRanges: OffsetRange[]): void {
 		let i = 0;
 		while (i < sortedRanges.length && sortedRanges[i].endExclusive < range.start) {
@@ -101,6 +106,12 @@ export class OffsetRange {
 			return new OffsetRange(start, end);
 		}
 		return undefined;
+	}
+
+	public intersectsOrTouches(other: OffsetRange): boolean {
+		const start = Math.max(this.start, other.start);
+		const end = Math.min(this.endExclusive, other.endExclusive);
+		return start <= end;
 	}
 
 	public slice<T>(arr: T[]): T[] {

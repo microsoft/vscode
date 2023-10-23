@@ -225,7 +225,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	public override focus(): void {
-		if (this.tree && this.tree.getHTMLElement() === document.activeElement) {
+		const element = this.tree?.getHTMLElement();
+		if (element && dom.isActiveElement(element)) {
 			return;
 		}
 
@@ -353,7 +354,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 					return '';
 				},
 				getWidgetAriaLabel(): string {
-					return COMMENTS_VIEW_TITLE;
+					return COMMENTS_VIEW_TITLE.value;
 				}
 			}
 		}));
@@ -399,7 +400,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.uniqueIdInThread : element.comment.uniqueIdInThread;
 				if (threadToReveal && isCodeEditor(editor)) {
 					const controller = CommentController.get(editor);
-					controller?.revealCommentThread(threadToReveal, commentToReveal, true);
+					controller?.revealCommentThread(threadToReveal, commentToReveal, true, !preserveFocus);
 				}
 
 				return true;
@@ -421,7 +422,7 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {
 					const controller = CommentController.get(control);
-					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true);
+					controller?.revealCommentThread(threadToReveal, commentToReveal.uniqueIdInThread, true, !preserveFocus);
 				}
 			}
 		});

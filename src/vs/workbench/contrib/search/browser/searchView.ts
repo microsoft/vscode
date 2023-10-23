@@ -904,7 +904,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (focus instanceof Match) {
-				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
+				editable = (focus instanceof MatchInNotebook) ? !focus.isReadonly() : true;
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
@@ -1072,7 +1072,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
@@ -1275,7 +1275,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
 			return null;
 		}
 
@@ -1288,45 +1288,12 @@ export class SearchView extends ViewPane {
 			}
 		}
 
-		if (!isCodeEditor(editor) || !editor.hasModel()) {
+		if (!editor) {
 			return null;
 		}
 
-		const range = editor.getSelection();
-		if (!range) {
-			return null;
-		}
-
-		if (range.isEmpty() && this.searchConfig.seedWithNearestWord && allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			if (wordAtPosition) {
-				return wordAtPosition.word;
-			}
-		}
-
-		if (!range.isEmpty()) {
-			let searchText = '';
-			for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-				let lineText = editor.getModel().getLineContent(i);
-				if (i === range.endLineNumber) {
-					lineText = lineText.substring(0, range.endColumn - 1);
-				}
-
-				if (i === range.startLineNumber) {
-					lineText = lineText.substring(range.startColumn - 1);
-				}
-
-				if (i !== range.startLineNumber) {
-					lineText = '\n' + lineText;
-				}
-
-				searchText += lineText;
-			}
-
-			return searchText;
-		}
-
-		return null;
+		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
+		return getSelectionTextFromEditor(allowUnselected, editor);
 	}
 
 	private showsFileTypes(): boolean {
@@ -2177,4 +2144,45 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 		return range;
 	}
 	return undefined;
+}
+
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
+
+	if (!isCodeEditor(editor) || !editor.hasModel()) {
+		return null;
+	}
+
+	const range = editor.getSelection();
+	if (!range) {
+		return null;
+	}
+
+	if (range.isEmpty()) {
+		if (allowUnselectedWord) {
+			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
+			return wordAtPosition?.word ?? null;
+		} else {
+			return null;
+		}
+	}
+
+	let searchText = '';
+	for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
+		let lineText = editor.getModel().getLineContent(i);
+		if (i === range.endLineNumber) {
+			lineText = lineText.substring(0, range.endColumn - 1);
+		}
+
+		if (i === range.startLineNumber) {
+			lineText = lineText.substring(range.startColumn - 1);
+		}
+
+		if (i !== range.startLineNumber) {
+			lineText = '\n' + lineText;
+		}
+
+		searchText += lineText;
+	}
+
+	return searchText;
 }
