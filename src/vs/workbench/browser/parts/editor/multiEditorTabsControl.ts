@@ -31,7 +31,7 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
@@ -992,9 +992,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor && this.tabsModel.isPinned(editor)) {
-					if (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes) {
-						this.groupsView.arrangeGroups(GroupsArrangement.TOGGLE, this.groupView);
+					switch (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes) {
+						case 'maximize':
+							this.groupsView.toggleMaximizeGroup(this.groupView);
+							break;
+						case 'expand':
+							this.groupsView.toggleExpandGroup(this.groupView);
+							break;
+						case 'off':
+							break;
 					}
+
 				} else {
 					this.groupView.pinEditor(editor);
 				}

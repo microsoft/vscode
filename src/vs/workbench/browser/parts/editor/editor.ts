@@ -48,7 +48,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
-	doubleClickTabToToggleEditorGroupSizes: true,
+	doubleClickTabToToggleEditorGroupSizes: 'expand',
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -116,7 +116,6 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		'restoreViewState',
 		'splitOnDragAndDrop',
 		'centeredLayoutFixedWidth',
-		'doubleClickTabToToggleEditorGroupSizes'
 	];
 	for (const option of booleanOptions) {
 		if (typeof option === 'string') {
@@ -149,6 +148,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		['labelFormat', ['default', 'short', 'medium', 'long']],
 		['splitInGroupLayout', ['vertical', 'horizontal']],
 		['splitSizing', ['distribute', 'split', 'auto']],
+		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']]
 	];
 	for (const [option, allowed] of stringOptions) {
 		if (typeof option === 'string') {
@@ -235,6 +235,8 @@ export interface IEditorGroupsView {
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
 
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
+	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void;
+	toggleExpandGroup(group?: IEditorGroupView | GroupIdentifier): void;
 }
 
 export interface IEditorGroupTitleHeight {

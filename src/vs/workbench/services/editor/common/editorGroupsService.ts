@@ -43,23 +43,22 @@ export interface IFindGroupScope {
 }
 
 export const enum GroupsArrangement {
+	/**
+	 * Make the current active group consume the entire
+	 * editor area.
+	 */
+	MAXIMIZE,
 
 	/**
 	 * Make the current active group consume the maximum
 	 * amount of space possible.
 	 */
-	MAXIMIZE,
+	EXPAND,
 
 	/**
 	 * Size all groups evenly.
 	 */
-	EVEN,
-
-	/**
-	 * Will behave like MINIMIZE_OTHERS if the active
-	 * group is not already maximized and EVEN otherwise
-	 */
-	TOGGLE
+	EVEN
 }
 
 export interface GroupLayoutArgument {
@@ -216,6 +215,11 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeGroupLocked: Event<IEditorGroup>;
 
 	/**
+	 * An event for when the maximized state of a group changes.
+	 */
+	readonly onDidChangeGroupMaximized: Event<boolean>;
+
+	/**
 	 * An active group is the default location for new editors to open.
 	 */
 	readonly activeGroup: IEditorGroup;
@@ -273,7 +277,17 @@ export interface IEditorGroupsContainer {
 	/**
 	 * Arrange all groups in the container according to the provided arrangement.
 	 */
-	arrangeGroups(arrangement: GroupsArrangement): void;
+	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Toggles the target goup size to maximize/unmaximize.
+	 */
+	toggleMaximizeGroup(group?: IEditorGroup | GroupIdentifier): void;
+
+	/**
+	 * Toggles the target goup size to expand/distribute even.
+	 */
+	toggleExpandGroup(group?: IEditorGroup | GroupIdentifier): void;
 
 	/**
 	 * Applies the provided layout by either moving existing groups or creating new groups.
