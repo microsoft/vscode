@@ -188,5 +188,5 @@
 
 /* Override top position of progress bar which defined in vs/workbench/browser/media/part.css */
 .monaco-workbench .part.editor > .content .monaco-progress-container {
-	top: var(--editor-group-tabs-height);
+	top: min(calc(var(--editor-group-tabs-height) - 2px), 0);
 }
