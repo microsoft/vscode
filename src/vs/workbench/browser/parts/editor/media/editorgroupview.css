@@ -185,3 +185,8 @@
 	width: 100%;
 	height: 100%;
 }
+
+/* Override top position of progress bar which defined in vs/workbench/browser/media/part.css */
+.monaco-workbench .part.editor > .content .monaco-progress-container {
+	top: var(--editor-group-tabs-height);
+}

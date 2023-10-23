@@ -1943,6 +1943,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
+	updateGroupTabsHeight() {
+		this.element.style.setProperty('--editor-group-tabs-height', `${this.titleHeight.offset}px`);
+	}
+
 	setBoundarySashes(sashes: IBoundarySashes): void {
 		this.editorPane.setBoundarySashes(sashes);
 	}

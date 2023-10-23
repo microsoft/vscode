@@ -753,6 +753,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
 			oldOptions.wrapTabs !== newOptions.wrapTabs ||
+			oldOptions.tabHeight !== newOptions.tabHeight ||
+			oldOptions.pinnedTabsOnSeparateRow !== newOptions.pinnedTabsOnSeparateRow ||
 			!equals(oldOptions.decorations, newOptions.decorations)
 		) {
 			this.redraw();
@@ -1637,6 +1639,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		if (oldDimension && oldDimension.height !== newDimension.height) {
 			this.groupView.relayout();
 		}
+
+		// Update group tabs height to set progress bar position css variable
+		this.groupView.updateGroupTabsHeight();
 	}
 
 	private doLayoutTabs(dimensions: IEditorTitleControlDimensions, options?: IMultiEditorTabsControlLayoutOptions): void {
