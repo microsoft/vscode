@@ -51,10 +51,24 @@ function wrapCommitMessage(message: string, subjectLineLength: number, bodyLineL
 		const lineSegments: string[] = [];
 		while (messageLine.length - position > threshold) {
 			const lastSpaceBeforeThreshold = messageLine.lastIndexOf(' ', position + threshold);
-			lineSegments.push(...[messageLine.substring(position, lastSpaceBeforeThreshold), '\n']);
-			position = lastSpaceBeforeThreshold + 1;
+			if (lastSpaceBeforeThreshold !== -1 && lastSpaceBeforeThreshold > position) {
+				lineSegments.push(...[messageLine.substring(position, lastSpaceBeforeThreshold), '\n']);
+				position = lastSpaceBeforeThreshold + 1;
+			} else {
+				// Find first space after threshold
+				const firstSpaceAfterThreshold = messageLine.indexOf(' ', position);
+				if (firstSpaceAfterThreshold !== -1) {
+					lineSegments.push(...[messageLine.substring(position, firstSpaceAfterThreshold), '\n']);
+					position = firstSpaceAfterThreshold + 1;
+				} else {
+					lineSegments.push(messageLine.substring(position));
+					position = messageLine.length;
+				}
+			}
 		}
-		lineSegments.push(messageLine.substring(position));
+		if (position < messageLine.length) {
+			lineSegments.push(messageLine.substring(position));
+		}
 		messageLinesWrapped.push(lineSegments.join(''));
 	}
 
