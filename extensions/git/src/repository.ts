@@ -34,6 +34,33 @@ function getIconUri(iconName: string, theme: string): Uri {
 	return Uri.file(path.join(iconsRootPath, theme, `${iconName}.svg`));
 }
 
+function wrapCommitMessage(message: string, subjectLineLength: number, bodyLineLength: number): string {
+	const messageLinesWrapped: string[] = [];
+	const messageLines = message.split(/\r?\n/g);
+
+	for (let index = 0; index < messageLines.length; index++) {
+		const messageLine = messageLines[index];
+		const threshold = index === 0 ? subjectLineLength : bodyLineLength;
+
+		if (messageLine.length <= threshold) {
+			messageLinesWrapped.push(messageLine);
+			continue;
+		}
+
+		let position = 0;
+		const lineSegments: string[] = [];
+		while (messageLine.length - position > threshold) {
+			const lastSpaceBeforeThreshold = messageLine.lastIndexOf(' ', position + threshold);
+			lineSegments.push(...[messageLine.substring(position, lastSpaceBeforeThreshold), '\n']);
+			position = lastSpaceBeforeThreshold + 1;
+		}
+		lineSegments.push(messageLine.substring(position));
+		messageLinesWrapped.push(lineSegments.join(''));
+	}
+
+	return messageLinesWrapped.join('\n');
+}
+
 export const enum RepositoryState {
 	Idle,
 	Disposed
@@ -2050,7 +2077,11 @@ export class Repository implements Disposable {
 			const provider = this.commitMessageProviderRegistry.commitMessageProvider;
 			const commitMessage = await provider.provideCommitMessage(new ApiRepository(this), diff, token);
 			if (commitMessage) {
-				this.inputBox.value = commitMessage;
+				const config = workspace.getConfiguration('git');
+				const subjectLineLength = config.get<number | null>('inputValidationSubjectLength', null);
+				const bodyLineLength = config.get<number>('inputValidationLength', 50);
+
+				this.inputBox.value = wrapCommitMessage(commitMessage, subjectLineLength ?? bodyLineLength, bodyLineLength);
 			}
 		}
 		catch (err) {
