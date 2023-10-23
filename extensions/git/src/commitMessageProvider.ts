@@ -20,7 +20,9 @@ export class TestCommitMessageProvider implements CommitMessageProvider {
 	readonly icon = new ThemeIcon('rocket');
 	readonly title = 'Generate Commit Message (Test)';
 
-	async provideCommitMessage(_: ApiRepository, __: string[], token: CancellationToken): Promise<string | undefined> {
+	async provideCommitMessage(repository: ApiRepository, _: string[], token: CancellationToken): Promise<string | undefined> {
+		console.log('Repository: ', repository.rootUri.fsPath);
+
 		if (token.isCancellationRequested) {
 			return undefined;
 		}
@@ -62,12 +64,20 @@ export class GenerateCommitMessageActionButton {
 		return this.state.isGenerating ?
 			{
 				icon: new ThemeIcon('debug-stop'),
-				command: { title: l10n.t('Cancel'), command: 'git.generateCommitMessageCancel' },
-				enabled: this.state.enabled
+				command: {
+					title: l10n.t('Cancel'),
+					command: 'git.generateCommitMessageCancel',
+					arguments: [this.repository.sourceControl]
+				},
+				enabled: this.state.enabled,
 			} :
 			{
 				icon: this.commitMessageProviderRegistry.commitMessageProvider.icon ?? new ThemeIcon('sparkle'),
-				command: { title: this.commitMessageProviderRegistry.commitMessageProvider.title, command: 'git.generateCommitMessage' },
+				command: {
+					title: this.commitMessageProviderRegistry.commitMessageProvider.title,
+					command: 'git.generateCommitMessage',
+					arguments: [this.repository.sourceControl]
+				},
 				enabled: this.state.enabled
 			};
 	}
