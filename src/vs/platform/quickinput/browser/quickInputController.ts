@@ -59,6 +59,15 @@ export class QuickInputController extends Disposable {
 		this.parentElement = options.container;
 		this.styles = options.styles;
 		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposableStore }) => this.registerKeyModsListeners(window, disposableStore), { window, disposableStore: this._store }));
+		this._register(dom.onWillUnregisterWindow(window => {
+			if (this.ui && dom.getWindow(this.ui.container) === window) {
+				// The window this quick input is contained in is about to
+				// close, so we have to make sure to reparent it back to an
+				// existing parent to not loose functionality.
+				// (https://github.com/microsoft/vscode/issues/195870)
+				this.reparentUI(this.layoutService.container);
+			}
+		}));
 	}
 
 	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
@@ -74,11 +83,10 @@ export class QuickInputController extends Disposable {
 
 	private getUI() {
 		if (this.ui) {
-			// In order to support aux windows, re-parent the controller if the original event is
-			// from a different document
+			// In order to support aux windows, re-parent the controller
+			// if the original event is from a different document
 			if (this.parentElement.ownerDocument !== this.layoutService.activeContainer.ownerDocument) {
-				this.parentElement = this.layoutService.activeContainer;
-				dom.append(this.parentElement, this.ui.container);
+				this.reparentUI(this.layoutService.activeContainer);
 			}
 
 			return this.ui;
@@ -304,6 +312,13 @@ export class QuickInputController extends Disposable {
 		};
 		this.updateStyles();
 		return this.ui;
+	}
+
+	private reparentUI(container: HTMLElement): void {
+		if (this.ui) {
+			this.parentElement = container;
+			dom.append(this.parentElement, this.ui.container);
+		}
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
