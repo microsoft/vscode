@@ -9,9 +9,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/uti
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -22,7 +23,7 @@ suite('ChatVariables', function () {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
-		service = new ChatVariablesService();
+		service = new ChatVariablesService(null!);
 		instantiationService = testDisposables.add(new TestInstantiationService());
 		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());

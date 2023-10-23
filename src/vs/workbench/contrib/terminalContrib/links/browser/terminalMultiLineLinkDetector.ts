@@ -33,7 +33,7 @@ const lineNumberPrefixMatchers = [
 	// Eslint:
 	//   /some/file
 	//     16:5  error ...
-	/ *(?<link>(?<line>\d+):(?<col>\d+)?)/
+	/^ *(?<link>(?<line>\d+):(?<col>\d+)?)/
 ];
 
 const gitDiffMatchers = [

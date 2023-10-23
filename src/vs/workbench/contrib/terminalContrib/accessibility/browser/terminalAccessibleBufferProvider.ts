@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Emitter } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IModelService } from 'vs/editor/common/services/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -16,10 +17,12 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
 	id = AccessibleViewProviderId.Terminal;
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true, id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
+	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
+	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
 	constructor(
-		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource'>,
+		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
 		@IModelService _modelService: IModelService,
@@ -29,7 +32,11 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	) {
 		super();
 		this.options.customHelp = customHelp;
+		this.add(this._instance.onDidRequestFocus(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
 	}
+
+
 
 	onClose() {
 		this._instance.focus();

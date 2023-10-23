@@ -416,7 +416,7 @@ export async function withTestNotebook<R = any>(cells: [source: string, lang: st
 	});
 }
 
-export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: DisposableStore, viewContext?: ViewContext) {
+export function createNotebookCellList(instantiationService: TestInstantiationService, disposables: Pick<DisposableStore, 'add'>, viewContext?: ViewContext) {
 	const delegate: IListVirtualDelegate<CellViewModel> = {
 		getHeight(element: CellViewModel) { return element.getHeight(17); },
 		getTemplateId() { return 'template'; }

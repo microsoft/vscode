@@ -40,6 +40,8 @@ class EditorScopedQuickInputService extends QuickInputService {
 				_serviceBrand: undefined,
 				get hasContainer() { return true; },
 				get container() { return widget.getDomNode(); },
+				get containers() { return [widget.getDomNode()]; },
+				get activeContainer() { return widget.getDomNode(); },
 				get dimension() { return editor.getLayoutInfo(); },
 				get onDidLayout() { return editor.onDidLayoutChange; },
 				focus: () => editor.focus(),

@@ -353,8 +353,8 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const fromCommandsRegistry = CommandsRegistry.getCommand(commandId);
 
-		if (fromCommandsRegistry && fromCommandsRegistry.description?.description) {
-			return { title: fromCommandsRegistry.description.description };
+		if (fromCommandsRegistry && fromCommandsRegistry.metadata?.description) {
+			return { title: typeof fromCommandsRegistry.metadata.description === 'string' ? fromCommandsRegistry.metadata.description : fromCommandsRegistry.metadata.description.value };
 		}
 
 		return undefined;

@@ -493,6 +493,8 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
 			this.tocTree.domFocus();
 		}
+
+		super.focus();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

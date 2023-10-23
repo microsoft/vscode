@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
+	AutomationProfile = 'terminal.integrated.automationProfile.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
@@ -115,6 +116,7 @@ export const enum TerminalSettingId {
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
 
 	// Debug settings that are hidden from user
 

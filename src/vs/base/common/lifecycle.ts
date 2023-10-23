@@ -103,8 +103,7 @@ export class DisposableTracker implements IDisposableTracker {
 
 		const leaking = [...this.livingDisposables.entries()]
 			.filter(([, v]) => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton)
-			.map(([k]) => k)
-			.flat();
+			.flatMap(([k]) => k);
 
 		return leaking;
 	}
