@@ -87,8 +87,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
 		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, editor.getModel().uri);
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
-		if (isEnabled && !isInlineChatVisible) {
+		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber)) && !isInlineChatVisible;
+		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(selection.startLineNumber);
 			} else {
