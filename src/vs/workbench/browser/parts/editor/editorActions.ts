@@ -1125,12 +1125,18 @@ export class UnmaximizeEditorGroupAction extends Action2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.EditorTitle,
 				order: -10000, // towards the front
 				group: 'navigation',
 				when: MaximizedEditorGroupContext
 			},
+			{
+				id: MenuId.EmptyEditorGroup,
+				order: -10000, // towards the front
+				group: 'navigation',
+				when: MaximizedEditorGroupContext
+			}],
 			icon: Codicon.screenFull,
 			toggled: MaximizedEditorGroupContext,
 		});

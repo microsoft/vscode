@@ -7,7 +7,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService, IContextKey, setConstant as setConstantContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { InputFocusedContext, IsMacContext, IsLinuxContext, IsWindowsContext, IsWebContext, IsMacNativeContext, IsDevelopmentContext, IsIOSContext, ProductQualityContext, IsMobileContext } from 'vs/platform/contextkey/common/contextkeys';
-import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, MaximizedEditorGroupContext, TitleBarVisibleContext } from 'vs/workbench/common/contextkeys';
+import { SplitEditorsVertically, InEditorZenModeContext, ActiveEditorCanRevertContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, AuxiliaryBarVisibleContext, SideBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelVisibleContext, ActiveEditorContext, EditorsVisibleContext, TextCompareEditorVisibleContext, TextCompareEditorActiveContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, EmbedderIdentifierContext, EditorTabsVisibleContext, IsCenteredLayoutContext, ActiveEditorGroupIndexContext, ActiveEditorGroupLastContext, ActiveEditorReadonlyContext, EditorAreaVisibleContext, ActiveEditorAvailableEditorIdsContext, DirtyWorkingCopiesContext, EmptyWorkspaceSupportContext, EnterMultiRootWorkspaceSupportContext, HasWebFileSystemAccess, IsFullscreenContext, OpenFolderWorkspaceSupportContext, RemoteNameContext, VirtualWorkspaceContext, WorkbenchStateContext, WorkspaceFolderCountContext, PanelPositionContext, TemporaryWorkspaceContext, ActiveEditorCanToggleReadonlyContext, applyAvailableEditorIds, MaximizedEditorGroupContext, TitleBarVisibleContext, TitleBarStyleContext } from 'vs/workbench/common/contextkeys';
 import { TEXT_DIFF_EDITOR_ID, EditorInputCapabilities, SIDE_BY_SIDE_EDITOR_ID, EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { trackFocus, addDisposableListener, EventType, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { preferredSideBySideGroupDirection, GroupDirection, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -25,6 +25,7 @@ import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/b
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
+import { getTitleBarStyle } from 'vs/platform/window/common/window';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -76,6 +77,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 	private auxiliaryBarVisibleContext: IContextKey<boolean>;
 	private editorTabsVisibleContext: IContextKey<boolean>;
 	private titleAreaVisibleContext: IContextKey<boolean>;
+	private titleBarStyleContext: IContextKey<string>;
 
 	constructor(
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -200,6 +202,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		// Title Bar
 		this.titleAreaVisibleContext = TitleBarVisibleContext.bindTo(this.contextKeyService);
+		this.titleBarStyleContext = TitleBarStyleContext.bindTo(this.contextKeyService);
 		this.updateTitleBarContextKeys();
 
 		// Panel
@@ -239,7 +242,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => disposableStore.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window, disposableStore: this._store }));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window, disposables: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {
@@ -379,6 +382,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 	private updateTitleBarContextKeys(): void {
 		this.titleAreaVisibleContext.set(this.layoutService.isVisible(Parts.TITLEBAR_PART));
+		this.titleBarStyleContext.set(getTitleBarStyle(this.configurationService));
 	}
 
 	private updateWorkspaceContextKeys(): void {

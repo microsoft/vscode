@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.84.0",
-  "distro": "1718b161bc9e156c23d1040ef7655b9313618104",
+  "distro": "b64741efac89ba9962f87c397215cb7308ecfef6",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -73,7 +73,7 @@
     "@vscode/policy-watcher": "^1.1.4",
     "@vscode/proxy-agent": "^0.17.5",
     "@vscode/ripgrep": "^1.15.6",
-    "@vscode/spdlog": "^0.13.11",
+    "@vscode/spdlog": "^0.13.12",
     "@vscode/sqlite3": "5.1.6-vscode",
     "@vscode/sudo-prompt": "9.3.1",
     "@vscode/vscode-languagedetection": "1.0.21",
