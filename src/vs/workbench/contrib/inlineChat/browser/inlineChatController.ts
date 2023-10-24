@@ -582,7 +582,10 @@ export class InlineChatController implements IEditorContribution {
 					// making changes goes into a queue because otherwise the async-progress time will
 					// influence the time it takes to receive the changes and progressive typing will
 					// become infinitely fast
-					await this._makeChanges(data.edits!, { duration: progressiveEditsAvgDuration.value, round: round++, token: requestCts.token });
+					await this._makeChanges(data.edits!, data.editsShouldBeInstant
+						? undefined
+						: { duration: progressiveEditsAvgDuration.value, round: round++, token: requestCts.token }
+					);
 					this._showWidget(false);
 				});
 			}
