@@ -41,8 +41,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
