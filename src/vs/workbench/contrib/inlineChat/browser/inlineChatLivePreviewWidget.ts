@@ -33,7 +33,6 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { generateUuid } from 'vs/base/common/uuid';
 
@@ -102,10 +101,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			this._disposables.add(this._diffEditor.onDidUpdateDiff(() => { onDidChangeDiff(); }));
 		}
 
-		const highlighter = WordHighlighterContribution.get(editor);
-		if (highlighter) {
-			this._disposables.add(highlighter.linkWordHighlighters(this._diffEditor.getModifiedEditor()));
-		}
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
