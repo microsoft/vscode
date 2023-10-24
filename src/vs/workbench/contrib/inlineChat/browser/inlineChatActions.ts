@@ -31,13 +31,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
+export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: localize('run', 'Start Inline Chat'), original: 'Start Inline Chat' },
+			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
