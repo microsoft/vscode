@@ -2514,35 +2514,33 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	getChildren(inputOrElement: ISCMViewService | TreeElement): Iterable<TreeElement> | Promise<Iterable<TreeElement>> {
-		if (isSCMViewService(inputOrElement) && (this.viewModel().alwaysShowRepositories || this.scmViewService.visibleRepositories.length > 1)) {
+		if (isSCMViewService(inputOrElement)) {
 			return this.scmViewService.visibleRepositories;
-		} else if (isSCMViewService(inputOrElement) || isSCMRepository(inputOrElement)) {
+		} else if (isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
 
-			const repository = isSCMViewService(inputOrElement) ?
-				inputOrElement.visibleRepositories[0] : inputOrElement;
-
+			const provider = inputOrElement.provider;
 			const showActionButton = this.viewModel().showActionButton;
 			const repositoryCount = this.scmViewService.visibleRepositories.length;
 
 			// SCM Input
-			if (repository.input.visible) {
-				children.push(repository.input);
+			if (inputOrElement.input.visible) {
+				children.push(inputOrElement.input);
 			}
 
 			// Action Button
-			if (showActionButton && repository.provider.actionButton) {
+			if (showActionButton && provider.actionButton) {
 				children.push({
 					type: 'actionButton',
-					repository: repository,
-					button: repository.provider.actionButton
+					repository: inputOrElement,
+					button: provider.actionButton
 				} as ISCMActionButton);
 			}
 
 			// ResourceGroups
-			const hasSomeChanges = repository.provider.groups.some(item => item.resources.length > 0);
-			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !repository.provider.actionButton))) {
-				children.push(...repository.provider.groups);
+			const hasSomeChanges = provider.groups.some(item => item.resources.length > 0);
+			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !provider.actionButton))) {
+				children.push(...provider.groups);
 			}
 
 			return children;
