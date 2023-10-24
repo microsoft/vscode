@@ -77,6 +77,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				}
 			}
 		});
+		decorationUpdateScheduler.schedule();
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
@@ -113,8 +114,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _removeGutterDecoration(decorationId: string) {
 		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
 			accessor.removeDecoration(decorationId);
-			this._gutterDecorationID = undefined;
 		});
+		this._gutterDecorationID = undefined;
 	}
 
 	private _updateGutterDecoration(decorationId: string, lineNumber: number) {
