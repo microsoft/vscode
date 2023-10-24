@@ -182,8 +182,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			steps: [
 				{
 					id: 'settingsSync',
-					title: localize('gettingStarted.settingsSync.title', "Sign in to get started with VS Code"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
+					title: localize('gettingStarted.settingsSync.title', "Personalize your VS Code"),
+					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
@@ -268,8 +268,8 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 			steps: [
 				{
 					id: 'settingsSyncWeb',
-					title: localize('gettingStarted.settingsSync.title', "Sign in to get started with VS Code"),
-					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Enable Settings Sync"), 'command:workbench.userDataSync.actions.turnOn')),
+					title: localize('gettingStarted.settingsSync.title', "Personalize your VS Code"),
+					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
 					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
