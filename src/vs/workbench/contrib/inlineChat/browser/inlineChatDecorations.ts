@@ -66,6 +66,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._localToDispose.add(decorationUpdateScheduler);
 		this._localToDispose.add(this._editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
+		this._localToDispose.add(this._inlineChatSessionService.onWillStartSession(() => decorationUpdateScheduler.schedule()));
+		this._localToDispose.add(this._inlineChatSessionService.onDidEndSession(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			if (!e.target.element?.classList.contains(InlineChatDecorationsContribution.GUTTER_ICON_CLASSNAME)) {
 				return;
@@ -79,16 +81,14 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				}
 			}
 		});
-		this._localToDispose.add(this._inlineChatSessionService.onWillStartSession(() => decorationUpdateScheduler.schedule()));
-		this._localToDispose.add(this._inlineChatSessionService.onDidEndSession(() => decorationUpdateScheduler.schedule()));
 		decorationUpdateScheduler.schedule();
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
-		const inlineChatVisible = this._inlineChatSessionService.getSession(editor, editor.getModel().uri);
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber)) && !inlineChatVisible;
-		if (isEnabled) {
+		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, editor.getModel().uri);
+		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
+		if (isEnabled && !isInlineChatVisible) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(selection.startLineNumber);
 			} else {
