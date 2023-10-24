@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, copyAttributes, getActiveWindow, getClientArea, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -154,6 +154,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
 
 		function cloneNode(originalNode: Node): void {
+			if (isGlobalStylesheet(originalNode)) {
+				return; // global stylesheets are handled by `cloneGlobalStylesheets` below
+			}
+
 			const clonedNode = auxiliaryWindow.document.head.appendChild(originalNode.cloneNode(true));
 			mapOriginalToClone.set(originalNode, clonedNode);
 		}
@@ -162,6 +166,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		for (const originalNode of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 			cloneNode(originalNode);
 		}
+
+		// Global stylesheets in <head> are cloned in a special way because the mutation
+		// observer is not firing for changes done via `style.sheet` API. Only text changes
+		// can be observed.
+		disposables.add(cloneGlobalStylesheets(auxiliaryWindow));
 
 		// Listen to new stylesheets as they are being added or removed in the main window
 		// and apply to child window (including changes to existing stylesheets elements)
