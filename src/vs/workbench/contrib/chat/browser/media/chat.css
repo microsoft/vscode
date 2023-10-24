@@ -99,7 +99,7 @@
 }
 
 .interactive-item-container .header .avatar+.avatar {
-	margin-left: -10px;
+	margin-left: -8px;
 }
 
 .interactive-item-container .header .avatar .icon {
@@ -248,6 +248,14 @@
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
 	width: 16px;
 	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+	font-size: 12px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar {
+	margin-left: -4px;
 }
 
 .interactive-item-container.interactive-item-compact .value {
