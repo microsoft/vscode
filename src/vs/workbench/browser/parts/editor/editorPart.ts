@@ -377,7 +377,7 @@ export class EditorPart extends Part implements IEditorPart {
 					return; // need at least 2 groups to be maximized
 				}
 				this.gridWidget.maximizeView(target);
-				this.doSetGroupActive(target);
+				target.focus();
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -403,6 +403,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private unmaximizeGroup(): void {
 		this.gridWidget.exitMaximizedView();
+		// Making views visible can cause the focus to change, so we need to restore it
+		this._activeGroup.focus();
 	}
 
 	private hasMaximizedGroup(): boolean {
