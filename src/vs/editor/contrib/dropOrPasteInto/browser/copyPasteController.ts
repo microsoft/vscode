@@ -114,6 +114,10 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			&& !this._editor.getOption(EditorOption.readOnly);
 	}
 
+	public finishedPaste(): Promise<void> {
+		return this._currentPasteOperation?.then(undefined, () => {/* */ }) ?? Promise.resolve();
+	}
+
 	private handleCopy(e: ClipboardEvent) {
 		if (!this._editor.hasTextFocus()) {
 			return;
