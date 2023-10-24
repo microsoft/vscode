@@ -95,7 +95,7 @@
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
-	background: var(--vscode-chat-providerAvatarBackground);
+	background: var(--vscode-chat-avatarBackground);
 }
 
 .interactive-item-container .header .avatar+.avatar {
@@ -109,7 +109,7 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-chat-providerAvatarForeground);
+	color: var(--vscode-chat-avatarForeground);
 	font-size: 14px;
 }
 
