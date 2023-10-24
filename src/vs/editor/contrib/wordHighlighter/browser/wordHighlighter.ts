@@ -72,6 +72,12 @@ interface IOccurenceAtPositionRequest {
 	cancel(): void;
 }
 
+interface IWordHighlighterQuery {
+	readonly model: ITextModel;
+	readonly selection: Selection;
+	readonly word: IWordAtPosition;
+}
+
 abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
 
 	private readonly _wordRange: Range | null;
@@ -168,7 +174,6 @@ class MultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 }
 
 class TextualOccurenceRequest extends OccurenceAtPositionRequest {
-	// class TextualMultiModelOccurenceRequest extends OccurenceAtPositionRequest {
 
 	private readonly _otherModels: ITextModel[];
 	private readonly _selectionIsEmpty: boolean;
@@ -183,12 +188,15 @@ class TextualOccurenceRequest extends OccurenceAtPositionRequest {
 		return timeout(250, token).then(() => {
 			const result = new ResourceMap<DocumentHighlight[]>();
 			const word = model.getWordAtPosition(selection.getPosition());
+			if (!word) {
+				return new ResourceMap<DocumentHighlight[]>();
+			}
 
 			const allModels = [model, ...this._otherModels];
 
 			for (const otherModel of allModels) {
-				if (!word) {
-					return new ResourceMap<DocumentHighlight[]>();
+				if (otherModel.isDisposed()) {
+					continue;
 				}
 
 				const matches = otherModel.findMatches(word.word, true, false, true, wordSeparators, false);
@@ -249,7 +257,6 @@ class WordHighlighter {
 	private workerRequest: IOccurenceAtPositionRequest | null;
 	private workerRequestCompleted: boolean = false;
 	private workerRequestValue: ResourceMap<DocumentHighlight[]> = new ResourceMap();
-	private static storedDecorations: ResourceMap<string[]> = new ResourceMap();
 
 	private lastCursorPositionChangeTime: number = 0;
 	private renderDecorationsTimer: any = -1;
@@ -257,6 +264,8 @@ class WordHighlighter {
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
 
+	private static storedDecorations: ResourceMap<string[]> = new ResourceMap();
+	private static query: IWordHighlighterQuery | null = null;
 
 	constructor(editor: IActiveCodeEditor, providers: LanguageFeatureRegistry<DocumentHighlightProvider>, multiProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, contextKeyService: IContextKeyService, @ICodeEditorService codeEditorService: ICodeEditorService) {
 		this.editor = editor;
@@ -285,6 +294,15 @@ class WordHighlighter {
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
 			this._stopAll();
 		}));
+		this.toUnhook.add(editor.onDidChangeModel((e) => {
+			if (!e.newModelUrl && e.oldModelUrl) {
+				this._stopSingular();
+			} else {
+				if (WordHighlighter.query) {
+					this._run();
+				}
+			}
+		}));
 		this.toUnhook.add(editor.onDidChangeConfiguration((e) => {
 			const newValue = this.editor.getOption(EditorOption.occurrencesHighlight);
 			if (this.occurrencesHighlight !== newValue) {
@@ -298,9 +316,6 @@ class WordHighlighter {
 				this._stopAll();
 			}
 		}));
-		this.toUnhook.add(codeEditorService.onCodeEditorAdd(() => {
-			this._stopAll();
-		}));
 
 		this.decorations = this.editor.createDecorationsCollection();
 		this.workerRequestTokenId = 0;
@@ -309,6 +324,11 @@ class WordHighlighter {
 
 		this.lastCursorPositionChangeTime = 0;
 		this.renderDecorationsTimer = -1;
+
+		// if there is a query already, highlight off that query
+		// if (WordHighlighter.query) {
+		// 	this._run();
+		// }
 	}
 
 	public hasDecorations(): boolean {
@@ -375,7 +395,35 @@ class WordHighlighter {
 		}
 	}
 
-	private _removeDecorations(): void {
+	private _removeSingleDecorations(): void {
+		// Clear current query if editor is focused
+		// if (this.editor.hasWidgetFocus() && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
+		if (this.editor.hasWidgetFocus() && !(WordHighlighter.query?.model.uri.scheme === Schemas.vscodeNotebookCell || this.editor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell)) {
+			// if (this.editor.hasWidgetFocus()) {
+			// ! WordHighlighter.query?.model.dispose();
+			WordHighlighter.query = null;
+		}
+
+		// return if no model
+		if (!this.editor.hasModel()) {
+			return;
+		}
+
+		const currentDecorationIDs = WordHighlighter.storedDecorations.get(this.editor.getModel().uri);
+		if (!currentDecorationIDs) {
+			return;
+		}
+
+		this.editor.removeDecorations(currentDecorationIDs);
+		WordHighlighter.storedDecorations.delete(this.editor.getModel().uri);
+
+		if (this.decorations.length > 0) {
+			this.decorations.clear();
+			this._hasWordHighlights.set(false);
+		}
+	}
+
+	private _removeAllDecorations(): void {
 		const currentEditors = this.codeEditorService.listCodeEditors();
 		// iterate over editors and store models in currentModels
 		for (const editor of currentEditors) {
@@ -403,9 +451,37 @@ class WordHighlighter {
 		}
 	}
 
+	private _stopSingular(): void {
+		// Remove any existing decorations + a possible query, and re - run to update decorations
+		this._removeSingleDecorations();
+
+		// don't re-run notebooks
+		if (this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
+			this._run();
+		}
+
+		// Cancel any renderDecorationsTimer
+		if (this.renderDecorationsTimer !== -1) {
+			clearTimeout(this.renderDecorationsTimer);
+			this.renderDecorationsTimer = -1;
+		}
+
+		// Cancel any worker request
+		if (this.workerRequest !== null) {
+			this.workerRequest.cancel();
+			this.workerRequest = null;
+		}
+
+		// Invalidate any worker request callback
+		if (!this.workerRequestCompleted) {
+			this.workerRequestTokenId++;
+			this.workerRequestCompleted = true;
+		}
+	}
+
 	private _stopAll(): void {
 		// Remove any existing decorations
-		this._removeDecorations();
+		this._removeAllDecorations();
 
 		// Cancel any renderDecorationsTimer
 		if (this.renderDecorationsTimer !== -1) {
@@ -435,7 +511,8 @@ class WordHighlighter {
 		}
 
 		// ignore typing & other
-		if (e.reason !== CursorChangeReason.Explicit) {
+		// need to check if the model is a notebook cell, should not stop if nb
+		if (e.reason !== CursorChangeReason.Explicit && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
 			this._stopAll();
 			return;
 		}
@@ -455,6 +532,10 @@ class WordHighlighter {
 	}
 
 	private getOtherModelsToHighlight(model: ITextModel): ITextModel[] {
+		if (!model) {
+			return [];
+		}
+
 		// notebook case
 		const isNotebookEditor = model.uri.scheme === Schemas.vscodeNotebookCell;
 		if (isNotebookEditor) {
@@ -508,31 +589,47 @@ class WordHighlighter {
 	}
 
 	private _run(): void {
-		const editorSelection = this.editor.getSelection();
 
-		// ignore multiline selection
-		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
-			this._stopAll();
-			return;
+		let workerRequestIsValid;
+		if (!this.editor.hasWidgetFocus()) { // no focus (new nb cell, etc)
+			if (WordHighlighter.query === null) {
+				// no previous query, nothing to highlight
+				this._stopAll();
+				return;
+			}
+		} else {
+			const editorSelection = this.editor.getSelection();
+
+			// ignore multiline selection
+			if (!editorSelection || editorSelection.startLineNumber !== editorSelection.endLineNumber) {
+				this._stopAll();
+				return;
+			}
+
+			const startColumn = editorSelection.startColumn;
+			const endColumn = editorSelection.endColumn;
+
+			const word = this._getWord();
+
+			// The selection must be inside a word or surround one word at most
+			if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
+				// no previous query, nothing to highlight
+				this._stopAll();
+				return;
+			}
+
+			// All the effort below is trying to achieve this:
+			// - when cursor is moved to a word, trigger immediately a findOccurrences request
+			// - 250ms later after the last cursor move event, render the occurrences
+			// - no flickering!
+			workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this.decorations));
+
+			WordHighlighter.query = {
+				model: this.model,
+				selection: editorSelection,
+				word: word
+			};
 		}
-
-		const startColumn = editorSelection.startColumn;
-		const endColumn = editorSelection.endColumn;
-
-		const word = this._getWord();
-
-		// The selection must be inside a word or surround one word at most
-		if (!word || word.startColumn > startColumn || word.endColumn < endColumn) {
-			this._stopAll();
-			return;
-		}
-
-		// All the effort below is trying to achieve this:
-		// - when cursor is moved to a word, trigger immediately a findOccurrences request
-		// - 250ms later after the last cursor move event, render the occurrences
-		// - no flickering!
-
-		const workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this.decorations));
 
 		// There are 4 cases:
 		// a) old workerRequest is valid & completed, renderDecorationsTimer fired
@@ -564,9 +661,9 @@ class WordHighlighter {
 			const otherModelsToHighlight = this.getOtherModelsToHighlight(this.editor.getModel());
 
 			if (!otherModelsToHighlight.length) {
-				this.workerRequest = computeOccurencesAtPosition(this.providers, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators));
+				this.workerRequest = computeOccurencesAtPosition(this.providers, WordHighlighter.query.model, WordHighlighter.query.selection, this.editor.getOption(EditorOption.wordSeparators));
 			} else {
-				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, this.model, this.editor.getSelection(), this.editor.getOption(EditorOption.wordSeparators), otherModelsToHighlight);
+				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, WordHighlighter.query.model, WordHighlighter.query.selection, this.editor.getOption(EditorOption.wordSeparators), otherModelsToHighlight);
 			}
 
 			this.workerRequest.result.then(data => {
@@ -635,7 +732,7 @@ class WordHighlighter {
 	}
 
 	public dispose(): void {
-		this._stopAll();
+		this._stopSingular();
 		this.toUnhook.dispose();
 	}
 }
