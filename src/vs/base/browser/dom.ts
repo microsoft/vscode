@@ -815,6 +815,9 @@ export function createCSSRule(selector: string, cssText: string, style: HTMLStyl
 		return;
 	}
 
+
+
+
 	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
 }
 
