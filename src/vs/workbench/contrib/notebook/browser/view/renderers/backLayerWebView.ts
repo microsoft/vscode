@@ -993,7 +993,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		} else if (href.startsWith('~')) {
 			const userHome = await this.pathService.userHome();
 			if (userHome) {
-				linkToOpen = userHome.with({ path: osPath.join(userHome.fsPath, href.substring(1)) });
+				linkToOpen = userHome.with({ path: osPath.join(userHome.path, href.substring(1)) });
 			}
 		} else {
 			if (this.documentUri.scheme === Schemas.untitled) {
