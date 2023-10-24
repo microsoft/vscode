@@ -79,23 +79,15 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				}
 			}
 		});
-		const onWillStartSession = this._inlineChatSessionService.onWillStartSession(() => {
-			if (this._gutterDecorationID) {
-				this._removeGutterDecoration(this._gutterDecorationID);
-			}
-			onWillStartSession.dispose();
-			this._localToDispose.clear();
-		});
-		const onDidEndSession = this._inlineChatSessionService.onDidEndSession(() => {
-			onDidEndSession.dispose();
-			this._onEnablementOrModelChanged();
-		});
+		this._localToDispose.add(this._inlineChatSessionService.onWillStartSession(() => decorationUpdateScheduler.schedule()));
+		this._localToDispose.add(this._inlineChatSessionService.onDidEndSession(() => decorationUpdateScheduler.schedule()));
 		decorationUpdateScheduler.schedule();
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber));
+		const inlineChatVisible = this._inlineChatSessionService.getSession(editor, editor.getModel().uri);
+		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber)) && !inlineChatVisible;
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(selection.startLineNumber);
