@@ -83,7 +83,7 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
 
 	get text(): string {
-		return `${chatVariableLeader}${this.command.name}`;
+		return `${chatSubcommandLeader}${this.command.name}`;
 	}
 
 	get promptText(): string {
