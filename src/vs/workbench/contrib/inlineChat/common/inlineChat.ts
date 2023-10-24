@@ -87,6 +87,7 @@ export interface IInlineChatMessageResponse {
 export interface IInlineChatProgressItem {
 	markdownFragment?: string;
 	edits?: TextEdit[];
+	editsShouldBeInstant?: boolean;
 	message?: string;
 	slashCommand?: string;
 }

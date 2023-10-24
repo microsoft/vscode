@@ -165,6 +165,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				await this._proxy.$handleProgressChunk(request.requestId, {
 					message: value.message,
 					edits: value.edits?.map(typeConvert.TextEdit.from),
+					editsShouldBeInstant: value.editsShouldBeInstant,
 					slashCommand: value.slashCommand?.command,
 					markdownFragment: extHostTypes.MarkdownString.isMarkdownString(value.content) ? value.content.value : value.content
 				});
