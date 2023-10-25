@@ -1153,6 +1153,7 @@ export class IssueReporter extends Disposable {
 						this.removeLoading(iconElement);
 					} else {
 						this.validateSelectedExtension();
+						this.issueReporterModel.update({ extensionData: undefined });
 						const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 						this.searchExtensionIssues(title);
 					}
