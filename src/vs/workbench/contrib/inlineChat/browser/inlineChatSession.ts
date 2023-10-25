@@ -27,6 +27,7 @@ import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
 
 export type Recording = {
 	when: Date;
@@ -407,6 +408,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 		@IModelService private readonly _modelService: IModelService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@ILogService private readonly _logService: ILogService,
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 	) { }
 
 	dispose() {
@@ -485,7 +487,7 @@ export class InlineChatSessionService implements IInlineChatSessionService {
 	}
 
 	releaseSession(session: Session): void {
-
+		this._chatAccessibilityService.acceptResponse();
 		const { editor } = session;
 
 		// cleanup
