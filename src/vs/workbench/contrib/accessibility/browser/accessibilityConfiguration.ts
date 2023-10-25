@@ -175,7 +175,7 @@ export function registerAccessibilityConfiguration() {
 				scope: ConfigurationScope.APPLICATION,
 			},
 			[AccessibilityWorkbenchSettingId.HideAccessibleView]: {
-				description: localize('terminal.integrated.hideAccessibleView', "Controls whether the terminal's accessible view is hidden."),
+				description: localize('accessibility.hideAccessibleView', "Controls whether the accessible view is hidden."),
 				type: 'boolean',
 				default: false,
 				tags: ['accessibility']
