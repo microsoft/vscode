@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
@@ -47,6 +47,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
@@ -147,6 +148,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
+	private readonly _onDidAddContainer = this._register(new Emitter<HTMLElement>());
+	readonly onDidAddContainer = this._onDidAddContainer.event;
+
+	private readonly _onDidRemoveContainer = this._register(new Emitter<HTMLElement>());
+	readonly onDidRemoveContainer = this._onDidRemoveContainer.event;
+
 	//#endregion
 
 	//#region Properties
@@ -227,6 +234,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private statusBarService!: IStatusbarService;
 	private logService!: ILogService;
 	private telemetryService!: ITelemetryService;
+	private auxiliaryWindowService!: IAuxiliaryWindowService;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -252,6 +260,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.extensionService = accessor.get(IExtensionService);
 		this.logService = accessor.get(ILogService);
 		this.telemetryService = accessor.get(ITelemetryService);
+		this.auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -332,6 +341,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
 			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
 		}
+
+		// Auxiliary windows
+		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
+			this._onDidAddContainer.fire(window.container);
+
+			disposables.add(toDisposable(() => this._onDidRemoveContainer.fire(window.container)));
+		}));
 	}
 
 	private onMenubarToggled(visible: boolean): void {
