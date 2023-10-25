@@ -28,7 +28,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { Extension, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
+import { ExtHostFileSystemEventService, FileSystemWatcherCreateOptions } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
@@ -947,17 +947,21 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
 			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
-				let options: vscode.FileSystemWatcherOptions | undefined = undefined;
+				let options: FileSystemWatcherCreateOptions | undefined = undefined;
 
 				if (typeof optionsOrIgnoreCreate === 'boolean') {
 					options = {
 						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
 						ignoreChangeEvents: Boolean(ignoreChange),
-						ignoreDeleteEvents: Boolean(ignoreDelete)
+						ignoreDeleteEvents: Boolean(ignoreDelete),
+						correlate: false
 					};
 				} else if (optionsOrIgnoreCreate) {
 					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
-					options = optionsOrIgnoreCreate;
+					options = {
+						...optionsOrIgnoreCreate,
+						correlate: true
+					};
 				}
 
 				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, options);
