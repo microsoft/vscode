@@ -1320,7 +1320,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
 			Promise.race([
 				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
+				timeout(10000) // still timeout after some time in case the transition is unusually slow
 			]).finally(() => {
 				this.logConditionally(`doSetNativeFullScreen(${fullscreen}): finish at ${Date.now()}`);
 
