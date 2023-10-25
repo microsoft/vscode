@@ -192,9 +192,7 @@ class TextualOccurenceRequest extends OccurenceAtPositionRequest {
 			const result = new ResourceMap<DocumentHighlight[]>();
 
 			let wordResult;
-			if (model.isDisposed()) {
-				wordResult = this._word;
-			} else if (this._word) {
+			if (this._word) {
 				wordResult = this._word;
 			} else {
 				wordResult = model.getWordAtPosition(selection.getPosition());
