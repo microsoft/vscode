@@ -338,9 +338,9 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override focus(): void {
-		this.diffEditorControl?.focus();
-
 		super.focus();
+
+		this.diffEditorControl?.focus();
 	}
 
 	override hasFocus(): boolean {

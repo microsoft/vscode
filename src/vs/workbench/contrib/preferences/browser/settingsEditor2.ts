@@ -474,6 +474,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	override focus(): void {
+		super.focus();
+
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			if (!platform.isIOS) {
 				// #122044
@@ -493,8 +495,6 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
 			this.tocTree.domFocus();
 		}
-
-		super.focus();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {

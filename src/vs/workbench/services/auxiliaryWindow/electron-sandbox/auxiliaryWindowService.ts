@@ -66,6 +66,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = async function () {

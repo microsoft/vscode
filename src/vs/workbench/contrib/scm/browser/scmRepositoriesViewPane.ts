@@ -117,6 +117,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.list.domFocus();
 	}
 

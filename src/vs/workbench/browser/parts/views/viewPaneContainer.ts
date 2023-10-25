@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, focusWindow, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -600,15 +600,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	focus(): void {
+		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
-			this.lastFocusedPane.focus();
+			paneToFocus = this.lastFocusedPane;
 		} else if (this.paneItems.length > 0) {
-			for (const { pane: pane } of this.paneItems) {
+			for (const { pane } of this.paneItems) {
 				if (pane.isExpanded()) {
-					pane.focus();
-					return;
+					paneToFocus = pane;
+					break;
 				}
 			}
+		}
+		if (paneToFocus) {
+			focusWindow(paneToFocus.element);
+			paneToFocus.focus();
 		}
 	}
 

@@ -300,6 +300,7 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override focus() {
+		super.focus();
 		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
 			this._terminalGroupService.showPanel(true);
 			return;
