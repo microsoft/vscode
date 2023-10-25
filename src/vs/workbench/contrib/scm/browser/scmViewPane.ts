@@ -1009,7 +1009,7 @@ class RepositoryVisibilityAction extends Action2 {
 	private repository: ISCMRepository;
 
 	constructor(repository: ISCMRepository) {
-		const title = repository.provider.rootUri ? basename(repository.provider.rootUri) : repository.provider.label;
+		const title = repository.provider.rootUri && basename(repository.provider.rootUri) ? basename(repository.provider.rootUri) : repository.provider.label;
 		super({
 			id: `workbench.scm.action.toggleRepositoryVisibility.${repository.provider.id}`,
 			title,
