@@ -406,7 +406,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private logConditionally(msg: string): void {
-		// TODO@bpasero remove me eventually
+		// TODO@bpasero remove native fullscreen logging eventually
 		if (this.configurationService.getValue('window.logFullScreenTransitions')) {
 			this.logService.info(`window-fullscreen-bug: ${msg})`);
 		}
@@ -1320,7 +1320,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
 			Promise.race([
 				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
+				timeout(10000) // still timeout after some time in case the transition is unusually slow
 			]).finally(() => {
 				this.logConditionally(`doSetNativeFullScreen(${fullscreen}): finish at ${Date.now()}`);
 
