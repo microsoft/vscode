@@ -49,6 +49,8 @@ type ChatProviderInvokedEvent = {
 	totalTime: number | undefined;
 	result: 'success' | 'error' | 'errorWithOutput' | 'cancelled' | 'filtered';
 	requestType: 'string' | 'followup' | 'slashCommand';
+	chatSessionId: string;
+	agent: string;
 	slashCommand: string | undefined;
 };
 
@@ -58,6 +60,8 @@ type ChatProviderInvokedClassification = {
 	totalTime: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'The total time it took to run the provider\'s `provideResponseWithProgress`.' };
 	result: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether invoking the ChatProvider resulted in an error.' };
 	requestType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of request that the user made.' };
+	chatSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'A random ID for the session.' };
+	agent: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of agent used.' };
 	slashCommand?: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of slashCommand used.' };
 	owner: 'roblourens';
 	comment: 'Provides insight into the performance of Chat providers.';
@@ -492,7 +496,9 @@ export class ChatService extends Disposable implements IChatService {
 					totalTime: stopWatch.elapsed(),
 					result: 'cancelled',
 					requestType,
-					slashCommand: usedSlashCommand?.command
+					agent: agentPart?.agent.id ?? '',
+					slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : usedSlashCommand?.command,
+					chatSessionId: model.sessionId
 				});
 
 				model.cancelRequest(request);
@@ -597,7 +603,9 @@ export class ChatService extends Disposable implements IChatService {
 						totalTime: rawResponse.timings?.totalElapsed,
 						result,
 						requestType,
-						slashCommand: usedSlashCommand?.command
+						agent: agentPart?.agent.id ?? '',
+						slashCommand: agentSlashCommandPart ? agentSlashCommandPart.command.name : usedSlashCommand?.command,
+						chatSessionId: model.sessionId
 					});
 					model.setResponse(request, rawResponse);
 					this.trace('sendRequest', `Provider returned response for session ${model.sessionId}`);
