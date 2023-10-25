@@ -236,12 +236,12 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	private _showWidget(initialRender: boolean = false, position?: IPosition) {
+	private _showWidget(initialRender: boolean = false, position?: Position) {
 		assertType(this._editor.hasModel());
 
 		let widgetPosition = position
-			? Position.lift(position)
-			: this._zone.value.position ?? this._editor.getSelection().getStartPosition().delta(-1);
+			?? this._zone.value.position
+			?? this._editor.getSelection().getStartPosition().delta(-1);
 
 		let needsMargin = false;
 		if (initialRender) {
@@ -275,7 +275,15 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-		this._showWidget(true, options.position);
+
+		let initPosition: Position | undefined;
+		if (options.position) {
+			initPosition = Position.lift(options.position).delta(-1);
+			delete options.position;
+		}
+
+		this._showWidget(true, initPosition);
+
 		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._updatePlaceholder();
 
@@ -366,7 +374,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.selectAll();
 		}
 
-		this._showWidget(true, options.position);
+		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
