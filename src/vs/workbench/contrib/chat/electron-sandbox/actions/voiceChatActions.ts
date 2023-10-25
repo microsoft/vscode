@@ -19,7 +19,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidget, IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { MENU_INLINE_CHAT_WIDGET } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -59,6 +59,7 @@ interface IVoiceChatSessionController {
 	focusInput(): void;
 	acceptInput(): void;
 	updateInput(text: string): void;
+	getInput(): string;
 
 	setInputPlaceholder(text: string): void;
 	clearInputPlaceholder(): void;
@@ -166,6 +167,7 @@ class VoiceChatSessionControllerFactory {
 			focusInput: () => chatView.focusInput(),
 			acceptInput: () => chatView.acceptInput(),
 			updateInput: text => chatView.updateInput(text),
+			getInput: () => chatView.getInput(),
 			setInputPlaceholder: text => chatView.setInputPlaceholder(text),
 			clearInputPlaceholder: () => chatView.resetInputPlaceholder()
 		};
@@ -179,13 +181,14 @@ class VoiceChatSessionControllerFactory {
 			focusInput: () => quickChat.focusInput(),
 			acceptInput: () => quickChat.acceptInput(),
 			updateInput: text => quickChat.updateInput(text),
+			getInput: () => quickChat.getInput(),
 			setInputPlaceholder: text => quickChat.setInputPlaceholder(text),
 			clearInputPlaceholder: () => quickChat.resetInputPlaceholder()
 		};
 	}
 
-	private static doCreateForInlineChat(inlineChat: InlineChatController,): IVoiceChatSessionController {
-		const inlineChatSession = inlineChat.run();
+	private static doCreateForInlineChat(inlineChat: InlineChatController): IVoiceChatSessionController {
+		const inlineChatSession = inlineChat.joinCurrentRun() ?? inlineChat.run();
 
 		return {
 			context: 'inline',
@@ -196,7 +199,8 @@ class VoiceChatSessionControllerFactory {
 			),
 			focusInput: () => inlineChat.focus(),
 			acceptInput: () => inlineChat.acceptInput(),
-			updateInput: text => inlineChat.updateInput(text),
+			updateInput: text => inlineChat.updateInput(text, false),
+			getInput: () => inlineChat.getInput(),
 			setInputPlaceholder: text => inlineChat.setPlaceholder(text),
 			clearInputPlaceholder: () => inlineChat.resetPlaceholder()
 		};
@@ -252,14 +256,13 @@ class VoiceChatSessions {
 		session.disposables.add(controller.onDidAcceptInput(() => this.stop(sessionId, controller.context)));
 		session.disposables.add(controller.onDidCancelInput(() => this.stop(sessionId, controller.context)));
 
-		controller.updateInput('');
 		controller.focusInput();
 
 		this.voiceChatGettingReadyKey.set(true);
 
 		const speechToTextSession = session.disposables.add(this.speechService.createSpeechToTextSession(cts.token));
 
-		let transcription: string = '';
+		let inputValue = controller.getInput();
 		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), 1200));
 		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
 			if (cts.token.isCancellationRequested) {
@@ -272,14 +275,14 @@ class VoiceChatSessions {
 					break;
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
-						session.controller.updateInput([transcription, text].join(' '));
+						session.controller.updateInput([inputValue, text].join(' '));
 						acceptTranscriptionScheduler.cancel();
 					}
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (text) {
-						transcription = [transcription, text].join(' ');
-						session.controller.updateInput(transcription);
+						inputValue = [inputValue, text].join(' ');
+						session.controller.updateInput(inputValue);
 						acceptTranscriptionScheduler.schedule();
 					}
 					break;
@@ -368,7 +371,7 @@ export class VoiceChatInChatViewAction extends Action2 {
 				original: 'Voice Chat in Chat View'
 			},
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		});
 	}
@@ -395,7 +398,7 @@ export class InlineVoiceChatAction extends Action2 {
 				original: 'Inline Voice Chat'
 			},
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, ActiveEditorContext, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		});
 	}
@@ -422,7 +425,7 @@ export class QuickVoiceChatAction extends Action2 {
 				original: 'Quick Voice Chat'
 			},
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_PROVIDER_EXISTS, CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			f1: true
 		});
 	}
@@ -450,7 +453,7 @@ export class StartVoiceChatAction extends Action2 {
 			},
 			category: CHAT_CATEGORY,
 			icon: Codicon.mic,
-			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate()),
+			precondition: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_GETTING_READY.negate(), CONTEXT_CHAT_REQUEST_IN_PROGRESS.negate()),
 			menu: [{
 				id: MenuId.ChatExecute,
 				when: ContextKeyExpr.and(HasSpeechProvider, CONTEXT_VOICE_CHAT_IN_VIEW_IN_PROGRESS.negate(), CONTEXT_QUICK_VOICE_CHAT_IN_PROGRESS.negate(), CONTEXT_VOICE_CHAT_IN_EDITOR_IN_PROGRESS.negate()),

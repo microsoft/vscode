@@ -34,7 +34,6 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 export class HistoryService extends Disposable implements IHistoryService {
 
@@ -58,8 +57,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super();
 
@@ -113,14 +111,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				this.doRegisterMouseNavigationListener(this.layoutService.container, mouseBackForwardSupportListener);
 
-				this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
-					const listenerDisposables = new DisposableStore();
-					mouseBackForwardSupportListener.add(listenerDisposables);
-					disposables.add(listenerDisposables);
-					this.doRegisterMouseNavigationListener(window.container, listenerDisposables);
-				}));
+				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
+					const disposables = new DisposableStore();
+					disposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+					disposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
+
+					this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => disposables.dispose()));
+
+					mouseBackForwardSupportListener.add(disposables);
+				}, this.layoutService.container));
 			}
 		};
 
@@ -131,11 +131,6 @@ export class HistoryService extends Disposable implements IHistoryService {
 		}));
 
 		handleMouseBackForwardSupport();
-	}
-
-	private doRegisterMouseNavigationListener(container: HTMLElement, disposables: DisposableStore): void {
-		disposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
-		disposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
 	}
 
 	private onMouseDownOrUp(event: MouseEvent, isMouseDown: boolean): void {

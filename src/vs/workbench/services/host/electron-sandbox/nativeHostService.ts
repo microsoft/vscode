@@ -15,6 +15,7 @@ import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHos
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -115,14 +116,12 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
-	async moveTop(win: Window & typeof globalThis): Promise<void> {
-		if (win === window) {
-			return this.nativeHostService.moveWindowTop();
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		if (getActiveWindow() === window) {
+			return;
 		}
 
-		if (isAuxiliaryWindow(win)) {
-			return win.moveTop();
-		}
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: await window.vscodeWindowId } : undefined);
 	}
 
 	//#endregion
