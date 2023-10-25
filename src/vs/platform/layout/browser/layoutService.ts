@@ -25,6 +25,12 @@ export interface ILayoutService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * An event that is emitted when the container is layed out. The
+	 * event carries the dimensions of the container as part of it.
+	 */
+	readonly onDidLayout: Event<IDimension>;
+
+	/**
 	 * The dimensions of the container.
 	 */
 	readonly dimension: IDimension;
@@ -63,12 +69,6 @@ export interface ILayoutService {
 	 * An offset to use for positioning elements inside the container.
 	 */
 	readonly offset: ILayoutOffsetInfo;
-
-	/**
-	 * An event that is emitted when the container is layed out. The
-	 * event carries the dimensions of the container as part of it.
-	 */
-	readonly onDidLayout: Event<IDimension>;
 
 	/**
 	 * Focus the primary component of the container.

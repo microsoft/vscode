@@ -15,7 +15,7 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { isNative } from 'vs/base/common/platform';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { Event } from 'vs/base/common/event';
 
 export class TextInputActionsProvider extends Disposable implements IWorkbenchContribution {
 
@@ -24,8 +24,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IClipboardService private readonly clipboardService: IClipboardService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IClipboardService private readonly clipboardService: IClipboardService
 	) {
 		super();
 
@@ -78,10 +77,10 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	private registerListeners(): void {
 
 		// Context menu support in input/textarea
-		this._register(addDisposableListener(this.layoutService.container, 'contextmenu', e => this.onContextMenu(e)));
-		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
-			disposables.add(addDisposableListener(window.container, 'contextmenu', e => this.onContextMenu(e)));
-		}));
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
+			const listener = addDisposableListener(container, 'contextmenu', e => this.onContextMenu(e));
+			this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => listener.dispose()));
+		}, this.layoutService.container));
 	}
 
 	private onContextMenu(e: MouseEvent): void {

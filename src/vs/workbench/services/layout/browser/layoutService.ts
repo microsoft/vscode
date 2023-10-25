@@ -130,6 +130,18 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	readonly onDidChangeNotificationsVisibility: Event<boolean>;
 
 	/**
+	 * An event that is emitted when a new container is added. This
+	 * can happen in multi-window environments.
+	 */
+	readonly onDidAddContainer: Event<HTMLElement>;
+
+	/**
+	 * An event that is emitted when a container is removed. This
+	 * can happen in multi-window environments.
+	 */
+	readonly onDidRemoveContainer: Event<HTMLElement>;
+
+	/**
 	 * True if a default layout with default editors was applied at startup
 	 */
 	readonly openedDefaultEditors: boolean;
