@@ -257,6 +257,7 @@ export class IssueReporter extends Disposable {
 			const data = await this.issueMainService.$getIssueReporterData(extension.id);
 			extension.extensionData = data;
 			this.receivedExtensionData = true;
+			this.issueReporterModel.update({ extensionData: data });
 			return data;
 		} catch (e) {
 			extension.hasIssueDataProviders = false;
@@ -785,11 +786,10 @@ export class IssueReporter extends Disposable {
 		if (fileOnExtension && selectedExtension?.hasIssueDataProviders) {
 			const data = this.getExtensionData();
 			if (data) {
-				(extensionDataTextArea as HTMLTextAreaElement).value = data.toString();
+				(extensionDataTextArea as HTMLElement).innerText = data.toString();
 			}
 			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
 			show(extensionDataBlock);
-			show(extensionDataTextArea);
 		}
 
 		if (issueType === IssueType.Bug) {
@@ -1136,18 +1136,24 @@ export class IssueReporter extends Disposable {
 					} else if (matches[0].hasIssueDataProviders) {
 						const template = await this.getIssueTemplateFromExtension(matches[0]);
 						const descriptionTextArea = this.getElementById('description')!;
-						const fullTextArea = (descriptionTextArea as HTMLTextAreaElement).value += template;
-						this.issueReporterModel.update({ issueDescription: fullTextArea });
-
+						const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+						if (descriptionText === '' || !descriptionText.includes(template)) {
+							const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
+							(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+							this.issueReporterModel.update({ issueDescription: fullTextArea });
+						}
 						const extensionDataBlock = document.querySelector('.block-extension-data')!;
 						show(extensionDataBlock);
 
 						// Start loading for extension data.
-						this.setLoading();
+						const iconElement = document.createElement('span');
+						iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
+						this.setLoading(iconElement);
 						await this.getIssueDataFromExtension(matches[0]);
-						this.removeLoading();
+						this.removeLoading(iconElement);
 					} else {
 						this.validateSelectedExtension();
+						this.issueReporterModel.update({ extensionData: undefined });
 						const title = (<HTMLInputElement>this.getElementById('issue-title')).value;
 						this.searchExtensionIssues(title);
 					}
@@ -1187,8 +1193,9 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private setLoading() {
+	private setLoading(element: HTMLElement) {
 		// Show loading
+		this.receivedExtensionData = false;
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1199,13 +1206,10 @@ export class IssueReporter extends Disposable {
 
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
-
-		const iconElement = document.createElement('span');
-		iconElement.classList.add(...ThemeIcon.asClassNameArray(Codicon.loading), 'codicon-modifier-spin');
-		showLoading.append(iconElement);
+		showLoading.append(element);
 	}
 
-	private removeLoading() {
+	private removeLoading(element: HTMLElement) {
 		this.updatePreviewButtonState();
 
 		const extensionDataCaption = this.getElementById('extension-id')!;
@@ -1216,6 +1220,7 @@ export class IssueReporter extends Disposable {
 
 		const hideLoading = this.getElementById('ext-loading')!;
 		hide(hideLoading);
+		hideLoading.removeChild(element);
 	}
 
 	private setExtensionValidationMessage(): void {
