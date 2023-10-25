@@ -1235,9 +1235,9 @@ class ViewModel {
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			repositoryDisposables.add(repository.provider.onDidChange(() => this._updateChildren(repository, true, true)));
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this._updateChildren(repository, true)));
-			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this._updateChildren(repository)));
+			repositoryDisposables.add(repository.provider.onDidChange(() => this._updateChildren()));
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this._updateChildren()));
+			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this._updateChildren()));
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
 
@@ -1252,8 +1252,8 @@ class ViewModel {
 					if (!resourceGroupDisposables.has(resourceGroup)) {
 						const disposableStore = new DisposableStore();
 
-						disposableStore.add(resourceGroup.onDidChange(() => this._updateChildren(repository)));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => this._updateChildren(repository)));
+						disposableStore.add(resourceGroup.onDidChange(() => this._updateChildren()));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => this._updateChildren()));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
@@ -2196,6 +2196,8 @@ export class SCMViewPane extends ViewPane {
 
 		// List
 		this.listContainer = append(container, $('.scm-view.show-file-icons'));
+		this.listContainer.classList.add('file-icon-themable-tree');
+		this.listContainer.classList.add('show-file-icons');
 
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
@@ -2273,9 +2275,6 @@ export class SCMViewPane extends ViewPane {
 
 		this.tree.setInput(this.scmViewService, this.loadTreeViewState()).then(() => {
 			this._viewModel = this._register(this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer));
-
-			this.listContainer.classList.add('file-icon-themable-tree');
-			this.listContainer.classList.add('show-file-icons');
 
 			this.updateIndentStyles(this.themeService.getFileIconTheme());
 			this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
@@ -2490,7 +2489,7 @@ export class SCMViewPane extends ViewPane {
 class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
 
 	constructor(
-		private readonly viewModel: () => ViewModel,
+		private readonly viewModel: () => ViewModel | undefined,
 		@ISCMViewService private readonly scmViewService: ISCMViewService) { }
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
@@ -2514,13 +2513,17 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	getChildren(inputOrElement: ISCMViewService | TreeElement): Iterable<TreeElement> | Promise<Iterable<TreeElement>> {
+		if (this.viewModel() === undefined) {
+			return [];
+		}
+
 		if (isSCMViewService(inputOrElement)) {
 			return this.scmViewService.visibleRepositories;
 		} else if (isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
 
 			const provider = inputOrElement.provider;
-			const showActionButton = this.viewModel().showActionButton;
+			const showActionButton = this.viewModel()!.showActionButton;
 			const repositoryCount = this.scmViewService.visibleRepositories.length;
 
 			// SCM Input
@@ -2545,10 +2548,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
-			if (this.viewModel().mode === ViewModelMode.List) {
+			if (this.viewModel()!.mode === ViewModelMode.List) {
 				// Resources (List)
 				return inputOrElement.resources;
-			} else if (this.viewModel().mode === ViewModelMode.Tree) {
+			} else if (this.viewModel()!.mode === ViewModelMode.Tree) {
 				// Resources (Tree)
 				return inputOrElement.resourceTree.root.children;
 			}
