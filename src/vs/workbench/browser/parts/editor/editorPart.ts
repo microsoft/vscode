@@ -101,6 +101,9 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
+	private readonly _onDidChangeGroupMaximized = this._register(new Emitter<boolean>());
+	readonly onDidChangeGroupMaximized = this._onDidChangeGroupMaximized.event;
+
 	private readonly _onDidActivateGroup = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidActivateGroup = this._onDidActivateGroup.event;
 
@@ -137,6 +140,7 @@ export class EditorPart extends Part implements IEditorPart {
 	private centeredLayoutWidget!: CenteredViewLayout;
 
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
+	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
@@ -147,7 +151,7 @@ export class EditorPart extends Part implements IEditorPart {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -369,21 +373,48 @@ export class EditorPart extends Part implements IEditorPart {
 				this.gridWidget.distributeViewSizes();
 				break;
 			case GroupsArrangement.MAXIMIZE:
-				this.gridWidget.maximizeViewSize(target);
-				break;
-			case GroupsArrangement.TOGGLE:
-				if (this.isGroupMaximized(target)) {
-					this.arrangeGroups(GroupsArrangement.EVEN);
-				} else {
-					this.arrangeGroups(GroupsArrangement.MAXIMIZE);
+				if (this.groups.length < 2) {
+					return; // need at least 2 groups to be maximized
 				}
-
+				this.gridWidget.maximizeView(target);
+				this.doSetGroupActive(target);
+				break;
+			case GroupsArrangement.EXPAND:
+				this.gridWidget.expandView(target);
 				break;
 		}
 	}
 
-	isGroupMaximized(targetGroup: IEditorGroupView): boolean {
-		return this.gridWidget.isViewSizeMaximized(targetGroup);
+	toggleMaximizeGroup(target: IEditorGroupView = this.activeGroup): void {
+		if (this.hasMaximizedGroup()) {
+			this.unmaximizeGroup();
+		} else {
+			this.arrangeGroups(GroupsArrangement.MAXIMIZE, target);
+		}
+	}
+
+	toggleExpandGroup(target: IEditorGroupView = this.activeGroup): void {
+		if (this.isGroupExpanded(this.activeGroup)) {
+			this.arrangeGroups(GroupsArrangement.EVEN);
+		} else {
+			this.arrangeGroups(GroupsArrangement.EXPAND, target);
+		}
+	}
+
+	private unmaximizeGroup(): void {
+		this.gridWidget.exitMaximizedView();
+	}
+
+	private hasMaximizedGroup(): boolean {
+		return this.gridWidget.hasMaximizedView();
+	}
+
+	private isGroupMaximized(targetGroup: IEditorGroupView): boolean {
+		return this.gridWidget.isViewMaximized(targetGroup);
+	}
+
+	isGroupExpanded(targetGroup: IEditorGroupView): boolean {
+		return this.gridWidget.isViewExpanded(targetGroup);
 	}
 
 	setGroupOrientation(orientation: GroupOrientation): void {
@@ -524,7 +555,7 @@ export class EditorPart extends Part implements IEditorPart {
 		if (locationView.groupsView === this) {
 			const restoreFocus = this.shouldRestoreFocus(locationView.element);
 
-			const shouldMaximize = this.groupViews.size > 1 && this.isGroupMaximized(locationView);
+			const shouldExpand = this.groupViews.size > 1 && this.isGroupExpanded(locationView);
 			newGroupView = this.doCreateGroupView(groupToCopy);
 
 			// Add to grid widget
@@ -544,9 +575,9 @@ export class EditorPart extends Part implements IEditorPart {
 			// Notify group index change given a new group was added
 			this.notifyGroupIndexChange();
 
-			// Maximize new group, if the reference view was previously maximized
-			if (shouldMaximize) {
-				this.arrangeGroups(GroupsArrangement.MAXIMIZE, newGroupView);
+			// Expand new group, if the reference view was previously expanded
+			if (shouldExpand) {
+				this.arrangeGroups(GroupsArrangement.EXPAND, newGroupView);
 			}
 
 			// Restore focus if we had it previously after completing the grid
@@ -642,7 +673,7 @@ export class EditorPart extends Part implements IEditorPart {
 			// Mark group as new active
 			group.setActive(true);
 
-			// Maximize the group if it is currently minimized
+			// Expand the group if it is currently minimized
 			this.doRestoreGroup(group);
 
 			// Event
@@ -657,9 +688,13 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private doRestoreGroup(group: IEditorGroupView): void {
 		if (this.gridWidget) {
+			if (this.hasMaximizedGroup() && !this.isGroupMaximized(group)) {
+				this.unmaximizeGroup();
+			}
+
 			const viewSize = this.gridWidget.getViewSize(group);
 			if (viewSize.width === group.minimumWidth || viewSize.height === group.minimumHeight) {
-				this.arrangeGroups(GroupsArrangement.MAXIMIZE, group);
+				this.arrangeGroups(GroupsArrangement.EXPAND, group);
 			}
 		}
 	}
@@ -1032,6 +1067,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	centerLayout(active: boolean): void {
+		if (this.hasMaximizedGroup()) {
+			this.unmaximizeGroup();
+		}
+
 		this.centeredLayoutWidget.activate(active);
 
 		this._activeGroup.focus();
@@ -1158,6 +1197,10 @@ export class EditorPart extends Part implements IEditorPart {
 
 		this._onDidChangeSizeConstraints.input = gridWidget.onDidChange;
 		this._onDidScroll.input = gridWidget.onDidScroll;
+		this.gridWidgetDisposables.clear();
+		this.gridWidgetDisposables.add(gridWidget.onDidChangeViewMaximized(maximized => this._onDidChangeGroupMaximized.fire(maximized)));
+
+		this._onDidChangeGroupMaximized.fire(this.hasMaximizedGroup());
 
 		this.onDidSetGridWidget.fire(undefined);
 	}

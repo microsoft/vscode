@@ -260,6 +260,10 @@
 	outline-offset: -1px;
 }
 
+.scm-view .scm-input .actions .action-label.codicon.codicon-debug-stop {
+	color: var(--vscode-icon-foreground) !important;
+}
+
 .scm-view .scm-editor-container .monaco-editor {
 	border-radius: 2px;
 }

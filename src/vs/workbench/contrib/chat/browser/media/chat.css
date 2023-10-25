@@ -54,16 +54,19 @@
 
 @keyframes ellipsis {
 	0% {
+		content: "";
+	}
+	25% {
 		content: ".";
 	}
-	33% {
+	50% {
 		content: "..";
 	}
-	66% {
+	75% {
 		content: "...";
 	}
 	100% {
-		content: ".";
+		content: "";
 	}
 }
 
@@ -88,14 +91,15 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
+	outline: 1px solid var(--vscode-chat-requestBorder)
 }
 
 .interactive-item-container .header .avatar.codicon-avatar {
-	background: var(--vscode-badge-background);
+	background: var(--vscode-chat-avatarBackground);
 }
 
 .interactive-item-container .header .avatar+.avatar {
-	margin-left: -10px;
+	margin-left: -8px;
 }
 
 .interactive-item-container .header .avatar .icon {
@@ -105,7 +109,8 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground) !important;
+	color: var(--vscode-chat-avatarForeground);
+	font-size: 14px;
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
@@ -243,6 +248,14 @@
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
 	width: 16px;
 	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+	font-size: 12px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar {
+	margin-left: -4px;
 }
 
 .interactive-item-container.interactive-item-compact .value {

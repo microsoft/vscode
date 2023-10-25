@@ -351,7 +351,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
 		} else {
-			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.copilot;
 			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
@@ -1143,8 +1143,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
-		templateData.label.setFile(uri, {
+		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },
