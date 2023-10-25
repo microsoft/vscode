@@ -553,6 +553,7 @@ export class InlineChatController implements IEditorContribution {
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
 		const progressiveEditsAvgDuration = new MovingAverage();
+		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 		let round = 0;
@@ -574,10 +575,11 @@ export class InlineChatController implements IEditorContribution {
 					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
 				}
 			}
-			if (data.edits) {
+			if (data.edits?.length) {
 				if (!request.live) {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
+				console.log(JSON.stringify(data.edits, undefined, 2));
 				progressEdits.push(data.edits);
 				progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
 				progressiveEditsClock.reset();
@@ -588,7 +590,7 @@ export class InlineChatController implements IEditorContribution {
 					// become infinitely fast
 					await this._makeChanges(data.edits!, data.editsShouldBeInstant
 						? undefined
-						: { duration: progressiveEditsAvgDuration.value, round: round++, token: requestCts.token }
+						: { duration: progressiveEditsAvgDuration.value, round: round++, token: progressiveEditsCts.token }
 					);
 					this._showWidget(false);
 				});
@@ -638,13 +640,14 @@ export class InlineChatController implements IEditorContribution {
 			this._log('request took', requestClock.elapsed(), this._activeSession.provider.debugName);
 		}
 
-		if (request.live && !(response instanceof EditResponse)) {
-			this._strategy?.undoChanges(modelAltVersionIdNow);
-		}
-
+		progressiveEditsCts.dispose(true);
 		requestCts.dispose();
 		msgListener.dispose();
 		typeListener.dispose();
+
+		if (request.live && !(response instanceof EditResponse)) {
+			this._strategy?.undoChanges(modelAltVersionIdNow);
+		}
 
 		this._activeSession.addExchange(new SessionExchange(this._activeSession.lastInput, response));
 
