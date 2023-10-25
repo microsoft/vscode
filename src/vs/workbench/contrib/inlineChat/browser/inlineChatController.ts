@@ -764,6 +764,7 @@ export class InlineChatController implements IEditorContribution {
 				status = localize('markdownResponseMessage', "{0}", content);
 			}
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
+
 		} else if (response instanceof EditResponse) {
 			// edit response -> complex...
 			this._zone.value.widget.updateMarkdownMessage(undefined);
