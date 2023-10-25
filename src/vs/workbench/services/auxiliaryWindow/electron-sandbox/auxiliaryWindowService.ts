@@ -13,6 +13,7 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	readonly vscodeWindowId: Promise<number>;
@@ -70,6 +71,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = async function () {
+			if (getActiveWindow() === auxiliaryWindow) {
+				return;
+			}
+
 			originalWindowFocus();
 
 			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });

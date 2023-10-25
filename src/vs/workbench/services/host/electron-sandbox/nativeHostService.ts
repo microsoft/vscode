@@ -15,6 +15,7 @@ import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHos
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -116,6 +117,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	}
 
 	async moveTop(win: Window & typeof globalThis): Promise<void> {
+		if (getActiveWindow() === win) {
+			return;
+		}
+
 		if (win === window) {
 			return this.nativeHostService.moveWindowTop();
 		}
