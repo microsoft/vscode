@@ -786,11 +786,10 @@ export class IssueReporter extends Disposable {
 		if (fileOnExtension && selectedExtension?.hasIssueDataProviders) {
 			const data = this.getExtensionData();
 			if (data) {
-				(extensionDataTextArea as HTMLTextAreaElement).value = data.toString();
+				(extensionDataTextArea as HTMLElement).innerText = data.toString();
 			}
 			(extensionDataTextArea as HTMLTextAreaElement).readOnly = true;
 			show(extensionDataBlock);
-			show(extensionDataTextArea);
 		}
 
 		if (issueType === IssueType.Bug) {
@@ -1137,9 +1136,12 @@ export class IssueReporter extends Disposable {
 					} else if (matches[0].hasIssueDataProviders) {
 						const template = await this.getIssueTemplateFromExtension(matches[0]);
 						const descriptionTextArea = this.getElementById('description')!;
-						const fullTextArea = (descriptionTextArea as HTMLTextAreaElement).value += template;
-						this.issueReporterModel.update({ issueDescription: fullTextArea });
-
+						const descriptionText = (descriptionTextArea as HTMLTextAreaElement).value;
+						if (descriptionText === '' || !descriptionText.includes(template)) {
+							const fullTextArea = descriptionText + (descriptionText === '' ? '' : '\n') + template;
+							(descriptionTextArea as HTMLTextAreaElement).value = fullTextArea;
+							this.issueReporterModel.update({ issueDescription: fullTextArea });
+						}
 						const extensionDataBlock = document.querySelector('.block-extension-data')!;
 						show(extensionDataBlock);
 
