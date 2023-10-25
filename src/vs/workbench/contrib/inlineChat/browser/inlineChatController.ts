@@ -41,6 +41,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -135,7 +137,8 @@ export class InlineChatController implements IEditorContribution {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService
+		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
+		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -519,7 +522,21 @@ export class InlineChatController implements IEditorContribution {
 		if (refer) {
 			this._log('[IE] seeing refer command, continuing outside editor', this._activeSession.provider.debugName);
 			this._editor.setSelection(this._activeSession.wholeRange.value);
-			this._instaService.invokeFunction(sendRequest, input);
+			let massagedInput = input;
+			if (input.startsWith(chatSubcommandLeader)) {
+				const withoutSubCommandLeader = input.slice(1);
+				const cts = new CancellationTokenSource();
+				this._sessionStore.add(cts);
+				for (const agent of this._chatAgentService.getAgents()) {
+					const commands = await agent.provideSlashCommands(cts.token);
+					if (commands.find((command) => withoutSubCommandLeader.startsWith(command.name))) {
+						massagedInput = `${chatAgentLeader}${agent.id} ${input}`;
+						break;
+					}
+				}
+			}
+			// if agent has a refer command, massage the input to include the agent name
+			this._instaService.invokeFunction(sendRequest, massagedInput);
 
 			if (!this._activeSession.lastExchange) {
 				// DONE when there wasn't any exchange yet. We used the inline chat only as trampoline
