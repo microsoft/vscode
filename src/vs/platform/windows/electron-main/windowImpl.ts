@@ -406,7 +406,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	private logConditionally(msg: string): void {
-		// TODO@bpasero remove me eventually
+		// TODO@bpasero remove native fullscreen logging eventually
 		if (this.configurationService.getValue('window.logFullScreenTransitions')) {
 			this.logService.info(`window-fullscreen-bug: ${msg})`);
 		}
