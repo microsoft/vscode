@@ -116,18 +116,12 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
-	async moveTop(win: Window & typeof globalThis): Promise<void> {
-		if (getActiveWindow() === win) {
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		if (getActiveWindow() === window) {
 			return;
 		}
 
-		if (win === window) {
-			return this.nativeHostService.moveWindowTop();
-		}
-
-		if (isAuxiliaryWindow(win)) {
-			return win.moveTop();
-		}
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: await window.vscodeWindowId } : undefined);
 	}
 
 	//#endregion

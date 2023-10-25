@@ -17,14 +17,12 @@ import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	readonly vscodeWindowId: Promise<number>;
-
-	moveTop: () => void;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return candidate?.vscodeWindowId instanceof Promise && typeof candidate?.moveTop === 'function';
+	return candidate?.vscodeWindowId instanceof Promise;
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -79,16 +77,6 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
 		};
-
-		// Add a method to move window to the top
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
-			},
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
 	}
 }
 
