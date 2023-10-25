@@ -60,6 +60,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._onEnablementOrModelChanged();
 	}
 
 	private _onEnablementOrModelChanged(): void {
