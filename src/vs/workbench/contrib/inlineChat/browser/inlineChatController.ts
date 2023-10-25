@@ -574,7 +574,7 @@ export class InlineChatController implements IEditorContribution {
 					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
 				}
 			}
-			if (data.edits) {
+			if (data.edits?.length) {
 				if (!request.live) {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
