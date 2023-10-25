@@ -214,7 +214,6 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 
 	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
 		const uri = URI.revive(resource);
-		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0; // TODO@bpasero for now only correlate proposed new file system watcher API with excludes
 
 		const opts: IWatchOptions = {
 			...unvalidatedOpts
@@ -235,7 +234,8 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			}
 		}
 
-		// Correlated file watching is taken as is
+		// Correlated file watching is taken as is (for now we only opt into correlating with proposed new file system watcher API with excludes)
+		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0;
 		if (correlate) {
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 
