@@ -28,6 +28,10 @@ suite('ChatRequestParser', () => {
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IExtensionService, new TestExtensionService());
 		instantiationService.stub(IChatAgentService, testDisposables.add(instantiationService.createInstance(ChatAgentService)));
+
+		const varService = mockObject<IChatVariablesService>()({});
+		varService.getDynamicReferences.returns([]);
+		instantiationService.stub(IChatVariablesService, varService as any);
 	});
 
 	test('plain text', async () => {

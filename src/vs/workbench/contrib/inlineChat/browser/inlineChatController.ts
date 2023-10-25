@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
-import { Barrier, raceCancellationError } from 'vs/base/common/async';
+import { Barrier, Queue, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter, Event } from 'vs/base/common/event';
-import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { IRange, Range } from 'vs/editor/common/core/range';
-import { IEditorContribution, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { InlineCompletionsController } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionsController';
 import { localize } from 'vs/nls';
@@ -39,6 +39,8 @@ import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { MovingAverage } from 'vs/base/common/numbers';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { IModelDeltaDecoration } from 'vs/editor/common/model';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -92,12 +94,12 @@ export class InlineChatController implements IEditorContribution {
 		return editor.getContribution<InlineChatController>(INLINE_CHAT_ID);
 	}
 
-	// private static _decoBlock = ModelDecorationOptions.register({
-	// 	description: 'inline-chat',
-	// 	showIfCollapsed: false,
-	// 	isWholeLine: true,
-	// 	className: 'inline-chat-block-selection',
-	// });
+	private static _decoBlock = ModelDecorationOptions.register({
+		description: 'inline-chat',
+		showIfCollapsed: false,
+		isWholeLine: true,
+		className: 'inline-chat-block-selection',
+	});
 
 	private static _promptHistory: string[] = [];
 	private _historyOffset: number = -1;
@@ -228,29 +230,34 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	joinCurrentRun(): Promise<void> | undefined {
+		return this._currentRun;
+	}
+
 	// ---- state machine
 
 	private _showWidget(initialRender: boolean = false, position?: IPosition) {
 		assertType(this._editor.hasModel());
 
-		let widgetPosition: Position;
+		let widgetPosition = position
+			? Position.lift(position)
+			: this._zone.value.position ?? this._editor.getSelection().getStartPosition().delta(-1);
+
+		let needsMargin = false;
 		if (initialRender) {
-			widgetPosition = position ? Position.lift(position) : this._editor.getSelection().getStartPosition().delta(-1);
 			this._zone.value.setContainerMargins();
-			this._zone.value.setWidgetMargins(widgetPosition);
-		} else {
-			assertType(this._activeSession);
-			assertType(this._strategy);
-			widgetPosition = this._strategy.getWidgetPosition() ?? this._zone.value.position ?? this._activeSession.wholeRange.value.getStartPosition();
-			const needsMargin = this._strategy.needsMargin();
-			if (!needsMargin) {
-				this._zone.value.setWidgetMargins(widgetPosition, 0);
-			}
+		}
+
+		if (this._activeSession && this._activeSession.hasChangedText) {
+			widgetPosition = this._activeSession.wholeRange.value.getStartPosition().delta(-1);
 		}
 		if (this._activeSession) {
-			widgetPosition = this._strategy?.getWidgetPosition() ?? widgetPosition;
 			this._zone.value.updateBackgroundColor(widgetPosition, this._activeSession.wholeRange.value);
 		}
+		if (this._strategy) {
+			needsMargin = this._strategy.needsMargin();
+		}
+		this._zone.value.setWidgetMargins(widgetPosition, !needsMargin ? 0 : undefined);
 		this._zone.value.show(widgetPosition);
 	}
 
@@ -333,22 +340,22 @@ export class InlineChatController implements IEditorContribution {
 
 		this._sessionStore.clear();
 
-		// const wholeRangeDecoration = this._editor.createDecorationsCollection();
-		// const updateWholeRangeDecoration = () => {
+		const wholeRangeDecoration = this._editor.createDecorationsCollection();
+		const updateWholeRangeDecoration = () => {
 
-		// 	const range = this._activeSession!.wholeRange.value;
-		// 	const decorations: IModelDeltaDecoration[] = [];
-		// 	if (!range.isEmpty()) {
-		// 		decorations.push({
-		// 			range,
-		// 			options: InlineChatController._decoBlock
-		// 		});
-		// 	}
-		// 	wholeRangeDecoration.set(decorations);
-		// };
-		// this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
-		// this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
-		// updateWholeRangeDecoration();
+			const range = this._activeSession!.wholeRange.value;
+			const decorations: IModelDeltaDecoration[] = [];
+			if (!range.isEmpty()) {
+				decorations.push({
+					range,
+					options: InlineChatController._decoBlock
+				});
+			}
+			wholeRangeDecoration.set(decorations);
+		};
+		this._sessionStore.add(toDisposable(() => wholeRangeDecoration.clear()));
+		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
+		updateWholeRangeDecoration();
 
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._updatePlaceholder();
@@ -358,18 +365,6 @@ export class InlineChatController implements IEditorContribution {
 		if (this._activeSession.session.input) {
 			this._zone.value.widget.selectAll();
 		}
-		this._sessionStore.add(this._zone.value.widget.onDidChangeInput(_ => {
-			const start = this._zone.value.position;
-			if (!start || !this._zone.value.widget.hasFocus() || !this._zone.value.widget.value || !this._editor.hasModel()) {
-				return;
-			}
-			const nextLine = start.lineNumber + 1;
-			if (nextLine >= this._editor.getModel().getLineCount()) {
-				// last line isn't supported
-				return;
-			}
-			this._editor.revealLine(nextLine, ScrollType.Smooth);
-		}));
 
 		this._showWidget(true, options.position);
 
@@ -417,14 +412,14 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private _placeholder: string | undefined = undefined;
+	private _forcedPlaceholder: string | undefined = undefined;
 	setPlaceholder(text: string): void {
-		this._placeholder = text;
+		this._forcedPlaceholder = text;
 		this._updatePlaceholder();
 	}
 
 	resetPlaceholder(): void {
-		this._placeholder = undefined;
+		this._forcedPlaceholder = undefined;
 		this._updatePlaceholder();
 	}
 
@@ -433,8 +428,8 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		let result = this._placeholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
-		if (InlineChatController._promptHistory.length > 0) {
+		let result = this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		if (typeof this._forcedPlaceholder === 'undefined' && InlineChatController._promptHistory.length > 0) {
 			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
 			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
 
@@ -502,11 +497,11 @@ export class InlineChatController implements IEditorContribution {
 			return State.MAKE_REQUEST;
 		}
 
-		if (!this._zone.value.widget.value) {
+		if (!this.getInput()) {
 			return State.WAIT_FOR_INPUT;
 		}
 
-		const input = this._zone.value.widget.value;
+		const input = this.getInput();
 
 		if (!InlineChatController._promptHistory.includes(input)) {
 			InlineChatController._promptHistory.unshift(input);
@@ -545,7 +540,7 @@ export class InlineChatController implements IEditorContribution {
 
 		const typeListener = this._zone.value.widget.onDidChangeInput(() => requestCts.cancel());
 
-		const sw = StopWatch.create();
+		const requestClock = StopWatch.create();
 		const request: IInlineChatRequest = {
 			requestId: generateUuid(),
 			prompt: this._activeSession.lastInput.value,
@@ -560,31 +555,48 @@ export class InlineChatController implements IEditorContribution {
 		const progressEdits: TextEdit[][] = [];
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
-		const avgDuration = new MovingAverage();
+		const progressiveEditsAvgDuration = new MovingAverage();
+		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
+		const progressiveEditsClock = StopWatch.create();
+		const progressiveEditsQueue = new Queue();
 		let round = 0;
-		let t1 = Date.now();
+
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
+
+			if (requestCts.token.isCancellationRequested) {
+				return;
+			}
+
 			if (data.message) {
 				this._zone.value.widget.updateToolbar(false);
 				this._zone.value.widget.updateInfo(data.message);
 			}
 			if (data.slashCommand) {
-				const valueNow = this._zone.value.widget.value;
+				const valueNow = this.getInput();
 				if (!valueNow.startsWith('/')) {
 					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
 				}
 			}
-			if (data.edits) {
+			if (data.edits?.length) {
 				if (!request.live) {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
+				console.log(JSON.stringify(data.edits, undefined, 2));
 				progressEdits.push(data.edits);
-				avgDuration.update(Date.now() - t1);
-				await this._makeChanges(data.edits, true, { duration: avgDuration.value, round: round++ });
-				t1 = Date.now(); // don't measure how long `_makeChanges` takes
-				// TODO@jrieken this still isn't the true speed because the progress itself is async which
-				// makes an artifical queue, so that towards the end duration (now() -t1) is almost 0
+				progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
+				progressiveEditsClock.reset();
+
+				progressiveEditsQueue.queue(async () => {
+					// making changes goes into a queue because otherwise the async-progress time will
+					// influence the time it takes to receive the changes and progressive typing will
+					// become infinitely fast
+					await this._makeChanges(data.edits!, data.editsShouldBeInstant
+						? undefined
+						: { duration: progressiveEditsAvgDuration.value, round: round++, token: progressiveEditsCts.token }
+					);
+					this._showWidget(false);
+				});
 			}
 			if (data.markdownFragment) {
 				markdownContents.appendMarkdown(data.markdownFragment);
@@ -602,7 +614,10 @@ export class InlineChatController implements IEditorContribution {
 			this._ctxHasActiveRequest.set(true);
 			reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
-			// we must wait for all edits that came in via progress to complete
+			if (progressiveEditsQueue.size > 0) {
+				// we must wait for all edits that came in via progress to complete
+				await Event.toPromise(progressiveEditsQueue.onDrained);
+			}
 			await progress.drain();
 
 			if (reply?.type === InlineChatResponseType.Message) {
@@ -611,7 +626,7 @@ export class InlineChatController implements IEditorContribution {
 			} else if (reply) {
 				const editResponse = new EditResponse(this._activeSession.textModelN.uri, modelAltVersionIdNow, reply, progressEdits);
 				for (let i = progressEdits.length; i < editResponse.allLocalEdits.length; i++) {
-					await this._makeChanges(editResponse.allLocalEdits[i], true, undefined);
+					await this._makeChanges(editResponse.allLocalEdits[i], undefined);
 				}
 				response = editResponse;
 			} else {
@@ -625,16 +640,17 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateProgress(false);
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
-			this._log('request took', sw.elapsed(), this._activeSession.provider.debugName);
+			this._log('request took', requestClock.elapsed(), this._activeSession.provider.debugName);
 		}
+
+		progressiveEditsCts.dispose(true);
+		requestCts.dispose();
+		msgListener.dispose();
+		typeListener.dispose();
 
 		if (request.live && !(response instanceof EditResponse)) {
 			this._strategy?.undoChanges(modelAltVersionIdNow);
 		}
-
-		requestCts.dispose();
-		msgListener.dispose();
-		typeListener.dispose();
 
 		this._activeSession.addExchange(new SessionExchange(this._activeSession.lastInput, response));
 
@@ -666,19 +682,20 @@ export class InlineChatController implements IEditorContribution {
 		return State.SHOW_RESPONSE;
 	}
 
-	private async _makeChanges(lastEdits: TextEdit[], computeMoreMinimalEdits: boolean, opts: ProgressingEditsOptions | undefined) {
+	private async _makeChanges(edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
-		// make changes from modelN -> modelN+1
-		const moreMinimalEdits = computeMoreMinimalEdits ? await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, lastEdits) : undefined;
-		const editOperations = (moreMinimalEdits ?? lastEdits).map(TextEdit.asEditOperation);
-		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, lastEdits, moreMinimalEdits);
+		const moreMinimalEdits = await this._editorWorkerService.computeMoreMinimalEdits(this._activeSession.textModelN.uri, edits);
+		this._log('edits from PROVIDER and after making them MORE MINIMAL', this._activeSession.provider.debugName, edits, moreMinimalEdits);
 
-		if (editOperations.length === 0) {
+		if (moreMinimalEdits?.length === 0) {
 			// nothing left to do
 			return;
 		}
+
+		const actualEdits = !opts && moreMinimalEdits ? moreMinimalEdits : edits;
+		const editOperations = actualEdits.map(TextEdit.asEditOperation);
 
 		try {
 			this._ignoreModelContentChanged = true;
@@ -841,9 +858,15 @@ export class InlineChatController implements IEditorContribution {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
-	updateInput(text: string): void {
+	updateInput(text: string, selectAll = true): void {
 		this._zone.value.widget.value = text;
-		this._zone.value.widget.selectAll();
+		if (selectAll) {
+			this._zone.value.widget.selectAll();
+		}
+	}
+
+	getInput(): string {
+		return this._zone.value.widget.value;
 	}
 
 	regenerate(): void {

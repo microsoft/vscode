@@ -15,6 +15,7 @@ suite('IssueReporter', () => {
 		assert.deepStrictEqual(issueReporterModel.getData(), {
 			allExtensions: [],
 			includeSystemInfo: true,
+			includeExtensionData: true,
 			includeWorkspaceInfo: true,
 			includeProcessInfo: true,
 			includeExtensions: true,

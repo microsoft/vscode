@@ -1842,7 +1842,11 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 }
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
-	const instance = getResourceOrActiveInstance(c, resource);
+	let instance: ITerminalInstance | undefined = resource as ITerminalInstance;
+	if (!instance) {
+		instance = getResourceOrActiveInstance(c, resource);
+	}
+
 	if (instance) {
 		const title = await accessor.get(IQuickInputService).input({
 			value: instance.title,

@@ -187,8 +187,8 @@ export class ActivityBarCompositeBar extends PaneCompositeBar {
 		super({
 			...options,
 			fillExtraContextMenuActions: (actions, e) => {
-				this.fillContextMenuActions(actions, e);
 				options.fillExtraContextMenuActions(actions, e);
+				this.fillContextMenuActions(actions, e);
 			}
 		}, part, paneCompositePart, instantiationService, storageService, extensionService, viewDescriptorService, contextKeyService, environmentService);
 
@@ -359,7 +359,7 @@ registerAction2(class extends Action2 {
 			},
 			shortTitle: localize('side', "Side"),
 			category: Categories.View,
-			toggled: ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.SIDE),
+			toggled: ContextKeyExpr.or(ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.SIDE), ContextKeyExpr.and(ContextKeyExpr.equals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP), TitleBarStyleContext.isEqualTo('native'))),
 			menu: [{
 				id: MenuId.ActivityBarPositionMenu,
 				order: 1

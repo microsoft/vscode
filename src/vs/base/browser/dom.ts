@@ -17,11 +17,15 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidRegisterWindow } = (function () {
+export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
-	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposableStore: DisposableStore }>();
+	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
+	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
+		onWillUnregisterWindow: onWillUnregisterWindow.event,
+		onDidUnregisterWindow: onDidUnregisterWindow.event,
 		registerWindow(window: Window & typeof globalThis): IDisposable {
 			if (windows.has(window)) {
 				return Disposable.None;
@@ -29,14 +33,21 @@ export const { registerWindow, getWindows, onDidRegisterWindow } = (function () 
 
 			windows.add(window);
 
-			const disposableStore = new DisposableStore();
-			disposableStore.add(toDisposable(() => {
+			const disposables = new DisposableStore();
+			disposables.add(toDisposable(() => {
 				windows.delete(window);
+				onDidUnregisterWindow.fire(window);
 			}));
 
-			onDidRegisterWindow.fire({ window, disposableStore });
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
+				onWillUnregisterWindow.fire(window);
+			}));
 
-			return disposableStore;
+			const eventDisposables = new DisposableStore();
+			disposables.add(eventDisposables);
+			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+
+			return disposables;
 		},
 		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
@@ -764,16 +775,69 @@ export function focusWindow(element: Node): void {
 	}
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
+
+export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	beforeAppend?.(style);
 	container.appendChild(style);
+
+	// With <head> as container, the stylesheet becomes global and is tracked
+	// to support auxiliary windows to clone the stylesheet.
+	if (container === document.head) {
+		const clonedGlobalStylesheets = new Set<HTMLStyleElement>();
+		globalStylesheets.set(style, clonedGlobalStylesheets);
+
+		for (const targetWindow of getWindows()) {
+			if (targetWindow === window) {
+				continue; // main window is already tracked
+			}
+
+			const clone = cloneGlobalStyleSheet(style, targetWindow);
+			clonedGlobalStylesheets.add(clone);
+
+			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
+				if (unregisteredWindow === targetWindow) {
+					clonedGlobalStylesheets.delete(clone);
+				}
+			});
+		}
+	}
+
 	return style;
 }
 
-export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+export function isGlobalStylesheet(node: Node): boolean {
+	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
+	const disposables = new DisposableStore();
+
+	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
+		const clone = cloneGlobalStyleSheet(globalStylesheet, targetWindow);
+
+		clonedGlobalStylesheets.add(clone);
+		disposables.add(toDisposable(() => clonedGlobalStylesheets.delete(clone)));
+	}
+
+	return disposables;
+}
+
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): HTMLStyleElement {
+	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
+	targetWindow.document.head.appendChild(clone);
+
+	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
+		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
+	}
+
+	return clone;
+}
+
+export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
@@ -787,7 +851,7 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: any) {
+function getDynamicStyleSheetRules(style: HTMLStyleElement) {
 	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
@@ -799,15 +863,20 @@ function getDynamicStyleSheetRules(style: any) {
 	return [];
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
 		return;
 	}
 
-	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
+
+	// Apply rule also to all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		createCSSRule(selector, cssText, clonedGlobalStylesheet);
+	}
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
 	if (!style) {
 		return;
 	}
@@ -816,14 +885,23 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		const rule = rules[i];
-		if (rule.selectorText.indexOf(ruleName) !== -1) {
+		if (isCSSStyleRule(rule) && rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
 
 	for (let i = toDelete.length - 1; i >= 0; i--) {
-		(<any>style.sheet).deleteRule(toDelete[i]);
+		style.sheet?.deleteRule(toDelete[i]);
 	}
+
+	// Remove rules also from all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
+	}
+}
+
+function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
+	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
@@ -1643,7 +1721,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposableStore }) => this.registerListeners(window, disposableStore), { window, disposableStore: this._subscriptions }));
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window, disposables: this._subscriptions }));
 	}
 
 	private registerListeners(window: Window, disposables: DisposableStore): void {

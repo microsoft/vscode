@@ -111,7 +111,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 	renderMarginRevertIcon: false,
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,
@@ -667,12 +667,6 @@ export class InlineChatWidget {
 
 	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel, allEdits: ISingleEditOperation[][]) {
 
-		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
-			this.hideEditsPreview();
-			return;
-		}
-
 		this._elements.previewDiff.classList.remove('hidden');
 
 		const languageSelection: ILanguageSelection = { languageId: textModel0.getLanguageId(), onDidChange: Event.None };
@@ -680,6 +674,13 @@ export class InlineChatWidget {
 		for (const edits of allEdits) {
 			modified.applyEdits(edits, false);
 		}
+
+		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, modified.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		if (!diff || diff.changes.length === 0) {
+			this.hideEditsPreview();
+			return;
+		}
+
 		this._previewDiffEditor.value.setModel({ original: textModel0, modified });
 
 		// joined ranges
@@ -923,7 +924,6 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	}
 
 	override show(position: Position): void {
-		position = position.lineNumber === 1 ? position.delta(-1) : position;
 		super.show(position, this._computeHeightInLines());
 		this.widget.focus();
 		this._ctxVisible.set(true);

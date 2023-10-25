@@ -135,7 +135,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private readonly editorPartsView: IEditorPartsView,
-		private readonly groupsView: IEditorGroupsView,
+		public readonly groupsView: IEditorGroupsView,
 		private readonly groupsLabel: string,
 		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
@@ -700,6 +700,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control switch between singleEditorTabs, multiEditorTabs and multiRowEditorTabs
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
+			event.oldPartOptions.tabHeight !== event.newPartOptions.tabHeight ||
 			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
 		) {
 
@@ -1929,6 +1930,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
+
+		this.element.style.setProperty('--editor-group-tabs-height', `${this.titleHeight.offset}px`);
 
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleControlSize.height);
