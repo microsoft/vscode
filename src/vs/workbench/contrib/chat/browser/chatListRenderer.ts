@@ -143,10 +143,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
-		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
+		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
 		this._register(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
-				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
+				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
 			}
 		}));
 	}
