@@ -20,7 +20,9 @@ export class TestCommitMessageProvider implements CommitMessageProvider {
 	readonly icon = new ThemeIcon('rocket');
 	readonly title = 'Generate Commit Message (Test)';
 
-	async provideCommitMessage(repository: ApiRepository, _: string[], token: CancellationToken): Promise<string | undefined> {
+	private readonly _changesMap = new Map<string, [string[], number]>();
+
+	async provideCommitMessage(repository: ApiRepository, changes: string[], token: CancellationToken): Promise<string | undefined> {
 		console.log('Repository: ', repository.rootUri.fsPath);
 
 		if (token.isCancellationRequested) {
@@ -29,9 +31,31 @@ export class TestCommitMessageProvider implements CommitMessageProvider {
 
 		return new Promise(resolve => {
 			token.onCancellationRequested(() => resolve(undefined));
-			setTimeout(() => resolve(`Test commit message (${Math.random()})`), 5000);
+
+			setTimeout(() => {
+				const attemptCount = this.getAttemptCount(repository, changes);
+				this._changesMap.set(repository.rootUri.fsPath, [changes, attemptCount]);
+
+				resolve(`Test commit message (Attempt No. ${attemptCount})`);
+			}, 5000);
 		});
 	}
+
+	private getAttemptCount(repository: ApiRepository, changes: string[]): number {
+		const [previousChanges, previousCount] = this._changesMap.get(repository.rootUri.fsPath) ?? [[], 1];
+		if (previousChanges.length !== changes.length) {
+			return 1;
+		}
+
+		for (let index = 0; index < changes.length; index++) {
+			if (previousChanges[index] !== changes[index]) {
+				return 1;
+			}
+		}
+
+		return previousCount + 1;
+	}
+
 }
 
 interface ActionButtonState {
