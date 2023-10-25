@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -1031,6 +1031,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focusPart(part: Parts): void {
+		const container = this.getContainer(part);
+		if (container) {
+			focusWindow(container);
+		}
+
 		switch (part) {
 			case Parts.EDITOR_PART:
 				this.editorGroupService.activeGroup.focus();
@@ -1051,8 +1056,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
 			default: {
-				// Title Bar & Banner simply pass focus to container
-				const container = this.getContainer(part);
 				container?.focus();
 			}
 		}
