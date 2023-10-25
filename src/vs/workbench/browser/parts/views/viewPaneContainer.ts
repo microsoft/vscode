@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener, Dimension, DragAndDropObserver, EventType, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, DragAndDropObserver, EventType, focusWindow, isAncestor } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture } from 'vs/base/browser/touch';
 import { IActionViewItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -45,7 +45,7 @@ MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, <ISubmenuItem>{
 	submenu: ViewsSubMenu,
 	title: nls.localize('views', "Views"),
 	order: 1,
-	when: ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
+	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)), ContextKeyExpr.notEquals(`config.${LayoutSettings.ACTIVITY_BAR_LOCATION}`, ActivityBarPosition.TOP)),
 });
 
 export interface IViewPaneContainerOptions extends IPaneViewOptions {
@@ -547,6 +547,11 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.updateTitleArea();
 				this.updateViewHeaders();
 			}
+			this._register(this.configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
+					this.updateViewHeaders();
+				}
+			}));
 		});
 
 		this._register(this.viewContainerModel.onDidChangeActiveViewDescriptors(() => this._onTitleAreaUpdate.fire()));
@@ -595,15 +600,20 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	focus(): void {
+		let paneToFocus: ViewPane | undefined = undefined;
 		if (this.lastFocusedPane) {
-			this.lastFocusedPane.focus();
+			paneToFocus = this.lastFocusedPane;
 		} else if (this.paneItems.length > 0) {
-			for (const { pane: pane } of this.paneItems) {
+			for (const { pane } of this.paneItems) {
 				if (pane.isExpanded()) {
-					pane.focus();
-					return;
+					paneToFocus = pane;
+					break;
 				}
 			}
+		}
+		if (paneToFocus) {
+			focusWindow(paneToFocus.element);
+			paneToFocus.focus();
 		}
 	}
 
@@ -1057,23 +1067,27 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 				this.paneItems[0].pane.setExpanded(true);
 			}
 			this.paneItems[0].pane.headerVisible = false;
+			this.paneItems[0].pane.collapsible = true;
 		} else {
-			this.paneItems.forEach(i => {
-				i.pane.headerVisible = true;
-				if (i.pane === this.lastMergedCollapsedPane) {
-					i.pane.setExpanded(false);
-				}
-			});
+			if (this.paneItems.length === 1) {
+				this.paneItems[0].pane.headerVisible = true;
+				this.paneItems[0].pane.setExpanded(true);
+				this.paneItems[0].pane.collapsible = false;
+			} else {
+				this.paneItems.forEach(i => {
+					i.pane.headerVisible = true;
+					i.pane.collapsible = true;
+					if (i.pane === this.lastMergedCollapsedPane) {
+						i.pane.setExpanded(false);
+					}
+				});
+			}
 			this.lastMergedCollapsedPane = undefined;
 		}
 	}
 
 	isViewMergedWithContainer(): boolean {
 		const location = this.viewDescriptorService.getViewContainerLocation(this.viewContainer);
-		// Do not merge views in secondary side bar because the view title is not shown
-		if (location === ViewContainerLocation.AuxiliaryBar) {
-			return false;
-		}
 		// Do not merge views in side bar when activity bar is on top because the view title is not shown
 		if (location === ViewContainerLocation.Sidebar && !this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
 			return false;

@@ -12,15 +12,17 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
-	moveTop: () => void;
+	readonly vscodeWindowId: Promise<number>;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return typeof candidate?.moveTop === 'function';
+	return candidate?.vscodeWindowId instanceof Promise;
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -28,9 +30,10 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(layoutService);
+		super(layoutService, dialogService);
 	}
 
 	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
@@ -52,25 +55,28 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
 		})();
 
-		// Enable `window.focus()` to work in Electron by
-		// asking the main process to focus the window.
-		const that = this;
-		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = async function () {
-			originalWindowFocus();
-
-			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
-		};
-
-		// Add a method to move window to the top
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
-			},
+		// Add a `windowId` property
+		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
+			value: windowId.p,
 			writable: false,
 			enumerable: false,
 			configurable: false
 		});
+
+		// Enable `window.focus()` to work in Electron by
+		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
+		const that = this;
+		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
+		auxiliaryWindow.focus = async function () {
+			if (getActiveWindow() === auxiliaryWindow) {
+				return;
+			}
+
+			originalWindowFocus();
+
+			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+		};
 	}
 }
 

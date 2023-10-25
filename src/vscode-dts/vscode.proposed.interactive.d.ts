@@ -20,6 +20,7 @@ declare module 'vscode' {
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		input?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
 		message?: string;
@@ -51,7 +52,9 @@ declare module 'vscode' {
 	export interface InteractiveEditorProgressItem {
 		message?: string;
 		edits?: TextEdit[];
+		editsShouldBeInstant?: boolean;
 		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {
@@ -108,9 +111,7 @@ declare module 'vscode' {
 
 	export interface InteractiveRequest {
 		session: InteractiveSession;
-		message: string | InteractiveSessionReplyFollowup;
-		// TODO@API move to agent
-		// slashCommand?: InteractiveSessionSlashCommand;
+		message: string;
 	}
 
 	export interface InteractiveResponseErrorDetails {
@@ -202,7 +203,7 @@ declare module 'vscode' {
 
 	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
 
-	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;

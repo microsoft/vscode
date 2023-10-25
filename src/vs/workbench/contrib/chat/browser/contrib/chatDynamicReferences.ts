@@ -26,7 +26,7 @@ export class ChatDynamicReferenceModel extends Disposable implements IChatWidget
 
 	private readonly _references: IDynamicReference[] = [];
 	get references(): ReadonlyArray<IDynamicReference> {
-		return this._references;
+		return [...this._references];
 	}
 
 	get id() {
@@ -126,7 +126,7 @@ export class SelectAndInsertFileAction extends Action2 {
 
 		const fileName = basename(resource);
 		const editor = context.widget.inputEditor;
-		const text = `$file:${fileName}`;
+		const text = `#file:${fileName}`;
 		const range = context.range;
 		const success = editor.executeEdits('chatInsertFile', [{ range, text: text + ' ' }]);
 		if (!success) {

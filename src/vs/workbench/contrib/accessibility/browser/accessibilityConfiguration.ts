@@ -23,7 +23,8 @@ export const accessibleViewCurrentProviderId = new RawContextKey<string>('access
  */
 export const enum AccessibilityWorkbenchSettingId {
 	DimUnfocusedEnabled = 'accessibility.dimUnfocused.enabled',
-	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity'
+	DimUnfocusedOpacity = 'accessibility.dimUnfocused.opacity',
+	HideAccessibleView = 'accessibility.hideAccessibleView'
 }
 
 export const enum ViewDimUnfocusedOpacityProperties {
@@ -45,6 +46,11 @@ export const enum AccessibilityVerbositySettingId {
 	Notification = 'accessibility.verbosity.notification',
 	EmptyEditorHint = 'accessibility.verbosity.emptyEditorHint',
 	Comments = 'accessibility.verbosity.comments'
+}
+
+export const enum AccessibilityAlertSettingId {
+	Save = 'accessibility.alert.save',
+	Format = 'accessibility.alert.format'
 }
 
 export const enum AccessibleViewProviderId {
@@ -117,7 +123,31 @@ const configuration: IConfigurationNode = {
 		[AccessibilityVerbositySettingId.Comments]: {
 			description: localize('verbosity.comments', 'Provide information about actions that can be taken in the comment widget or in a file which contains comments.'),
 			...baseProperty
-		}
+		},
+		[AccessibilityAlertSettingId.Save]: {
+			'markdownDescription': localize('alert.save', "When in screen reader mode, alerts when a file is saved. Note that this will be ignored when {0} is enabled.", '`#audioCues.save#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'always',
+			'enumDescriptions': [
+				localize('alert.save.userGesture', "Alerts when a file is saved via user gesture."),
+				localize('alert.save.always', "Alerts whenever is a file is saved, including auto save."),
+				localize('alert.save.never', "Never alerts.")
+			],
+			tags: ['accessibility']
+		},
+		[AccessibilityAlertSettingId.Format]: {
+			'markdownDescription': localize('alert.format', "When in screen reader mode, alerts when a file or notebook cell is formatted. Note that this will be ignored when {0} is enabled.", '`#audioCues.format#`'),
+			'type': 'string',
+			'enum': ['userGesture', 'always', 'never'],
+			'default': 'always',
+			'enumDescriptions': [
+				localize('alert.format.userGesture', "Alerts when a file is formatted via user gesture."),
+				localize('alert.format.always', "Alerts whenever is a file is formatted, including auto save, on cell execution, and more."),
+				localize('alert.format.never', "Never alerts.")
+			],
+			tags: ['accessibility']
+		},
 	}
 };
 
@@ -143,6 +173,12 @@ export function registerAccessibilityConfiguration() {
 				default: ViewDimUnfocusedOpacityProperties.Default,
 				tags: ['accessibility'],
 				scope: ConfigurationScope.APPLICATION,
+			},
+			[AccessibilityWorkbenchSettingId.HideAccessibleView]: {
+				description: localize('accessibility.hideAccessibleView', "Controls whether the accessible view is hidden."),
+				type: 'boolean',
+				default: false,
+				tags: ['accessibility']
 			}
 		}
 	});

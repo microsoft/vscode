@@ -12,6 +12,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import 'vs/css!./toggle';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export interface IToggleOpts extends IToggleStyles {
 	readonly actionClassName?: string;
@@ -252,7 +253,7 @@ export class Checkbox extends Widget {
 	}
 
 	hasFocus(): boolean {
-		return this.domNode === document.activeElement;
+		return isActiveElement(this.domNode);
 	}
 
 	protected applyStyles(): void {

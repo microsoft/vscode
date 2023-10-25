@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -47,6 +47,7 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
@@ -147,6 +148,12 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
+	private readonly _onDidAddContainer = this._register(new Emitter<HTMLElement>());
+	readonly onDidAddContainer = this._onDidAddContainer.event;
+
+	private readonly _onDidRemoveContainer = this._register(new Emitter<HTMLElement>());
+	readonly onDidRemoveContainer = this._onDidRemoveContainer.event;
+
 	//#endregion
 
 	//#region Properties
@@ -227,6 +234,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private statusBarService!: IStatusbarService;
 	private logService!: ILogService;
 	private telemetryService!: ITelemetryService;
+	private auxiliaryWindowService!: IAuxiliaryWindowService;
 
 	private state!: ILayoutState;
 	private stateModel!: LayoutStateModel;
@@ -252,6 +260,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.extensionService = accessor.get(IExtensionService);
 		this.logService = accessor.get(ILogService);
 		this.telemetryService = accessor.get(ITelemetryService);
+		this.auxiliaryWindowService = accessor.get(IAuxiliaryWindowService);
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
@@ -281,7 +290,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Wait to register these listeners after the editor group service
 		// is ready to avoid conflicts on startup
-		this.editorGroupService.whenRestored.then(() => {
+		this.editorGroupService.mainPart.whenRestored.then(() => {
 
 			// Restore editor part on any editor change
 			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
@@ -332,6 +341,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
 			this._register(addDisposableListener((navigator as any).windowControlsOverlay, 'geometrychange', () => this.onDidChangeWCO()));
 		}
+
+		// Auxiliary windows
+		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
+			this._onDidAddContainer.fire(window.container);
+
+			disposables.add(toDisposable(() => this._onDidRemoveContainer.fire(window.container)));
+		}));
 	}
 
 	private onMenubarToggled(visible: boolean): void {
@@ -404,7 +420,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.updateMenubarVisibility(!!skipLayout);
 
 		// Centered Layout
-		this.editorGroupService.whenRestored.then(() => {
+		this.editorGroupService.mainPart.whenRestored.then(() => {
 			this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED), skipLayout);
 		});
 	}
@@ -688,7 +704,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Empty workbench configured to open untitled file if empty
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.configurationService.getValue('workbench.startupEditor') === 'newUntitledFile') {
-			if (this.editorGroupService.hasRestorableState) {
+			if (this.editorGroupService.mainPart.hasRestorableState) {
 				return []; // do not open any empty untitled file if we restored groups/editors from previous session
 			}
 
@@ -761,7 +777,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			mark('code/willRestoreEditors');
 
 			// first ensure the editor part is ready
-			await this.editorGroupService.whenReady;
+			await this.editorGroupService.mainPart.whenReady;
 			mark('code/restoreEditors/editorGroupsReady');
 
 			// apply editor layout if any
@@ -817,7 +833,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			layoutRestoredPromises.push(
 				Promise.all([
 					openEditorsPromise?.finally(() => mark('code/restoreEditors/editorsOpened')),
-					this.editorGroupService.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
+					this.editorGroupService.mainPart.whenRestored.finally(() => mark('code/restoreEditors/editorGroupsRestored'))
 				]).finally(() => {
 					// the `code/didRestoreEditors` perf mark is specifically
 					// for when visible editors have resolved, so we only mark
@@ -1001,17 +1017,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	hasFocus(part: Parts): boolean {
-		const activeElement = document.activeElement;
+		const container = this.getContainer(part);
+		if (!container) {
+			return false;
+		}
+
+		const activeElement = container.ownerDocument.activeElement;
 		if (!activeElement) {
 			return false;
 		}
 
-		const container = this.getContainer(part);
-
-		return !!container && isAncestorUsingFlowTo(activeElement, container);
+		return isAncestorUsingFlowTo(activeElement, container);
 	}
 
 	focusPart(part: Parts): void {
+		const container = this.getContainer(part);
+		if (container) {
+			focusWindow(container);
+		}
+
 		switch (part) {
 			case Parts.EDITOR_PART:
 				this.editorGroupService.activeGroup.focus();
@@ -1032,8 +1056,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			case Parts.STATUSBAR_PART:
 				this.statusBarService.focus();
 			default: {
-				// Title Bar & Banner simply pass focus to container
-				const container = this.getContainer(part);
 				container?.focus();
 			}
 		}
@@ -1100,6 +1122,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// with the command center enabled, we should always show
 		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+			return true;
+		}
+
+		// with the activity bar on top, we should always show
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
 			return true;
 		}
 
@@ -1235,8 +1262,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				this.state.runtime.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
-			if (config.hideTabs && this.editorGroupService.partOptions.showTabs) {
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: false }));
+			if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
+				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: config.showTabs }));
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
@@ -1460,8 +1487,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	resizePart(part: Parts, sizeChangeWidth: number, sizeChangeHeight: number): void {
-		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(Math.abs(sizeChangeWidth));
-		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(Math.abs(sizeChangeHeight));
+		const sizeChangePxWidth = Math.sign(sizeChangeWidth) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeWidth));
+		const sizeChangePxHeight = Math.sign(sizeChangeHeight) * computeScreenAwareSize(getActiveWindow(), Math.abs(sizeChangeHeight));
 
 		let viewSize: IViewSize;
 
@@ -2308,7 +2335,7 @@ type ZenModeConfiguration = {
 	hideActivityBar: boolean;
 	hideLineNumbers: boolean;
 	hideStatusBar: boolean;
-	hideTabs: boolean;
+	showTabs: 'multiple' | 'single' | 'none';
 	restore: boolean;
 	silentNotifications: boolean;
 };

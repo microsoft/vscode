@@ -38,7 +38,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			this._proxy.$onDidPerformUserAction(e);
+			if (!e.agentId) {
+				this._proxy.$onDidPerformUserAction(e);
+			}
 		}));
 	}
 
@@ -68,9 +70,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					return undefined;
 				}
 
-				const responderAvatarIconUri = session.responderAvatarIconUri ?
-					URI.revive(session.responderAvatarIconUri) :
-					registration.extensionIcon;
+				const responderAvatarIconUri = session.responderAvatarIconUri &&
+					URI.revive(session.responderAvatarIconUri);
 
 				const emitter = new Emitter<any>();
 				this._stateEmitters.set(session.id, emitter);

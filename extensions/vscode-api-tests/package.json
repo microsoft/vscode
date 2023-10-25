@@ -6,6 +6,8 @@
   "license": "MIT",
   "enabledApiProposals": [
     "authSession",
+    "chatAgents2",
+    "chatVariables",
     "contribViewsRemote",
     "contribStatusBarItems",
     "createFileSystemWatcher",
@@ -20,6 +22,7 @@
     "fileSearchProvider",
     "findTextInFiles",
     "fsChunks",
+    "interactive",
     "mappedEditsProvider",
     "notebookCellExecutionState",
     "notebookDeprecated",
@@ -42,7 +45,6 @@
     "tunnels",
     "testCoverage",
     "testObserver",
-    "testMessageContextValue",
     "textSearchProvider",
     "timeline",
     "tokenInformation",
@@ -163,6 +165,12 @@
             "program": "${workspaceFolder}/file.md"
           }
         ]
+      }
+    ],
+    "interactiveSession": [
+      {
+        "id": "provider",
+        "label": "Provider"
       }
     ],
     "notebooks": [

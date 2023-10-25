@@ -170,7 +170,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	private _attachBarrier: AutoOpenBarrier;
 	private _icon: TerminalIcon | undefined;
 	private _messageTitleDisposable: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
-	private _widgetManager: TerminalWidgetManager = new TerminalWidgetManager();
+	private _widgetManager: TerminalWidgetManager;
 	private _dndObserver: MutableDisposable<IDisposable> = this._register(new MutableDisposable());
 	private _lastLayoutDimensions: dom.Dimension | undefined;
 	private _hasHadInput: boolean;
@@ -252,7 +252,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	get os(): OperatingSystem | undefined { return this._processManager.os; }
 	get isRemote(): boolean { return this._processManager.remoteAuthority !== undefined; }
 	get remoteAuthority(): string | undefined { return this._processManager.remoteAuthority; }
-	get hasFocus(): boolean { return this._wrapperElement.contains(document.activeElement) ?? false; }
+	get hasFocus(): boolean { return dom.isAncestorOfActiveElement(this._wrapperElement); }
 	get title(): string { return this._title; }
 	get titleSource(): TitleEventSource { return this._titleSource; }
 	get icon(): TerminalIcon | undefined { return this._getIcon(); }
@@ -355,12 +355,14 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IAudioCueService private readonly _audioCueService: IAudioCueService,
-		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService
 	) {
 		super();
 
 		this._wrapperElement = document.createElement('div');
 		this._wrapperElement.classList.add('terminal-wrapper');
+
+		this._widgetManager = this._register(instantiationService.createInstance(TerminalWidgetManager));
 
 		this._skipTerminalCommands = [];
 		this._isExiting = false;
@@ -863,6 +865,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		// The container changed, reattach
 		this._container = container;
 		this._container.appendChild(this._wrapperElement);
+
+		// If xterm is already attached, call open again to pick up any changes to the window.
+		if (this.xterm?.raw.element) {
+			this.xterm.raw.open(this.xterm.raw.element);
+		}
+
 		this.xterm?.refresh();
 
 		setTimeout(() => this._initDragAndDrop(container));
@@ -997,7 +1005,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._register(dom.addDisposableListener(xterm.raw.element, 'mousedown', () => {
 			// We need to listen to the mouseup event on the document since the user may release
 			// the mouse button anywhere outside of _xterm.element.
-			const listener = dom.addDisposableListener(document, 'mouseup', () => {
+			const listener = dom.addDisposableListener(xterm.raw.element!.ownerDocument, 'mouseup', () => {
 				// Delay with a setTimeout to allow the mouseup to propagate through the DOM
 				// before evaluating the new selection state.
 				setTimeout(() => this._refreshSelectionContextKey(), 0);

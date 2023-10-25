@@ -70,7 +70,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	},
 	'serve-web': {
 		type: 'subcommand',
-		description: 'Make the current machine accessible from vscode.dev or other machines through a secure tunnel',
+		description: 'Run a server that displays the editor UI in browsers.',
 		options: {
 			'cli-data-dir': { type: 'string', args: 'dir', description: localize('cliDataDir', "Directory where CLI metadata should be stored.") },
 			'disable-telemetry': { type: 'boolean' },

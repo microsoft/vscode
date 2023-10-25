@@ -17,11 +17,15 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidRegisterWindow } = (function () {
+export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
-	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposableStore: DisposableStore }>();
+	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
+	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
+		onWillUnregisterWindow: onWillUnregisterWindow.event,
+		onDidUnregisterWindow: onDidUnregisterWindow.event,
 		registerWindow(window: Window & typeof globalThis): IDisposable {
 			if (windows.has(window)) {
 				return Disposable.None;
@@ -29,14 +33,21 @@ export const { registerWindow, getWindows, onDidRegisterWindow } = (function () 
 
 			windows.add(window);
 
-			const disposableStore = new DisposableStore();
-			disposableStore.add(toDisposable(() => {
+			const disposables = new DisposableStore();
+			disposables.add(toDisposable(() => {
 				windows.delete(window);
+				onDidUnregisterWindow.fire(window);
 			}));
 
-			onDidRegisterWindow.fire({ window, disposableStore });
+			disposables.add(addDisposableListener(window, EventType.BEFORE_UNLOAD, () => {
+				onWillUnregisterWindow.fire(window);
+			}));
 
-			return disposableStore;
+			const eventDisposables = new DisposableStore();
+			disposables.add(eventDisposables);
+			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+
+			return disposables;
 		},
 		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
@@ -602,14 +613,7 @@ export function getLargestChildWidth(parent: HTMLElement, children: HTMLElement[
 // ----------------------------------------------------------------------------------------
 
 export function isAncestor(testChild: Node | null, testAncestor: Node | null): boolean {
-	while (testChild) {
-		if (testChild === testAncestor) {
-			return true;
-		}
-		testChild = testChild.parentNode;
-	}
-
-	return false;
+	return Boolean(testAncestor?.contains(testChild));
 }
 
 const parentFlowToDataKey = 'parentFlowToElementId';
@@ -718,6 +722,22 @@ export function getActiveElement(): Element | null {
 }
 
 /**
+ * Returns whether the active element of the `document` that owns
+ * the `element` is `element`.
+ */
+export function isActiveElement(element: Element): boolean {
+	return element.ownerDocument.activeElement === element;
+}
+
+/**
+ * Returns whether the active element of the `document` that owns
+ * the `ancestor` is contained in `ancestor`.
+ */
+export function isAncestorOfActiveElement(ancestor: Element): boolean {
+	return isAncestor(ancestor.ownerDocument.activeElement, ancestor);
+}
+
+/**
  * Returns the active document across all child windows.
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
@@ -755,16 +775,69 @@ export function focusWindow(element: Node): void {
 	}
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
+
+export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	beforeAppend?.(style);
 	container.appendChild(style);
+
+	// With <head> as container, the stylesheet becomes global and is tracked
+	// to support auxiliary windows to clone the stylesheet.
+	if (container === document.head) {
+		const clonedGlobalStylesheets = new Set<HTMLStyleElement>();
+		globalStylesheets.set(style, clonedGlobalStylesheets);
+
+		for (const targetWindow of getWindows()) {
+			if (targetWindow === window) {
+				continue; // main window is already tracked
+			}
+
+			const clone = cloneGlobalStyleSheet(style, targetWindow);
+			clonedGlobalStylesheets.add(clone);
+
+			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
+				if (unregisteredWindow === targetWindow) {
+					clonedGlobalStylesheets.delete(clone);
+				}
+			});
+		}
+	}
+
 	return style;
 }
 
-export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+export function isGlobalStylesheet(node: Node): boolean {
+	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
+	const disposables = new DisposableStore();
+
+	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
+		const clone = cloneGlobalStyleSheet(globalStylesheet, targetWindow);
+
+		clonedGlobalStylesheets.add(clone);
+		disposables.add(toDisposable(() => clonedGlobalStylesheets.delete(clone)));
+	}
+
+	return disposables;
+}
+
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): HTMLStyleElement {
+	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
+	targetWindow.document.head.appendChild(clone);
+
+	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
+		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
+	}
+
+	return clone;
+}
+
+export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
@@ -778,7 +851,7 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: any) {
+function getDynamicStyleSheetRules(style: HTMLStyleElement) {
 	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
@@ -790,15 +863,20 @@ function getDynamicStyleSheetRules(style: any) {
 	return [];
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
 		return;
 	}
 
-	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
+
+	// Apply rule also to all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		createCSSRule(selector, cssText, clonedGlobalStylesheet);
+	}
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
 	if (!style) {
 		return;
 	}
@@ -807,14 +885,23 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		const rule = rules[i];
-		if (rule.selectorText.indexOf(ruleName) !== -1) {
+		if (isCSSStyleRule(rule) && rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
 
 	for (let i = toDelete.length - 1; i >= 0; i--) {
-		(<any>style.sheet).deleteRule(toDelete[i]);
+		style.sheet?.deleteRule(toDelete[i]);
 	}
+
+	// Remove rules also from all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
+	}
+}
+
+function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
+	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
@@ -959,6 +1046,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 			const activeElement = (shadowRoot ? shadowRoot.activeElement : element.ownerDocument.activeElement);
 			return isAncestor(activeElement, element);
 		} else {
+			const window = element;
 			return isAncestor(window.document.activeElement, window.document);
 		}
 	}
@@ -1209,7 +1297,7 @@ export function domContentLoaded(): Promise<unknown> {
  * of 1.25, the cursor will be 2.5 screen pixels wide. Depending on how the dom node aligns/"snaps"
  * with the screen pixels, it will sometimes be rendered with 2 screen pixels, and sometimes with 3 screen pixels.
  */
-export function computeScreenAwareSize(cssPx: number): number {
+export function computeScreenAwareSize(window: Window, cssPx: number): number {
 	const screenPx = window.devicePixelRatio * cssPx;
 	return Math.max(1, Math.floor(screenPx)) / window.devicePixelRatio;
 }
@@ -1633,7 +1721,11 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(addDisposableListener(window, 'keydown', e => {
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window, disposables: this._subscriptions }));
+	}
+
+	private registerListeners(window: Window, disposables: DisposableStore): void {
+		disposables.add(addDisposableListener(window, 'keydown', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1670,7 +1762,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'keyup', e => {
+		disposables.add(addDisposableListener(window, 'keyup', e => {
 			if (e.defaultPrevented) {
 				return;
 			}
@@ -1702,21 +1794,21 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousedown', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mousedown', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mouseup', () => {
+		disposables.add(addDisposableListener(window.document.body, 'mouseup', () => {
 			this._keyStatus.lastKeyPressed = undefined;
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(document.body, 'mousemove', e => {
+		disposables.add(addDisposableListener(window.document.body, 'mousemove', e => {
 			if (e.buttons) {
 				this._keyStatus.lastKeyPressed = undefined;
 			}
 		}, true));
 
-		this._subscriptions.add(addDisposableListener(window, 'blur', () => {
+		disposables.add(addDisposableListener(window, 'blur', () => {
 			this.resetKeyStatus();
 		}));
 	}
