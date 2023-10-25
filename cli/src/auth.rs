@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{
-	constants::{get_default_user_agent, IS_INTERACTIVE_CLI, PRODUCT_NAME_LONG},
+	constants::{get_default_user_agent, APPLICATION_NAME, IS_INTERACTIVE_CLI, PRODUCT_NAME_LONG},
 	debug, error, info, log,
 	state::{LauncherPaths, PersistedState},
 	trace,
@@ -84,7 +84,9 @@ impl AuthProvider {
 
 	pub fn grant_uri(&self) -> &'static str {
 		match self {
-			AuthProvider::Microsoft => "https://login.microsoftonline.com/organizations/oauth2/v2.0/token",
+			AuthProvider::Microsoft => {
+				"https://login.microsoftonline.com/organizations/oauth2/v2.0/token"
+			}
 			AuthProvider::Github => "https://github.com/login/oauth/access_token",
 		}
 	}
@@ -673,7 +675,8 @@ impl Auth {
 		if !*IS_INTERACTIVE_CLI {
 			info!(
 				self.log,
-				"Using Github for authentication, pass the `--provider` option to change this."
+				"Using Github for authentication, run `{} tunnel user login --provider <provider>` option to change this.",
+				APPLICATION_NAME
 			);
 			return Ok(AuthProvider::Github);
 		}
