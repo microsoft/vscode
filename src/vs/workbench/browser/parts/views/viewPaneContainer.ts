@@ -1083,10 +1083,6 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	isViewMergedWithContainer(): boolean {
 		const location = this.viewDescriptorService.getViewContainerLocation(this.viewContainer);
-		// Do not merge views in secondary side bar because the view title is not shown
-		if (location === ViewContainerLocation.AuxiliaryBar) {
-			return false;
-		}
 		// Do not merge views in side bar when activity bar is on top because the view title is not shown
 		if (location === ViewContainerLocation.Sidebar && !this.layoutService.isVisible(Parts.ACTIVITYBAR_PART) && this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP) {
 			return false;
