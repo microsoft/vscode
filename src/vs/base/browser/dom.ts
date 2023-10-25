@@ -795,14 +795,12 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 				continue; // main window is already tracked
 			}
 
-			const styleClone = style.cloneNode(true) as HTMLStyleElement;
-			targetWindow.document.head.appendChild(styleClone);
-
-			clonedGlobalStylesheets.add(styleClone);
+			const clone = cloneGlobalStyleSheet(style, targetWindow);
+			clonedGlobalStylesheets.add(clone);
 
 			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
 				if (unregisteredWindow === targetWindow) {
-					clonedGlobalStylesheets.delete(styleClone);
+					clonedGlobalStylesheets.delete(clone);
 				}
 			});
 		}
@@ -819,18 +817,24 @@ export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis)
 	const disposables = new DisposableStore();
 
 	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
-		const styleClone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
-		targetWindow.document.head.appendChild(styleClone);
+		const clone = cloneGlobalStyleSheet(globalStylesheet, targetWindow);
 
-		for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
-			styleClone.sheet?.insertRule(rule.cssText, styleClone.sheet?.cssRules.length);
-		}
-
-		clonedGlobalStylesheets.add(styleClone);
-		disposables.add(toDisposable(() => clonedGlobalStylesheets.delete(styleClone)));
+		clonedGlobalStylesheets.add(clone);
+		disposables.add(toDisposable(() => clonedGlobalStylesheets.delete(clone)));
 	}
 
 	return disposables;
+}
+
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): HTMLStyleElement {
+	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
+	targetWindow.document.head.appendChild(clone);
+
+	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
+		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
+	}
+
+	return clone;
 }
 
 export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
