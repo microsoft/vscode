@@ -2050,7 +2050,10 @@ class SCMInputWidget {
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false },
+			scrollbar: {
+				alwaysConsumeMouseWheel: false,
+				vertical: 'hidden'
+			},
 			overflowWidgetsDomNode,
 			formatOnType: true,
 			renderWhitespace: 'none',
