@@ -128,6 +128,7 @@ export async function formatDocumentRangesWithProvider(
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 	const logService = accessor.get(ILogService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -271,7 +272,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format);
 	return true;
 }
 

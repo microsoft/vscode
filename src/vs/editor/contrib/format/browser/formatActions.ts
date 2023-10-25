@@ -21,6 +21,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { formatDocumentRangesWithSelectedProvider, formatDocumentWithSelectedProvider, FormattingMode, getOnTypeFormattingEdits } from 'vs/editor/contrib/format/browser/format';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
 import * as nls from 'vs/nls';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -38,7 +39,8 @@ export class FormatOnType implements IEditorContribution {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
-		@IEditorWorkerService private readonly _workerService: IEditorWorkerService
+		@IEditorWorkerService private readonly _workerService: IEditorWorkerService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService
 	) {
 		this._disposables.add(_languageFeaturesService.onTypeFormattingEditProvider.onDidChange(this._update, this));
 		this._disposables.add(_editor.onDidChangeModel(() => this._update()));
@@ -141,6 +143,7 @@ export class FormatOnType implements IEditorContribution {
 				return;
 			}
 			if (isNonEmptyArray(edits)) {
+				this._accessibleNotificationService.notify(AccessibleNotificationEvent.Format);
 				FormattingEdit.execute(this._editor, edits, true);
 			}
 		}).finally(() => {
