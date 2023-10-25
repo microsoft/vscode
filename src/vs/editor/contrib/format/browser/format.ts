@@ -105,7 +105,8 @@ export async function formatDocumentRangesWithSelectedProvider(
 	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
 	progress: IProgress<DocumentRangeFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
@@ -115,7 +116,7 @@ export async function formatDocumentRangesWithSelectedProvider(
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token, userGesture);
 	}
 }
 
@@ -124,7 +125,8 @@ export async function formatDocumentRangesWithProvider(
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	rangeOrRanges: Range | Range[],
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 	const logService = accessor.get(ILogService);
@@ -272,7 +274,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-	accessibleNotificationService.notify(AccessibleNotificationEvent.Format);
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
 	return true;
 }
 

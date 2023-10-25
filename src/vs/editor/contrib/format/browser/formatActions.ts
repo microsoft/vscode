@@ -143,7 +143,7 @@ export class FormatOnType implements IEditorContribution {
 				return;
 			}
 			if (isNonEmptyArray(edits)) {
-				this._accessibleNotificationService.notify(AccessibleNotificationEvent.Format);
+				this._accessibleNotificationService.notify(AccessibleNotificationEvent.Format, false);
 				FormattingEdit.execute(this._editor, edits, true);
 			}
 		}).finally(() => {
@@ -205,7 +205,7 @@ class FormatOnPaste implements IEditorContribution {
 		if (this.editor.getSelections().length > 1) {
 			return;
 		}
-		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None).catch(onUnexpectedError);
+		this._instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, this.editor, range, FormattingMode.Silent, Progress.None, CancellationToken.None, false).catch(onUnexpectedError);
 	}
 }
 
@@ -278,7 +278,7 @@ class FormatSelectionAction extends EditorAction {
 
 		const progressService = accessor.get(IEditorProgressService);
 		await progressService.showWhile(
-			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, ranges, FormattingMode.Explicit, Progress.None, CancellationToken.None),
+			instaService.invokeFunction(formatDocumentRangesWithSelectedProvider, editor, ranges, FormattingMode.Explicit, Progress.None, CancellationToken.None, true),
 			250
 		);
 	}
