@@ -156,7 +156,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		let done = false;
 		const progress: vscode.Progress<vscode.InteractiveEditorProgressItem> = {
 			report: async value => {
-				if (!request.live) {
+				if (!request.live && value.edits?.length) {
 					throw new Error('Progress reporting is only supported for live sessions');
 				}
 				if (done || token.isCancellationRequested) {
