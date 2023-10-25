@@ -239,9 +239,21 @@ export class InlineChatController implements IEditorContribution {
 	private _showWidget(initialRender: boolean = false, position?: Position) {
 		assertType(this._editor.hasModel());
 
-		let widgetPosition = position
-			?? this._zone.value.position
-			?? this._editor.getSelection().getStartPosition().delta(-1);
+		let widgetPosition: Position;
+		if (position) {
+			// explicit position wins
+			widgetPosition = position;
+		} else if (this._zone.value.position) {
+			// already showing - special case of line 1
+			if (this._zone.value.position.lineNumber === 1) {
+				widgetPosition = this._zone.value.position.delta(-1);
+			} else {
+				widgetPosition = this._zone.value.position;
+			}
+		} else {
+			// default to ABOVE the selection
+			widgetPosition = this._editor.getSelection().getStartPosition().delta(-1);
+		}
 
 		let needsMargin = false;
 		if (initialRender) {
@@ -590,12 +602,14 @@ export class InlineChatController implements IEditorContribution {
 				if (!request.live) {
 					throw new Error('Progress in NOT supported in non-live mode');
 				}
-				console.log(JSON.stringify(data.edits, undefined, 2));
 				progressEdits.push(data.edits);
 				progressiveEditsAvgDuration.update(progressiveEditsClock.elapsed());
 				progressiveEditsClock.reset();
 
 				progressiveEditsQueue.queue(async () => {
+
+					const startThen = this._activeSession!.wholeRange.value.getStartPosition();
+
 					// making changes goes into a queue because otherwise the async-progress time will
 					// influence the time it takes to receive the changes and progressive typing will
 					// become infinitely fast
@@ -603,7 +617,12 @@ export class InlineChatController implements IEditorContribution {
 						? undefined
 						: { duration: progressiveEditsAvgDuration.value, round: round++, token: progressiveEditsCts.token }
 					);
-					this._showWidget(false);
+
+					// reshow the widget if the start position changed or shows at the wrong position
+					const startNow = this._activeSession!.wholeRange.value.getStartPosition();
+					if (!startNow.equals(startThen) || !this._zone.value.position?.equals(startNow)) {
+						this._showWidget(false, startNow.delta(-1));
+					}
 				});
 			}
 			if (data.markdownFragment) {
