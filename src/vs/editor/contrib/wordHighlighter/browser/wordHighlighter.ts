@@ -750,6 +750,7 @@ class WordHighlighter {
 				WordHighlighter.storedDecorations = WordHighlighter.storedDecorations.set(uri, newDecorationIDs);
 
 				if (newDecorations.length > 0) {
+					editorHighlighterContrib.wordHighlighter?.decorations.set(newDecorations);
 					editorHighlighterContrib.wordHighlighter?._hasWordHighlights.set(true);
 				}
 			}
