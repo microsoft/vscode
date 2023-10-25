@@ -514,6 +514,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setValue(value);
 	}
 
+	getInput(): string {
+		return this.inputPart.inputEditor.getValue();
+	}
+
 	async acceptInput(query?: string): Promise<void> {
 		this._acceptInput(query ? { query } : undefined);
 	}
@@ -526,7 +530,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
-			const editorValue = this.inputPart.inputEditor.getValue();
+			const editorValue = this.getInput();
 			this._chatAccessibilityService.acceptRequest();
 			const input = !opts ? editorValue :
 				'query' in opts ? opts.query :
@@ -708,7 +712,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getViewState(): IViewState {
 		this.inputPart.saveState();
-		return { inputValue: this.inputPart.inputEditor.getValue() };
+		return { inputValue: this.getInput() };
 	}
 }
 

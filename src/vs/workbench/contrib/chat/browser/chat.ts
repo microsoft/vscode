@@ -112,6 +112,7 @@ export interface IChatWidget {
 	moveFocus(item: ChatTreeItem, type: 'next' | 'previous'): void;
 	getFocus(): ChatTreeItem | undefined;
 	updateInput(query?: string): void;
+	getInput(): string;
 	acceptInput(query?: string): void;
 	acceptInputWithPrefix(prefix: string): void;
 	setInputPlaceholder(placeholder: string): void;

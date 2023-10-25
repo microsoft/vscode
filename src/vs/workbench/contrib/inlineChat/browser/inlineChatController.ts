@@ -230,6 +230,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
+	joinCurrentRun(): Promise<void> | undefined {
+		return this._currentRun;
+	}
+
 	// ---- state machine
 
 	private _showWidget(initialRender: boolean = false, position?: IPosition) {
@@ -405,14 +409,14 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private _placeholder: string | undefined = undefined;
+	private _forcedPlaceholder: string | undefined = undefined;
 	setPlaceholder(text: string): void {
-		this._placeholder = text;
+		this._forcedPlaceholder = text;
 		this._updatePlaceholder();
 	}
 
 	resetPlaceholder(): void {
-		this._placeholder = undefined;
+		this._forcedPlaceholder = undefined;
 		this._updatePlaceholder();
 	}
 
@@ -421,8 +425,8 @@ export class InlineChatController implements IEditorContribution {
 	}
 
 	private _getPlaceholderText(): string {
-		let result = this._placeholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
-		if (InlineChatController._promptHistory.length > 0) {
+		let result = this._forcedPlaceholder ?? this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		if (typeof this._forcedPlaceholder === 'undefined' && InlineChatController._promptHistory.length > 0) {
 			const kb1 = this._keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getLabel();
 			const kb2 = this._keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getLabel();
 
@@ -490,11 +494,11 @@ export class InlineChatController implements IEditorContribution {
 			return State.MAKE_REQUEST;
 		}
 
-		if (!this._zone.value.widget.value) {
+		if (!this.getInput()) {
 			return State.WAIT_FOR_INPUT;
 		}
 
-		const input = this._zone.value.widget.value;
+		const input = this.getInput();
 
 		if (!InlineChatController._promptHistory.includes(input)) {
 			InlineChatController._promptHistory.unshift(input);
@@ -565,7 +569,7 @@ export class InlineChatController implements IEditorContribution {
 				this._zone.value.widget.updateInfo(data.message);
 			}
 			if (data.slashCommand) {
-				const valueNow = this._zone.value.widget.value;
+				const valueNow = this.getInput();
 				if (!valueNow.startsWith('/')) {
 					this._zone.value.widget.updateSlashCommandUsed(data.slashCommand);
 				}
@@ -848,9 +852,15 @@ export class InlineChatController implements IEditorContribution {
 		this._messages.fire(Message.ACCEPT_INPUT);
 	}
 
-	updateInput(text: string): void {
+	updateInput(text: string, selectAll = true): void {
 		this._zone.value.widget.value = text;
-		this._zone.value.widget.selectAll();
+		if (selectAll) {
+			this._zone.value.widget.selectAll();
+		}
+	}
+
+	getInput(): string {
+		return this._zone.value.widget.value;
 	}
 
 	regenerate(): void {
