@@ -212,7 +212,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		this._listener.add(workingCopyFileService.onDidRunWorkingCopyFileOperation(e => this._proxy.$onDidRunFileOperation(e.operation, e.files)));
 	}
 
-	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions): Promise<void> {
+	async $watch(extensionId: string, session: number, resource: UriComponents, unvalidatedOpts: IWatchOptions, correlate: boolean): Promise<void> {
 		const uri = URI.revive(resource);
 
 		const opts: IWatchOptions = {
@@ -234,8 +234,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 			}
 		}
 
-		// Correlated file watching is taken as is (for now we only opt into correlating with proposed new file system watcher API with excludes)
-		const correlate = Array.isArray(unvalidatedOpts?.excludes) && unvalidatedOpts.excludes.length > 0;
+		// Correlated file watching is taken as is
 		if (correlate) {
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session})`);
 
