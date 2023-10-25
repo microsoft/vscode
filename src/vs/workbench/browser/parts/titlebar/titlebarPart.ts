@@ -12,7 +12,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -25,9 +25,9 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -36,10 +36,14 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { HiddenItemStrategy, MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from 'vs/workbench/browser/parts/globalCompositeBar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -79,8 +83,12 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected appIcon: HTMLElement | undefined;
 	private appIconBadge: HTMLElement | undefined;
 	protected menubar?: HTMLElement;
-	protected layoutControls: HTMLElement | undefined;
 	protected lastLayoutDimensions: Dimension | undefined;
+
+	private actionToolBarElement: HTMLElement | undefined;
+	private actionToolBar!: WorkbenchToolBar;
+	private readonly actionToolBarMenuDisposables = this._register(new DisposableStore());
+	private editorChangeDisposable: IDisposable | undefined;
 
 	private hoverDelegate: IHoverDelegate;
 
@@ -101,7 +109,10 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
+		@IMenuService private readonly menuService: IMenuService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, window, 'main'));
@@ -164,8 +175,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (this.titleBarStyle !== 'native' && this.layoutControls && event.affectsConfiguration('workbench.layoutControl.enabled')) {
-			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
+		if (this.titleBarStyle !== 'native' && this.actionToolBarElement && (
+			event.affectsConfiguration('workbench.layoutControl.enabled') ||
+			event.affectsConfiguration('workbench.editor.showTabs') ||
+			event.affectsConfiguration('workbench.editor.showEditorActionsInTitleBar'))
+		) {
+			this.updateRightToolBarMenu(this.actionToolBarElement);
+			this.updateEditorChangeListener();
 			this._onDidChange.fire(undefined);
 		}
 
@@ -276,17 +292,20 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.updateTitle();
 
 		if (this.titleBarStyle !== 'native') {
-			this.layoutControls = append(this.rightContent, $('div.layout-controls-container'));
-			this.layoutControls.classList.toggle('show-layout-control', this.layoutControlEnabled);
-
-			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.layoutControls, MenuId.LayoutControlMenu, {
+			// Create Toolbar Actions
+			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
+			this.actionToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.actionToolBarElement, {
 				contextMenu: MenuId.TitleBarContext,
-				toolbarOptions: { primaryGroup: () => true },
 				actionViewItemProvider: action => {
 					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
 				}
 			}));
 
+			// Update Toolbar Actions
+			this.updateRightToolBarMenu(this.actionToolBarElement);
+			this.updateEditorChangeListener();
+
+			// Global Action Controls
 			const globalActionControls = append(this.rightContent, $('div.global-actions-container.show-control'));
 
 			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, globalActionControls, MenuId.TitleBarGlobalControlMenu, {
@@ -352,6 +371,73 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 
 		return this.element;
+	}
+
+	private updateRightToolBarMenu(editorActionControls: HTMLElement) {
+		this.actionToolBarMenuDisposables.clear();
+
+		const editorActionsEnabled = this.editorActionsEnabled();
+		const showEditorActions = this.editorService.activeEditor !== undefined && editorActionsEnabled;
+		const showLayoutActions = this.layoutControlEnabled;
+
+		if (!showEditorActions && !showLayoutActions) {
+			this.actionToolBar.setActions([], []);
+			return;
+		}
+
+		const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
+
+		// --- Editor Actions
+		if (showEditorActions) {
+
+			// Toolbar actions
+			const editorToolbarMenu = this._register(this.menuService.createMenu(MenuId.EditorTitle, this.editorGroupService.activeGroup.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService));
+
+			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
+
+			// Create editor actions
+			createAndFillInActionBarActions(
+				editorToolbarMenu,
+				{ arg: { groupId: this.editorGroupService.activeGroup.id }, shouldForwardArgs: true },
+				actions,
+				'navigation',
+				shouldInlineGroup,
+				true
+			);
+
+			this.actionToolBarMenuDisposables.add(editorToolbarMenu.onDidChange(() => this.updateRightToolBarMenu(editorActionControls)));
+		}
+
+		// --- Global Layout Actions
+		if (showLayoutActions) {
+			const layoutToolbarMenu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
+
+			// Create layout actions
+			createAndFillInActionBarActions(
+				layoutToolbarMenu,
+				{},
+				actions,
+				() => !editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
+			);
+
+			this.actionToolBarMenuDisposables.add(layoutToolbarMenu.onDidChange(() => this.updateRightToolBarMenu(editorActionControls)));
+		}
+
+		this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
+	}
+
+	private editorActionsEnabled(): boolean {
+		return !!this.editorGroupService.partOptions.showEditorActionsInTitleBar && this.editorGroupService.partOptions.showTabs === 'none';
+	}
+
+	private updateEditorChangeListener(): void {
+		const showEditorActions = this.editorActionsEnabled();
+		if (showEditorActions && !this.editorChangeDisposable) {
+			this.editorChangeDisposable = this.editorService.onDidActiveEditorChange(() => this.updateRightToolBarMenu(this.actionToolBarElement!));
+		} else if (!showEditorActions && this.editorChangeDisposable) {
+			this.editorChangeDisposable.dispose();
+			this.editorChangeDisposable = undefined;
+		}
 	}
 
 	override updateStyles(): void {
@@ -452,17 +538,22 @@ export class TitlebarPart extends Part implements ITitleService {
 			type: Parts.TITLEBAR_PART
 		};
 	}
+
+	public override dispose(): void {
+		this.editorChangeDisposable?.dispose();
+		super.dispose();
+	}
 }
 
 
 class ToogleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number) {
+	constructor(private readonly section: string, title: string, order: number, when?: ContextKeyExpression) {
 		super({
 			id: `toggle.${section}`,
 			title,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
-			menu: { id: MenuId.TitleBarContext, order }
+			menu: { id: MenuId.TitleBarContext, order, when }
 		});
 	}
 
@@ -482,5 +573,11 @@ registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
 registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
 	constructor() {
 		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
+	}
+});
+
+registerAction2(class ToogleEditorActionsControl extends ToogleConfigAction {
+	constructor() {
+		super('workbench.editor.showEditorActionsInTitleBar', localize('toggle.editorActions', 'Editor Actions'), 2, ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none'));
 	}
 });

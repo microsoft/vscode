@@ -1140,6 +1140,7 @@ interface IEditorPartConfiguration {
 	splitOnDragAndDrop?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
+	showEditorActionsInTitleBar?: boolean;
 	limit?: IEditorPartLimitConfiguration;
 	decorations?: IEditorPartDecorationsConfiguration;
 }
