@@ -70,9 +70,18 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		// https://github.com/microsoft/vscode/issues/3025
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
+		// 1.84.x introduces new proposed API for a watcher to set exclude
+		// rules. When this is provided, we turn the file watcher into correlation
+		// mode and ignore any event that does not match the correlation ID.
+		const excludeUncorrelatedEvents = Array.isArray(options?.excludes) && options.excludes.length > 0;
+
 		const subscription = dispatcher(events => {
 			if (typeof events.session === 'number' && events.session !== this.session) {
-				return; // ignore events from other file watchers
+				return; // ignore events from other file watchers that are in correlation mode
+			}
+
+			if (excludeUncorrelatedEvents && typeof events.session === 'undefined') {
+				return; // ignore events from other non-correlating file watcher when we are in correlation mode
 			}
 
 			if (!options?.ignoreCreateEvents) {
