@@ -236,13 +236,13 @@ export class InlineChatController implements IEditorContribution {
 
 	// ---- state machine
 
-	private _showWidget(initialRender: boolean = false, position?: IPosition) {
+	private _showWidget(initialRender: boolean = false, position?: Position) {
 		assertType(this._editor.hasModel());
 
 		let widgetPosition: Position;
 		if (position) {
 			// explicit position wins
-			widgetPosition = Position.lift(position);
+			widgetPosition = position;
 		} else if (this._zone.value.position) {
 			// already showing - special case of line 1
 			if (this._zone.value.position.lineNumber === 1) {
@@ -287,7 +287,15 @@ export class InlineChatController implements IEditorContribution {
 
 		let session: Session | undefined = options.existingSession;
 
-		this._showWidget(true, options.position);
+
+		let initPosition: Position | undefined;
+		if (options.position) {
+			initPosition = Position.lift(options.position).delta(-1);
+			delete options.position;
+		}
+
+		this._showWidget(true, initPosition);
+
 		this._zone.value.widget.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._updatePlaceholder();
 
@@ -374,8 +382,11 @@ export class InlineChatController implements IEditorContribution {
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
 		this._zone.value.widget.preferredExpansionState = this._activeSession.lastExpansionState;
 		this._zone.value.widget.value = this._activeSession.session.input ?? this._activeSession.lastInput?.value ?? this._zone.value.widget.value;
+		if (this._activeSession.session.input) {
+			this._zone.value.widget.selectAll();
+		}
 
-		this._showWidget(true, options.position);
+		this._showWidget(true);
 
 		this._sessionStore.add(this._editor.onDidChangeModel((e) => {
 			const msg = this._activeSession?.lastExchange
