@@ -39,7 +39,7 @@ const schema: IJSONSchema = {
 		},
 		rootFolderNames: {
 			type: 'object',
-			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name, not including any path segments. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
+			description: nls.localize('schema.rootFolderNames', 'Associates root folder names to icons. The object key is the root folder name. No patterns or wildcards are allowed. Root folder name matching is case insensitive.'),
 			additionalProperties: {
 				type: 'string',
 				description: nls.localize('schema.folderName', 'The ID of the icon definition for the association.')
