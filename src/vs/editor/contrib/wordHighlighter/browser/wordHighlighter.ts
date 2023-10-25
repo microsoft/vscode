@@ -679,11 +679,12 @@ class WordHighlighter {
 				(WordHighlighter.query.modelInfo?.model.uri !== this.model.uri)
 				? true : false;
 
-			if (!WordHighlighter.query.modelInfo || (WordHighlighter.query.modelInfo.model.uri !== this.model.uri)) {
+			if (!WordHighlighter.query.modelInfo || (WordHighlighter.query.modelInfo.model.uri !== this.model.uri)) { // use this.model
 				this.workerRequest = this.computeWithModel(this.model, this.editor.getSelection(), sendWord ? WordHighlighter.query.word : null, otherModelsToHighlight);
-			} else {
-				this.workerRequest = this.computeWithQuery(WordHighlighter.query, otherModelsToHighlight);
+			} else { // use stored query model + selection
+				this.workerRequest = this.computeWithModel(WordHighlighter.query.modelInfo.model, WordHighlighter.query.modelInfo.selection, WordHighlighter.query.word, otherModelsToHighlight);
 			}
+			//this.workerRequest = this.computeWithQuery(WordHighlighter.query, otherModelsToHighlight);
 
 			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -703,13 +704,13 @@ class WordHighlighter {
 		}
 	}
 
-	private computeWithQuery(query: IWordHighlighterQuery, otherModels: ITextModel[]): IOccurenceAtPositionRequest | null {
-		if (!otherModels.length) {
-			return computeOccurencesAtPosition(this.providers, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators));
-		} else {
-			return computeOccurencesMultiModel(this.multiDocumentProviders, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators), otherModels);
-		}
-	}
+	// private computeWithQuery(query: IWordHighlighterQuery, otherModels: ITextModel[]): IOccurenceAtPositionRequest | null {
+	// 	if (!otherModels.length) {
+	// 		return computeOccurencesAtPosition(this.providers, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators));
+	// 	} else {
+	// 		return computeOccurencesMultiModel(this.multiDocumentProviders, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators), otherModels);
+	// 	}
+	// }
 
 	private _beginRenderDecorations(): void {
 		const currentTime = (new Date()).getTime();
