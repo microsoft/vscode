@@ -268,15 +268,9 @@
 
 .monaco-workbench .notebookOverlay .cell .monaco-progress-container {
 	top: -3px;
-
 	position: absolute;
 	left: 0;
 	z-index: var(--z-index-notebook-progress-bar);
-	height: 2px;
-}
-
-.monaco-workbench .notebookOverlay .cell .monaco-progress-container .progress-bit {
-	height: 2px;
 }
 
 .monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list:not(.element-focused):focus:before {
