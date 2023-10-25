@@ -18,7 +18,9 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IExtHostWorkspace } from 'vs/workbench/api/common/extHostWorkspace';
 import { Lazy } from 'vs/base/common/lazy';
 
-interface FileSystemWatcherCreateOptions {
+export interface FileSystemWatcherCreateOptions {
+	readonly correlate: boolean;
+
 	readonly ignoreCreateEvents?: boolean;
 	readonly ignoreChangeEvents?: boolean;
 	readonly ignoreDeleteEvents?: boolean;
@@ -71,9 +73,9 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 		const excludeOutOfWorkspaceEvents = typeof globPattern === 'string';
 
 		// 1.84.x introduces new proposed API for a watcher to set exclude
-		// rules. When this is provided, we turn the file watcher into correlation
+		// rules. In these cases, we turn the file watcher into correlation
 		// mode and ignore any event that does not match the correlation ID.
-		const excludeUncorrelatedEvents = Array.isArray(options?.excludes) && options.excludes.length > 0;
+		const excludeUncorrelatedEvents = options?.correlate;
 
 		const subscription = dispatcher(events => {
 			if (typeof events.session === 'number' && events.session !== this.session) {
@@ -110,10 +112,10 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			}
 		});
 
-		this._disposable = Disposable.from(this.ensureWatching(mainContext, extension, globPattern, options), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
+		this._disposable = Disposable.from(this.ensureWatching(mainContext, extension, globPattern, options, options?.correlate), this._onDidCreate, this._onDidChange, this._onDidDelete, subscription);
 	}
 
-	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options?: FileSystemWatcherCreateOptions): Disposable {
+	private ensureWatching(mainContext: IMainContext, extension: IExtensionDescription, globPattern: string | IRelativePatternDto, options: FileSystemWatcherCreateOptions | undefined, correlate: boolean | undefined): Disposable {
 		const disposable = Disposable.from();
 
 		if (typeof globPattern === 'string') {
@@ -127,7 +129,7 @@ class FileSystemWatcher implements vscode.FileSystemWatcher {
 			recursive = true; // only watch recursively if pattern indicates the need for it
 		}
 
-		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [] });
+		proxy.$watch(extension.identifier.value, this.session, globPattern.baseUri, { recursive, excludes: options?.excludes ?? [] }, Boolean(correlate));
 
 		return Disposable.from({ dispose: () => proxy.$unwatch(this.session) });
 	}
