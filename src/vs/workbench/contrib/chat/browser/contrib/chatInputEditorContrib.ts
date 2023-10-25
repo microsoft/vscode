@@ -322,6 +322,10 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				if (!model.getValue().trim().match(/\/\w*/)) {
+					return;
+				}
+
 				const parsedRequest = (await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(widget.viewModel.sessionId, model.getValue())).parts;
 				const usedAgent = parsedRequest.find(p => p instanceof ChatRequestAgentPart);
 				if (usedAgent) {
