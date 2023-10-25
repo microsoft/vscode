@@ -1809,7 +1809,8 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
-	private actionBar: ActionBar;
+	private toolbarContainer: HTMLElement | undefined;
+	private actionBar: ActionBar | undefined;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -1960,11 +1961,19 @@ class SCMInputWidget {
 		updateEnablement(input.enabled);
 
 		// ActionBar
-		const onDidChangeActionButton = () => {
-			// Update placeholder width to accommodate for the action bar
-			this.placeholderTextContainer.style.width = input.actionButton ? 'calc(100% - 26px)' : '100%';
+		if (this.toolbarContainer && this.actionBar) {
+			if (this.editorContainer.contains(this.toolbarContainer)) {
+				this.editorContainer.removeChild(this.toolbarContainer);
+			}
+			this.repositoryDisposables.delete(this.actionBar);
+		}
 
-			this.actionBar.clear();
+		this.toolbarContainer = append(this.editorContainer, $('.scm-editor-toolbar'));
+		this.actionBar = new ActionBar(this.toolbarContainer);
+		this.repositoryDisposables.add(this.actionBar);
+
+		const onDidChangeActionButton = () => {
+			this.actionBar!.clear();
 			if (!input.actionButton) {
 				return;
 			}
@@ -1976,7 +1985,8 @@ class SCMInputWidget {
 				input.actionButton.enabled,
 				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
-			this.actionBar.push(action, { icon: true, label: false });
+			this.actionBar!.push(action, { icon: true, label: false });
+			this.layout();
 		};
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
@@ -2052,7 +2062,8 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false,
-				vertical: 'hidden'
+				vertical: 'hidden',
+				useShadows: false
 			},
 			overflowWidgetsDomNode,
 			formatOnType: true,
@@ -2079,9 +2090,6 @@ class SCMInputWidget {
 				FormatOnType.ID
 			])
 		};
-
-		this.actionBar = new ActionBar(append(this.element, $('.actions')));
-		this.disposables.add(this.actionBar);
 
 		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
 		const instantiationService2 = instantiationService.createChild(services);
@@ -2168,7 +2176,8 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
+		const toolbarWidth = this.toolbarContainer ? this.toolbarContainer.clientWidth + 2 : 0;
+		const dimension = new Dimension(this.element.clientWidth - toolbarWidth - 2, editorHeight);
 
 		if (dimension.width < 0) {
 			this.lastLayoutWasTrash = true;
@@ -2177,6 +2186,7 @@ class SCMInputWidget {
 
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
+		this.placeholderTextContainer.style.width = `${dimension.width}px`;
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {

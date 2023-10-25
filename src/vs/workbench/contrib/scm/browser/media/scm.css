@@ -243,24 +243,11 @@
 	border-radius: 2px;
 }
 
-.scm-view .scm-input .actions {
-	position: absolute;
-	top: 7px;
-	right: 20px;
-	z-index: 2;
+.scm-view .scm-input .scm-editor-container .scm-editor-toolbar {
+	padding: 1px;
 }
 
-.scm-view .scm-input .actions .actions-container {
-	background-color: var(--vscode-input-background);
-}
-
-.scm-view .scm-input .actions .action-label {
-	border-radius: 5px;
-	outline: 1px dashed var(--vscode-toolbar-hoverOutline);
-	outline-offset: -1px;
-}
-
-.scm-view .scm-input .actions .action-label.codicon.codicon-debug-stop {
+.scm-view .scm-input .scm-editor-container .scm-editor-toolbar .action-label.codicon.codicon-debug-stop {
 	color: var(--vscode-icon-foreground) !important;
 }
 
@@ -330,6 +317,8 @@
 }
 
 .scm-view .scm-editor-container {
+	display: flex;
+	align-items: flex-start;
 	position: relative;
 	box-sizing: border-box;
 	background-color: var(--vscode-input-background);
