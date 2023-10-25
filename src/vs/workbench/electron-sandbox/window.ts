@@ -667,6 +667,23 @@ export class NativeWindow extends Disposable {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
 		}
+
+		// Patch methods that we need to work properly
+		this.patchMethods();
+	}
+
+	private patchMethods(): void {
+
+		// Enable `window.focus()` to work in Electron by
+		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
+		const that = this;
+		const originalWindowFocus = window.focus.bind(window);
+		window.focus = async function () {
+			originalWindowFocus();
+
+			await that.nativeHostService.focusWindow();
+		};
 	}
 
 	private async handleWarnings(): Promise<void> {
