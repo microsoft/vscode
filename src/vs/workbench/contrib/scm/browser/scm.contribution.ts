@@ -267,6 +267,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('inputFontSize', "Controls the font size for the input message in pixels."),
 			default: 13
 		},
+		'scm.inputMaxLines': {
+			type: 'number',
+			markdownDescription: localize('inputMaxLines', "Controls the maximum number of lines that the input will auto-grow to."),
+			default: 10
+		},
 		'scm.alwaysShowRepositories': {
 			type: 'boolean',
 			markdownDescription: localize('alwaysShowRepository', "Controls whether repositories should always be visible in the Source Control view."),

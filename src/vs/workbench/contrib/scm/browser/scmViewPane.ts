@@ -96,6 +96,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -2157,7 +2158,9 @@ class SCMInputWidget {
 
 	getContentHeight(): number {
 		const editorContentHeight = this.inputEditor.getContentHeight();
-		return Math.min(editorContentHeight, 134);
+		const editorContextHeightMax = this.getInputEditorMaxHeight();
+
+		return Math.min(editorContentHeight, editorContextHeightMax);
 	}
 
 	layout(): void {
@@ -2287,6 +2290,19 @@ class SCMInputWidget {
 
 	private getInputEditorFontSize(): number {
 		return this.configurationService.getValue<number>('scm.inputFontSize');
+	}
+
+	private getInputEditorMaxLines(): number {
+		return this.configurationService.getValue<number>('scm.inputMaxLines');
+	}
+
+	private getInputEditorMaxHeight(): number {
+		const maxLines = this.getInputEditorMaxLines();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
+
+		return maxLines * lineHeight + top + bottom;
 	}
 
 	private computeLineHeight(fontSize: number): number {
