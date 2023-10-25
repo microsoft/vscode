@@ -684,7 +684,6 @@ class WordHighlighter {
 			} else { // use stored query model + selection
 				this.workerRequest = this.computeWithModel(WordHighlighter.query.modelInfo.model, WordHighlighter.query.modelInfo.selection, WordHighlighter.query.word, otherModelsToHighlight);
 			}
-			//this.workerRequest = this.computeWithQuery(WordHighlighter.query, otherModelsToHighlight);
 
 			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
@@ -703,14 +702,6 @@ class WordHighlighter {
 			return computeOccurencesMultiModel(this.multiDocumentProviders, model, selection, word, this.editor.getOption(EditorOption.wordSeparators), otherModels);
 		}
 	}
-
-	// private computeWithQuery(query: IWordHighlighterQuery, otherModels: ITextModel[]): IOccurenceAtPositionRequest | null {
-	// 	if (!otherModels.length) {
-	// 		return computeOccurencesAtPosition(this.providers, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators));
-	// 	} else {
-	// 		return computeOccurencesMultiModel(this.multiDocumentProviders, query.modelInfo!.model, query.modelInfo!.selection, query.word, this.editor.getOption(EditorOption.wordSeparators), otherModels);
-	// 	}
-	// }
 
 	private _beginRenderDecorations(): void {
 		const currentTime = (new Date()).getTime();
