@@ -70,9 +70,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					return undefined;
 				}
 
-				const responderAvatarIconUri = session.responderAvatarIconUri ?
-					URI.revive(session.responderAvatarIconUri) :
-					registration.extensionIcon;
+				const responderAvatarIconUri = session.responderAvatarIconUri &&
+					URI.revive(session.responderAvatarIconUri);
 
 				const emitter = new Emitter<any>();
 				this._stateEmitters.set(session.id, emitter);
