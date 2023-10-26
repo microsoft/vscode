@@ -596,7 +596,6 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
-		let round = 0;
 
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
 			this._log('received chunk', data, request);
@@ -632,7 +631,7 @@ export class InlineChatController implements IEditorContribution {
 					// become infinitely fast
 					await this._makeChanges(data.edits!, data.editsShouldBeInstant
 						? undefined
-						: { duration: progressiveEditsAvgDuration.value, round: round++, token: progressiveEditsCts.token }
+						: { duration: progressiveEditsAvgDuration.value, token: progressiveEditsCts.token }
 					);
 
 					// reshow the widget if the start position changed or shows at the wrong position

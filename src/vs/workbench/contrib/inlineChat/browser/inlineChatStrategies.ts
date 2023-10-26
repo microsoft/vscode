@@ -225,7 +225,6 @@ class InlineDiffDecorations {
 
 export interface ProgressingEditsOptions {
 	duration: number;
-	round: number;
 	token: CancellationToken;
 }
 
@@ -328,8 +327,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
-		if (opts.round === 0) {
-			this._session.textModelN.pushStackElement();
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
 		}
 
 		const durationInSec = opts.duration / 1000;
@@ -591,14 +591,16 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 		if (r.isFullString) {
 			clearInterval(handle);
 			stream.resolve();
+			d.dispose();
 		}
 
 	}, 1000 / wordsPerSec);
 
 	// cancel ASAP
-	token.onCancellationRequested(() => {
+	const d = token.onCancellationRequested(() => {
 		clearTimeout(handle);
 		stream.resolve();
+		d.dispose();
 	});
 
 	return {
