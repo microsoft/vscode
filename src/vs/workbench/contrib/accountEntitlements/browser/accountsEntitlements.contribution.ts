@@ -7,11 +7,10 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, ContextKeyTrueExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { AuthenticationSession, IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
@@ -26,6 +25,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IRequestService, asText } from 'vs/platform/request/common/request';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const configurationKey = 'workbench.accounts.experimental.showEntitlements';
 
@@ -35,10 +35,8 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 
 	constructor(
 		@IContextKeyService readonly contextService: IContextKeyService,
-		@IInstantiationService readonly instantiationService: IInstantiationService,
 		@ICommandService readonly commandService: ICommandService,
 		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@IOpenerService readonly openerService: IOpenerService,
 		@IAuthenticationService readonly authenticationService: IAuthenticationService,
 		@IProductService readonly productService: IProductService,
 		@IStorageService readonly storageService: IStorageService,
@@ -168,38 +166,22 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 				const commandService = accessor.get(ICommandService);
 				const contextKeyService = accessor.get(IContextKeyService);
 				const storageService = accessor.get(IStorageService);
-				commandService.executeCommand(productService.gitHubEntitlement!.command.action, productService.gitHubEntitlement!.extensionId!);
+				const dialogService = accessor.get(IDialogService);
+
+				const confirmation = await dialogService.confirm({
+					type: 'question',
+					message: productService.gitHubEntitlement!.confirmationMessage,
+					primaryButton: productService.gitHubEntitlement!.confirmationAction,
+				});
+
+				if (confirmation.confirmed) {
+					commandService.executeCommand(productService.gitHubEntitlement!.command.action, productService.gitHubEntitlement!.extensionId!);
+				}
+
 				accountsMenuBadgeDisposable.clear();
 				const contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(contextKeyService);
 				contextKey.set(false);
 				storageService.store(configurationKey, false, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			}
-		});
-
-		const altMenuTitle = this.productService.gitHubEntitlement!.altCommand.title!;
-		const altContextKey = this.productService.gitHubEntitlement!.altCommand.when;
-
-		registerAction2(class extends Action2 {
-			constructor() {
-				super({
-					id: 'workbench.action.entitlementAltAction',
-					title: altMenuTitle,
-					f1: false,
-					toggled: ContextKeyTrueExpr.INSTANCE,
-					menu: {
-						id: MenuId.AccountsContext,
-						group: '5_AccountsEntitlements',
-						when: ContextKeyExpr.equals(altContextKey, true),
-					}
-				});
-			}
-
-			public async run(
-				accessor: ServicesAccessor
-			) {
-				const productService = accessor.get(IProductService);
-				const commandService = accessor.get(ICommandService);
-				commandService.executeCommand(productService.gitHubEntitlement!.altCommand.action, productService.gitHubEntitlement!.extensionId!);
 			}
 		});
 	}
