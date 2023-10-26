@@ -22,27 +22,6 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 const path = require('path');
 const fs = require('fs');
 const cp = require('child_process');
-const yarnVersion = cp.execSync('yarn -v', { encoding: 'utf8' }).trim();
-const parsedYarnVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(yarnVersion);
-const majorYarnVersion = parseInt(parsedYarnVersion[1]);
-const minorYarnVersion = parseInt(parsedYarnVersion[2]);
-const patchYarnVersion = parseInt(parsedYarnVersion[3]);
-
-if (
-	majorYarnVersion < 1 ||
-	majorYarnVersion === 1 && (
-		minorYarnVersion < 10 || (minorYarnVersion === 10 && patchYarnVersion < 1)
-	) ||
-	majorYarnVersion >= 2
-) {
-	console.error('\033[1;31m*** Please use yarn >=1.10.1 and <2.\033[0;0m');
-	err = true;
-}
-
-if (!/yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
-	err = true;
-}
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {

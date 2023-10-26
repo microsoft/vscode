@@ -26,7 +26,7 @@ steps:
 
     - script: |
         set -e
-        yarn --frozen-lockfile --ignore-optional
+        yarn --frozen-lockfile
       workingDirectory: build
       displayName: Install pipeline build
 
