@@ -31,7 +31,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 	private _gutterDecoration: ModelDecorationOptions | undefined;
 	private _gutterDecorationID: string | undefined;
-	private _inlineChatKeybindings: string | undefined;
+	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
@@ -59,15 +59,15 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	}
 
 	private _updateDecoration(): void {
-		const keybindings = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel();
-		if (this._inlineChatKeybindings === keybindings) {
+		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel();
+		if (this._inlineChatKeybinding === keybinding) {
 			return;
 		}
-		this._inlineChatKeybindings = keybindings ?? undefined;
+		this._inlineChatKeybinding = keybinding ?? undefined;
 		this._gutterDecoration = ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
 			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
-			glyphMarginHoverMessage: new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (keybindings ? ` [${keybindings}]` : '')),
+			glyphMarginHoverMessage: new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (keybinding ? ` [${keybinding}]` : '')),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
