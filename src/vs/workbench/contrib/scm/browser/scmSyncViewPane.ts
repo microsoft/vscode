@@ -328,22 +328,12 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider<TreeElement> {
 
 	constructor(
-		@ILabelService private readonly labelService: ILabelService,
-		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
+		@ILabelService private readonly labelService: ILabelService
 	) { }
 
 	getAriaLabel(element: TreeElement): string {
 		if (isSCMRepository(element)) {
-			let folderName = '';
-			if (element.provider.rootUri) {
-				const folder = this.workspaceContextService.getWorkspaceFolder(element.provider.rootUri);
-
-				if (folder?.uri.toString() === element.provider.rootUri.toString()) {
-					folderName = folder.name;
-				} else {
-					folderName = basename(element.provider.rootUri);
-				}
-			}
+			const folderName = element.provider.name;
 			return `${folderName} ${element.provider.label}`;
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;

@@ -17,6 +17,8 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { basename } from 'vs/base/common/resources';
 
 function getSCMInputBoxActionButtonIcon(actionButton: SCMInputActionButtonDto): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
 	if (!actionButton.icon) {
@@ -192,6 +194,18 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
+	get name(): string {
+		if (this.rootUri) {
+			const folder = this._workspaceContextService.getWorkspaceFolder(this.rootUri);
+			if (folder?.uri.toString() === this.rootUri.toString()) {
+				return folder.name;
+			} else {
+				return basename(this.rootUri);
+			}
+		} else {
+			return this.label;
+		}
+	}
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
 	get contextValue(): string { return this._contextValue; }
@@ -227,7 +241,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _label: string,
 		private readonly _rootUri: URI | undefined,
 		private readonly _inputBoxDocumentUri: URI,
-		private readonly _quickDiffService: IQuickDiffService
+		private readonly _quickDiffService: IQuickDiffService,
+		private readonly _workspaceContextService: IWorkspaceContextService
 	) { }
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
@@ -410,7 +425,8 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		extHostContext: IExtHostContext,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
-		@IQuickDiffService private readonly quickDiffService: IQuickDiffService
+		@IQuickDiffService private readonly quickDiffService: IQuickDiffService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSCM);
 	}
@@ -426,7 +442,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 	}
 
 	$registerSourceControl(handle: number, id: string, label: string, rootUri: UriComponents | undefined, inputBoxDocumentUri: UriComponents): void {
-		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService);
+		const provider = new MainThreadSCMProvider(this._proxy, handle, id, label, rootUri ? URI.revive(rootUri) : undefined, URI.revive(inputBoxDocumentUri), this.quickDiffService, this.workspaceContextService);
 		const repository = this.scmService.registerSCMProvider(provider);
 		this._repositories.set(handle, repository);
 

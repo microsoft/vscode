@@ -55,6 +55,7 @@ export interface ISCMProvider extends IDisposable {
 	readonly label: string;
 	readonly id: string;
 	readonly contextValue: string;
+	readonly name: string;
 
 	readonly groups: ISequence<ISCMResourceGroup>;
 
