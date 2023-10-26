@@ -57,6 +57,10 @@ export class AccessibleNotificationService extends Disposable implements IAccess
 			this._audioCueService.playSound(audioCue.sound.getSound(), true);
 			return;
 		}
+		if (audioCueSetting !== 'never') {
+			// Never do both sound and alert
+			return;
+		}
 		const alertSettingValue: NotificationSetting = this._configurationService.getValue(alertSetting);
 		if (this._shouldNotify(alertSettingValue, userGesture)) {
 			this._logService.debug('AccessibleNotificationService alerting: ', alertMessage);
