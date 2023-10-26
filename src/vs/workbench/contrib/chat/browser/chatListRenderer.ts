@@ -464,6 +464,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		// When going from welcome content to actual chat list items, rowContainer.offsetHeight is initially 0,
+		// but the height that we get from `renderElement` is accurate, so use that
 		const newHeight = templateData.rowContainer.offsetHeight === 0 && height ? height : templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
