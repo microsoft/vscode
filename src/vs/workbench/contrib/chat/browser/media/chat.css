@@ -116,6 +116,7 @@
 .interactive-item-container .header .agent-avatar-container {
 	margin-left: -30px;
 	transition: margin 0.15s ease-out;
+	transition-delay: 0.5s;
 	z-index: -1;
 }
 
