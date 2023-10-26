@@ -351,6 +351,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
 		// and only run this when the system is idle.
 		await this.lifecycleService.when(LifecyclePhase.Restored);
+		if (this._store.isDisposed) {
+			return;
+		}
 		const disposable = this._register(runWhenIdle(async () => {
 			await this.doInitialize();
 			disposable.dispose();
