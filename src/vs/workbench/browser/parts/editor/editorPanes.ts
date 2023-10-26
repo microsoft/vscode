@@ -277,8 +277,7 @@ export class EditorPanes extends Disposable {
 			if (focus && this.shouldRestoreFocus(activeElement)) {
 				pane.focus();
 			} else if (!internalOptions?.preserveWindowOrder) {
-				const paneWindow = getWindow(pane.getContainer());
-				this.hostService.moveTop(paneWindow);
+				this.hostService.moveTop(getWindow(pane.getContainer()));
 			}
 		}
 
