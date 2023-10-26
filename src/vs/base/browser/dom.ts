@@ -17,7 +17,7 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
 	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
 	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
@@ -51,6 +51,9 @@ export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregister
 		},
 		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
+		},
+		getWindowsCount(): number {
+			return windows.size;
 		}
 	};
 })();

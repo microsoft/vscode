@@ -10,7 +10,7 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow, getActiveWindow } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
@@ -278,9 +278,7 @@ export class EditorPanes extends Disposable {
 				pane.focus();
 			} else if (!internalOptions?.preserveWindowOrder) {
 				const paneWindow = getWindow(pane.getContainer());
-				if (paneWindow !== getActiveWindow()) {
-					this.hostService.moveTop(paneWindow);
-				}
+				this.hostService.moveTop(paneWindow);
 			}
 		}
 
