@@ -199,12 +199,11 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 			const folder = this._workspaceContextService.getWorkspaceFolder(this.rootUri);
 			if (folder?.uri.toString() === this.rootUri.toString()) {
 				return folder.name;
-			} else {
+			} else if (this.rootUri.path !== '/') {
 				return basename(this.rootUri);
 			}
-		} else {
-			return this.label;
 		}
+		return this.label;
 	}
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
