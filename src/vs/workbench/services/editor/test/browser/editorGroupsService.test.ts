@@ -316,6 +316,57 @@ suite('EditorGroupsService', () => {
 		groupIndexChangedListener.dispose();
 	});
 
+	test('groups label', async function () {
+		const [part] = await createPart();
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		let partLabelChangedCounter = 0;
+		const groupIndexChangedListener = part.onDidChangeGroupLabel(() => {
+			partLabelChangedCounter++;
+		});
+
+		let rootGroupLabelChangeCounter = 0;
+		const rootGroupLabelChangeListener = rootGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rootGroupLabelChangeCounter++;
+			}
+		});
+
+		let rightGroupLabelChangeCounter = 0;
+		const rightGroupLabelChangeListener = rightGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rightGroupLabelChangeCounter++;
+			}
+		});
+
+		assert.strictEqual(rootGroup.label, 'Group 1');
+		assert.strictEqual(rightGroup.label, 'Group 2');
+
+		part.notifyGroupsLabelChange('Window 2');
+
+		assert.strictEqual(rootGroup.label, 'Window 2: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 2: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 1);
+		assert.strictEqual(rightGroupLabelChangeCounter, 1);
+		assert.strictEqual(partLabelChangedCounter, 2);
+
+		part.notifyGroupsLabelChange('Window 3');
+
+		assert.strictEqual(rootGroup.label, 'Window 3: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 3: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 2);
+		assert.strictEqual(rightGroupLabelChangeCounter, 2);
+		assert.strictEqual(partLabelChangedCounter, 4);
+
+		rootGroupLabelChangeListener.dispose();
+		rightGroupLabelChangeListener.dispose();
+		groupIndexChangedListener.dispose();
+	});
+
 	test('copy/merge groups', async () => {
 		const [part] = await createPart();
 

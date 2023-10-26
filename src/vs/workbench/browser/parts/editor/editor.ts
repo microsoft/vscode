@@ -282,6 +282,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	setActive(isActive: boolean): void;
 
 	notifyIndexChanged(newIndex: number): void;
+	notifyLabelChanged(newLabel: string): void;
 
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
