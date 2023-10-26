@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
@@ -98,6 +97,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
+
+	private readonly _onDidChangeGroupLabel = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupLabel = this._onDidChangeGroupLabel.event;
 
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
@@ -642,6 +644,9 @@ export class EditorPart extends Part implements IEditorPart {
 					break;
 				case GroupModelChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
+					break;
+				case GroupModelChangeKind.GROUP_LABEL:
+					this._onDidChangeGroupLabel.fire(groupView);
 					break;
 			}
 		}));
@@ -1222,6 +1227,12 @@ export class EditorPart extends Part implements IEditorPart {
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
 	}
 
+	notifyGroupsLabelChange(newLabel: string) {
+		for (const group of this.groups) {
+			group.notifyLabelChanged(newLabel);
+		}
+	}
+
 	private get isEmpty(): boolean {
 		return this.count === 1 && this._activeGroup.isEmpty;
 	}
@@ -1330,13 +1341,14 @@ export class MainEditorPart extends EditorPart {
 
 export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorPart {
 
-	private static COUNTER = 0;
+	private static COUNTER = 1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
 		editorPartsView: IEditorPartsView,
+		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -1345,7 +1357,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IHostService hostService: IHostService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 
 	protected override saveState(): void {
