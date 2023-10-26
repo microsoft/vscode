@@ -68,6 +68,10 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			return; // already claimed
 		}
 
+		if (this._store.isDisposed || this.contents.isDestroyed()) {
+			return; // already disposed
+		}
+
 		const window = BrowserWindow.fromWebContents(this.contents);
 		if (window) {
 			this._win = window;
