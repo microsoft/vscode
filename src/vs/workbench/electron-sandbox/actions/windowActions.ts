@@ -62,6 +62,11 @@ export class CloseWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
+		const window = getActiveWindow();
+		if (isAuxiliaryWindow(window)) {
+			return nativeHostService.closeWindowById(await window.vscodeWindowId);
+		}
+
 		return nativeHostService.closeWindow();
 	}
 }
