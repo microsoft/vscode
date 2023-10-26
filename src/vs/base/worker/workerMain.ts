@@ -84,7 +84,7 @@
 					text = `${text}\n//# sourceURL=${loaderSrc}`;
 					const func = (
 						trustedTypesPolicy
-							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string)
+							? globalThis.eval(trustedTypesPolicy.createScript('', text) as unknown as string) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 							: new Function(text) // CodeQL [SM01632] fetch + eval is used on the web worker instead of importScripts if possible because importScripts is synchronous and we observed deadlocks on Safari
 					);
 					func.call(globalThis);

@@ -19,9 +19,9 @@ import { newWriteableStream, ReadableStreamEvents } from 'vs/base/common/stream'
 import { URI } from 'vs/base/common/uri';
 import { IDirent, Promises, RimRafMode, SymlinkSupport } from 'vs/base/node/pfs';
 import { localize } from 'vs/nls';
-import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability } from 'vs/platform/files/common/files';
+import { createFileSystemProviderError, IFileAtomicReadOptions, IFileDeleteOptions, IFileOpenOptions, IFileOverwriteOptions, IFileReadStreamOptions, FileSystemProviderCapabilities, FileSystemProviderError, FileSystemProviderErrorCode, FileType, IFileWriteOptions, IFileSystemProviderWithFileAtomicReadCapability, IFileSystemProviderWithFileCloneCapability, IFileSystemProviderWithFileFolderCopyCapability, IFileSystemProviderWithFileReadStreamCapability, IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithOpenReadWriteCloseCapability, isFileOpenForWriteOptions, IStat, FilePermission, IFileSystemProviderWithFileAtomicWriteCapability, IFileSystemProviderWithFileAtomicDeleteCapability, IFileChange } from 'vs/platform/files/common/files';
 import { readFileIntoStream } from 'vs/platform/files/common/io';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage } from 'vs/platform/files/common/watcher';
 import { ILogService } from 'vs/platform/log/common/log';
 import { AbstractDiskFileSystemProvider, IDiskFileSystemProviderOptions } from 'vs/platform/files/common/diskFileSystemProvider';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -243,37 +243,69 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	async writeFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
-		if (opts?.atomic !== false && opts?.atomic?.postfix) {
+		if (opts?.atomic !== false && opts?.atomic?.postfix && await this.canWriteFileAtomic(resource)) {
 			return this.doWriteFileAtomic(resource, joinPath(resourcesDirname(resource), `${resourcesBasename(resource)}${opts.atomic.postfix}`), content, opts);
 		} else {
 			return this.doWriteFile(resource, content, opts);
 		}
 	}
 
+	private async canWriteFileAtomic(resource: URI): Promise<boolean> {
+		try {
+			const filePath = this.toFilePath(resource);
+			const { symbolicLink } = await SymlinkSupport.stat(filePath);
+			if (symbolicLink) {
+				// atomic writes are unsupported for symbolic links because
+				// we need to ensure that the `rename` operation is atomic
+				// and that only works if the link is on the same disk.
+				// Since we do not know where the symbolic link points to
+				// we refuse to write atomically.
+				return false;
+			}
+		} catch (error) {
+			// ignore stat errors here and just proceed trying to write
+		}
+
+		return true; // atomic writing supported
+	}
+
 	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 
-		// Write to temp resource first
-		await this.doWriteFile(tempResource, content, opts);
+		// Ensure to create locks for all resources involved
+		// since atomic write involves mutiple disk operations
+		// and resources.
+
+		const locks = new DisposableStore();
 
 		try {
+			locks.add(await this.createResourceLock(resource));
+			locks.add(await this.createResourceLock(tempResource));
 
-			// Rename over existing to ensure atomic replace
-			await this.rename(tempResource, resource, { overwrite: true });
+			// Write to temp resource first
+			await this.doWriteFile(tempResource, content, opts, true /* disable write lock */);
 
-		} catch (error) {
-
-			// Cleanup in case of rename error
 			try {
-				await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
-			} catch (error) {
-				// ignore - we want the outer error to bubble up
-			}
 
-			throw error;
+				// Rename over existing to ensure atomic replace
+				await this.rename(tempResource, resource, { overwrite: true });
+
+			} catch (error) {
+
+				// Cleanup in case of rename error
+				try {
+					await this.delete(tempResource, { recursive: false, useTrash: false, atomic: false });
+				} catch (error) {
+					// ignore - we want the outer error to bubble up
+				}
+
+				throw error;
+			}
+		} finally {
+			locks.dispose();
 		}
 	}
 
-	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
+	private async doWriteFile(resource: URI, content: Uint8Array, opts: IFileWriteOptions, disableWriteLock?: boolean): Promise<void> {
 		let handle: number | undefined = undefined;
 		try {
 			const filePath = this.toFilePath(resource);
@@ -293,7 +325,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 			}
 
 			// Open
-			handle = await this.open(resource, { create: true, unlock: opts.unlock });
+			handle = await this.open(resource, { create: true, unlock: opts.unlock }, disableWriteLock);
 
 			// Write content at once
 			await this.write(handle, 0, content, 0, content.byteLength);
@@ -317,14 +349,14 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		DiskFileSystemProvider.canFlush = enabled;
 	}
 
-	async open(resource: URI, opts: IFileOpenOptions): Promise<number> {
+	async open(resource: URI, opts: IFileOpenOptions, disableWriteLock?: boolean): Promise<number> {
 		const filePath = this.toFilePath(resource);
 
 		// Writes: guard multiple writes to the same resource
 		// behind a single lock to prevent races when writing
 		// from multiple places at the same time to the same file
 		let lock: IDisposable | undefined = undefined;
-		if (isFileOpenForWriteOptions(opts)) {
+		if (isFileOpenForWriteOptions(opts) && !disableWriteLock) {
 			lock = await this.createResourceLock(resource);
 		}
 
@@ -756,13 +788,8 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const locks = new DisposableStore();
 
 		try {
-			const [fromLock, toLock] = await Promise.all([
-				this.createResourceLock(from),
-				this.createResourceLock(to)
-			]);
-
-			locks.add(fromLock);
-			locks.add(toLock);
+			locks.add(await this.createResourceLock(from));
+			locks.add(await this.createResourceLock(to));
 
 			if (mkdir) {
 				await Promises.mkdir(dirname(toFilePath), { recursive: true });
@@ -785,7 +812,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	//#region File Watching
 
 	protected createUniversalWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient {
@@ -793,7 +820,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	}
 
 	protected createNonRecursiveWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractNonRecursiveWatcherClient {

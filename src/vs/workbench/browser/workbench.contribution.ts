@@ -7,10 +7,11 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { localize } from 'vs/nls';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { isMacintosh, isWindows, isLinux, isWeb, isNative } from 'vs/base/common/platform';
-import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
+import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurationWorkbenchContribution, IConfigurationMigrationRegistry, workbenchConfigurationNodeBase, Extensions, ConfigurationKeyValuePairs } from 'vs/workbench/common/configuration';
 import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -38,23 +39,29 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				default: 'default',
 			},
 			'workbench.editor.showTabs': {
-				'type': 'boolean',
-				'description': localize('showEditorTabs', "Controls whether opened editors should show in tabs or not."),
-				'default': true
+				'type': 'string',
+				'enum': ['multiple', 'single', 'none'],
+				'enumDescriptions': [
+					localize('workbench.editor.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('workbench.editor.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('workbench.editor.showTabs.none', "The editor title area is not displayed."),
+				],
+				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
+				'default': 'multiple'
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.scrollToSwitchTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'scrollToSwitchTabs' }, "Controls whether scrolling over tabs will open them or not. By default tabs will only reveal upon scrolling, but not open. You can press and hold the Shift-key while scrolling to change this behavior for that duration. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.highlightModifiedTabs': {
 				'type': 'boolean',
-				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('highlightModifiedTabs', "Controls whether a top border is drawn on tabs for editors that have unsaved changes. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 				'default': false
 			},
 			'workbench.editor.decorations.badges': {
@@ -140,7 +147,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
 				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
@@ -151,7 +158,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.tabSizing.shrink', "Allow tabs to get smaller when the available space is not enough to show all tabs at once."),
 					localize('workbench.editor.tabSizing.fixed', "Make all tabs the same size, while allowing them to get smaller when the available space is not enough to show all tabs at once.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabSizing' }, "Controls the size of editor tabs. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.tabSizingFixedMinWidth': {
 				'type': 'number',
@@ -165,11 +172,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'minimum': 38,
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
-			'workbench.editor.tabHeight': {
+			'window.density.editorTabHeight': {
 				'type': 'string',
-				'enum': ['normal', 'compact'],
-				'default': 'normal',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when `#workbench.editor.showTabs#` is disabled.")
+				'enum': ['default', 'compact'],
+				'default': 'default',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabHeight' }, "Controls the height of editor tabs. Also applies to the title control bar when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.pinnedTabSizing': {
 				'type': 'string',
@@ -180,12 +187,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					localize('workbench.editor.pinnedTabSizing.compact', "A pinned tab will show in a compact form with only icon or first letter of the editor name."),
 					localize('workbench.editor.pinnedTabSizing.shrink', "A pinned tab shrinks to a compact fixed size showing parts of the editor name.")
 				],
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.pinnedTabsOnSeparateRow': {
 				'type': 'boolean',
 				'default': false,
-				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is disabled."),
+				'markdownDescription': localize('workbench.editor.pinnedTabsOnSeparateRow', "When enabled, displays pinned tabs in a separate row above all other tabs. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
 			},
 			'workbench.editor.preventPinnedEditorClose': {
 				'type': 'string',
@@ -315,9 +322,15 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('centeredLayoutDynamicWidth', "Controls whether the centered layout tries to maintain constant width when the window is resized.")
 			},
 			'workbench.editor.doubleClickTabToToggleEditorGroupSizes': {
-				'type': 'boolean',
-				'default': true,
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls whether to maximize/restore the editor group when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is disabled.")
+				'type': 'string',
+				'enum': ['maximize', 'expand', 'off'],
+				'default': 'expand',
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'doubleClickTabToToggleEditorGroupSizes' }, "Controls how the editor group is resized when double clicking on a tab. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),
+				'enumDescriptions': [
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.maximize', "All other editor groups are hidden and the current editor group is maximized to take up the entire editor area."),
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.expand', "The editor group takes as much space as possible by making all other editor groups as small as possible."),
+					localize('workbench.editor.doubleClickTabToToggleEditorGroupSizes.off', "No editor group is resized when double clicking on a tab.")
+				]
 			},
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
@@ -462,10 +475,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('statusBarVisibility', "Controls the visibility of the status bar at the bottom of the workbench.")
 			},
-			'workbench.activityBar.visible': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('activityBarVisibility', "Controls the visibility of the activity bar in the workbench.")
+			[LayoutSettings.ACTIVITY_BAR_LOCATION]: {
+				'type': 'string',
+				'enum': ['side', 'top', 'hidden'],
+				'default': 'side',
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the activity bar. It can either show to the `side` or `top` (requires `{0}`) of the primary side bar or `hidden`.", '#window.commandCenter#'),
+				'enumDescriptions': [
+					localize('workbench.activityBar.location.side', "Show the activity bar to the side of the primary side bar."),
+					localize('workbench.activityBar.location.top', "Show the activity bar on top of the primary side bar."),
+					localize('workbench.activityBar.location.hide', "Hide the activity bar.")
+				]
 			},
 			'workbench.activityBar.iconClickBehavior': {
 				'type': 'string',
@@ -714,10 +733,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': true,
 				'description': localize('zenMode.centerLayout', "Controls whether turning on Zen Mode also centers the layout.")
 			},
-			'zenMode.hideTabs': {
-				'type': 'boolean',
-				'default': true,
-				'description': localize('zenMode.hideTabs', "Controls whether turning on Zen Mode also hides workbench tabs.")
+			'zenMode.showTabs': {
+				'type': 'string',
+				'enum': ['multiple', 'single', 'none'],
+				'description': localize('zenMode.showTabs', "Controls whether turning on Zen Mode should show multiple editor tabs, a single editor tab or hide the editor title area completely."),
+				'enumDescriptions': [
+					localize('zenMode.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
+					localize('zenMode.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
+					localize('zenMode.showTabs.none', "The editor title area is not displayed."),
+				],
+				'default': 'multiple'
 			},
 			'zenMode.hideStatusBar': {
 				'type': 'boolean',
@@ -747,3 +772,42 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 		}
 	});
 })();
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.activityBar.visible', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push(['workbench.activityBar.visible', { value: undefined }]);
+			}
+			if (value === false) {
+				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
+			}
+			return result;
+		}
+	}]);
+
+Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
+	.registerConfigurationMigrations([{
+		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: any) => {
+			if (typeof value === 'boolean') {
+				value = value ? 'expand' : 'off';
+			}
+			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: value }]];
+		}
+	}, {
+		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
+			if (typeof value === 'boolean') {
+				value = value ? 'multiple' : 'single';
+			}
+			return [['workbench.editor.showTabs', { value: value }]];
+		}
+	}, {
+		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
+			if (value === true) {
+				result.push(['zenMode.showTabs', { value: 'single' }]);
+			}
+			return result;
+		}
+	}]);

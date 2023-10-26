@@ -1887,4 +1887,61 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 	});
 }
 
+export class AsyncIterableSource<T> {
+
+	private readonly _deferred = new DeferredPromise<void>();
+	private readonly _asyncIterable: AsyncIterableObject<T>;
+
+	private _errorFn: (error: Error) => void;
+	private _emitFn: (item: T) => void;
+
+	constructor() {
+		this._asyncIterable = new AsyncIterableObject(emitter => {
+
+			if (earlyError) {
+				emitter.reject(earlyError);
+				return;
+			}
+			if (earlyItems) {
+				emitter.emitMany(earlyItems);
+			}
+			this._errorFn = (error: Error) => emitter.reject(error);
+			this._emitFn = (item: T) => emitter.emitOne(item);
+			return this._deferred.p;
+		});
+
+		let earlyError: Error | undefined;
+		let earlyItems: T[] | undefined;
+
+		this._emitFn = (item: T) => {
+			if (!earlyItems) {
+				earlyItems = [];
+			}
+			earlyItems.push(item);
+		};
+		this._errorFn = (error: Error) => {
+			if (!earlyError) {
+				earlyError = error;
+			}
+		};
+	}
+
+	get asyncIterable(): AsyncIterableObject<T> {
+		return this._asyncIterable;
+	}
+
+	resolve(): void {
+		this._deferred.complete();
+	}
+
+	reject(error: Error): void {
+		this._errorFn(error);
+		this._deferred.complete();
+	}
+
+	emitOne(item: T): void {
+		this._emitFn(item);
+	}
+}
+
 //#endregion

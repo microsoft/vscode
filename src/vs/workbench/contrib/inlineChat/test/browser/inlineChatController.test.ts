@@ -10,18 +10,21 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestDiffProviderFactoryService } from 'vs/editor/browser/diff/testDiffProviderFactoryService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffProviderFactoryService } from 'vs/editor/browser/widget/diffEditor/diffProviderFactoryService';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IEditorProgressService, IProgressRunner } from 'vs/platform/progress/common/progress';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { IChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat';
@@ -78,7 +81,7 @@ suite('InteractiveChatController', function () {
 	}
 
 	const store = new DisposableStore();
-	let editor: ICodeEditor;
+	let editor: IActiveCodeEditor;
 	let model: ITextModel;
 	let ctrl: TestController;
 	// let contextKeys: MockContextKeyService;
@@ -90,6 +93,10 @@ suite('InteractiveChatController', function () {
 
 		const contextKeyService = new MockContextKeyService();
 		inlineChatService = new InlineChatServiceImpl(contextKeyService);
+
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('chat', { editor: { fontSize: 14, fontFamily: 'default' } });
+		configurationService.setUserConfiguration('editor', {});
 
 		const serviceCollection = new ServiceCollection(
 			[IContextKeyService, contextKeyService],
@@ -113,6 +120,10 @@ suite('InteractiveChatController', function () {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {
 					return null;
 				}
+			}],
+			[IConfigurationService, configurationService],
+			[IViewDescriptorService, new class extends mock<IViewDescriptorService>() {
+				override onDidChangeLocation = Event.None;
 			}]
 		);
 
@@ -162,7 +173,7 @@ suite('InteractiveChatController', function () {
 		const run = ctrl.run({ message: 'Hello', autoSend: true });
 		await p;
 		assert.ok(ctrl.getWidgetPosition() !== undefined);
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 
 		await run;
 
@@ -194,7 +205,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -224,7 +235,7 @@ suite('InteractiveChatController', function () {
 		assert.ok(session);
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 1, 6));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		d.dispose();
 	});
 
@@ -287,7 +298,7 @@ suite('InteractiveChatController', function () {
 
 		assert.deepStrictEqual(session.wholeRange.value, new Range(1, 1, 4, 12));
 
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 		await r;
 	});
 
@@ -315,5 +326,45 @@ suite('InteractiveChatController', function () {
 
 		await r;
 		assert.strictEqual(ctrl.getWidgetPosition(), undefined);
+	});
+
+	test('[Bug] Inline Chat\'s streaming pushed broken iterations to the undo stack #2403', async function () {
+
+		const d = inlineChatService.addProvider({
+			debugName: 'Unit Test',
+			label: 'Unit Test',
+			prepareInlineChatSession() {
+				return {
+					id: Math.random(),
+					wholeRange: new Range(3, 1, 3, 3)
+				};
+			},
+			async provideResponse(session, request, progress) {
+
+				progress.report({ edits: [{ range: new Range(1, 1, 1, 1), text: 'hEllo1\n' }] });
+				progress.report({ edits: [{ range: new Range(2, 1, 2, 1), text: 'hEllo2\n' }] });
+
+				return {
+					id: Math.random(),
+					type: InlineChatResponseType.EditorEdit,
+					edits: [{ range: new Range(1, 1, 1000, 1), text: 'Hello1\nHello2\n' }]
+				};
+			}
+		});
+
+		const valueThen = editor.getModel().getValue();
+
+		store.add(d);
+		ctrl = instaService.createInstance(TestController, editor);
+		const p = ctrl.waitFor([...TestController.INIT_SEQUENCE, State.MAKE_REQUEST, State.APPLY_RESPONSE, State.SHOW_RESPONSE, State.WAIT_FOR_INPUT]);
+		const r = ctrl.run({ message: 'Hello', autoSend: true });
+		await p;
+		ctrl.acceptSession();
+		await r;
+
+		assert.strictEqual(editor.getModel().getValue(), 'Hello1\nHello2\n');
+
+		editor.getModel().undo();
+		assert.strictEqual(editor.getModel().getValue(), valueThen);
 	});
 });

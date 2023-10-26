@@ -20,7 +20,7 @@ import { coalesce } from '../utils/arrays';
 import { nulToken } from '../utils/cancellation';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { EditorChatFollowUp, CompositeCommand } from './util/copilot';
+import { EditorChatFollowUp, EditorChatFollowUp_Args, CompositeCommand } from './util/copilot';
 
 function toWorkspaceEdit(client: ITypeScriptServiceClient, edits: readonly Proto.FileCodeEdits[]): vscode.WorkspaceEdit {
 	const workspaceEdit = new vscode.WorkspaceEdit();
@@ -591,7 +591,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 					copilotRename = info => ({
 						title: '',
 						command: EditorChatFollowUp.ID,
-						arguments: [<EditorChatFollowUp.Args>{
+						arguments: [<EditorChatFollowUp_Args>{
 							message: `Rename ${newName} to a better name based on usage.`,
 							expand: Extract_Constant.matches(action) ? {
 								kind: 'navtree-function',

@@ -26,7 +26,7 @@ import { isSafari } from 'vs/base/browser/browser';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
-import { TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { TestLayoutService, TestLifecycleService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { importAMDNodeModule } from 'vs/amdX';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -34,6 +34,7 @@ import { Color, RGBA } from 'vs/base/common/color';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 class TestWebglAddon implements WebglAddon {
 	static shouldThrow = false;
@@ -125,6 +126,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(ILifecycleService, store.add(new TestLifecycleService()));
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
+		instantiationService.stub(ILayoutService, new TestLayoutService());
 
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
 		XTermBaseCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;

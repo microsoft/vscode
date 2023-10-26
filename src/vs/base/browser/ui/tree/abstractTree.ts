@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, append, clearNode, createStyleSheet, h, hasParentWithClass } from 'vs/base/browser/dom';
+import { $, append, clearNode, createStyleSheet, getWindow, h, hasParentWithClass, isActiveElement } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -22,7 +22,7 @@ import { distinct, equals, firstOrDefault, range } from 'vs/base/common/arrays';
 import { Delayer, disposableTimeout, timeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { SetMap } from 'vs/base/common/collections';
+import { SetMap } from 'vs/base/common/map';
 import { Emitter, Event, EventBufferer, Relay } from 'vs/base/common/event';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -861,8 +861,8 @@ class FindWidget<T, TFilterData> extends Disposable {
 
 		this._register(onGrabMouseDown.event(e => {
 			const disposables = new DisposableStore();
-			const onWindowMouseMove = disposables.add(new DomEmitter(window, 'mousemove'));
-			const onWindowMouseUp = disposables.add(new DomEmitter(window, 'mouseup'));
+			const onWindowMouseMove = disposables.add(new DomEmitter(getWindow(e), 'mousemove'));
+			const onWindowMouseUp = disposables.add(new DomEmitter(getWindow(e), 'mouseup'));
 
 			const startRight = this.right;
 			const startX = e.pageX;
@@ -1781,7 +1781,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	}
 
 	isDOMFocused(): boolean {
-		return this.getHTMLElement() === document.activeElement;
+		return isActiveElement(this.getHTMLElement());
 	}
 
 	layout(height?: number, width?: number): void {

@@ -13,7 +13,11 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { INativeWindowConfiguration } from 'vs/platform/window/common/window';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 
-export interface ICodeWindow extends IDisposable {
+export interface IBaseWindow extends IDisposable {
+	focus(options?: { force: boolean }): void;
+}
+
+export interface ICodeWindow extends IBaseWindow {
 
 	readonly onWillLoad: Event<ILoadEvent>;
 	readonly onDidSignalReady: Event<void>;
@@ -49,7 +53,6 @@ export interface ICodeWindow extends IDisposable {
 	load(config: INativeWindowConfiguration, options?: { isReload?: boolean }): void;
 	reload(cli?: NativeParsedArgs): void;
 
-	focus(options?: { force: boolean }): void;
 	close(): void;
 
 	getBounds(): Rectangle;

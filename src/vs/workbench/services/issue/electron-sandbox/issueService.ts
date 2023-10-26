@@ -3,32 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IssueReporterStyles, IssueReporterData, ProcessExplorerData, IssueReporterExtensionData, IIssueMainService } from 'vs/platform/issue/common/issue';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
-import { textLinkForeground, inputBackground, inputBorder, inputForeground, buttonBackground, buttonHoverBackground, buttonForeground, inputValidationErrorBorder, foreground, inputActiveOptionBorder, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, editorBackground, editorForeground, listHoverBackground, listHoverForeground, textLinkActiveForeground, inputValidationErrorBackground, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusOutline, listFocusBackground, listFocusForeground, activeContrastBorder, scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
-import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
-import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getZoomLevel } from 'vs/base/browser/browser';
-import { IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import { platform } from 'vs/base/common/process';
+import { URI } from 'vs/base/common/uri';
+import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { activeContrastBorder, buttonBackground, buttonForeground, buttonHoverBackground, editorBackground, editorForeground, foreground, inputActiveOptionBorder, inputBackground, inputBorder, inputForeground, inputValidationErrorBackground, inputValidationErrorBorder, inputValidationErrorForeground, listActiveSelectionBackground, listActiveSelectionForeground, listFocusBackground, listFocusForeground, listFocusOutline, listHoverBackground, listHoverForeground, scrollbarShadow, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, textLinkActiveForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
-import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
-import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
-import { IDisposable } from 'vs/base/common/lifecycle';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { URI } from 'vs/base/common/uri';
-import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+// eslint-disable-next-line local/code-import-patterns
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
 
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
+	private readonly _providers = new Map<string, IIssueDataProvider>();
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -45,6 +47,14 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
 			ipcRenderer.send(request.replyChannel, result.toString());
+		});
+		ipcRenderer.on('vscode:triggerIssueDataProvider', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
+			const result = await this.getIssueData(request.extensionId, CancellationToken.None);
+			ipcRenderer.send(request.replyChannel, result);
+		});
+		ipcRenderer.on('vscode:triggerIssueDataTemplate', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
+			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
+			ipcRenderer.send(request.replyChannel, result);
 		});
 	}
 
@@ -65,10 +75,12 @@ export class NativeIssueService implements IWorkbenchIssueService {
 					repositoryUrl: manifest.repository && manifest.repository.url,
 					bugsUrl: manifest.bugs && manifest.bugs.url,
 					hasIssueUriRequestHandler: this._handlers.has(extension.identifier.id.toLowerCase()),
+					hasIssueDataProviders: this._providers.has(extension.identifier.id.toLowerCase()),
 					displayName: manifest.displayName,
 					id: extension.identifier.id,
 					isTheme,
 					isBuiltin,
+					extensionData: 'Extensions data loading',
 				};
 			}));
 		} catch (e) {
@@ -78,6 +90,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				version: '0.0.0',
 				repositoryUrl: undefined,
 				bugsUrl: undefined,
+				extensionData: 'Extensions data loading',
 				displayName: `Extensions not loaded: ${e}`,
 				id: 'workbench.issue',
 				isTheme: false,
@@ -157,6 +170,30 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		}
 		return handler.provideIssueUrl(token);
 	}
+
+	registerIssueDataProvider(extensionId: string, handler: IIssueDataProvider): IDisposable {
+		this._providers.set(extensionId.toLowerCase(), handler);
+		return {
+			dispose: () => this._providers.delete(extensionId)
+		};
+	}
+
+	private async getIssueData(extensionId: string, token: CancellationToken): Promise<string> {
+		const provider = this._providers.get(extensionId);
+		if (!provider) {
+			throw new Error(`No issue uri request provider registered for extension '${extensionId}'`);
+		}
+		return provider.provideIssueExtensionData(token);
+	}
+
+	private async getIssueTemplate(extensionId: string, token: CancellationToken): Promise<string> {
+		const provider = this._providers.get(extensionId);
+		if (!provider) {
+			throw new Error(`No issue uri request provider registered for extension '${extensionId}'`);
+		}
+		return provider.provideIssueExtensionTemplate(token);
+	}
+
 }
 
 export function getIssueReporterStyles(theme: IColorTheme): IssueReporterStyles {

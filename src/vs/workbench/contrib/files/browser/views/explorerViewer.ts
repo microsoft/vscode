@@ -621,11 +621,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				while (true) {
 					await timeout(0);
 
-					if (!document.hasFocus()) {
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
 						break;
-					} if (document.activeElement === inputBox.inputElement) {
+					} if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
-					} else if (document.activeElement instanceof HTMLElement && DOM.hasParentWithClass(document.activeElement, 'context-view')) {
+					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
 						break;

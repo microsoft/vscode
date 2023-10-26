@@ -115,6 +115,14 @@
 	margin: 0;
 }
 
+.test-explorer .monaco-list-row .error a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.test-explorer .monaco-list-row .error a:hover {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .test-explorer .computed-state,
 .test-output-peek-tree .computed-state {
 	margin-right: 0.25em;

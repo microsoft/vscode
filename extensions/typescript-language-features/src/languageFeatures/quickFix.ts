@@ -18,7 +18,7 @@ import { DiagnosticsManager } from './diagnostics';
 import FileConfigurationManager from './fileConfigurationManager';
 import { applyCodeActionCommands, getEditForCodeAction } from './util/codeAction';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
-import { Expand, EditorChatFollowUp, CompositeCommand } from './util/copilot';
+import { Expand, EditorChatFollowUp_Args, CompositeCommand, EditorChatFollowUp } from './util/copilot';
 
 type ApplyCodeActionCommand_args = {
 	readonly document: vscode.TextDocument;
@@ -346,7 +346,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				inferFromBody.diagnostics = [diagnostic];
 				inferFromBody.command = {
 					command: EditorChatFollowUp.ID,
-					arguments: [<EditorChatFollowUp.Args>{
+					arguments: [<EditorChatFollowUp_Args>{
 						message: 'Add types to this code. Add separate interfaces when possible. Do not change the code except for adding types.',
 						expand: { kind: 'navtree-function', pos: diagnostic.range.start },
 						document
@@ -380,7 +380,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider<VsCodeCode
 				arguments: [codeAction.command, {
 					command: EditorChatFollowUp.ID,
 					title: '',
-					arguments: [<EditorChatFollowUp.Args>{
+					arguments: [<EditorChatFollowUp_Args>{
 						message,
 						expand,
 						document

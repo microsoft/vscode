@@ -14,6 +14,7 @@
 .monaco-editor .inline-chat {
 	color: inherit;
 	padding: 6px;
+	margin-top: 6px;
 	border-radius: 6px;
 	border: 1px solid var(--vscode-inlineChat-border);
 	box-shadow: 0 4px 8px var(--vscode-inlineChat-shadow);
@@ -143,6 +144,14 @@
 	align-self: center;
 }
 
+.monaco-editor .inline-chat .status .label .slash-command-pill CODE {
+	border-radius: 3px;
+	padding: 0 1px;
+	background-color: var(--vscode-chat-slashCommandBackground);
+	color: var(--vscode-chat-slashCommandForeground);
+}
+
+
 .monaco-editor .inline-chat .markdownMessage {
 	padding: 10px 5px;
 }
@@ -153,6 +162,19 @@
 
 .monaco-editor .inline-chat .markdownMessage .message * {
 	margin: unset;
+}
+
+.monaco-editor .inline-chat .markdownMessage .message code {
+	font-family: var(--monaco-monospace-font);
+	font-size: 12px;
+	color: var(--vscode-textPreformat-foreground);
+	background-color: var(--vscode-textPreformat-background);
+	padding: 1px 3px;
+	border-radius: 4px;
+}
+
+.monaco-editor .inline-chat .markdownMessage .message .interactive-result-code-block {
+	margin: 16px 0;
 }
 
 .monaco-editor .inline-chat .markdownMessage .message {
@@ -288,10 +310,6 @@
 
 /* diff zone */
 
-.monaco-editor .inline-chat-diff-widget {
-	padding: 6px 0;
-}
-
 .monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
 .monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
 	background-color: var(--vscode-inlineChat-regionHighlight);
@@ -310,3 +328,17 @@
 	justify-content: space-between;
 	padding: 3px 6px 3px 0;
 }
+
+/* gutter decoration */
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
+	display: block;
+	cursor: pointer;
+	opacity: 0.5;
+	transition: opacity .2s ease-in-out;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
+	opacity: 1;
+}
+

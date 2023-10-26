@@ -47,6 +47,7 @@ import * as types from './extHostTypes';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export namespace Command {
 
@@ -1567,23 +1568,31 @@ export namespace LanguageSelector {
 export namespace MappedEditsContext {
 
 	export function is(v: unknown): v is vscode.MappedEditsContext {
-		return (!!v &&
-			typeof v === 'object' &&
-			'selections' in v &&
-			Array.isArray(v.selections) &&
-			v.selections.every(s => s instanceof types.Selection) &&
-			'related' in v &&
-			Array.isArray(v.related) &&
-			v.related.every(e => e && typeof e === 'object' && URI.isUri(e.uri) && e.range instanceof types.Range));
+		return (
+			!!v && typeof v === 'object' &&
+			'documents' in v &&
+			Array.isArray(v.documents) &&
+			v.documents.every(subArr =>
+				Array.isArray(subArr) &&
+				subArr.every(docRef =>
+					docRef && typeof docRef === 'object' &&
+					'uri' in docRef && URI.isUri(docRef.uri) &&
+					'version' in docRef && typeof docRef.version === 'number' &&
+					'ranges' in docRef && Array.isArray(docRef.ranges) && docRef.ranges.every((r: unknown) => r instanceof types.Range)
+				)
+			)
+		);
 	}
 
 	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
 		return {
-			selections: extContext.selections.map(s => Selection.from(s)),
-			related: extContext.related.map(r => ({
-				uri: URI.from(r.uri),
-				range: Range.from(r.range)
-			}))
+			documents: extContext.documents.map((subArray) =>
+				subArray.map((r) => ({
+					uri: URI.from(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((r) => Range.from(r)),
+				}))
+			),
 		};
 	}
 }
@@ -1825,7 +1834,7 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage2): ITestErrorMessage.Serialized {
+	export function from(message: vscode.TestMessage): ITestErrorMessage.Serialized {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
 			type: TestMessageType.Error,
@@ -1836,7 +1845,7 @@ export namespace TestMessage {
 		};
 	}
 
-	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage2 {
+	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
@@ -2228,6 +2237,15 @@ export namespace ChatMessageRole {
 }
 
 export namespace ChatVariable {
+	export function objectTo(variableObject: Record<string, IChatRequestVariableValue[]>): Record<string, vscode.ChatVariableValue[]> {
+		const result: Record<string, vscode.ChatVariableValue[]> = {};
+		for (const key of Object.keys(variableObject)) {
+			result[key] = variableObject[key].map(ChatVariable.to);
+		}
+
+		return result;
+	}
+
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
@@ -2280,6 +2298,56 @@ export namespace InteractiveEditorResponseFeedbackKind {
 				return types.InteractiveEditorResponseFeedbackKind.Undone;
 			case InlineChatResponseFeedbackKind.Accepted:
 				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+		}
+	}
+}
+
+export namespace ChatResponseProgress {
+	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
+		if ('placeholder' in progress && 'resolvedContent' in progress) {
+			return { placeholder: progress.placeholder };
+		} else if ('responseId' in progress) {
+			return { requestId: progress.responseId };
+		} else if ('markdownContent' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.markdownContent) };
+		} else if ('content' in progress) {
+			if (typeof progress.content === 'string') {
+				return progress;
+			}
+
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.content) };
+		} else if ('documents' in progress) {
+			return {
+				documents: progress.documents.map(d => ({
+					uri: d.uri,
+					version: d.version,
+					ranges: d.ranges.map(r => Range.from(r))
+				}))
+			};
+		} else if ('reference' in progress) {
+			return {
+				reference: 'uri' in progress.reference ?
+					{
+						uri: progress.reference.uri,
+						range: Range.from(progress.reference.range)
+					} : progress.reference
+			};
+		} else if ('inlineReference' in progress) {
+			return {
+				inlineReference: 'uri' in progress.inlineReference ?
+					{
+						uri: progress.inlineReference.uri,
+						range: Range.from(progress.inlineReference.range)
+					} : progress.inlineReference,
+				title: progress.title,
+			};
+		} else if ('agentName' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return progress;
+		} else {
+			return progress;
 		}
 	}
 }

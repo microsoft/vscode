@@ -37,6 +37,7 @@ import { IWorkingCopyEditorHandler, IWorkingCopyEditorService } from 'vs/workben
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 
 const OpenInEditorCommandId = 'search.action.openInEditor';
@@ -202,7 +203,7 @@ const translateLegacyConfig = (legacyConfig: LegacySearchEditorArgs & OpenSearch
 };
 
 export type OpenSearchEditorArgs = Partial<SearchConfiguration & { triggerSearch: boolean; focusResults: boolean; location: 'reuse' | 'new' }>;
-const openArgDescription = {
+const openArgMetadata = {
 	description: 'Open a new search editor. Arguments passed can include variables like ${relativeFileDirname}.',
 	args: [{
 		name: 'Open new Search Editor args',
@@ -241,7 +242,7 @@ registerAction2(class extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor) {
-		const contextService = accessor.get(IContextKeyService).getContext(document.activeElement);
+		const contextService = accessor.get(IContextKeyService).getContext(getActiveElement());
 		if (contextService.getValue(SearchEditorConstants.InSearchEditor.serialize())) {
 			(accessor.get(IEditorService).activeEditorPane as SearchEditor).deleteResultBlock();
 		}
@@ -255,7 +256,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('search.openNewSearchEditor', "New Search Editor"), original: 'New Search Editor' },
 			category,
 			f1: true,
-			description: openArgDescription
+			metadata: openArgMetadata
 		});
 	}
 	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
@@ -270,7 +271,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('search.openSearchEditor', "Open Search Editor"), original: 'Open Search Editor' },
 			category,
 			f1: true,
-			description: openArgDescription
+			metadata: openArgMetadata
 		});
 	}
 	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {
@@ -285,7 +286,7 @@ registerAction2(class extends Action2 {
 			title: { value: localize('search.openNewEditorToSide', "Open New Search Editor to the Side"), original: 'Open new Search Editor to the Side' },
 			category,
 			f1: true,
-			description: openArgDescription
+			metadata: openArgMetadata
 		});
 	}
 	async run(accessor: ServicesAccessor, args: LegacySearchEditorArgs | OpenSearchEditorArgs) {

@@ -946,7 +946,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
-			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit"),
+			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit."),
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
@@ -964,14 +964,14 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
+			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
 			type: 'object',
 			additionalProperties: {
-				type: 'string',
-				enum: ['explicit', 'never'],
+				type: ['string', 'boolean'],
+				enum: ['explicit', 'never', true, false],
 				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
 				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
-				enumDescriptions: [nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.')],
+				enumDescriptions: [nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'), nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'), nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')],
 			},
 			default: {}
 		},
@@ -1019,16 +1019,27 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
 		},
-		[NotebookSetting.cellExecutionScroll]: {
-			markdownDescription: nls.localize('notebook.revealNextOnExecuteBehavior.description', "How far to scroll when revealing the next cell upon exectuting {0}.", 'notebook.cell.executeAndSelectBelow'),
+		[NotebookSetting.scrollToRevealCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
 			type: 'string',
 			enum: ['fullCell', 'firstLine', 'none'],
 			markdownEnumDescriptions: [
-				nls.localize('notebook.revealNextOnExecuteBehavior.fullCell.description', 'Scroll to fully reveal the next cell.'),
-				nls.localize('notebook.revealNextOnExecuteBehavior.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
-				nls.localize('notebook.revealNextOnExecuteBehavior.nonedescription', 'Do not scroll to reveal the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.fullCell.description', 'Scroll to fully reveal the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.none.description', 'Do not scroll.'),
 			],
 			default: 'fullCell'
+		},
+		[NotebookSetting.anchorToFocusedCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Experimental. Keep the focused cell steady while surrounding cells change size."),
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor the viewport to the focused cell depending on context unless {0} is set to {1}.", 'notebook.scrolling.revealCellBehavior', 'none'),
+				nls.localize('notebook.scrolling.anchorToFocusedCell.on.description', "Always anchor the viewport to the focused cell."),
+				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
+			],
+			default: 'auto'
 		}
 	}
 });

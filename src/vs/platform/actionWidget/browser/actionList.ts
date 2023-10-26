@@ -25,7 +25,8 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
-	onFocus?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
+	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
+	onFocus?(action: T | undefined): void;
 }
 
 export interface IActionListItem<T> {
@@ -217,7 +218,7 @@ export class ActionList<T> extends Disposable {
 
 		this._register(this._list.onMouseClick(e => this.onListClick(e)));
 		this._register(this._list.onMouseOver(e => this.onListHover(e)));
-		this._register(this._list.onDidChangeFocus(() => this._list.domFocus()));
+		this._register(this._list.onDidChangeFocus(() => this.onFocus()));
 		this._register(this._list.onDidChangeSelection(e => this.onListSelection(e)));
 
 		this._allMenuItems = items;
@@ -247,7 +248,7 @@ export class ActionList<T> extends Disposable {
 
 		// For finding width dynamically (not using resize observer)
 		const itemWidths: number[] = this._allMenuItems.map((_, index): number => {
-			const element = document.getElementById(this._list.getElementID(index));
+			const element = this.domNode.ownerDocument.getElementById(this._list.getElementID(index));
 			if (element) {
 				element.style.width = 'auto';
 				const width = element.getBoundingClientRect().width;
@@ -261,7 +262,7 @@ export class ActionList<T> extends Disposable {
 		const width = Math.max(...itemWidths, minWidth);
 
 		const maxVhPrecentage = 0.7;
-		const height = Math.min(heightWithHeaders, document.body.clientHeight * maxVhPrecentage);
+		const height = Math.min(heightWithHeaders, this.domNode.ownerDocument.body.clientHeight * maxVhPrecentage);
 		this._list.layout(height, width);
 
 		this.domNode.style.height = `${height}px`;
@@ -307,11 +308,22 @@ export class ActionList<T> extends Disposable {
 		}
 	}
 
+	private onFocus() {
+		this._list.domFocus();
+		const focused = this._list.getFocus();
+		if (focused.length === 0) {
+			return;
+		}
+		const focusIndex = focused[0];
+		const element = this._list.element(focusIndex);
+		this._delegate.onFocus?.(element.item);
+	}
+
 	private async onListHover(e: IListMouseEvent<IActionListItem<T>>) {
 		const element = e.element;
 		if (element && element.item && this.focusCondition(element)) {
-			if (this._delegate.onFocus && !element.disabled && element.kind === ActionListItemKind.Action) {
-				const result = await this._delegate.onFocus(element.item, this.cts.token);
+			if (this._delegate.onHover && !element.disabled && element.kind === ActionListItemKind.Action) {
+				const result = await this._delegate.onHover(element.item, this.cts.token);
 				element.canPreview = result ? result.canPreview : undefined;
 			}
 			if (e.index) {

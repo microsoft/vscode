@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 9
       },
-      text: "What is "
+      text: "What is ",
+      kind: "text"
     },
     {
       range: {
@@ -25,7 +26,8 @@
         endColumn: 19
       },
       variableName: "selection",
-      variableArg: ""
+      variableArg: "",
+      kind: "var"
     },
     {
       range: {
@@ -38,8 +40,9 @@
         endLineNumber: 1,
         endColumn: 20
       },
-      text: "?"
+      text: "?",
+      kind: "text"
     }
   ],
-  text: "What is @selection?"
+  text: "What is #selection?"
 }

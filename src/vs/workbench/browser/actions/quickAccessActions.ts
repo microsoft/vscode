@@ -126,7 +126,7 @@ registerAction2(class QuickAccessAction extends Action2 {
 				value: localize('quickOpen', "Go to File..."),
 				original: 'Go to File...'
 			},
-			description: {
+			metadata: {
 				description: `Quick access`,
 				args: [{
 					name: 'prefix',

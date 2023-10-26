@@ -11,7 +11,8 @@
         endLineNumber: 1,
         endColumn: 5
       },
-      text: "test"
+      text: "test",
+      kind: "text"
     }
   ],
   text: "test"

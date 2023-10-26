@@ -12,8 +12,10 @@
 	background-color: var(--vscode-terminal-background, var(--vscode-panel-background));
 }
 
+.monaco-workbench .editor-instance .terminal .terminal-command-decoration.quick-fix {
+	background-color: var(--vscode-terminal-background, var(--vscode-editor-background));
+}
+
 .monaco-workbench .terminal .terminal-command-decoration.quick-fix.explainOnly {
-	/* Use success background to blend in with the terminal better as it's lower priority. We will
-	 * probably want to add an explicit color for this eventually. */
-	color: var(--vscode-terminalCommandDecoration-successBackground) !important;
+	color: var(--vscode-editorLightBulbAutoFix-foreground) !important;
 }

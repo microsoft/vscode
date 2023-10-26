@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import { coalesce, equals, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { illegalArgument, isCancellationError, onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -19,6 +18,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IModelService } from 'vs/editor/common/services/model';
 import { TextModelCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
+import * as nls from 'vs/nls';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -48,6 +48,11 @@ class ManagedCodeActionSet extends Disposable implements CodeActionSet {
 	}
 
 	private static codeActionsComparator({ action: a }: CodeActionItem, { action: b }: CodeActionItem): number {
+		if (a.isAI && !b.isAI) {
+			return 1;
+		} else if (!a.isAI && b.isAI) {
+			return -1;
+		}
 		if (isNonEmptyArray(a.diagnostics)) {
 			return isNonEmptyArray(b.diagnostics) ? ManagedCodeActionSet.codeActionsPreferredComparator(a, b) : -1;
 		} else if (isNonEmptyArray(b.diagnostics)) {
