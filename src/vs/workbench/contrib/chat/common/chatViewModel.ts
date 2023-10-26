@@ -100,6 +100,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
@@ -318,7 +319,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
-
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
