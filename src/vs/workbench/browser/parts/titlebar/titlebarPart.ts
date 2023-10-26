@@ -391,7 +391,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (showEditorActions) {
 
 			// Toolbar actions
-			const editorToolbarMenu = this._register(this.menuService.createMenu(MenuId.EditorTitle, this.editorGroupService.activeGroup.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService));
+			const scopedService = this.editorGroupService.activeGroup.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+			const editorToolbarMenu = this._register(this.menuService.createMenu(MenuId.EditorTitle, scopedService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
