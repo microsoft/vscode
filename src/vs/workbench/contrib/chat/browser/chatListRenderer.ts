@@ -16,7 +16,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -70,6 +70,7 @@ interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
+	readonly agentAvatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
@@ -225,6 +226,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
+		const agentAvatarContainer = dom.append(user, $('.agent-avatar-container'));
 		const username = dom.append(user, $('h3.username'));
 		const detailContainer = dom.append(user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
@@ -249,7 +251,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
@@ -361,15 +363,29 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		if (isResponseVM(element) && element.agent && !element.agent.metadata.isDefault) {
+			dom.show(templateData.agentAvatarContainer);
 			const icon = this.getAgentIcon(element.agent.metadata);
 			if (icon instanceof URI) {
 				const avatarIcon = dom.$<HTMLImageElement>('img.icon');
 				avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
-				templateData.avatarContainer.appendChild(dom.$('.avatar', undefined, avatarIcon));
+				templateData.agentAvatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
 			} else if (icon) {
 				const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
-				templateData.avatarContainer.appendChild(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+				templateData.agentAvatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 			}
+
+			templateData.agentAvatarContainer.classList.toggle('complete', element.isComplete);
+			if (!element.agentAvatarHasBeenRendered && !element.isComplete) {
+				element.agentAvatarHasBeenRendered = true;
+				templateData.agentAvatarContainer.classList.remove('loading');
+				templateData.elementDisposables.add(disposableTimeout(() => {
+					templateData.agentAvatarContainer.classList.toggle('loading', !element.isComplete);
+				}, 100));
+			} else {
+				templateData.agentAvatarContainer.classList.toggle('loading', !element.isComplete);
+			}
+		} else {
+			dom.hide(templateData.agentAvatarContainer);
 		}
 	}
 
