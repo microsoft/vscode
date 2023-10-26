@@ -148,16 +148,16 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
-
 		this.contextKey.set(true);
 		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(configurationKey, { enabled: true });
 
-		const badge = new NumberBadge(1, () => menuTitle);
-		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
-
 		const orgs = parsedResult['organization_login_list'] as any[];
 		const menuTitle = orgs ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
+
+		const badge = new NumberBadge(1, () => menuTitle);
+		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
+
 
 		registerAction2(class extends Action2 {
 			constructor() {
