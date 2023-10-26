@@ -11,6 +11,7 @@ import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -74,7 +75,8 @@ export class Menubar {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -255,7 +257,7 @@ export class Menubar {
 		// If we don't have a menu yet, set it to null to avoid the electron menu.
 		// This should only happen on the first launch ever
 		if (Object.keys(this.menubarMenus).length === 0) {
-			Menu.setApplicationMenu(isMacintosh ? new Menu() : null);
+			this.doSetApplicationMenu(isMacintosh ? new Menu() : null);
 			return;
 		}
 
@@ -358,13 +360,26 @@ export class Menubar {
 		}
 
 		if (menubar.items && menubar.items.length > 0) {
-			Menu.setApplicationMenu(menubar);
+			this.doSetApplicationMenu(menubar);
 		} else {
-			Menu.setApplicationMenu(null);
+			this.doSetApplicationMenu(null);
 		}
 
 		// Dispose of older menus after some time
 		this.menuGC.schedule();
+	}
+
+	private doSetApplicationMenu(menu: (Menu) | (null)): void {
+
+		// Setting the application menu sets it to all opened windows,
+		// but we currently do not support a menu in auxiliary windows,
+		// so we need to unset it there.
+
+		Menu.setApplicationMenu(menu);
+
+		for (const window of this.auxiliaryWindowsMainService.getWindows()) {
+			window.win?.setMenu(null);
+		}
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Menu): void {

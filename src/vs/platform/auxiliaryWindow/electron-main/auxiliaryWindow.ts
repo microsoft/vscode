@@ -30,11 +30,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private _win: BrowserWindow | null = null;
 	get win() {
 		if (!this._win) {
-			const window = BrowserWindow.fromWebContents(this.contents);
-			if (window) {
-				this._win = window;
-				this.registerWindowListeners(window);
-			}
+			this.tryClaimWindow();
 		}
 
 		return this._win;
@@ -61,6 +57,26 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// Handle devtools argument
 		if (this.environmentMainService.args['open-devtools'] === true) {
 			this.contents.openDevTools({ mode: 'bottom' });
+		}
+
+		// Try to claim now
+		this.tryClaimWindow();
+	}
+
+	tryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
+		}
+
+		const window = BrowserWindow.fromWebContents(this.contents);
+		if (window) {
+			this._win = window;
+
+			// Disable Menu
+			window.setMenu(null);
+
+			// Listeners
+			this.registerWindowListeners(window);
 		}
 	}
 
