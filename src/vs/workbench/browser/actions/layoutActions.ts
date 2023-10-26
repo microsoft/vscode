@@ -553,8 +553,8 @@ registerAction2(ShowSingleEditorTabAction);
 MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.EditorTabsBarShowTabsSubmenu,
 	title: localize('tabBar', "Tab Bar"),
-	group: '4_editor',
-	order: 6
+	group: '3_workbench_layout_move',
+	order: 10
 });
 
 // --- Toggle Pinned Tabs On Separate Row
