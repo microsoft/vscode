@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -29,10 +29,10 @@ const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, loc
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
-	private _gutterDecoration: ModelDecorationOptions | undefined;
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
+	private readonly _gutterDecoration: IModelDecorationOptions;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
@@ -45,8 +45,15 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		this._updateDecoration();
-		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecoration()));
+		this._inlineChatKeybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
+		this._gutterDecoration = ModelDecorationOptions.register({
+			description: 'inline-chat-decoration',
+			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
+			glyphMarginHoverMessage: this._hoverMessage(),
+			glyphMargin: { position: GlyphMarginLane.Left },
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		});
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateKeybinding()));
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
@@ -58,20 +65,18 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._onEnablementOrModelChanged();
 	}
 
-	private _updateDecoration(): void {
-		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel();
+	private _updateKeybinding(): void {
+		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
 		if (this._inlineChatKeybinding === keybinding) {
 			return;
 		}
-		this._inlineChatKeybinding = keybinding ?? undefined;
-		this._gutterDecoration = ModelDecorationOptions.register({
-			description: 'inline-chat-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
-			glyphMarginHoverMessage: new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (keybinding ? ` [${keybinding}]` : '')),
-			glyphMargin: { position: GlyphMarginLane.Left },
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		});
+		this._inlineChatKeybinding = keybinding;
+		this._gutterDecoration.glyphMarginHoverMessage = this._hoverMessage();
 		this._onEnablementOrModelChanged();
+	}
+
+	private _hoverMessage(): MarkdownString {
+		return new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (this._inlineChatKeybinding ? ` [${this._inlineChatKeybinding}]` : ''));
 	}
 
 	private _onEnablementOrModelChanged(): void {
@@ -132,7 +137,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 	private _addGutterDecoration(lineNumber: number) {
 		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
-			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), this._gutterDecoration!);
+			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), this._gutterDecoration);
 		});
 	}
 
