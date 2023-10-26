@@ -46,7 +46,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	) {
 		super();
 		this._updateDecoration();
-		this._register(_keybindingService.onDidUpdateKeybindings(() => this._updateDecoration()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecoration()));
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
@@ -71,6 +71,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
+		this._onEnablementOrModelChanged();
 	}
 
 	private _onEnablementOrModelChanged(): void {
