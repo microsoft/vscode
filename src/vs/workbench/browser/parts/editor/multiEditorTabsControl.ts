@@ -55,6 +55,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
+import { ICustomTabLabelService } from 'vs/workbench/services/label/common/customTabLabels';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 
 interface IEditorInputLabel {
@@ -147,6 +148,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
+		@ICustomTabLabelService private readonly customTabLabelService: ICustomTabLabelService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
@@ -1173,10 +1175,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const labels: IEditorInputLabel[] = [];
 		let activeEditorTabIndex = -1;
 		this.tabsModel.getEditors(EditorsOrder.SEQUENTIAL).forEach((editor: EditorInput, tabIndex: number) => {
+			const customLabel = this.customTabLabelService.getCustomTabLabelForEditor(editor, this.groupView.id);
+			const { name, description } = customLabel ?? { name: editor.getName(), description: editor.getDescription(verbosity) };
+
 			labels.push({
 				editor,
-				name: editor.getName(),
-				description: editor.getDescription(verbosity),
+				name,
+				description,
 				forceDescription: editor.hasCapability(EditorInputCapabilities.ForceDescription),
 				title: editor.getTitle(Verbosity.LONG),
 				ariaLabel: computeEditorAriaLabel(editor, tabIndex, this.groupView, this.editorGroupService.count)

@@ -53,6 +53,7 @@ import { defaultProgressBarStyles } from 'vs/platform/theme/browser/defaultStyle
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { EditorGroupWatermark } from 'vs/workbench/browser/parts/editor/editorGroupWatermark';
 import { EditorTitleControl } from 'vs/workbench/browser/parts/editor/editorTitleControl';
+import { TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -1177,6 +1178,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// the active one depending on options. As such, we simply
 		// return the active editor pane after this operation.
 		return this.editorPane.activeEditorPane ?? undefined;
+	}
+
+	//#endregion
+
+	//#region provideEditorTabLabel()
+
+	provideEditorTabLabel(editor: EditorInput, input: TabLabelInput): void {
+		this.model.provideEditorTabLabel(editor, input);
 	}
 
 	//#endregion

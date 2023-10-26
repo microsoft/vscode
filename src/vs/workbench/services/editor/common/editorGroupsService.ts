@@ -14,6 +14,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 import { IRectangle } from 'vs/platform/window/common/window';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
@@ -701,6 +702,8 @@ export interface IEditorGroup {
 	 * @param options fine tune how to match editors
 	 */
 	contains(candidate: EditorInput | IUntypedEditorInput, options?: IMatchEditorOptions): boolean;
+
+	provideEditorTabLabel(editor: EditorInput, input: TabLabelInput): void;
 
 	/**
 	 * Move an editor from this group either within this group or to another group.

@@ -1581,3 +1581,21 @@ export function createEditorOpenError(messageOrError: string | Error, actions: I
 
 	return error;
 }
+
+/**
+ * Generates a unique id for a tab
+ * @param editor The editor input
+ * @param groupId The group id
+ * @returns A unique identifier for a specific tab
+ */
+export function generateTabId(editor: EditorInput, groupId: number) {
+	let resourceString: string | undefined;
+	// Properly get the resource and account for side by side editors
+	const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
+	if (resource instanceof URI) {
+		resourceString = resource.toString();
+	} else {
+		resourceString = `${resource?.primary?.toString()}-${resource?.secondary?.toString()}`;
+	}
+	return `${groupId}~${editor.editorId}-${editor.typeId}-${resourceString} `;
+}

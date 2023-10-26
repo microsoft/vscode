@@ -6,7 +6,7 @@
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ExtHostContext, IExtHostEditorTabsShape, MainContext, IEditorTabDto, IEditorTabGroupDto, MainThreadEditorTabsShape, AnyInputDto, TabInputKind, TabModelOperationKind } from 'vs/workbench/api/common/extHost.protocol';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
-import { EditorResourceAccessor, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
+import { GroupModelChangeKind, generateTabId } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { columnToEditorGroup, EditorGroupColumn, editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
@@ -15,7 +15,6 @@ import { IEditorsChangeEvent, IEditorService, SIDE_GROUP } from 'vs/workbench/se
 import { AbstractTextResourceEditorInput } from 'vs/workbench/common/editor/textResourceEditorInput';
 import { NotebookEditorInput } from 'vs/workbench/contrib/notebook/common/notebookEditorInput';
 import { CustomEditorInput } from 'vs/workbench/contrib/customEditor/browser/customEditorInput';
-import { URI } from 'vs/base/common/uri';
 import { WebviewInput } from 'vs/workbench/contrib/webviewPanel/browser/webviewEditorInput';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -25,12 +24,14 @@ import { isGroupEditorMoveEvent } from 'vs/workbench/common/editor/editorGroupMo
 import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser/interactiveEditorInput';
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICustomTabLabelService, TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 
 interface TabInfo {
 	tab: IEditorTabDto;
 	group: IEditorGroup;
 	editorInput: EditorInput;
 }
+
 @extHostNamedCustomer(MainContext.MainThreadEditorTabs)
 export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 
@@ -48,6 +49,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private readonly _logService: ILogService,
+		@ICustomTabLabelService private readonly _customTabLabelService: ICustomTabLabelService,
 		@IEditorService editorService: IEditorService
 	) {
 
@@ -86,11 +88,16 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 */
 	private _buildTabObject(group: IEditorGroup, editor: EditorInput, editorIndex: number): IEditorTabDto {
 		const editorId = editor.editorId;
+		const customLabel = this._customTabLabelService.getCustomTabLabelForEditor(editor, group.id);
+		const editorName = editor.getName();
+		const label = customLabel?.name ?? editorName;
+
 		const tab: IEditorTabDto = {
-			id: this._generateTabId(editor, group.id),
-			label: editor.getName(),
+			id: generateTabId(editor, group.id),
+			label,
 			editorId,
 			input: this._editorInputToDto(editor),
+			isLabelChanged: !!customLabel?.name,
 			isPinned: group.isSticky(editorIndex),
 			isPreview: !group.isPinned(editorIndex),
 			isActive: group.isActive(editor),
@@ -195,24 +202,6 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	}
 
 	/**
-	 * Generates a unique id for a tab
-	 * @param editor The editor input
-	 * @param groupId The group id
-	 * @returns A unique identifier for a specific tab
-	 */
-	private _generateTabId(editor: EditorInput, groupId: number) {
-		let resourceString: string | undefined;
-		// Properly get the resource and account for side by side editors
-		const resource = EditorResourceAccessor.getCanonicalUri(editor, { supportSideBySide: SideBySideEditor.BOTH });
-		if (resource instanceof URI) {
-			resourceString = resource.toString();
-		} else {
-			resourceString = `${resource?.primary?.toString()}-${resource?.secondary?.toString()}`;
-		}
-		return `${groupId}~${editor.editorId}-${editor.typeId}-${resourceString} `;
-	}
-
-	/**
 	 * Called whenever a group activates, updates the model by marking the group as active an notifies the extension host
 	 */
 	private _onDidGroupActivate() {
@@ -231,11 +220,14 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * @param editorInput The editor input represented by the tab
 	 */
 	private _onDidTabLabelChange(groupId: number, editorInput: EditorInput, editorIndex: number) {
-		const tabId = this._generateTabId(editorInput, groupId);
+		const tabId = generateTabId(editorInput, groupId);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		// If tab is found patch, else rebuild
 		if (tabInfo) {
-			tabInfo.tab.label = editorInput.getName();
+			const customLabel = this._customTabLabelService.getCustomTabLabelForEditor(editorInput, groupId);
+			tabInfo.tab.label = customLabel?.name ?? editorInput.getName();
+			tabInfo.tab.isLabelChanged = !!customLabel?.name;
+
 			this._proxy.$acceptTabOperation({
 				groupId,
 				index: editorIndex,
@@ -271,7 +263,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		const tabObject = this._buildTabObject(group, editorInput, editorIndex);
 		tabs.splice(editorIndex, 0, tabObject);
 		// Update lookup
-		this._tabInfoLookup.set(this._generateTabId(editorInput, groupId), { group, editorInput, tab: tabObject });
+		this._tabInfoLookup.set(generateTabId(editorInput, groupId), { group, editorInput, tab: tabObject });
 
 		this._proxy.$acceptTabOperation({
 			groupId,
@@ -344,7 +336,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * @param editor The editor input represented by the tab
 	 */
 	private _onDidTabDirty(groupId: number, editorIndex: number, editor: EditorInput) {
-		const tabId = this._generateTabId(editor, groupId);
+		const tabId = generateTabId(editor, groupId);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		// Something wrong with the model state so we rebuild
 		if (!tabInfo) {
@@ -368,7 +360,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 	 * @param editor The editor input represented by the tab
 	 */
 	private _onDidTabPinChange(groupId: number, editorIndex: number, editor: EditorInput) {
-		const tabId = this._generateTabId(editor, groupId);
+		const tabId = generateTabId(editor, groupId);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		const group = tabInfo?.group;
 		const tab = tabInfo?.tab;
@@ -395,7 +387,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
  * @param editor The editor input represented by the tab
  */
 	private _onDidTabPreviewChange(groupId: number, editorIndex: number, editor: EditorInput) {
-		const tabId = this._generateTabId(editor, groupId);
+		const tabId = generateTabId(editor, groupId);
 		const tabInfo = this._tabInfoLookup.get(tabId);
 		const group = tabInfo?.group;
 		const tab = tabInfo?.tab;
@@ -460,7 +452,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				const tab = this._buildTabObject(group, editor, editorIndex);
 				tabs.push(tab);
 				// Add information about the tab to the lookup
-				this._tabInfoLookup.set(this._generateTabId(editor, group.id), {
+				this._tabInfoLookup.set(generateTabId(editor, group.id), {
 					group,
 					tab,
 					editorInput: editor
@@ -556,6 +548,16 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		}
 	}
 	//#region Messages received from Ext Host
+	$renameTab(tabId: string, input: TabLabelInput) {
+		const tabInfo = this._tabInfoLookup.get(tabId);
+		if (!tabInfo) { return; }
+
+		const group = this._editorGroupsService.getGroup(tabInfo.group.id);
+		if (!group) { return; }
+
+		group.provideEditorTabLabel(tabInfo.editorInput, input);
+	}
+
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void {
 		const groupId = columnToEditorGroup(this._editorGroupsService, this._configurationService, viewColumn);
 		const tabInfo = this._tabInfoLookup.get(tabId);

@@ -33,6 +33,7 @@ import { ConfigurationScope } from 'vs/platform/configuration/common/configurati
 import { IExtensionIdWithVersion } from 'vs/platform/extensionManagement/common/extensionStorage';
 import { ExtensionIdentifier, IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import * as files from 'vs/platform/files/common/files';
+import { TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 import { ResourceLabelFormatter } from 'vs/platform/label/common/label';
 import { ILoggerOptions, ILoggerResource, LogLevel } from 'vs/platform/log/common/log';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
@@ -761,6 +762,7 @@ export interface MainThreadEditorTabsShape extends IDisposable {
 	$moveTab(tabId: string, index: number, viewColumn: EditorGroupColumn, preserveFocus?: boolean): void;
 	$closeTab(tabIds: string[], preserveFocus?: boolean): Promise<boolean>;
 	$closeGroup(groupIds: number[], preservceFocus?: boolean): Promise<boolean>;
+	$renameTab(tabId: string, input: TabLabelInput): void;
 }
 
 export interface IEditorTabGroupDto {
@@ -786,6 +788,7 @@ export interface IEditorTabDto {
 	label: string;
 	input: AnyInputDto;
 	editorId?: string;
+	isLabelChanged: boolean;
 	isActive: boolean;
 	isPinned: boolean;
 	isPreview: boolean;

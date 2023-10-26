@@ -18,6 +18,7 @@ suite('ExtHostEditorTabs', function () {
 	const defaultTabDto: IEditorTabDto = {
 		id: 'uniquestring',
 		input: { kind: TabInputKind.TextInput, uri: URI.parse('file://abc/def.txt') },
+		isLabelChanged: false,
 		isActive: true,
 		isDirty: true,
 		isPinned: true,
