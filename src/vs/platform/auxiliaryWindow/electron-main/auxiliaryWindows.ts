@@ -20,4 +20,6 @@ export interface IAuxiliaryWindowsMainService {
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined;
 	getLastActiveWindow(): IAuxiliaryWindow | undefined;
+
+	getWindows(): readonly IAuxiliaryWindow[];
 }
