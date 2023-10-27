@@ -273,8 +273,12 @@ export class InlineChatController implements IEditorContribution {
 		if (this._strategy) {
 			needsMargin = this._strategy.needsMargin();
 		}
-		this._zone.value.setWidgetMargins(widgetPosition, !needsMargin ? 0 : undefined);
-		this._zone.value.show(widgetPosition);
+		if (!this._zone.value.position) {
+			this._zone.value.setWidgetMargins(widgetPosition, !needsMargin ? 0 : undefined);
+			this._zone.value.show(widgetPosition);
+		} else {
+			this._zone.value.updatePositionAndHeight(widgetPosition);
+		}
 	}
 
 	protected async _nextState(state: State, options: InlineChatRunOptions): Promise<void> {
