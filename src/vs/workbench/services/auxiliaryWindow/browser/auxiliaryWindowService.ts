@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -34,7 +34,7 @@ export interface IAuxiliaryWindowService {
 
 export interface IAuxiliaryWindow extends IDisposable {
 
-	readonly onWillLayout: Event<Dimension>;
+	readonly onDidLayout: Event<Dimension>;
 	readonly onDidClose: Event<void>;
 
 	readonly window: Window & typeof globalThis;
@@ -72,14 +72,14 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
-		const { container, onWillLayout, onDidClose } = this.create(auxiliaryWindow, disposables);
+		const { container, onDidLayout, onDidClose } = this.create(auxiliaryWindow, disposables);
 
-		const result = {
+		const result: IAuxiliaryWindow = {
 			window: auxiliaryWindow,
 			container,
-			onWillLayout: onWillLayout.event,
+			onDidLayout: onDidLayout.event,
 			onDidClose: onDidClose.event,
-			layout: () => onWillLayout.fire(getClientArea(container)),
+			layout: () => onDidLayout.fire(getClientArea(container)),
 			dispose: () => disposables.dispose()
 		};
 
@@ -129,18 +129,18 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		const container = this.applyHTML(auxiliaryWindow, disposables);
 
-		const { onWillLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
+		const { onDidLayout, onDidClose } = this.registerListeners(auxiliaryWindow, container, disposables);
 
-		return { container, onWillLayout, onDidClose };
+		return { container, onDidLayout, onDidClose };
 	}
 
 	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
-		const metaCharset = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
+		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
 		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
 		if (originalCSPMetaTag) {
-			const csp = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
+			const csp = createMetaElement(auxiliaryWindow.document.head);
 			copyAttributes(originalCSPMetaTag, csp);
 
 			const content = csp.getAttribute('content');
@@ -240,13 +240,13 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			e.preventDefault();
 		}));
 
-		const onWillLayout = disposables.add(new Emitter<Dimension>());
+		const onDidLayout = disposables.add(new Emitter<Dimension>());
 		disposables.add(addDisposableListener(auxiliaryWindow, EventType.RESIZE, () => {
 			const dimension = getClientArea(auxiliaryWindow.document.body);
 			position(container, 0, 0, 0, 0, 'relative');
 			size(container, dimension.width, dimension.height);
 
-			onWillLayout.fire(dimension);
+			onDidLayout.fire(dimension);
 		}));
 
 		this._register(addDisposableListener(container, EventType.SCROLL, () => container.scrollTop = 0)); // // Prevent container from scrolling (#55456)
@@ -260,7 +260,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			disposables.add(addDisposableListener(auxiliaryWindow.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
 		}
 
-		return { onWillLayout, onDidClose };
+		return { onDidLayout, onDidClose };
 	}
 
 	protected patchMethods(auxiliaryWindow: AuxiliaryWindow): void {

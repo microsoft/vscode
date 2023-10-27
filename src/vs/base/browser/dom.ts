@@ -741,6 +741,13 @@ export function isAncestorOfActiveElement(ancestor: Element): boolean {
 }
 
 /**
+ * Returns whether the element is in the active `document`.
+ */
+export function isActiveDocument(element: Element): boolean {
+	return element.ownerDocument === getActiveDocument();
+}
+
+/**
  * Returns the active document across all child windows.
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
@@ -798,12 +805,11 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 				continue; // main window is already tracked
 			}
 
-			const clone = cloneGlobalStyleSheet(style, targetWindow);
-			clonedGlobalStylesheets.add(clone);
+			const disposable = cloneGlobalStyleSheet(style, targetWindow);
 
 			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
 				if (unregisteredWindow === targetWindow) {
-					clonedGlobalStylesheets.delete(clone);
+					disposable.dispose();
 				}
 			});
 		}
@@ -819,17 +825,14 @@ export function isGlobalStylesheet(node: Node): boolean {
 export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
 	const disposables = new DisposableStore();
 
-	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
-		const clone = cloneGlobalStyleSheet(globalStylesheet, targetWindow);
-
-		clonedGlobalStylesheets.add(clone);
-		disposables.add(toDisposable(() => clonedGlobalStylesheets.delete(clone)));
+	for (const [globalStylesheet] of globalStylesheets) {
+		disposables.add(cloneGlobalStyleSheet(globalStylesheet, targetWindow));
 	}
 
 	return disposables;
 }
 
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): HTMLStyleElement {
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): IDisposable {
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
 
@@ -837,7 +840,19 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow:
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	return clone;
+	const observer = new MutationObserver(() => {
+		clone.textContent = globalStylesheet.textContent;
+	});
+	observer.observe(globalStylesheet, { childList: true });
+
+	globalStylesheets.get(globalStylesheet)?.add(clone);
+
+	return toDisposable(() => {
+		observer.disconnect();
+		targetWindow.document.head.removeChild(clone);
+
+		globalStylesheets.get(globalStylesheet)?.delete(clone);
+	});
 }
 
 export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {

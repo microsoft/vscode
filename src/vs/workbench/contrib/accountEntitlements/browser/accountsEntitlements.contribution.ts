@@ -29,6 +29,18 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 
 const configurationKey = 'workbench.accounts.experimental.showEntitlements';
 
+type EntitlementEnablementClassification = {
+	enabled: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Flag indicating if the account entitlement is enabled' };
+	owner: 'bhavyaus';
+	comment: 'Reporting when the account entitlement is shown';
+};
+
+type EntitlementActionClassification = {
+	command: { classification: 'PublicNonPersonalData'; purpose: 'FeatureInsight'; comment: 'The command being executed by the entitlement action' };
+	owner: 'bhavyaus';
+	comment: 'Reporting the account entitlement action';
+};
+
 class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 	private isInitialized = false;
 	private contextKey = new RawContextKey<boolean>(configurationKey, true).bindTo(this.contextService);
@@ -136,14 +148,16 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 			return;
 		}
 
-		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
-
 		this.contextKey.set(true);
-		const badge = new NumberBadge(1, () => menuTitle);
-		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
+		this.telemetryService.publicLog2<{ enabled: boolean }, EntitlementEnablementClassification>(configurationKey, { enabled: true });
 
 		const orgs = parsedResult['organization_login_list'] as any[];
 		const menuTitle = orgs ? this.productService.gitHubEntitlement!.command.title.replace('{{org}}', orgs[orgs.length - 1]) : this.productService.gitHubEntitlement!.command.titleWithoutPlaceHolder;
+
+		const badge = new NumberBadge(1, () => menuTitle);
+		const accountsMenuBadgeDisposable = this._register(new MutableDisposable());
+		accountsMenuBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, });
+
 
 		registerAction2(class extends Action2 {
 			constructor() {
@@ -167,6 +181,7 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 				const contextKeyService = accessor.get(IContextKeyService);
 				const storageService = accessor.get(IStorageService);
 				const dialogService = accessor.get(IDialogService);
+				const telemetryService = accessor.get(ITelemetryService);
 
 				const confirmation = await dialogService.confirm({
 					type: 'question',
@@ -176,6 +191,13 @@ class AccountsEntitlement extends Disposable implements IWorkbenchContribution {
 
 				if (confirmation.confirmed) {
 					commandService.executeCommand(productService.gitHubEntitlement!.command.action, productService.gitHubEntitlement!.extensionId!);
+					telemetryService.publicLog2<{ command: string }, EntitlementActionClassification>('accountsEntitlements.action', {
+						command: productService.gitHubEntitlement!.command.action,
+					});
+				} else {
+					telemetryService.publicLog2<{ command: string }, EntitlementActionClassification>('accountsEntitlements.action', {
+						command: productService.gitHubEntitlement!.command.action + '-dismissed',
+					});
 				}
 
 				accountsMenuBadgeDisposable.clear();
