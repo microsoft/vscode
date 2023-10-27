@@ -293,8 +293,9 @@ export interface IAiGeneratedWorkspaceTrust {
 export interface IGitHubEntitlement {
 	providerId: string;
 	command: { title: string; titleWithoutPlaceHolder: string; action: string; when: string };
-	altCommand: { title: string; action: string; when: string };
 	entitlementUrl: string;
 	extensionId: string;
 	enablementKey: string;
+	confirmationMessage: string;
+	confirmationAction: string;
 }

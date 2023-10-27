@@ -13,17 +13,16 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { DeferredPromise } from 'vs/base/common/async';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	readonly vscodeWindowId: Promise<number>;
-
-	moveTop: () => void;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return candidate?.vscodeWindowId instanceof Promise && typeof candidate?.moveTop === 'function';
+	return candidate?.vscodeWindowId instanceof Promise;
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -66,23 +65,16 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = async function () {
 			originalWindowFocus();
 
-			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+			if (getActiveWindow() !== auxiliaryWindow) {
+				that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+			}
 		};
-
-		// Add a method to move window to the top
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
-			},
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
 	}
 }
 

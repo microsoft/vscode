@@ -17,7 +17,7 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 
-export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
 	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
 	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
@@ -51,6 +51,9 @@ export const { registerWindow, getWindows, onDidRegisterWindow, onWillUnregister
 		},
 		getWindows(): Iterable<Window & typeof globalThis> {
 			return windows;
+		},
+		getWindowsCount(): number {
+			return windows.size;
 		}
 	};
 })();
@@ -775,16 +778,77 @@ export function focusWindow(element: Node): void {
 	}
 }
 
-export function createStyleSheet(container: HTMLElement = document.getElementsByTagName('head')[0], beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
+
+export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	beforeAppend?.(style);
 	container.appendChild(style);
+
+	// With <head> as container, the stylesheet becomes global and is tracked
+	// to support auxiliary windows to clone the stylesheet.
+	if (container === document.head) {
+		const clonedGlobalStylesheets = new Set<HTMLStyleElement>();
+		globalStylesheets.set(style, clonedGlobalStylesheets);
+
+		for (const targetWindow of getWindows()) {
+			if (targetWindow === window) {
+				continue; // main window is already tracked
+			}
+
+			const disposable = cloneGlobalStyleSheet(style, targetWindow);
+
+			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
+				if (unregisteredWindow === targetWindow) {
+					disposable.dispose();
+				}
+			});
+		}
+	}
+
 	return style;
 }
 
-export function createMetaElement(container: HTMLElement = document.getElementsByTagName('head')[0]): HTMLMetaElement {
+export function isGlobalStylesheet(node: Node): boolean {
+	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
+export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
+	const disposables = new DisposableStore();
+
+	for (const [globalStylesheet] of globalStylesheets) {
+		disposables.add(cloneGlobalStyleSheet(globalStylesheet, targetWindow));
+	}
+
+	return disposables;
+}
+
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): IDisposable {
+	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
+	targetWindow.document.head.appendChild(clone);
+
+	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
+		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
+	}
+
+	const observer = new MutationObserver(() => {
+		clone.textContent = globalStylesheet.textContent;
+	});
+	observer.observe(globalStylesheet, { childList: true });
+
+	globalStylesheets.get(globalStylesheet)?.add(clone);
+
+	return toDisposable(() => {
+		observer.disconnect();
+		targetWindow.document.head.removeChild(clone);
+
+		globalStylesheets.get(globalStylesheet)?.delete(clone);
+	});
+}
+
+export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
@@ -798,7 +862,7 @@ function getSharedStyleSheet(): HTMLStyleElement {
 	return _sharedStyleSheet;
 }
 
-function getDynamicStyleSheetRules(style: any) {
+function getDynamicStyleSheetRules(style: HTMLStyleElement) {
 	if (style?.sheet?.rules) {
 		// Chrome, IE
 		return style.sheet.rules;
@@ -810,15 +874,20 @@ function getDynamicStyleSheetRules(style: any) {
 	return [];
 }
 
-export function createCSSRule(selector: string, cssText: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function createCSSRule(selector: string, cssText: string, style = getSharedStyleSheet()): void {
 	if (!style || !cssText) {
 		return;
 	}
 
-	(<CSSStyleSheet>style.sheet).insertRule(selector + '{' + cssText + '}', 0);
+	style.sheet?.insertRule(`${selector} {${cssText}}`, 0);
+
+	// Apply rule also to all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		createCSSRule(selector, cssText, clonedGlobalStylesheet);
+	}
 }
 
-export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLStyleElement = getSharedStyleSheet()): void {
+export function removeCSSRulesContainingSelector(ruleName: string, style = getSharedStyleSheet()): void {
 	if (!style) {
 		return;
 	}
@@ -827,14 +896,23 @@ export function removeCSSRulesContainingSelector(ruleName: string, style: HTMLSt
 	const toDelete: number[] = [];
 	for (let i = 0; i < rules.length; i++) {
 		const rule = rules[i];
-		if (rule.selectorText.indexOf(ruleName) !== -1) {
+		if (isCSSStyleRule(rule) && rule.selectorText.indexOf(ruleName) !== -1) {
 			toDelete.push(i);
 		}
 	}
 
 	for (let i = toDelete.length - 1; i >= 0; i--) {
-		(<any>style.sheet).deleteRule(toDelete[i]);
+		style.sheet?.deleteRule(toDelete[i]);
 	}
+
+	// Remove rules also from all cloned global stylesheets
+	for (const clonedGlobalStylesheet of globalStylesheets.get(style) ?? []) {
+		removeCSSRulesContainingSelector(ruleName, clonedGlobalStylesheet);
+	}
+}
+
+function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
+	return typeof (rule as CSSStyleRule).selectorText === 'string';
 }
 
 export function isMouseEvent(e: unknown): e is MouseEvent {

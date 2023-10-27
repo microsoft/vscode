@@ -1073,6 +1073,7 @@ export const enum GroupModelChangeKind {
 	/* Group Changes */
 	GROUP_ACTIVE,
 	GROUP_INDEX,
+	GROUP_LABEL,
 	GROUP_LOCKED,
 
 	/* Editor Changes */
