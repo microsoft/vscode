@@ -182,6 +182,11 @@ function parseActionArgs(args?: unknown): InstanceContext[] | undefined {
  */
 export function registerContextualInstanceAction(
 	options: IAction2Options & {
+		/**
+		 * When specified, only this type of active instance will be used when there are no
+		 * contextual instances.
+		 */
+		activeInstanceType?: 'view' | 'editor';
 		run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
 		runAfter?: (instances: ITerminalInstance[], c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
 	}
@@ -192,7 +197,13 @@ export function registerContextualInstanceAction(
 		run: async (c, accessor, focusedInstanceArgs, allInstanceArgs) => {
 			let instances = getSelectedInstances2(accessor, allInstanceArgs);
 			if (!instances) {
-				const activeInstance = c.service.activeInstance;
+				const activeInstance = (
+					options.activeInstanceType === 'view'
+						? c.groupService
+						: options.activeInstanceType === 'editor' ?
+							c.editorService
+							: c.service
+				).activeInstance;
 				if (!activeInstance) {
 					return;
 				}
@@ -330,28 +341,13 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveInstanceAction({
+	registerContextualInstanceAction({
 		id: TerminalCommandId.MoveToEditor,
 		title: terminalStrings.moveToEditor,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.terminalEditorActive.toNegated(), TerminalContextKeys.viewShowing),
-		run: (activeInstance, c) => c.service.moveToEditor(activeInstance)
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.MoveToEditorActiveTab,
-		title: terminalStrings.moveToEditor,
-		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
-		run: async (c, accessor) => {
-			const selectedInstances = getSelectedInstances(accessor);
-			if (!selectedInstances || selectedInstances.length === 0) {
-				return;
-			}
-			for (const instance of selectedInstances) {
-				c.service.moveToEditor(instance);
-			}
-			selectedInstances[selectedInstances.length - 1].focus();
-		}
+		activeInstanceType: 'view',
+		run: (instance, c) => c.service.moveToEditor(instance),
+		runAfter: (instances) => instances.at(-1)?.focus()
 	});
 
 	registerTerminalAction({
