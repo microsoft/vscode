@@ -44,11 +44,6 @@ function npmInstall(dir, opts) {
 	// TODO replace --frozen-lockfile and --check-files by npm ci
 	const args = original.filter(arg => arg === '--frozen-lockfile' || arg === '--check-files');
 
-	if (opts.ignoreEngines) {
-		args.push('--ignore-engines');
-		delete opts.ignoreEngines;
-	}
-
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
 		console.log(`Installing dependencies in ${dir} inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
@@ -105,8 +100,6 @@ for (let dir of dirs) {
 		if (process.env['VSCODE_REMOTE_NODE_GYP']) { env['npm_config_node_gyp'] = process.env['VSCODE_REMOTE_NODE_GYP']; }
 
 		opts = { env };
-	} else if (/^extensions\//.test(dir)) {
-		opts = { ignoreEngines: true };
 	}
 
 	npmInstall(dir, opts);
