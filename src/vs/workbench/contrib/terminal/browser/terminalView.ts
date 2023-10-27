@@ -520,7 +520,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
 			// The context is always the active instance in the terminal view
-			getActionsContext: () => this._terminalGroupService.activeInstance ? [new InstanceContext(this._terminalGroupService.activeInstance)] : []
+			getActionsContext: () => {
+				const instance = this._terminalGroupService.activeInstance;
+				return instance ? [new InstanceContext(instance)] : [];
+			}
 		});
 	}
 }

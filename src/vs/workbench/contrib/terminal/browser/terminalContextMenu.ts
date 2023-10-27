@@ -14,6 +14,10 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ISerializedTerminalInstanceContext } from 'vs/workbench/contrib/terminal/common/terminal';
 
+/**
+ * A context that is passed to actions as arguments to represent the terminal instance(s) being
+ * acted upon.
+ */
 export class InstanceContext {
 	readonly instanceId: number;
 

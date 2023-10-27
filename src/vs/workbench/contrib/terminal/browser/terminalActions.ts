@@ -177,7 +177,8 @@ function parseActionArgs(args?: unknown): InstanceContext[] | undefined {
 }
 /**
  * A wrapper around {@link registerTerminalAction} that runs a callback for all currently selected
- * instances provided in the action context.
+ * instances provided in the action context. This falls back to the active instance if there are no
+ * contextual instances provided.
  */
 export function registerContextualInstanceAction(
 	options: IAction2Options & { run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
@@ -186,8 +187,16 @@ export function registerContextualInstanceAction(
 	return registerTerminalAction({
 		...options,
 		run: (c, accessor, focusedInstanceContext, allInstanceContext) => {
+			let instances = getSelectedInstances2(accessor, allInstanceContext);
+			if (!instances) {
+				const activeInstance = c.service.activeInstance;
+				if (!activeInstance) {
+					return;
+				}
+				instances = [activeInstance];
+			}
 			const results: (Promise<unknown> | void)[] = [];
-			for (const instance of getSelectedInstances2(accessor, allInstanceContext)) {
+			for (const instance of instances) {
 				results.push(originalRun(instance, c, accessor, focusedInstanceContext));
 			}
 			return Promise.all(results);
@@ -1403,23 +1412,15 @@ export function registerTerminalActions() {
 		run: (activeInstance) => activeInstance.setFixedDimensions()
 	});
 
-	registerActiveInstanceAction({
+	registerContextualInstanceAction({
 		id: TerminalCommandId.SizeToContentWidth,
-		title: { value: localize('workbench.action.terminal.sizeToContentWidth', "Toggle Size to Content Width"), original: 'Toggle Size to Content Width' },
+		title: terminalStrings.toggleSizeToContentWidth,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 		keybinding: {
 			primary: KeyMod.Alt | KeyCode.KeyZ,
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: TerminalContextKeys.focus
 		},
-		run: (instancactiveInstance) => instancactiveInstance.toggleSizeToContentWidth()
-	});
-
-	registerContextualInstanceAction({
-		id: TerminalCommandId.SizeToContentWidthActiveTab,
-		title: terminalStrings.toggleSizeToContentWidth,
-		f1: false,
-		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus),
 		run: (instance) => instance.toggleSizeToContentWidth()
 	});
 
@@ -1639,7 +1640,7 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITerminalInstance[] {
+function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITerminalInstance[] | undefined {
 	const terminalService = accessor.get(ITerminalService);
 	const result: ITerminalInstance[] = [];
 	const context = parseActionArgs(args);
@@ -1651,11 +1652,10 @@ function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITer
 			}
 		}
 		if (result.length > 0) {
-			console.log('found!', result);
 			return result;
 		}
 	}
-	return result;
+	return undefined;
 }
 
 function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
