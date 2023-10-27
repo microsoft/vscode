@@ -1094,27 +1094,14 @@ export function registerTerminalActions() {
 		}
 	});
 
-	registerActiveInstanceAction({
+	registerContextualInstanceAction({
 		id: TerminalCommandId.Unsplit,
 		title: terminalStrings.unsplit,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (activeInstance, c) => c.groupService.unsplitInstance(activeInstance)
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.UnsplitActiveTab,
-		title: terminalStrings.unsplit,
-		f1: false,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: async (c, accessor) => {
-			const instances = getSelectedInstances(accessor);
-			// should not even need this check given the context key
-			// but TS complains
-			if (instances?.length === 1) {
-				const group = c.groupService.getGroupForInstance(instances[0]);
-				if (group && group?.terminalInstances.length > 1) {
-					c.groupService.unsplitInstance(instances[0]);
-				}
+		run: async (instance, c) => {
+			const group = c.groupService.getGroupForInstance(instance);
+			if (group && group?.terminalInstances.length > 1) {
+				c.groupService.unsplitInstance(instance);
 			}
 		}
 	});
