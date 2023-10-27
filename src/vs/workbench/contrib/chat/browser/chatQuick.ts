@@ -236,11 +236,11 @@ class QuickChat extends Disposable {
 	}
 
 	private get maxHeight(): number {
-		return this.layoutService.dimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
+		return this.layoutService.mainContainerDimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
 	}
 
 	private registerListeners(parent: HTMLElement): void {
-		this._register(this.layoutService.onDidLayout(() => {
+		this._register(this.layoutService.onDidLayoutMainContainer(() => {
 			if (this.widget.visible) {
 				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
 			} else {
