@@ -66,6 +66,18 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
+		if (this._editor.hasModel() && this._hasProvider()) {
+			this._localToDispose.add(GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+				const configurationService = accessor.get(IConfigurationService);
+				result.push(new Action(
+					'inlineChat.toggleShowGutterIcon',
+					this._isSettingEnabled() ? localize('toggleHideGutterIcon', "Hide Inline Chat Icon") : localize('toggleShowGutterIcon', "Show Inline Chat Icon"),
+					undefined,
+					true,
+					() => { configurationService.updateValue(InlineChatDecorationsContribution.GUTTER_SETTING_ID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID)); }
+				));
+			}));
+		}
 		if (!this._editor.hasModel() || !this._isSettingEnabled() || !this._hasProvider()) {
 			return;
 		}
@@ -143,19 +155,3 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._localToDispose.dispose();
 	}
 }
-
-GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
-	const inlineChatService = accessor.get(IInlineChatService);
-	const noProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
-	if (noProviders) {
-		return;
-	}
-	const configurationService = accessor.get(IConfigurationService);
-	result.push(new Action(
-		'inlineChat.toggleShowGutterIcon',
-		localize('toggleShowGutterIcon', "Toggle Inline Chat Icon"),
-		undefined,
-		true,
-		() => { configurationService.updateValue(InlineChatDecorationsContribution.GUTTER_SETTING_ID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID)); }
-	));
-});
