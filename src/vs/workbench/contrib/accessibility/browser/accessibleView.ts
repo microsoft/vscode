@@ -265,7 +265,7 @@ export class AccessibleView extends Disposable {
 			return;
 		}
 		const delegate: IContextViewDelegate = {
-			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.offset.quickPickTop }; },
+			getAnchor: () => { return { x: (getActiveWindow().innerWidth / 2) - ((Math.min(this._layoutService.activeContainerDimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH)) / 2), y: this._layoutService.activeContainerOffset.quickPickTop }; },
 			render: (container) => {
 				container.classList.add('accessible-view-container');
 				return this._render(provider!, container, showAccessibleViewHelp);
@@ -531,7 +531,7 @@ export class AccessibleView extends Disposable {
 			}
 		}));
 		disposableStore.add(this._editorWidget.onDidContentSizeChange(() => this._layout()));
-		disposableStore.add(this._layoutService.onDidLayout(() => this._layout()));
+		disposableStore.add(this._layoutService.onDidLayoutActiveContainer(() => this._layout()));
 		return disposableStore;
 	}
 
@@ -552,7 +552,7 @@ export class AccessibleView extends Disposable {
 	}
 
 	private _layout(): void {
-		const dimension = this._layoutService.dimension;
+		const dimension = this._layoutService.activeContainerDimension;
 		const maxHeight = dimension.height && dimension.height * .4;
 		const height = Math.min(maxHeight, this._editorWidget.getContentHeight());
 		const width = Math.min(dimension.width * 0.62 /* golden cut */, DIMENSIONS.MAX_WIDTH);
