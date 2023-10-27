@@ -71,7 +71,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = async function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() === auxiliaryWindow) {
+			if (getActiveWindow() !== auxiliaryWindow) {
 				that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
 			}
 		};
