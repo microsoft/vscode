@@ -41,8 +41,8 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	static create(instantiationService: IInstantiationService, resource: URI, viewType: string, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookEditorInput, resource, viewType, options);
+	static create(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
+		return instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
@@ -51,23 +51,27 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	private _sideLoadedListener: IDisposable;
 	private _defaultDirtyState: boolean = false;
 
+	static counter = 1;
+	private debugId = NotebookEditorInput.counter++;
+
 	constructor(
 		resource: URI,
+		preferredResource: URI | undefined,
 		public readonly viewType: string,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(resource, undefined, labelService, fileService, filesConfigurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
 
+		console.log(`Creating notebookEditorInput ${this.debugId}`);
 		// Automatically resolve this input when the "wanted" model comes to life via
 		// some other way. This happens only once per input and resolve disposes
 		// this listener
@@ -96,6 +100,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override dispose() {
+		console.log(`Disposing notebokEditorInput ${this.debugId}`);
 		this._sideLoadedListener.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
@@ -253,18 +258,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	// called when users rename a notebook document
 	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (this._editorModelReference) {
-			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
+			return { editor: { resource: target }, options: { override: this.viewType } };
 
-			if (contributedNotebookProviders.find(provider => provider.id === this._editorModelReference!.object.viewType)) {
-				return this._move(group, target);
-			}
 		}
 		return undefined;
-	}
-
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: EditorInput } {
-		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
-		return { editor: editorInput };
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -336,7 +333,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override toUntyped(): IResourceEditorInput {
 		return {
-			resource: this.preferredResource,
+			resource: this.resource,
 			options: {
 				override: this.viewType
 			}
