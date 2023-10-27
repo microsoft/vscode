@@ -71,6 +71,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}
 		this._inlineChatKeybinding = keybinding;
 		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
+		this._onEnablementOrModelChanged();
 	}
 
 	private _onEnablementOrModelChanged(): void {
