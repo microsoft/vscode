@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -135,12 +135,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
-		const metaCharset = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
+		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
 		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
 		if (originalCSPMetaTag) {
-			const csp = auxiliaryWindow.document.head.appendChild(document.createElement('meta'));
+			const csp = createMetaElement(auxiliaryWindow.document.head);
 			copyAttributes(originalCSPMetaTag, csp);
 
 			const content = csp.getAttribute('content');
