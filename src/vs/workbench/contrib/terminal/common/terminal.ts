@@ -487,7 +487,6 @@ export const enum TerminalCommandId {
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
-	MoveToEditorActiveTab = 'workbench.action.terminal.moveToEditorActiveTab',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
