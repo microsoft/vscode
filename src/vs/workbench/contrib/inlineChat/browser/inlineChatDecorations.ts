@@ -23,7 +23,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { LOCALIZED_START_INLINE_CHAT_STRING, LOCALIZED_START_INLINE_CHAT_WITH_KEYBINDING_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -71,7 +71,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			return;
 		}
 		this._inlineChatKeybinding = keybinding;
-		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(keybinding ? LOCALIZED_START_INLINE_CHAT_WITH_KEYBINDING_STRING(keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
+		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
 	}
 
 	private _onEnablementOrModelChanged(): void {
