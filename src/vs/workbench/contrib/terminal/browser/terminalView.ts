@@ -49,7 +49,6 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class TerminalViewPane extends ViewPane {
-	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
@@ -178,14 +177,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		this._fontStyleElement = document.createElement('style');
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
-
-		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
@@ -558,8 +555,7 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}

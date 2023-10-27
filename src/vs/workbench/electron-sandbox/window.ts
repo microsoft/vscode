@@ -679,14 +679,12 @@ export class NativeWindow extends Disposable {
 		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = window.focus.bind(window);
-		window.focus = async function () {
-			if (getActiveWindow() === window) {
-				return;
-			}
-
+		window.focus = function () {
 			originalWindowFocus();
 
-			await that.nativeHostService.focusWindow();
+			if (getActiveWindow() !== window) {
+				that.nativeHostService.focusWindow();
+			}
 		};
 	}
 

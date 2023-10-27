@@ -42,7 +42,7 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 	createWindow(): BrowserWindowConstructorOptions {
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-slim.js').fsPath
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 			}
 		});
 	}

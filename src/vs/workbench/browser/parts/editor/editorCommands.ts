@@ -80,8 +80,6 @@ export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
 export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
 export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
-export const MAXIMIZE_EDITOR_GROUP = 'workbench.action.maximizeEditorGroup';
-export const UNMAXIMIZE_EDITOR_GROUP = 'workbench.action.unmaximizeEditorGroup';
 export const TOGGLE_MAXIMIZE_EDITOR_GROUP = 'workbench.action.toggleMaximizeEditorGroup';
 
 export const SPLIT_EDITOR_IN_GROUP = 'workbench.action.splitEditorInGroup';
@@ -109,7 +107,7 @@ export const EDITOR_CORE_NAVIGATION_COMMANDS = [
 	CLOSE_EDITOR_COMMAND_ID,
 	UNPIN_EDITOR_COMMAND_ID,
 	UNLOCK_GROUP_COMMAND_ID,
-	UNMAXIMIZE_EDITOR_GROUP
+	TOGGLE_MAXIMIZE_EDITOR_GROUP
 ];
 
 export interface ActiveEditorMoveCopyArguments {
