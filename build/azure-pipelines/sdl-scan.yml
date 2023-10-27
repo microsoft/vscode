@@ -70,13 +70,8 @@ stages:
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
               exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-              # following is a workaround for yarn to send authorization header
-              # for GET requests to the registry.
-              exec { Add-Content -Path .npmrc -Value "always-auth=true" }
-              exec { yarn config set registry "$env:NPM_REGISTRY" }
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM & Yarn
+            displayName: Setup NPM
 
           - task: npmAuthenticate@0
             inputs:
@@ -213,13 +208,8 @@ stages:
           - script: |
               set -e
               npm config set registry "$NPM_REGISTRY" --location=project
-              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-              # following is a workaround for yarn to send authorization header
-              # for GET requests to the registry.
-              echo "always-auth=true" >> .npmrc
-              yarn config set registry "$NPM_REGISTRY"
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-            displayName: Setup NPM & Yarn
+            displayName: Setup NPM
 
           - task: npmAuthenticate@0
             inputs:
@@ -236,10 +226,10 @@ stages:
               for i in {1..5}; do # try 5 times
                 (cd build && npm ci) && break
                 if [ $i -eq 3 ]; then
-                  echo "Yarn failed too many times" >&2
+                  echo "Install dependencies failed too many times" >&2
                   exit 1
                 fi
-                echo "Yarn failed $i, trying again..."
+                echo "Install dependencies failed $i, trying again..."
               done
             displayName: Install build dependencies
 
@@ -269,10 +259,10 @@ stages:
               for i in {1..5}; do # try 5 times
                 npm ci && break
                 if [ $i -eq 3 ]; then
-                  echo "Yarn failed too many times" >&2
+                  echo "Install dependencies failed too many times" >&2
                   exit 1
                 fi
-                echo "Yarn failed $i, trying again..."
+                echo "Install dependencies failed $i, trying again..."
               done
             env:
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1

@@ -33,8 +33,8 @@ fi
 for i in {1..5}; do # try 5 times
   npm ci && break
   if [ $i -eq 3 ]; then
-    echo "Yarn failed too many times" >&2
+    echo "Install dependencies failed too many times" >&2
     exit 1
   fi
-  echo "Yarn failed $i, trying again..."
+  echo "Install dependencies failed $i, trying again..."
 done

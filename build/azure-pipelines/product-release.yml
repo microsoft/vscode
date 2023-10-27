@@ -21,11 +21,9 @@ steps:
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_ID]$env:servicePrincipalId"
         Write-Host "##vso[task.setvariable variable=AZURE_CLIENT_SECRET;issecret=true]$env:servicePrincipalKey"
 
-  - script: |
-      set -e
-      (cd build ; yarn)
-      AZURE_TENANT_ID="$(AZURE_TENANT_ID)" \
-      AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" \
-      AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" \
-      node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
+  - script: npm ci
+    displayName: Install build dependencies
+    workingDirectory: build
+
+  - script: AZURE_TENANT_ID="$(AZURE_TENANT_ID)" AZURE_CLIENT_ID="$(AZURE_CLIENT_ID)" AZURE_CLIENT_SECRET="$(AZURE_CLIENT_SECRET)" node build/azure-pipelines/common/releaseBuild.js ${{ parameters.VSCODE_RELEASE }}
     displayName: Release build

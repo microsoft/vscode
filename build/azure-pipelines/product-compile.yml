@@ -23,12 +23,12 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/yarnlockhash
+  - script: mkdir -p .build && node build/azure-pipelines/common/computeNodeModulesCacheKey.js compile > .build/lockhash
     displayName: Prepare node_modules cache key
 
   - task: Cache@2
     inputs:
-      key: '"node_modules" | .build/yarnlockhash'
+      key: '"node_modules" | .build/lockhash'
       path: .build/node_modules_cache
       cacheHitVar: NODE_MODULES_RESTORED
     displayName: Restore node_modules cache
@@ -40,13 +40,8 @@ steps:
   - script: |
       set -e
       npm config set registry "$NPM_REGISTRY" --location=project
-      # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
-      # following is a workaround for yarn to send authorization header
-      # for GET requests to the registry.
-      echo "always-auth=true" >> .npmrc
-      yarn config set registry "$NPM_REGISTRY"
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
-    displayName: Setup NPM & Yarn
+    displayName: Setup NPM
 
   - task: npmAuthenticate@0
     inputs:
@@ -65,10 +60,10 @@ steps:
       for i in {1..5}; do # try 5 times
         npm ci && break
         if [ $i -eq 3 ]; then
-          echo "Yarn failed too many times" >&2
+          echo "Install dependencies failed too many times" >&2
           exit 1
         fi
-        echo "Yarn failed $i, trying again..."
+        echo "Install dependencies failed $i, trying again..."
       done
     env:
       ELECTRON_SKIP_BINARY_DOWNLOAD: 1
@@ -91,8 +86,13 @@ steps:
     displayName: Create node_modules archive
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: yarn --cwd build compile && ./.github/workflows/check-clean-git-state.sh
-      displayName: Check /build/ folder
+    - script: npm run compile
+      workingDirectory: build
+      displayName: Compile /build
+
+    - script: .github/workflows/check-clean-git-state.sh
+      workingDirectory: build
+      displayName: Check /build
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: node build/azure-pipelines/distro/mixin-quality
@@ -112,11 +112,14 @@ steps:
       displayName: Compile & Hygiene (non-OSS)
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-    - script: |
-        set -e
-        yarn --cwd test/smoke compile
-        yarn --cwd test/integration/browser compile
-      displayName: Compile test suites (non-OSS)
+    - script: npm run compile
+      displayName: Compile smoke test suites (non-OSS)
+      workingDirectory: test/smoke
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
+    - script: npm run compile
+      displayName: Compile integration test suites (non-OSS)
+      workingDirectory: test/integration/browser
       condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
 
     - task: AzureCLI@2
@@ -152,7 +155,7 @@ steps:
         artifactName: Compilation
       displayName: Publish compilation artifact
 
-    - script: yarn download-builtin-extensions-cg
+    - script: npm run download-builtin-extensions-cg
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Download component details of built-in extensions
