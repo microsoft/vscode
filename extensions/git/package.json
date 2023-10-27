@@ -23,7 +23,8 @@
     "scmValidation",
     "tabInputTextMerge",
     "timeline",
-    "contribMergeEditorMenus"
+    "contribMergeEditorMenus",
+    "scmInputBoxActionButton"
   ],
   "categories": [
     "Other"
@@ -2567,6 +2568,11 @@
           "type": "boolean",
           "default": true,
           "description": "%config.useForcePushWithLease%"
+        },
+        "git.useForcePushIfIncludes": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "%config.useForcePushIfIncludes%"
         },
         "git.confirmForcePush": {
           "type": "boolean",

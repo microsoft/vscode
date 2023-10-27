@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -69,6 +70,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
+	private _commandStartedWindowsBarrier?: Barrier;
+	private _windowsPromptPollingInProcess: boolean = false;
+	private _commandStartedWindowsBarrier?: Barrier;
+	private _windowsPromptPollingInProcess: boolean = false;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -361,7 +366,16 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 	}
 
-	private _handleCommandStartWindows(): void {
+	private async _handleCommandStartWindows(): Promise<void> {
+		if (this._windowsPromptPollingInProcess) {
+			this._windowsPromptPollingInProcess = false;
+		}
+		this._commandStartedWindowsBarrier = new Barrier();
+	private async _handleCommandStartWindows(): Promise<void> {
+		if (this._windowsPromptPollingInProcess) {
+			this._windowsPromptPollingInProcess = false;
+		}
+		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -371,10 +385,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !prompt) {
 			this._windowsPromptPollingInProcess = true;
-			// Poll for 1000ms until the cursor position is correct.
+			// Poll for 200ms until the cursor position is correct.
 			let i = 0;
-			for (; i < 50; i++) {
-				await timeout(20);
+			for (; i < 20; i++) {
+				await timeout(10);
 				prompt = this._getWindowsPrompt();
 				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
@@ -384,7 +398,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				}
 			}
 			this._windowsPromptPollingInProcess = false;
-			if (i >= 50) {
+			if (i === 20) {
+				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
+			} else if (prompt) {
+				// use the regex to set the position as it's possible input has occurred
+				this._currentCommand.commandStartX = prompt.length;
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
@@ -422,11 +440,9 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _cursorOnNextLine(): boolean {
 		const lastCommand = this.commands.at(-1);
 
-		// There is only a single command, so this check is unnecessary
 		if (!lastCommand) {
-			return true;
+			return false;
 		}
-
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		// If the cursor position is within the last command, we should poll.
 		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
@@ -434,30 +450,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _getWindowsPrompt(): string | undefined {
+	private _getWindowsPrompt(): string | undefined {
 		const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY);
 		if (!line) {
 			return;
-		}
-		// TODO: fine tune prompt regex to accomodate for unique configurations.
-		const lineText = line.translateToString(true);
-		if (!lineText) {
 			return;
 		}
-
-		// PowerShell
-		const pwshMatch = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/);
-		if (pwshMatch) {
-			let prompt = pwshMatch?.groups?.prompt;
-			if (lineText === prompt && prompt.endsWith('>')) {
-				// Conpty may not 'render' the space at the end of the prompt
-				prompt += ' ';
-			}
-			return prompt;
-		}
-
-		// Command Prompt
-		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
-		return cmdMatch?.groups?.prompt;
+		// TODO: fine tune prompt regex to accomodate for unique configurtions.
+		return line.translateToString(true)?.match(/^(?<prompt>(\(.+\)\s)?(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
@@ -506,7 +506,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onCommandExecuted.fire();
 	}
 
-	private _handleCommandExecutedWindows(): void {
+	private async _handleCommandExecutedWindows(): Promise<void> {
+		await this._commandStartedWindowsBarrier?.wait();
+	private async _handleCommandExecutedWindows(): Promise<void> {
+		await this._commandStartedWindowsBarrier?.wait();
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers
 		this._onCursorMoveListener?.dispose();
@@ -581,7 +584,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
-	private _preHandleCommandFinishedWindows(): void {
+	private async _preHandleCommandFinishedWindows(): Promise<void> {
+	private async _preHandleCommandFinishedWindows(): Promise<void> {
 		if (this._currentCommand.commandExecutedMarker) {
 			return;
 		}

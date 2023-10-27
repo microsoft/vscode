@@ -82,6 +82,7 @@
 	"configuration.tsserver.maxTsServerMemory": "The maximum amount of memory (in MB) to allocate to the TypeScript server process. To use a memory limit greater than 4 GB, use `#typescript.tsserver.nodePath#` to run TS Server with a custom Node installation.",
 	"configuration.tsserver.experimental.enableProjectDiagnostics": "(Experimental) Enables project wide error reporting.",
 	"typescript.locale": "Sets the locale used to report JavaScript and TypeScript errors. Defaults to use VS Code's locale.",
+	"typescript.locale.auto": "Use VS Code's configured display language",
 	"configuration.implicitProjectConfig.module": "Sets the module system for the program. See more: https://www.typescriptlang.org/tsconfig#module.",
 	"configuration.implicitProjectConfig.target": "Set target JavaScript language version for emitted JavaScript and include library declarations. See more: https://www.typescriptlang.org/tsconfig#target.",
 	"configuration.implicitProjectConfig.checkJs": "Enable/disable semantic checking of JavaScript files. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
@@ -92,7 +93,7 @@
 	"configuration.implicitProjectConfig.strictFunctionTypes": "Enable/disable [strict function types](https://www.typescriptlang.org/tsconfig#strictFunctionTypes) in JavaScript and TypeScript files that are not part of a project. Existing `jsconfig.json` or `tsconfig.json` files override this setting.",
 	"configuration.suggest.jsdoc.generateReturns": "Enable/disable generating `@returns` annotations for JSDoc templates.",
 	"configuration.suggest.autoImports": "Enable/disable auto import suggestions.",
-	"configuration.preferGoToSourceDefinition": "Makes Go to Definition avoid type declaration files when possible by triggering Go to Source Definition instead. This allows Go to Source Definition to be triggered with the mouse gesture. Requires using TypeScript 4.7+ in the workspace.",
+	"configuration.preferGoToSourceDefinition": "Makes Go to Definition avoid type declaration files when possible by triggering Go to Source Definition instead. This allows Go to Source Definition to be triggered with the mouse gesture.",
 	"inlayHints.parameterNames.none": "Disable parameter name hints.",
 	"inlayHints.parameterNames.literals": "Enable parameter name hints only for literal arguments.",
 	"inlayHints.parameterNames.all": "Enable parameter name hints for literal and non-literal arguments.",
@@ -115,7 +116,7 @@
 			"The text inside the ``` block is code and should not be localized."
 		]
 	},
-	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name. Requires using TypeScript 4.8+ in the workspace.",
+	"configuration.inlayHints.variableTypes.suppressWhenTypeMatchesName": "Suppress type hints on variables whose name is identical to the type name.",
 	"configuration.inlayHints.propertyDeclarationTypes.enabled": {
 		"message": "Enable/disable inlay hints for implicit types on property declarations:\n```typescript\n\nclass Foo {\n\tprop /* :number */ = Date.now();\n}\n \n```",
 		"comment": [
@@ -161,8 +162,8 @@
 	"typescript.preferences.includePackageJsonAutoImports.auto": "Search dependencies based on estimated performance impact.",
 	"typescript.preferences.includePackageJsonAutoImports.on": "Always search dependencies.",
 	"typescript.preferences.includePackageJsonAutoImports.off": "Never search dependencies.",
-	"typescript.preferences.autoImportFileExcludePatterns": "Specify glob patterns of files to exclude from auto imports. Relative paths are resolved relative to the workspace root. Patterns are evaluated using tsconfig.json [`exclude`](https://www.typescriptlang.org/tsconfig#exclude) semantics. Requires using TypeScript 4.8 or newer in the workspace.",
-	"typescript.workspaceSymbols.excludeLibrarySymbols": "Exclude symbols that come from library files in `Go To Symbol in Workspace` results. Requires using TypeScript 5.3+ in the workspace.",
+	"typescript.preferences.autoImportFileExcludePatterns": "Specify glob patterns of files to exclude from auto imports. Relative paths are resolved relative to the workspace root. Patterns are evaluated using tsconfig.json [`exclude`](https://www.typescriptlang.org/tsconfig#exclude) semantics.",
+	"typescript.workspaceSymbols.excludeLibrarySymbols": "Exclude symbols that come from library files in Go to Symbol in Workspace results. Requires using TypeScript 5.3+ in the workspace.",
 	"typescript.updateImportsOnFileMove.enabled": "Enable/disable automatic updating of import paths when you rename or move a file in VS Code.",
 	"typescript.updateImportsOnFileMove.enabled.prompt": "Prompt on each rename.",
 	"typescript.updateImportsOnFileMove.enabled.always": "Always update paths automatically.",
@@ -220,7 +221,7 @@
 	"typescript.findAllFileReferences": "Find File References",
 	"typescript.goToSourceDefinition": "Go to Source Definition",
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",
-	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals. Requires using TypeScript 4.7+ in the workspace.",
+	"configuration.suggest.objectLiteralMethodSnippets.enabled": "Enable/disable snippet completions for methods in object literals.",
 	"configuration.tsserver.web.projectWideIntellisense.enabled": "Enable/disable project-wide IntelliSense on web. Requires that VS Code is running in a trusted context.",
 	"configuration.tsserver.web.projectWideIntellisense.suppressSemanticErrors": "Suppresses semantic errors. This is needed when using external packages as these can't be included analyzed on web.",
 	"configuration.tsserver.nodePath": "Run TS Server on a custom Node installation. This can be a path to a Node executable, or 'node' if you want VS Code to detect a Node installation.",

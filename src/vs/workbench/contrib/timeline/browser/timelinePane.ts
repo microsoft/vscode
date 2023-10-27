@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/timelinePane';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -55,6 +55,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { AriaRole } from 'vs/base/browser/ui/aria/aria';
+import { ILocalizedString } from 'vs/platform/action/common/action';
 
 const ItemHeight = 22;
 
@@ -232,7 +233,7 @@ export const TimelineFollowActiveEditorContext = new RawContextKey<boolean>('tim
 export const TimelineExcludeSources = new RawContextKey<string>('timelineExcludeSources', '[]', true);
 
 export class TimelinePane extends ViewPane {
-	static readonly TITLE = localize('timeline', "Timeline");
+	static readonly TITLE: ILocalizedString = localize2('timeline', "Timeline");
 
 	private $container!: HTMLElement;
 	private $message!: HTMLDivElement;

@@ -48,6 +48,7 @@ import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLa
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
+import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -88,30 +89,19 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this._terminalService.onDidChangeInstances(() => {
 			// If the first terminal is opened, hide the welcome view
 			// and if the last one is closed, show it again
-			if (this.hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 			if (!this._parentDomElement) { return; }
 			// If we do not have the tab view yet, create it now.
 			if (!this._terminalTabbedView) {
-				// If the first terminal is opened, hide the welcome view
-				// and if the last one is closed, show it again
-				if (this.hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
-					this._onDidChangeViewWelcomeState.fire();
-				}
-				if (!this._parentDomElement) { return; }
-				// If we do not have the tab view yet, create it now.
-				if (!this._terminalTabbedView) {
-					this._createTabsView();
-				}
-				// If we just opened our first terminal, layout
-				if (this._terminalService.instances.length === 1) {
-				}
-				// If we just opened our first terminal, layout
-				if (this._terminalService.instances.length === 1) {
-					this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-				}
-			}));
+				this._createTabsView();
+			}
+			// If we just opened our first terminal, layout
+			if (this._terminalService.instances.length === 1) {
+				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
+			}
+		}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
@@ -194,6 +184,7 @@ export class TerminalViewPane extends ViewPane {
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
 		dom.createStyleSheet(this._parentDomElement);
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
@@ -216,20 +207,21 @@ export class TerminalViewPane extends ViewPane {
 			this._viewShowing.set(visible);
 			if (visible) {
 				if (this._hasWelcomeScreen()) {
-					this._onDidChangeViewWelcomeState.fire();
+					if (this._hasWelcomeScreen()) {
+						this._onDidChangeViewWelcomeState.fire();
+					}
+					this._initializeTerminal(false);
+					// we don't know here whether or not it should be focused, so
+					// defer focusing the panel to the focus() call
+					// to prevent overriding preserveFocus for extensions
+					this._terminalGroupService.showPanel(false);
+				} else {
+					for (const instance of this._terminalGroupService.instances) {
+						instance.resetFocusContextKey();
+					}
 				}
-				this._initializeTerminal(false);
-				// we don't know here whether or not it should be focused, so
-				// defer focusing the panel to the focus() call
-				// to prevent overriding preserveFocus for extensions
-				this._terminalGroupService.showPanel(false);
-			} else {
-				for (const instance of this._terminalGroupService.instances) {
-					instance.resetFocusContextKey();
-				}
-			}
-			this._terminalGroupService.updateVisibility();
-		}));
+				this._terminalGroupService.updateVisibility();
+			}));
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal(true)));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
@@ -276,6 +268,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
+					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
@@ -324,21 +317,36 @@ export class TerminalViewPane extends ViewPane {
 		const previousActiveElement = this.element.ownerDocument.activeElement;
 		if (previousActiveElement) {
 			// TODO: Improve lifecycle management this event should be disposed after first fire
-			this._register(this._terminalService.onDidChangeConnectionState(() => {
-				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO: Hack
-				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
-					this._terminalGroupService.showPanel(true);
-				}
-			}));
-		}
-	}
+			super.focus();
+			if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+				this._terminalGroupService.showPanel(true);
+				return;
+			}
 
+			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+			// be focused. So wait for connection to finish, then focus.
+			const previousActiveElement = this.element.ownerDocument.activeElement;
+			if (previousActiveElement) {
+				// TODO: Improve lifecycle management this event should be disposed after first fire
+				this._register(this._terminalService.onDidChangeConnectionState(() => {
+					// Only focus the terminal if the activeElement has not changed since focus() was called
+					// TODO: Hack
+					if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
+						// TODO: Hack
+						if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
+							this._terminalGroupService.showPanel(true);
+						}
+					}));
+			}
+		}
+
+	private _hasWelcomeScreen(): boolean {
 	private _hasWelcomeScreen(): boolean {
 		return !this._terminalService.isProcessSupportRegistered;
 	}
 
 	override shouldShowWelcome(): boolean {
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
@@ -535,8 +543,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 	private _openContextMenu() {
 		this._contextMenuService.showContextMenu({
 			actionRunner: new TerminalContextActionRunner(),
+			actionRunner: new TerminalContextActionRunner(),
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
+			// The context is always the active instance in the terminal view
+			getActionsContext: () => {
+				const instance = this._terminalGroupService.activeInstance;
+				return instance ? [new InstanceContext(instance)] : [];
+			}
 			// The context is always the active instance in the terminal view
 			getActionsContext: () => {
 				const instance = this._terminalGroupService.activeInstance;
@@ -579,6 +593,7 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
+		this._styleElement = dom.createStyleSheet(container);
 		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();

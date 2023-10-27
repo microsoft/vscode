@@ -21,7 +21,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
-import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -30,7 +30,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import * as nls from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -80,6 +80,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 
 const $ = dom.$;
 
@@ -189,6 +190,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -1072,22 +1074,23 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
-			return false;
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
+			if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
+				return false;
+			}
+
+			const searchString = controller.getState().searchString;
+			if (searchString === '') {
+				return false;
+			}
+
+			this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
+			this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
+			this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
+			this.updateText(searchString, allowSearchOnType);
+
+			return true;
 		}
-
-		const searchString = controller.getState().searchString;
-		if (searchString === '') {
-			return false;
-		}
-
-		this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
-		this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
-		this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
-		this.updateText(searchString, allowSearchOnType);
-
-		return true;
-	}
 
 	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
@@ -1245,7 +1248,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 		this.reLayout();
 	}
 
@@ -1275,19 +1278,20 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
-			return null;
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
+			if (dom.isAncestorOfActiveElement(this.getContainer())) {
+				return null;
+			}
+
+			editor = editor ?? this.editorService.activeTextEditorControl;
+
+			if (!editor) {
+				return null;
+			}
+
+			const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
+			return getSelectionTextFromEditor(allowUnselected, editor);
 		}
-
-		editor = editor ?? this.editorService.activeTextEditorControl;
-
-		if (!editor) {
-			return null;
-		}
-
-		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
-		return getSelectionTextFromEditor(allowUnselected, editor);
-	}
 
 	private showsFileTypes(): boolean {
 		return this.queryDetails.classList.contains('more');
@@ -2137,55 +2141,4 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 		return range;
 	}
 	return undefined;
-}
-
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
-
-	let editor = activeEditor;
-
-	if (isDiffEditor(editor)) {
-		if (editor.getOriginalEditor().hasTextFocus()) {
-			editor = editor.getOriginalEditor();
-		} else {
-			editor = editor.getModifiedEditor();
-		}
-	}
-
-	if (!isCodeEditor(editor) || !editor.hasModel()) {
-		return null;
-	}
-
-	const range = editor.getSelection();
-	if (!range) {
-		return null;
-	}
-
-	if (range.isEmpty()) {
-		if (allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			return wordAtPosition?.word ?? null;
-		} else {
-			return null;
-		}
-	}
-
-	let searchText = '';
-	for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-		let lineText = editor.getModel().getLineContent(i);
-		if (i === range.endLineNumber) {
-			lineText = lineText.substring(0, range.endColumn - 1);
-		}
-
-		if (i === range.startLineNumber) {
-			lineText = lineText.substring(range.startColumn - 1);
-		}
-
-		if (i !== range.startLineNumber) {
-			lineText = '\n' + lineText;
-		}
-
-		searchText += lineText;
-	}
-
-	return searchText;
 }
