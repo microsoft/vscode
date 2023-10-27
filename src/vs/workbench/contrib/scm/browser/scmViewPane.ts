@@ -1809,8 +1809,8 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
-	private toolbarContainer: HTMLElement | undefined;
-	private actionBar: ActionBar | undefined;
+	// private toolbarContainer: HTMLElement | undefined;
+	// private actionBar: ActionBar | undefined;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -1839,7 +1839,8 @@ class SCMInputWidget {
 		}
 
 		this.clearValidation();
-		this.editorContainer.classList.remove('synthetic-focus');
+		this.element.classList.remove('synthetic-focus');
+		//this.editorContainer.classList.remove('synthetic-focus');
 
 		this.repositoryDisposables.clear();
 		this.repositoryIdContextKey.set(input?.repository.id);
@@ -1961,36 +1962,36 @@ class SCMInputWidget {
 		updateEnablement(input.enabled);
 
 		// ActionBar
-		if (this.toolbarContainer && this.actionBar) {
-			if (this.editorContainer.contains(this.toolbarContainer)) {
-				this.editorContainer.removeChild(this.toolbarContainer);
-			}
-			this.repositoryDisposables.delete(this.actionBar);
-		}
+		// if (this.toolbarContainer && this.actionBar) {
+		// 	if (this.editorContainer.contains(this.toolbarContainer)) {
+		// 		this.editorContainer.removeChild(this.toolbarContainer);
+		// 	}
+		// 	this.repositoryDisposables.delete(this.actionBar);
+		// }
 
-		this.toolbarContainer = append(this.editorContainer, $('.scm-editor-toolbar'));
-		this.actionBar = new ActionBar(this.toolbarContainer);
-		this.repositoryDisposables.add(this.actionBar);
+		// this.toolbarContainer = append(this.editorContainer, $('.scm-editor-toolbar'));
+		// this.actionBar = new ActionBar(this.toolbarContainer);
+		// this.repositoryDisposables.add(this.actionBar);
 
-		const onDidChangeActionButton = () => {
-			this.actionBar!.clear();
-			if (!input.actionButton) {
-				return;
-			}
+		// const onDidChangeActionButton = () => {
+		// 	this.actionBar!.clear();
+		// 	if (!input.actionButton) {
+		// 		return;
+		// 	}
 
-			const action = new Action(
-				input.actionButton.command.id,
-				input.actionButton.command.title,
-				ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
-				input.actionButton.enabled,
-				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
+		// 	const action = new Action(
+		// 		input.actionButton.command.id,
+		// 		input.actionButton.command.title,
+		// 		ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+		// 		input.actionButton.enabled,
+		// 		() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
-			this.actionBar!.push(action, { icon: true, label: false });
-			this.layout();
-		};
+		// 	this.actionBar!.push(action, { icon: true, label: false });
+		// 	this.layout();
+		// };
 
-		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
-		onDidChangeActionButton();
+		// this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		// onDidChangeActionButton();
 	}
 
 	get selections(): Selection[] | null {
@@ -2033,7 +2034,7 @@ class SCMInputWidget {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		@ICommandService private readonly commandService: ICommandService,
+		// @ICommandService private readonly commandService: ICommandService,
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
@@ -2062,7 +2063,7 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false,
-				vertical: 'hidden',
+				// vertical: 'hidden',
 				useShadows: false
 			},
 			overflowWidgetsDomNode,
@@ -2101,11 +2102,13 @@ class SCMInputWidget {
 				this.scmViewService.focus(this.input.repository);
 			}
 
-			this.editorContainer.classList.add('synthetic-focus');
+			this.element.classList.add('synthetic-focus');
+			//this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
 		this.disposables.add(this.inputEditor.onDidBlurEditorText(() => {
-			this.editorContainer.classList.remove('synthetic-focus');
+			this.element.classList.remove('synthetic-focus');
+			//this.editorContainer.classList.remove('synthetic-focus');
 
 			setTimeout(() => {
 				if (!this.validation || !this.validationHasFocus) {
@@ -2176,7 +2179,7 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const toolbarWidth = this.toolbarContainer ? this.toolbarContainer.clientWidth + 2 : 0;
+		const toolbarWidth = 0; //this.toolbarContainer ? this.toolbarContainer.clientWidth + 2 : 0;
 		const dimension = new Dimension(this.element.clientWidth - toolbarWidth - 2, editorHeight);
 
 		if (dimension.width < 0) {
@@ -2203,7 +2206,8 @@ class SCMInputWidget {
 		}
 
 		this.inputEditor.focus();
-		this.editorContainer.classList.add('synthetic-focus');
+		this.element.classList.add('synthetic-focus');
+		// this.editorContainer.classList.add('synthetic-focus');
 	}
 
 	hasFocus(): boolean {
@@ -2213,9 +2217,9 @@ class SCMInputWidget {
 	private renderValidation(): void {
 		this.clearValidation();
 
-		this.editorContainer.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
-		this.editorContainer.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
-		this.editorContainer.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
+		this.element.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
+		this.element.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
+		this.element.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
 
 		if (!this.validation || !this.inputEditor.hasTextFocus()) {
 			return;
@@ -2224,16 +2228,16 @@ class SCMInputWidget {
 		const disposables = new DisposableStore();
 
 		this.validationDisposable = this.contextViewService.showContextView({
-			getAnchor: () => this.editorContainer,
+			getAnchor: () => this.element,
 			render: container => {
-				this.editorContainer.style.borderBottomLeftRadius = '0';
-				this.editorContainer.style.borderBottomRightRadius = '0';
+				this.element.style.borderBottomLeftRadius = '0';
+				this.element.style.borderBottomRightRadius = '0';
 
 				const validationContainer = append(container, $('.scm-editor-validation-container'));
 				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
 				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
 				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				validationContainer.style.width = `${this.editorContainer.clientWidth + 2}px`;
+				validationContainer.style.width = `${this.element.clientWidth + 2}px`;
 				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
@@ -2245,8 +2249,8 @@ class SCMInputWidget {
 					disposables.add(tracker.onDidFocus(() => (this.validationHasFocus = true)));
 					disposables.add(tracker.onDidBlur(() => {
 						this.validationHasFocus = false;
-						this.editorContainer.style.borderBottomLeftRadius = '2px';
-						this.editorContainer.style.borderBottomRightRadius = '2px';
+						this.element.style.borderBottomLeftRadius = '2px';
+						this.element.style.borderBottomRightRadius = '2px';
 						this.contextViewService.hideContextView();
 					}));
 
@@ -2255,8 +2259,8 @@ class SCMInputWidget {
 						actionHandler: {
 							callback: (link) => {
 								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
-								this.editorContainer.style.borderBottomLeftRadius = '2px';
-								this.editorContainer.style.borderBottomRightRadius = '2px';
+								this.element.style.borderBottomLeftRadius = '2px';
+								this.element.style.borderBottomRightRadius = '2px';
 								this.contextViewService.hideContextView();
 							},
 							disposables: disposables
@@ -2269,8 +2273,8 @@ class SCMInputWidget {
 				const actionbar = new ActionBar(actionsContainer);
 				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
-					this.editorContainer.style.borderBottomLeftRadius = '2px';
-					this.editorContainer.style.borderBottomRightRadius = '2px';
+					this.element.style.borderBottomLeftRadius = '2px';
+					this.element.style.borderBottomRightRadius = '2px';
 				});
 				disposables.add(actionbar);
 				actionbar.push(action, { icon: true, label: false });
@@ -2279,8 +2283,8 @@ class SCMInputWidget {
 			},
 			onHide: () => {
 				this.validationHasFocus = false;
-				this.editorContainer.style.borderBottomLeftRadius = '2px';
-				this.editorContainer.style.borderBottomRightRadius = '2px';
+				this.element.style.borderBottomLeftRadius = '2px';
+				this.element.style.borderBottomRightRadius = '2px';
 				disposables.dispose();
 			},
 			anchorAlignment: AnchorAlignment.LEFT
