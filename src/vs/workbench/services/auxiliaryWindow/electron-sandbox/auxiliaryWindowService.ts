@@ -6,7 +6,7 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { getGlobals } from 'vs/platform/window/electron-sandbox/window';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
