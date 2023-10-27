@@ -49,11 +49,9 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._gutterDecoration = ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
 			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
-			glyphMarginHoverMessage: this._hoverMessage(),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
-		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateKeybinding()));
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
 			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
 				return;
@@ -62,21 +60,19 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecorationHover()));
+		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
 	}
 
-	private _updateKeybinding(): void {
+	private _updateDecorationHover(): void {
 		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
 		if (this._inlineChatKeybinding === keybinding) {
 			return;
 		}
 		this._inlineChatKeybinding = keybinding;
-		this._gutterDecoration.glyphMarginHoverMessage = this._hoverMessage();
+		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (this._inlineChatKeybinding ? ` [${this._inlineChatKeybinding}]` : ''));
 		this._onEnablementOrModelChanged();
-	}
-
-	private _hoverMessage(): MarkdownString {
-		return new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (this._inlineChatKeybinding ? ` [${this._inlineChatKeybinding}]` : ''));
 	}
 
 	private _onEnablementOrModelChanged(): void {
