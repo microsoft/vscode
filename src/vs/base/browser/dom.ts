@@ -741,6 +741,13 @@ export function isAncestorOfActiveElement(ancestor: Element): boolean {
 }
 
 /**
+ * Returns whether the element is in the active `document`.
+ */
+export function isActiveDocument(element: Element): boolean {
+	return element.ownerDocument === getActiveDocument();
+}
+
+/**
  * Returns the active document across all child windows.
  * Use this instead of `document` when reacting to dom events to handle multiple windows.
  */
