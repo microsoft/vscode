@@ -11,19 +11,18 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { DeferredPromise } from 'vs/base/common/async';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
 	readonly vscode: ISandboxGlobals;
-	readonly vscodeWindowId: Promise<number>;
+	readonly vscodeWindowId: number;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return !!candidate?.vscode && candidate.vscodeWindowId instanceof Promise;
+	return !!candidate?.vscode && Object.hasOwn(candidate, 'vscodeWindowId');
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -52,18 +51,13 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 		// Obtain window identifier
 		let resolvedWindowId: number;
-		const windowId = new DeferredPromise<number>();
 		(async () => {
 			resolvedWindowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:getWindowId');
-			windowId.complete(resolvedWindowId);
 		})();
 
 		// Add a `windowId` property
 		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
-			value: windowId.p,
-			writable: false,
-			enumerable: false,
-			configurable: false
+			get: () => resolvedWindowId
 		});
 
 		// Enable `window.focus()` to work in Electron by
@@ -74,7 +68,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== auxiliaryWindow && typeof resolvedWindowId === 'number') {
+			if (getActiveWindow() !== auxiliaryWindow) {
 				that.nativeHostService.focusWindow({ targetWindowId: resolvedWindowId });
 			}
 		};

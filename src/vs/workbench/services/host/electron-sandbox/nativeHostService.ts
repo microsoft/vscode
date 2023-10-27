@@ -138,7 +138,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			return; // does not apply when only one window is opened
 		}
 
-		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: await window.vscodeWindowId } : undefined);
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: window.vscodeWindowId } : undefined);
 	}
 
 	//#endregion
