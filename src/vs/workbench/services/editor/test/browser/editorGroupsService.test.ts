@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import { workbenchInstantiationService, registerTestEditor, TestFileEditorInput, TestEditorPart, TestServiceAccessor, createEditorPart, ITestInstantiationService, workbenchTeardown } from 'vs/workbench/test/browser/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupLocation, isEditorGroup, IEditorGroupsService, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { CloseDirection, IEditorPartOptions, EditorsOrder, EditorInputCapabilities, GroupModelChangeKind, SideBySideEditor } from 'vs/workbench/common/editor';
 import { URI } from 'vs/base/common/uri';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -168,6 +168,7 @@ suite('EditorGroupsService', () => {
 
 		part.removeGroup(downGroup);
 		assert.ok(!part.getGroup(downGroup.id));
+		assert.ok(!part.hasGroup(downGroup.id));
 		assert.strictEqual(didDispose, true);
 		assert.strictEqual(groupRemovedCounter, 1);
 		assert.strictEqual(part.groups.length, 2);
@@ -250,8 +251,11 @@ suite('EditorGroupsService', () => {
 
 		assert.strictEqual(restoredPart.groups.length, 3);
 		assert.ok(restoredPart.getGroup(rootGroup.id));
+		assert.ok(restoredPart.hasGroup(rootGroup.id));
 		assert.ok(restoredPart.getGroup(rightGroup.id));
+		assert.ok(restoredPart.hasGroup(rightGroup.id));
 		assert.ok(restoredPart.getGroup(downGroup.id));
+		assert.ok(restoredPart.hasGroup(downGroup.id));
 
 		restoredPart.clearState();
 	});
@@ -309,6 +313,57 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(groupIndexChangedCounter, 6);
 
 		labelChangeListener.dispose();
+		groupIndexChangedListener.dispose();
+	});
+
+	test('groups label', async function () {
+		const [part] = await createPart();
+
+		const rootGroup = part.groups[0];
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+
+		let partLabelChangedCounter = 0;
+		const groupIndexChangedListener = part.onDidChangeGroupLabel(() => {
+			partLabelChangedCounter++;
+		});
+
+		let rootGroupLabelChangeCounter = 0;
+		const rootGroupLabelChangeListener = rootGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rootGroupLabelChangeCounter++;
+			}
+		});
+
+		let rightGroupLabelChangeCounter = 0;
+		const rightGroupLabelChangeListener = rightGroup.onDidModelChange(e => {
+			if (e.kind === GroupModelChangeKind.GROUP_LABEL) {
+				rightGroupLabelChangeCounter++;
+			}
+		});
+
+		assert.strictEqual(rootGroup.label, 'Group 1');
+		assert.strictEqual(rightGroup.label, 'Group 2');
+
+		part.notifyGroupsLabelChange('Window 2');
+
+		assert.strictEqual(rootGroup.label, 'Window 2: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 2: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 1);
+		assert.strictEqual(rightGroupLabelChangeCounter, 1);
+		assert.strictEqual(partLabelChangedCounter, 2);
+
+		part.notifyGroupsLabelChange('Window 3');
+
+		assert.strictEqual(rootGroup.label, 'Window 3: Group 1');
+		assert.strictEqual(rightGroup.label, 'Window 3: Group 2');
+
+		assert.strictEqual(rootGroupLabelChangeCounter, 2);
+		assert.strictEqual(rightGroupLabelChangeCounter, 2);
+		assert.strictEqual(partLabelChangedCounter, 4);
+
+		rootGroupLabelChangeListener.dispose();
+		rightGroupLabelChangeListener.dispose();
 		groupIndexChangedListener.dispose();
 	});
 
@@ -404,9 +459,9 @@ suite('EditorGroupsService', () => {
 		const currentOptions = part.partOptions;
 		assert.ok(currentOptions);
 
-		disposables.add(part.enforcePartOptions({ showTabs: false }));
-		assert.strictEqual(part.partOptions.showTabs, false);
-		assert.strictEqual(newOptions.showTabs, false);
+		disposables.add(part.enforcePartOptions({ showTabs: 'single' }));
+		assert.strictEqual(part.partOptions.showTabs, 'single');
+		assert.strictEqual(newOptions.showTabs, 'single');
 		assert.strictEqual(oldOptions, currentOptions);
 	});
 
@@ -1712,6 +1767,45 @@ suite('EditorGroupsService', () => {
 		assert.strictEqual(rootGroup.isLocked, false);
 		part.removeGroup(leftGroup);
 		assert.strictEqual(rootGroup.isLocked, false);
+	});
+
+	test('maximize editor group', async () => {
+		const instantiationService = workbenchInstantiationService(undefined, disposables);
+		const [part] = await createPart(instantiationService);
+
+		const rootGroup = part.activeGroup;
+		const editorPartSize = part.getSize(rootGroup);
+
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const rightBottomGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		const sizeRootGroup = part.getSize(rootGroup);
+		const sizeRightGroup = part.getSize(rightGroup);
+		const sizeRightBottomGroup = part.getSize(rightBottomGroup);
+
+		let maximizedValue;
+		const maxiizeGroupEventDisposable = part.onDidChangeGroupMaximized((maximized) => {
+			maximizedValue = maximized;
+		});
+
+		part.arrangeGroups(GroupsArrangement.MAXIMIZE, rootGroup);
+
+		// getSize()
+		assert.deepStrictEqual(part.getSize(rootGroup), editorPartSize);
+		assert.deepStrictEqual(part.getSize(rightGroup), { width: 0, height: 0 });
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), { width: 0, height: 0 });
+
+		assert.deepStrictEqual(maximizedValue, true);
+
+		part.toggleMaximizeGroup();
+
+		// Size is restored
+		assert.deepStrictEqual(part.getSize(rootGroup), sizeRootGroup);
+		assert.deepStrictEqual(part.getSize(rightGroup), sizeRightGroup);
+		assert.deepStrictEqual(part.getSize(rightBottomGroup), sizeRightBottomGroup);
+
+		assert.deepStrictEqual(maximizedValue, false);
+		maxiizeGroupEventDisposable.dispose();
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

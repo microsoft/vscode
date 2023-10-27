@@ -9,7 +9,7 @@ import { MoveOperations } from 'vs/editor/common/cursor/cursorMoveOperations';
 import { WordOperations } from 'vs/editor/common/cursor/cursorWordOperations';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { IViewModel } from 'vs/editor/common/viewModel';
 
 export class CursorMoveCommands {
@@ -443,7 +443,7 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveLeft(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
@@ -462,7 +462,7 @@ export class CursorMoveCommands {
 		for (let i = 0, len = cursors.length; i < len; i++) {
 			const cursor = cursors[i];
 			const viewLineNumber = cursor.viewState.position.lineNumber;
-			const halfLine = Math.round(viewModel.getLineContent(viewLineNumber).length / 2);
+			const halfLine = Math.round(viewModel.getLineLength(viewLineNumber) / 2);
 			result[i] = CursorState.fromViewState(MoveOperations.moveRight(viewModel.cursorConfig, viewModel, cursor.viewState, inSelectionMode, halfLine));
 		}
 		return result;
@@ -596,7 +596,7 @@ export namespace CursorMove {
 		return true;
 	};
 
-	export const description = <ICommandHandlerDescription>{
+	export const metadata = <ICommandMetadata>{
 		description: 'Move cursor to a logical position in the view',
 		args: [
 			{

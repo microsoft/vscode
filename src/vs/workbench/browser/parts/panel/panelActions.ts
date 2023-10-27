@@ -9,8 +9,6 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuId, MenuRegistry, registerAction2, Action2, IAction2Options } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
-import { ActivityAction, ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositeBarActions';
-import { IActivity } from 'vs/workbench/common/activity';
 import { AuxiliaryBarVisibleContext, PanelAlignmentContext, PanelMaximizedContext, PanelPositionContext, PanelVisibleContext } from 'vs/workbench/common/contextkeys';
 import { ContextKeyExpr, ContextKeyExpression } from 'vs/platform/contextkey/common/contextkey';
 import { Codicon } from 'vs/base/common/codicons';
@@ -222,48 +220,6 @@ AlignPanelActionConfigs.forEach(alignPanelAction => {
 	});
 });
 
-export class PanelActivityAction extends ActivityAction {
-
-	constructor(
-		activity: IActivity,
-		private readonly viewContainerLocation: ViewContainerLocation,
-		@IPaneCompositePartService private readonly paneCompositeService: IPaneCompositePartService
-	) {
-		super(activity);
-	}
-
-	override async run(): Promise<void> {
-		await this.paneCompositeService.openPaneComposite(this.activity.id, this.viewContainerLocation, true);
-		this.activate();
-	}
-
-	setActivity(activity: IActivity): void {
-		this.activity = activity;
-	}
-}
-
-export class PlaceHolderPanelActivityAction extends PanelActivityAction {
-
-	constructor(
-		id: string,
-		viewContainerLocation: ViewContainerLocation,
-		@IPaneCompositePartService paneCompositeService: IPaneCompositePartService
-	) {
-		super({ id, name: id }, viewContainerLocation, paneCompositeService);
-	}
-}
-
-export class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction {
-
-	constructor(id: string, compositeBar: ICompositeBar) {
-		super({ id, name: id, classNames: undefined }, compositeBar);
-	}
-
-	setActivity(activity: IActivity): void {
-		this.label = activity.name;
-	}
-}
-
 class SwitchPanelViewAction extends Action2 {
 
 	constructor(id: string, title: ICommandActionTitle) {
@@ -451,7 +407,7 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 		if (srcContainers.length) {
 			const activeViewContainer = viewsService.getVisibleViewContainer(this.source);
 
-			srcContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, this.destination));
+			srcContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, this.destination, undefined, this.desc.id));
 			layoutService.setPartHidden(false, this.destination === ViewContainerLocation.Panel ? Parts.PANEL_PART : Parts.AUXILIARYBAR_PART);
 
 			if (activeViewContainer && destContainers.length === 0) {

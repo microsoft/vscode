@@ -326,7 +326,7 @@
         "markdown.preview.breaks": {
           "type": "boolean",
           "default": false,
-          "description": "%markdown.preview.breaks.desc%",
+          "markdownDescription": "%markdown.preview.breaks.desc%",
           "scope": "resource"
         },
         "markdown.preview.linkify": {

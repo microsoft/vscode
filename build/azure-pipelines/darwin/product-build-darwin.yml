@@ -18,7 +18,9 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -77,7 +79,7 @@ steps:
   - script: |
       set -e
       export npm_config_arch=$(VSCODE_ARCH)
-      npm i -g node-gyp
+      npm i -g node-gyp@9.4.0
 
       for i in {1..5}; do # try 5 times
         yarn --frozen-lockfile --check-files && break
@@ -218,16 +220,17 @@ steps:
     - task: AzureArtifacts.manifest-generator-task.manifest-generator-task.ManifestGeneratorTask@0
       displayName: Generate SBOM (server)
       inputs:
+        BuildComponentPath: $(Build.SourcesDirectory)/remote
         BuildDropPath: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)
         PackageName: Visual Studio Code Server
 
     - publish: $(agent.builddirectory)/VSCode-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (client)
-      artifact: $(ARTIFACT_PREFIX)sbom_client_darwin_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_client_darwin_$(VSCODE_ARCH)
 
     - publish: $(agent.builddirectory)/vscode-server-darwin-$(VSCODE_ARCH)/_manifest
       displayName: Publish SBOM (server)
-      artifact: $(ARTIFACT_PREFIX)sbom_server_darwin_$(VSCODE_ARCH)_sbom
+      artifact: $(ARTIFACT_PREFIX)sbom_vscode_server_darwin_$(VSCODE_ARCH)
 
     - publish: $(CLIENT_PATH)
       artifact: $(ARTIFACT_PREFIX)unsigned_vscode_client_darwin_$(VSCODE_ARCH)_archive

@@ -9,7 +9,7 @@ import { IChatVariableData, IChatVariablesService } from 'vs/workbench/contrib/c
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChatVariables)
-export class MainThreadChatSlashCommands implements MainThreadChatVariablesShape {
+export class MainThreadChatVariables implements MainThreadChatVariablesShape {
 
 	private readonly _proxy: ExtHostChatVariablesShape;
 	private readonly _variables = new DisposableMap<number>();

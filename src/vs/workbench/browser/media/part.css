@@ -87,19 +87,9 @@
 }
 
 .monaco-workbench .part > .content > .monaco-progress-container,
-.monaco-workbench .part.editor > .content .monaco-progress-container {
+.monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
 	z-index: 5; /* on top of things */
-	height: 2px;
-}
-
-.monaco-workbench .part > .content > .monaco-progress-container .progress-bit,
-.monaco-workbench
-	.part.editor
-	> .content
-	.monaco-progress-container
-	.progress-bit {
-	height: 2px;
 }

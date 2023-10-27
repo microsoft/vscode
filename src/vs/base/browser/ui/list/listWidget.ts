@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDragAndDropData } from 'vs/base/browser/dnd';
-import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper } from 'vs/base/browser/dom';
+import { asCssValueWithDefault, createStyleSheet, Dimension, EventHelper, getActiveElement, isActiveElement, isMouseEvent } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { Gesture } from 'vs/base/browser/touch';
@@ -642,7 +642,7 @@ export function isSelectionRangeChangeEvent(event: IListMouseEvent<any> | IListT
 }
 
 function isMouseRightClick(event: UIEvent): boolean {
-	return event instanceof MouseEvent && event.button === 2;
+	return isMouseEvent(event) && event.button === 2;
 }
 
 const DefaultMultipleSelectionController = {
@@ -712,7 +712,7 @@ export class MouseController<T> implements IDisposable {
 			return;
 		}
 
-		if (document.activeElement !== e.browserEvent.target) {
+		if (getActiveElement() !== e.browserEvent.target) {
 			this.list.domFocus();
 		}
 	}
@@ -1880,7 +1880,7 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 	}
 
 	isDOMFocused(): boolean {
-		return this.view.domNode === document.activeElement;
+		return isActiveElement(this.view.domNode);
 	}
 
 	getHTMLElement(): HTMLElement {

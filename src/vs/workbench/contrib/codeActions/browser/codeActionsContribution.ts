@@ -51,8 +51,8 @@ const codeActionsOnSaveSchema: IConfigurationPropertySchema = {
 			items: { type: 'string' }
 		}
 	],
-	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run CodeActions for the editor on save. CodeActions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
-	type: 'object',
+	markdownDescription: nls.localize('editor.codeActionsOnSave', 'Run Code Actions for the editor on save. Code Actions must be specified and the editor must not be shutting down. Example: `"source.organizeImports": "explicit" `'),
+	type: ['object', 'array'],
 	additionalProperties: {
 		type: ['string', 'boolean'],
 		enum: ['always', 'explicit', 'never', true, false],
@@ -81,7 +81,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		super();
 
 		codeActionsExtensionPoint.setHandler(extensionPoints => {
-			this._contributedCodeActions = extensionPoints.map(x => x.value).flat();
+			this._contributedCodeActions = extensionPoints.flatMap(x => x.value).filter(x => Array.isArray(x.actions));
 			this.updateConfigurationSchema(this._contributedCodeActions);
 			this._onDidChangeContributions.fire();
 		});
@@ -150,7 +150,7 @@ export class CodeActionsContribution extends Disposable implements IWorkbenchCon
 		};
 
 		const getActions = (ofKind: CodeActionKind): ContributedCodeAction[] => {
-			const allActions = this._contributedCodeActions.map(desc => desc.actions).flat();
+			const allActions = this._contributedCodeActions.flatMap(desc => desc.actions);
 
 			const out = new Map<string, ContributedCodeAction>();
 			for (const action of allActions) {

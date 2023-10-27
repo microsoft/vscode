@@ -250,7 +250,7 @@ declare module 'vscode' {
 
 	export interface CliBuild {
 		readonly quality: string;
-		/** 'LinuxAlpineX64' | 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64' */
+		/** 'LinuxAlpineX64' | 'LinuxAlpineARM64', 'LinuxX64' | 'LinuxARM64' | 'LinuxARM32' | 'DarwinX64' | 'DarwinARM64' | 'WindowsX64' | 'WindowsX86' | 'WindowsARM64' */
 		readonly buildTarget: string;
 		readonly commit: string;
 	}

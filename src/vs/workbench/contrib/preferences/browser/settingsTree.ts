@@ -2371,7 +2371,8 @@ export class SettingsTree extends WorkbenchObjectTree<SettingsTreeElement> {
 				smoothScrolling: configurationService.getValue<boolean>('workbench.list.smoothScrolling'),
 				multipleSelectionSupport: false,
 				findWidgetEnabled: false,
-				renderIndentGuides: RenderIndentGuides.None
+				renderIndentGuides: RenderIndentGuides.None,
+				transformOptimization: false // Disable transform optimization #177470
 			},
 			instantiationService,
 			contextKeyService,

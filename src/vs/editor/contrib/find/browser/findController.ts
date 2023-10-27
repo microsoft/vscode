@@ -597,7 +597,7 @@ export class StartFindWithArgsAction extends EditorAction {
 				primary: 0,
 				weight: KeybindingWeight.EditorContrib
 			},
-			description: findArgDescription
+			metadata: findArgDescription
 		});
 	}
 

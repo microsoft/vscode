@@ -22,6 +22,7 @@ import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
@@ -537,6 +538,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	readonly isSimpleWidget: boolean;
+	/**
+	 * The editor's scoped context key service.
+	 * @internal
+	 */
+	readonly contextKeyService: IContextKeyService;
 	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event

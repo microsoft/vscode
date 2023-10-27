@@ -11,22 +11,27 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
+import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IUntitledTextResourceEditorInput } from 'vs/workbench/common/editor';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatCopyAction, IChatService, IChatUserActionEvent, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatCopyAction, IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind, NOTEBOOK_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
@@ -34,15 +39,20 @@ import { ITerminalEditorService, ITerminalGroupService, ITerminalService } from 
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
-export interface IChatCodeBlockActionContext {
-	code: string;
-	languageId: string;
-	codeBlockIndex: number;
+export interface IChatCodeBlockActionContext extends ICodeBlockActionContext {
 	element: IChatResponseViewModel;
 }
 
-export function isCodeBlockActionContext(thing: unknown): thing is IChatCodeBlockActionContext {
+export function isCodeBlockActionContext(thing: unknown): thing is ICodeBlockActionContext {
 	return typeof thing === 'object' && thing !== null && 'code' in thing && 'element' in thing;
+}
+
+function isResponseFiltered(context: ICodeBlockActionContext) {
+	return isResponseVM(context.element) && context.element.errorDetails?.responseIsFiltered;
+}
+
+function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
+	return isResponseVM(context.element) ? context.element.response.usedContext?.documents : undefined;
 }
 
 abstract class ChatCodeBlockAction extends Action2 {
@@ -64,7 +74,7 @@ abstract class ChatCodeBlockAction extends Action2 {
 		return this.runWithContext(accessor, context);
 	}
 
-	abstract runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext): any;
+	abstract runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext): any;
 }
 
 export function registerChatCodeBlockActions() {
@@ -88,31 +98,31 @@ export function registerChatCodeBlockActions() {
 
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const context = args[0];
-			if (!isCodeBlockActionContext(context)) {
-				return;
-			}
-
-			if (context.element.errorDetails?.responseIsFiltered) {
-				// When run from command palette
+			if (!isCodeBlockActionContext(context) || isResponseFiltered(context)) {
 				return;
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
 			clipboardService.writeText(context.code);
 
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: <IChatCopyAction>{
-					kind: 'copy',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					copyType: InteractiveSessionCopyKind.Toolbar,
-					copiedCharacters: context.code.length,
-					totalCharacters: context.code.length,
-					copiedText: context.code,
-				}
-			});
+			if (isResponseVM(context.element)) {
+				const chatService = accessor.get(IChatService);
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: <IChatCopyAction>{
+						kind: 'copy',
+						responseId: context.element.providerResponseId,
+						codeBlockIndex: context.codeBlockIndex,
+						copyType: InteractiveSessionCopyKind.Toolbar,
+						copiedCharacters: context.code.length,
+						totalCharacters: context.code.length,
+						copiedText: context.code,
+					}
+				});
+			}
 		}
 	});
 
@@ -144,6 +154,9 @@ export function registerChatCodeBlockActions() {
 			const chatService = accessor.get(IChatService);
 			chatService.notifyUserAction({
 				providerId: context.element.providerId,
+				agentId: context.element.agent?.id,
+				sessionId: context.element.sessionId,
+				requestId: context.element.requestId,
 				action: {
 					kind: 'copy',
 					codeBlockIndex: context.codeBlockIndex,
@@ -180,15 +193,22 @@ export function registerChatCodeBlockActions() {
 				menu: {
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
-				}
+					when: CONTEXT_IN_CHAT_SESSION,
+				},
+				keybinding: {
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
+					weight: KeybindingWeight.WorkbenchContrib
+				},
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
 			const editorService = accessor.get(IEditorService);
 			const textFileService = accessor.get(ITextFileService);
 
-			if (context.element.errorDetails?.responseIsFiltered) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
@@ -220,7 +240,7 @@ export function registerChatCodeBlockActions() {
 			await this.handleTextEditor(accessor, activeEditorControl, activeModel, context);
 		}
 
-		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: IChatCodeBlockActionContext) {
+		private async handleNotebookEditor(accessor: ServicesAccessor, notebookEditor: INotebookEditor, context: ICodeBlockActionContext) {
 			if (!notebookEditor.hasModel()) {
 				return;
 			}
@@ -245,8 +265,8 @@ export function registerChatCodeBlockActions() {
 			this.notifyUserAction(accessor, context);
 		}
 
-		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, chatCodeBlockActionContext: IChatCodeBlockActionContext) {
-			this.notifyUserAction(accessor, chatCodeBlockActionContext);
+		private async handleTextEditor(accessor: ServicesAccessor, codeEditor: ICodeEditor, activeModel: ITextModel, codeBlockActionContext: ICodeBlockActionContext) {
+			this.notifyUserAction(accessor, codeBlockActionContext);
 
 			const bulkEditService = accessor.get(IBulkEditService);
 			const codeEditorService = accessor.get(ICodeEditorService);
@@ -255,10 +275,10 @@ export function registerChatCodeBlockActions() {
 
 			// try applying workspace edit that was returned by a MappedEditsProvider, else simply insert at selection
 
-			let workspaceEdit: WorkspaceEdit | null = null;
+			let mappedEdits: WorkspaceEdit | null = null;
 
 			if (mappedEditsProviders.length > 0) {
-				const mostRelevantProvider = mappedEditsProviders[0];
+				const mostRelevantProvider = mappedEditsProviders[0]; // TODO@ulugbekna: should we try all providers?
 
 				// 0th sub-array - editor selections array if there are any selections
 				// 1st sub-array - array with documents used to get the chat reply
@@ -280,43 +300,50 @@ export function registerChatCodeBlockActions() {
 					}
 				}
 
-				const usedDocuments = chatCodeBlockActionContext.element.response.usedContext?.documents;
+				const usedDocuments = getUsedDocuments(codeBlockActionContext);
 				if (usedDocuments) {
 					docRefs.push(usedDocuments);
 				}
 
 				const cancellationTokenSource = new CancellationTokenSource();
 
-				workspaceEdit = await mostRelevantProvider.provideMappedEdits(
+				mappedEdits = await mostRelevantProvider.provideMappedEdits(
 					activeModel,
-					[chatCodeBlockActionContext.code],
+					[codeBlockActionContext.code],
 					{ documents: docRefs },
 					cancellationTokenSource.token);
 			}
 
-			if (workspaceEdit) {
-				await bulkEditService.apply(workspaceEdit);
+			if (mappedEdits) {
+				await bulkEditService.apply(mappedEdits);
 			} else {
 				const activeSelection = codeEditor.getSelection() ?? new Range(activeModel.getLineCount(), 1, activeModel.getLineCount(), 1);
-				await bulkEditService.apply([new ResourceTextEdit(activeModel.uri, {
-					range: activeSelection,
-					text: chatCodeBlockActionContext.code,
-				})]);
+				await bulkEditService.apply([
+					new ResourceTextEdit(activeModel.uri, {
+						range: activeSelection,
+						text: codeBlockActionContext.code,
+					}),
+				]);
 			}
 			codeEditorService.listCodeEditors().find(editor => editor.getModel()?.uri.toString() === activeModel.uri.toString())?.focus();
 		}
 
-		private notifyUserAction(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'insert',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					totalCharacters: context.code.length,
-				}
-			});
+		private notifyUserAction(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseVM(context.element)) {
+				const chatService = accessor.get(IChatService);
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'insert',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						totalCharacters: context.code.length,
+					}
+				});
+			}
 		}
 
 	});
@@ -341,29 +368,39 @@ export function registerChatCodeBlockActions() {
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			if (context.element.errorDetails?.responseIsFiltered) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
 
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
+
 			editorService.openEditor(<IUntitledTextResourceEditorInput>{ contents: context.code, languageId: context.languageId, resource: undefined });
 
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'insert',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					totalCharacters: context.code.length,
-					newFile: true
-				}
-			});
+			if (isResponseVM(context.element)) {
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'insert',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						totalCharacters: context.code.length,
+						newFile: true
+					}
+				});
+			}
 		}
 	});
 
+	const shellLangIds = [
+		'powershell',
+		'shellscript'
+	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
@@ -376,24 +413,47 @@ export function registerChatCodeBlockActions() {
 				f1: true,
 				category: CHAT_CATEGORY,
 				icon: Codicon.terminal,
-				menu: {
+				menu: [{
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						ContextKeyExpr.or(...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e)))
+					),
+				},
+				{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					isHiddenByDefault: true,
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					)
 				},
-				keybinding: {
+				{
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
+					when: CTX_INLINE_CHAT_VISIBLE,
+				}],
+				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
 						primary: KeyMod.WinCtrl | KeyCode.Enter,
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: CONTEXT_IN_CHAT_SESSION
-				}
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+				},
+				{
+					primary: KeyMod.CtrlCmd | KeyCode.Slash,
+					mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+				}]
 			});
 		}
 
-		override async runWithContext(accessor: ServicesAccessor, context: IChatCodeBlockActionContext) {
-			if (context.element.errorDetails?.responseIsFiltered) {
+		override async runWithContext(accessor: ServicesAccessor, context: ICodeBlockActionContext) {
+			if (isResponseFiltered(context)) {
 				// When run from command palette
 				return;
 			}
@@ -421,15 +481,20 @@ export function registerChatCodeBlockActions() {
 
 			terminal.sendText(context.code, false, true);
 
-			chatService.notifyUserAction(<IChatUserActionEvent>{
-				providerId: context.element.providerId,
-				action: {
-					kind: 'runInTerminal',
-					responseId: context.element.providerResponseId,
-					codeBlockIndex: context.codeBlockIndex,
-					languageId: context.languageId,
-				}
-			});
+			if (isResponseVM(context.element)) {
+				chatService.notifyUserAction({
+					providerId: context.element.providerId,
+					agentId: context.element.agent?.id,
+					sessionId: context.element.sessionId,
+					requestId: context.element.requestId,
+					action: {
+						kind: 'runInTerminal',
+						responseId: context.element.providerResponseId!,
+						codeBlockIndex: context.codeBlockIndex,
+						languageId: context.languageId,
+					}
+				});
+			}
 		}
 	});
 
@@ -472,7 +537,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Next Code Block'
 				},
 				keybinding: {
-					primary: KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageDown, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
@@ -496,7 +562,8 @@ export function registerChatCodeBlockActions() {
 					original: 'Previous Code Block'
 				},
 				keybinding: {
-					primary: KeyMod.Shift | KeyCode.F9,
+					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp,
+					mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.PageUp, },
 					weight: KeybindingWeight.WorkbenchContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				},

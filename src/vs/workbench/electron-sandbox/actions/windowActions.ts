@@ -26,6 +26,11 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 
 export class CloseWindowAction extends Action2 {
 
@@ -56,6 +61,11 @@ export class CloseWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
+
+		const window = getActiveWindow();
+		if (isAuxiliaryWindow(window)) {
+			return nativeHostService.closeWindowById(await window.vscodeWindowId);
+		}
 
 		return nativeHostService.closeWindow();
 	}
@@ -237,7 +247,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		});
 
 		if (pick) {
-			nativeHostService.focusWindow({ windowId: pick.payload });
+			nativeHostService.focusWindow({ targetWindowId: pick.payload });
 		}
 	}
 }
@@ -333,3 +343,59 @@ export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: S
 
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };
+
+export class ExperimentalSplitWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.experimentalSplitWindowAction',
+			title: {
+				value: localize('splitWindow', "Split Window (Experimental)"),
+				mnemonicTitle: localize({ key: 'miSplitWindow', comment: ['&& denotes a mnemonic'] }, "&&Split Window (Experimental)"),
+				original: 'Split Window (Experimental)'
+			},
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const nativeHostService = accessor.get(INativeHostService);
+		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+
+		let activeWindowId: number;
+		const activeWindow = getActiveWindow();
+		if (isAuxiliaryWindow(activeWindow)) {
+			activeWindowId = await activeWindow.vscodeWindowId;
+		} else {
+			activeWindowId = environmentService.window.id;
+		}
+
+		// First position the active window which may involve
+		// leaving fullscreen mode and then split it.
+		await nativeHostService.positionWindow({
+			x: 0,
+			y: 0,
+			width: activeWindow.screen.availWidth / 2,
+			height: activeWindow.screen.availHeight
+		}, { targetWindowId: activeWindowId });
+
+		// Then create a new window next to the active window
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({
+			position: {
+				x: activeWindow.screen.availWidth / 2,
+				y: 0,
+				width: activeWindow.screen.availWidth / 2,
+				height: activeWindow.screen.availHeight
+			}
+		});
+
+		// Finally copy over the active editor if any
+		const activeEditorPane = editorService.activeEditorPane;
+		if (activeEditorPane) {
+			activeEditorPane.group.copyEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
+		}
+	}
+}

@@ -58,7 +58,7 @@ export class ExtHostChatAgents implements ExtHostChatAgentsShape {
 
 		const commandExecution = new DeferredPromise<void>();
 		token.onCancellationRequested(() => commandExecution.complete());
-		setTimeout(() => commandExecution.complete(), 3 * 1000);
+		setTimeout(() => commandExecution.complete(), 10 * 1000);
 		this._extHostChatProvider.allowListExtensionWhile(data.extension, commandExecution.p);
 
 		const task = data.agent(

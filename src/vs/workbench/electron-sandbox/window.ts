@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { URI } from 'vs/base/common/uri';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { equals } from 'vs/base/common/objects';
-import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { EventType, EventHelper, addDisposableListener, ModifierKeyEmitter, getActiveElement, getActiveWindow } from 'vs/base/browser/dom';
 import { Separator, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, IUntitledTextResourceEditorInput, SideBySideEditor, pathsToEditors, IResourceDiffEditorInput, IUntypedEditorInput, IEditorPane, isResourceEditorInput, IResourceMergeEditorInput } from 'vs/workbench/common/editor';
@@ -62,7 +62,6 @@ import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { registerWindowDriver } from 'vs/platform/driver/electron-sandbox/driver';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { dirname } from 'vs/base/common/resources';
 import { IBannerService } from 'vs/workbench/services/banner/browser/bannerService';
@@ -70,6 +69,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
+import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 
 export class NativeWindow extends Disposable {
 
@@ -133,16 +133,16 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, e => this.onWindowResize(e)));
+		this._register(addDisposableListener(window, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			window.document.body.addEventListener(event, (e: DragEvent) => {
+			this._register(addDisposableListener(window.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
-			});
+			}));
 		}
 
 		// Support `runAction` event
@@ -174,8 +174,9 @@ export class NativeWindow extends Disposable {
 
 		// Support runKeybinding event
 		ipcRenderer.on('vscode:runKeybinding', (event: unknown, request: INativeRunKeybindingInWindowRequest) => {
-			if (document.activeElement) {
-				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, document.activeElement);
+			const activeElement = getActiveElement();
+			if (activeElement) {
+				this.keybindingService.dispatchByUserSettingsLabel(request.userSettingsLabel, activeElement);
 			}
 		});
 
@@ -293,7 +294,7 @@ export class NativeWindow extends Disposable {
 			this.accessibilityService.setAccessibilitySupport(accessibilitySupportEnabled ? AccessibilitySupport.Enabled : AccessibilitySupport.Disabled);
 		});
 
-		// Allow to update settings around allowed UNC Host
+		// Allow to update security settings around allowed UNC Host
 		ipcRenderer.on('vscode:configureAllowedUNCHost', (event: unknown, host: string) => {
 			if (!isWindows) {
 				return; // only supported on Windows
@@ -315,6 +316,12 @@ export class NativeWindow extends Disposable {
 
 				this.configurationService.updateValue('security.allowedUNCHosts', [...allowedUncHosts.values()], ConfigurationTarget.USER);
 			}
+		});
+
+		// Allow to update security settings around protocol handlers
+		ipcRenderer.on('vscode:disablePromptForProtocolHandling', (event: unknown, kind: 'local' | 'remote') => {
+			const setting = kind === 'local' ? 'security.promptForLocalFileProtocolHandling' : 'security.promptForRemoteFileProtocolHandling';
+			this.configurationService.updateValue(setting, false, ConfigurationTarget.USER);
 		});
 
 		// Zoom level changes
@@ -537,12 +544,6 @@ export class NativeWindow extends Disposable {
 		}
 	}
 
-	private onWindowResize(e: UIEvent): void {
-		if (e.target === window) {
-			this.layoutService.layout();
-		}
-	}
-
 	private updateDocumentEdited(documentEdited: true | undefined): void {
 		let setDocumentEdited: boolean;
 		if (typeof documentEdited === 'boolean') {
@@ -666,6 +667,25 @@ export class NativeWindow extends Disposable {
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
 		}
+
+		// Patch methods that we need to work properly
+		this.patchMethods();
+	}
+
+	private patchMethods(): void {
+
+		// Enable `window.focus()` to work in Electron by
+		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
+		const that = this;
+		const originalWindowFocus = window.focus.bind(window);
+		window.focus = function () {
+			originalWindowFocus();
+
+			if (getActiveWindow() !== window) {
+				that.nativeHostService.focusWindow();
+			}
+		};
 	}
 
 	private async handleWarnings(): Promise<void> {
@@ -723,37 +743,6 @@ export class NativeWindow extends Disposable {
 			}
 		}
 
-		// Windows 32-bit warning
-		if (isWindows && this.environmentService.os.arch === 'ia32') {
-			const message = localize('windows32eolmessage', "You are running {0} 32-bit, which will soon stop receiving updates on Windows. Consider upgrading to the 64-bit build.", this.productService.nameLong);
-			const actions = [{
-				label: localize('windowseolBannerLearnMore', "Learn More"),
-				href: 'https://aka.ms/vscode-faq-old-windows'
-			}];
-
-			this.bannerService.show({
-				id: 'windows32eol.banner',
-				message,
-				ariaLabel: localize('windowseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-				actions,
-				icon: Codicon.warning
-			});
-
-			this.notificationService.prompt(
-				Severity.Warning,
-				message,
-				[{
-					label: localize('learnMore', "Learn More"),
-					run: () => this.openerService.open(URI.parse('https://aka.ms/vscode-faq-old-windows'))
-				}],
-				{
-					neverShowAgain: { id: 'windows32eol', isSecondary: true, scope: NeverShowAgainScope.APPLICATION },
-					priority: NotificationPriority.URGENT,
-					sticky: true
-				}
-			);
-		}
-
 		// macOS 10.13 and 10.14 warning
 		if (isMacintosh) {
 			const majorVersion = this.environmentService.os.release.split('.')[0];
@@ -764,18 +753,6 @@ export class NativeWindow extends Disposable {
 
 			if (eolReleases.has(majorVersion)) {
 				const message = localize('macoseolmessage', "{0} on {1} will soon stop receiving updates. Consider upgrading your macOS version.", this.productService.nameLong, eolReleases.get(majorVersion));
-				const actions = [{
-					label: localize('macoseolBannerLearnMore', "Learn More"),
-					href: 'https://aka.ms/vscode-faq-old-macOS'
-				}];
-
-				this.bannerService.show({
-					id: 'macoseol.banner',
-					message,
-					ariaLabel: localize('macoseolarialabel', "{0}. Use navigation keys to access banner actions.", message),
-					actions,
-					icon: Codicon.warning
-				});
 
 				this.notificationService.prompt(
 					Severity.Warning,
@@ -823,11 +800,6 @@ export class NativeWindow extends Disposable {
 	}
 
 	private setupOpenHandlers(): void {
-
-		// Block window.open() calls
-		window.open = function (): Window | null {
-			throw new Error('Prevented call to window.open(). Use IOpenerService instead!');
-		};
 
 		// Handle external open() calls
 		this.openerService.setDefaultExternalOpener({
