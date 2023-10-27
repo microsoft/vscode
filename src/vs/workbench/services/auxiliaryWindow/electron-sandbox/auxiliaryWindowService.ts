@@ -6,7 +6,7 @@
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/platform/window/electron-sandbox/window';
+import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -16,13 +16,14 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getActiveWindow } from 'vs/base/browser/dom';
 
 type AuxiliaryWindow = BaseAuxiliaryWindow & {
+	readonly vscode: ISandboxGlobals;
 	readonly vscodeWindowId: Promise<number>;
 };
 
 export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
-	return candidate?.vscodeWindowId instanceof Promise;
+	return !!candidate?.vscode && candidate.vscodeWindowId instanceof Promise;
 }
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
@@ -41,7 +42,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
+		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
 		return super.create(auxiliaryWindow, disposables);
 	}
@@ -50,9 +51,11 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super.patchMethods(auxiliaryWindow);
 
 		// Obtain window identifier
+		let resolvedWindowId: number;
 		const windowId = new DeferredPromise<number>();
 		(async () => {
-			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
+			resolvedWindowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:getWindowId');
+			windowId.complete(resolvedWindowId);
 		})();
 
 		// Add a `windowId` property
@@ -68,11 +71,11 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = async function () {
+		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== auxiliaryWindow) {
-				that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+			if (getActiveWindow() !== auxiliaryWindow && typeof resolvedWindowId === 'number') {
+				that.nativeHostService.focusWindow({ targetWindowId: resolvedWindowId });
 			}
 		};
 	}
