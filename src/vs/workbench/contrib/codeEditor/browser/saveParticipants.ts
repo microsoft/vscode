@@ -160,8 +160,8 @@ export class TrimFinalNewLinesParticipant implements ITextFileSaveParticipant {
 	 */
 	private findLastNonEmptyLine(model: ITextModel): number {
 		for (let lineNumber = model.getLineCount(); lineNumber >= 1; lineNumber--) {
-			const lineContent = model.getLineContent(lineNumber);
-			if (lineContent.length > 0) {
+			const lineLength = model.getLineLength(lineNumber);
+			if (lineLength > 0) {
 				// this line has content
 				return lineNumber;
 			}
@@ -258,7 +258,7 @@ class FormatOnSaveParticipant implements ITextFileSaveParticipant {
 
 			} else if (ranges) {
 				// formatted modified ranges
-				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token);
+				await this.instantiationService.invokeFunction(formatDocumentRangesWithSelectedProvider, editorOrModel, ranges, FormattingMode.Silent, nestedProgress, token, false);
 			}
 		}
 	}
@@ -281,7 +281,7 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		const settingsOverrides = { overrideIdentifier: textEditorModel.getLanguageId(), resource: textEditorModel.uri };
 
 		// Convert boolean values to strings
-		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean }>('editor.codeActionsOnSave', settingsOverrides);
+		const setting = this.configurationService.getValue<{ [kind: string]: string | boolean } | string[]>('editor.codeActionsOnSave', settingsOverrides);
 		if (!setting) {
 			return undefined;
 		}
@@ -290,16 +290,15 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 			return undefined;
 		}
 
-		const convertedSetting: { [kind: string]: string } = {};
-		for (const key in setting) {
-			if (typeof setting[key] === 'boolean') {
-				convertedSetting[key] = setting[key] ? 'explicit' : 'never';
-			} else if (typeof setting[key] === 'string') {
-				convertedSetting[key] = setting[key] as string;
-			}
+		if (env.reason !== SaveReason.EXPLICIT && Array.isArray(setting)) {
+			return undefined;
 		}
 
-		const codeActionsOnSave = this.createCodeActionsOnSave(Object.keys(convertedSetting));
+		const settingItems: string[] = Array.isArray(setting)
+			? setting
+			: Object.keys(setting).filter(x => setting[x] && setting[x] !== 'never');
+
+		const codeActionsOnSave = this.createCodeActionsOnSave(settingItems);
 
 		if (!Array.isArray(setting)) {
 			codeActionsOnSave.sort((a, b) => {
@@ -319,14 +318,15 @@ class CodeActionOnSaveParticipant implements ITextFileSaveParticipant {
 		if (!codeActionsOnSave.length) {
 			return undefined;
 		}
-
-		const excludedActions = Object.keys(setting)
-			.filter(x => convertedSetting[x] === 'never' || false)
-			.map(x => new CodeActionKind(x));
+		const excludedActions = Array.isArray(setting)
+			? []
+			: Object.keys(setting)
+				.filter(x => setting[x] === 'never' || false)
+				.map(x => new CodeActionKind(x));
 
 		progress.report({ message: localize('codeaction', "Quick Fixes") });
 
-		const filteredSaveList = codeActionsOnSave.filter(x => convertedSetting[x.value] === 'always' || (convertedSetting[x.value] === 'explicit') && env.reason === SaveReason.EXPLICIT);
+		const filteredSaveList = Array.isArray(setting) ? codeActionsOnSave : codeActionsOnSave.filter(x => setting[x.value] === 'always' || ((setting[x.value] === 'explicit' || setting[x.value] === true) && env.reason === SaveReason.EXPLICIT));
 
 		await this.applyOnSaveActions(textEditorModel, filteredSaveList, excludedActions, progress, token);
 	}

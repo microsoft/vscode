@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
@@ -14,7 +14,7 @@ import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/edito
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, getActiveDocument, getActiveWindow, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -179,18 +179,22 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	@memoize
 	get onDidChangeFocus(): Event<boolean> {
-		const focusTracker = this._register(trackFocus(window));
-		const onVisibilityChange = this._register(new DomEmitter(window.document, 'visibilitychange'));
+		const emitter = this._register(new Emitter<boolean>());
 
-		return Event.latch(Event.any(
-			Event.map(focusTracker.onDidFocus, () => this.hasFocus),
-			Event.map(focusTracker.onDidBlur, () => this.hasFocus),
-			Event.map(onVisibilityChange.event, () => this.hasFocus)
-		));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const focusTracker = disposables.add(trackFocus(window));
+			const onVisibilityChange = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
+
+			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
+			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
+			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
+		}, { window, disposables: this._store }));
+
+		return emitter.event;
 	}
 
 	get hasFocus(): boolean {
-		return document.hasFocus();
+		return getActiveDocument().hasFocus();
 	}
 
 	async hadLastFocus(): Promise<boolean> {
@@ -198,7 +202,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 	}
 
 	async focus(): Promise<void> {
-		window.focus();
+		getActiveWindow().focus();
 	}
 
 	//#endregion
@@ -499,6 +503,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
 			}
 		}
+	}
+
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		// There seems to be no API to bring a window to front in browsers
 	}
 
 	//#endregion

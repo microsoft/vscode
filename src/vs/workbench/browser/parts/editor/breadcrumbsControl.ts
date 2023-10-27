@@ -186,6 +186,9 @@ export class BreadcrumbsControl {
 	private _breadcrumbsPickerShowing = false;
 	private _breadcrumbsPickerIgnoreOnceItem: BreadcrumbsItem | undefined;
 
+	private readonly _onDidVisibilityChange = this._disposables.add(new Emitter<void>());
+	get onDidVisibilityChange() { return this._onDidVisibilityChange.event; }
+
 	constructor(
 		container: HTMLElement,
 		private readonly _options: IBreadcrumbsControlOptions,
@@ -251,9 +254,26 @@ export class BreadcrumbsControl {
 	}
 
 	hide(): void {
+		const wasHidden = this.isHidden();
+
 		this._breadcrumbsDisposables.clear();
 		this._ckBreadcrumbsVisible.set(false);
 		this.domNode.classList.toggle('hidden', true);
+
+		if (!wasHidden) {
+			this._onDidVisibilityChange.fire();
+		}
+	}
+
+	private show(): void {
+		const wasHidden = this.isHidden();
+
+		this._ckBreadcrumbsVisible.set(true);
+		this.domNode.classList.toggle('hidden', false);
+
+		if (wasHidden) {
+			this._onDidVisibilityChange.fire();
+		}
 	}
 
 	revealLast(): void {
@@ -282,8 +302,7 @@ export class BreadcrumbsControl {
 		// display uri which can be derived from certain inputs
 		const fileInfoUri = EditorResourceAccessor.getOriginalUri(this._editorGroup.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
-		this.domNode.classList.toggle('hidden', false);
-		this._ckBreadcrumbsVisible.set(true);
+		this.show();
 		this._ckBreadcrumbsPossible.set(true);
 
 		const model = this._instantiationService.createInstance(BreadcrumbsModel,
@@ -423,6 +442,7 @@ export class BreadcrumbsControl {
 			},
 			getAnchor: () => {
 				if (!pickerAnchor) {
+					const window = dom.getWindow(this.domNode);
 					const maxInnerWidth = window.innerWidth - 8 /*a little less the full widget*/;
 					let maxHeight = Math.min(window.innerHeight * 0.7, 300);
 
@@ -505,6 +525,7 @@ export class BreadcrumbsControl {
 export class BreadcrumbsControlFactory {
 
 	private readonly _disposables = new DisposableStore();
+	private readonly _controlDisposables = new DisposableStore();
 
 	private _control: BreadcrumbsControl | undefined;
 	get control() { return this._control; }
@@ -512,30 +533,33 @@ export class BreadcrumbsControlFactory {
 	private readonly _onDidEnablementChange = this._disposables.add(new Emitter<void>());
 	get onDidEnablementChange() { return this._onDidEnablementChange.event; }
 
+	private readonly _onDidVisibilityChange = this._disposables.add(new Emitter<void>());
+	get onDidVisibilityChange() { return this._onDidVisibilityChange.event; }
+
 	constructor(
-		container: HTMLElement,
-		editorGroup: IEditorGroupView,
-		options: IBreadcrumbsControlOptions,
+		private readonly _container: HTMLElement,
+		private readonly _editorGroup: IEditorGroupView,
+		private readonly _options: IBreadcrumbsControlOptions,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IInstantiationService instantiationService: IInstantiationService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService fileService: IFileService
 	) {
 		const config = this._disposables.add(BreadcrumbsConfig.IsEnabled.bindTo(configurationService));
 		this._disposables.add(config.onDidChange(() => {
 			const value = config.getValue();
 			if (!value && this._control) {
-				this._control.dispose();
+				this._controlDisposables.clear();
 				this._control = undefined;
 				this._onDidEnablementChange.fire();
 			} else if (value && !this._control) {
-				this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
+				this._control = this.createControl();
 				this._control.update();
 				this._onDidEnablementChange.fire();
 			}
 		}));
 
 		if (config.getValue()) {
-			this._control = instantiationService.createInstance(BreadcrumbsControl, container, options, editorGroup);
+			this._control = this.createControl();
 		}
 
 		this._disposables.add(fileService.onDidChangeFileSystemProviderRegistrations(e => {
@@ -549,9 +573,16 @@ export class BreadcrumbsControlFactory {
 		}));
 	}
 
+	private createControl(): BreadcrumbsControl {
+		const control = this._controlDisposables.add(this._instantiationService.createInstance(BreadcrumbsControl, this._container, this._options, this._editorGroup));
+		this._controlDisposables.add(control.onDidVisibilityChange(() => this._onDidVisibilityChange.fire()));
+
+		return control;
+	}
+
 	dispose(): void {
 		this._disposables.dispose();
-		this._control?.dispose();
+		this._controlDisposables.dispose();
 	}
 }
 

@@ -7,10 +7,12 @@ import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { assertSnapshot } from 'vs/base/test/common/snapshot';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from 'vs/editor/common/core/range';
 import { ProviderResult } from 'vs/editor/common/languages';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -22,10 +24,12 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IViewsService } from 'vs/workbench/common/views';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
+import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChat, IChatProgress, IChatProvider, IChatRequest, IChatResponse, IPersistedChatState, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
-import { ChatVariablesService, IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { MockChatVariablesService } from 'vs/workbench/contrib/chat/test/common/mockChatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -57,8 +61,28 @@ class SimpleTestProvider extends Disposable implements IChatProvider {
 		this._onDidChangeState.fire(state);
 	}
 
-	async provideReply(request: IChatRequest) {
+	async provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
 		return { session: request.session, followups: [] };
+	}
+}
+
+/** Chat provider for testing that returns used context */
+class ChatProviderWithUsedContext extends SimpleTestProvider implements IChatProvider {
+	override provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
+
+		progress({
+			documents: [
+				{
+					uri: URI.file('/test/path/to/file'),
+					version: 3,
+					ranges: [
+						new Range(1, 1, 2, 2)
+					]
+				}
+			]
+		});
+
+		return super.provideReply(request, progress);
 	}
 }
 
@@ -70,8 +94,7 @@ suite('Chat', () => {
 
 	setup(async () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
-			// [IChatSlashCommandService, new SyncDescriptor<any>(ChatSlashCommandService)],
-			[IChatVariablesService, new SyncDescriptor<any>(ChatVariablesService)]
+			[IChatVariablesService, new MockChatVariablesService()],
 		)));
 		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
@@ -207,7 +230,8 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		const response = await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		await response?.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
@@ -222,5 +246,67 @@ suite('Chat', () => {
 		assert.strictEqual(model.getRequests().length, 1);
 		assert.ok(model.getRequests()[0].response);
 		assert.strictEqual(model.getRequests()[0].response?.response.asString(), 'test response');
+	});
+
+	test('can serialize', async () => {
+
+		const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+		const providerId = 'ChatProviderWithUsedContext';
+
+		testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+
+		const model = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
+		assert.strictEqual(model.getRequests().length, 0);
+
+		await assertSnapshot(model.toExport());
+
+		const response = await testService.sendRequest(model.sessionId, 'test request');
+		assert(response);
+
+		await response.responseCompletePromise;
+
+		assert.strictEqual(model.getRequests().length, 1);
+
+		await assertSnapshot(model.toExport());
+	});
+
+	test('can deserialize', async () => {
+
+		let serializedChatData: ISerializableChatData;
+
+		const providerId = 'ChatProviderWithUsedContext';
+
+		// create the first service, send request, get response, and serialize the state
+		{  // serapate block to not leak variables in outer scope
+			const testService = testDisposables.add(instantiationService.createInstance(ChatService));
+
+			testDisposables.add(testService.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+
+			const chatModel1 = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
+			assert.strictEqual(chatModel1.getRequests().length, 0);
+
+			const response = await testService.sendRequest(chatModel1.sessionId, 'test request');
+			assert(response);
+
+			await response.responseCompletePromise;
+
+			serializedChatData = chatModel1.toJSON();
+		}
+
+		// try deserializing the state into a new service
+
+		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
+
+		testDisposables.add(testService2.registerProvider(testDisposables.add(new ChatProviderWithUsedContext(providerId))));
+
+		const chatModel2 = testService2.loadSessionFromContent(serializedChatData);
+		assert(chatModel2);
+
+		// should `loadSessionFromContent` return `ChatModel` that's disposable instead of `IChatModel`?
+		testDisposables.add({
+			dispose: () => testService2.clearSession(serializedChatData.sessionId)
+		});
+
+		await assertSnapshot(chatModel2.toExport());
 	});
 });

@@ -12,7 +12,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose } from 'vs/base/common/lifecycle';
 import Severity from 'vs/base/common/severity';
 import { isString } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
@@ -52,26 +52,43 @@ export class QuickInputController extends Disposable {
 	private previousFocusElement?: HTMLElement;
 
 	constructor(private options: IQuickInputOptions,
-		private readonly themeService: IThemeService) {
+		private readonly themeService: IThemeService,
+		private readonly layoutService: ILayoutService) {
 		super();
 		this.idPrefix = options.idPrefix;
 		this.parentElement = options.container;
 		this.styles = options.styles;
-		this.registerKeyModsListeners();
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => this.registerKeyModsListeners(window, disposables), { window, disposables: this._store }));
+		this._register(dom.onWillUnregisterWindow(window => {
+			if (this.ui && dom.getWindow(this.ui.container) === window) {
+				// The window this quick input is contained in is about to
+				// close, so we have to make sure to reparent it back to an
+				// existing parent to not loose functionality.
+				// (https://github.com/microsoft/vscode/issues/195870)
+				this.reparentUI(this.layoutService.container);
+			}
+		}));
 	}
 
-	private registerKeyModsListeners() {
+	private registerKeyModsListeners(window: Window, disposables: DisposableStore): void {
 		const listener = (e: KeyboardEvent | MouseEvent) => {
 			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
 			this.keyMods.alt = e.altKey;
 		};
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_DOWN, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.KEY_UP, listener, true));
-		this._register(dom.addDisposableListener(window, dom.EventType.MOUSE_DOWN, listener, true));
+
+		for (const event of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP, dom.EventType.MOUSE_DOWN]) {
+			disposables.add(dom.addDisposableListener(window, event, listener, true));
+		}
 	}
 
 	private getUI() {
 		if (this.ui) {
+			// In order to support aux windows, re-parent the controller
+			// if the original event is from a different document
+			if (this.parentElement.ownerDocument !== this.layoutService.activeContainer.ownerDocument) {
+				this.reparentUI(this.layoutService.activeContainer);
+			}
+
 			return this.ui;
 		}
 
@@ -295,6 +312,13 @@ export class QuickInputController extends Disposable {
 		};
 		this.updateStyles();
 		return this.ui;
+	}
+
+	private reparentUI(container: HTMLElement): void {
+		if (this.ui) {
+			this.parentElement = container;
+			dom.append(this.parentElement, this.ui.container);
+		}
 	}
 
 	pick<T extends IQuickPickItem, O extends IPickOptions<T>>(picks: Promise<QuickPickInput<T>[]> | QuickPickInput<T>[], options: O = <O>{}, token: CancellationToken = CancellationToken.None): Promise<(O extends { canPickMany: true } ? T[] : T) | undefined> {
@@ -577,7 +601,8 @@ export class QuickInputController extends Disposable {
 			return;
 		}
 
-		const focusChanged = !dom.isAncestor(document.activeElement, this.ui?.container ?? null);
+		const container = this.ui?.container;
+		const focusChanged = container && !dom.isAncestorOfActiveElement(container);
 		this.controller = null;
 		this.onHideEmitter.fire();
 		this.getUI().container.style.display = 'none';

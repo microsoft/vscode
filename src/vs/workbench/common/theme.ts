@@ -256,7 +256,7 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hcDark: editorBackground,
 	hcLight: editorBackground
-}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -911,7 +911,7 @@ export const COMMAND_CENTER_ACTIVEBACKGROUND = registerColor(
 );
 // border: active and inactive. defaults to active background
 export const COMMAND_CENTER_BORDER = registerColor(
-	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60), light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .60) },
+	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: contrastBorder, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: contrastBorder },
 	localize('commandCenter-border', "Border color of the command center"),
 	false
 );

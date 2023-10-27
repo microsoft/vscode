@@ -6,13 +6,14 @@
 declare module 'vscode' {
 
 	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
+		Down = 0,
+		Up = 1
 	}
 
 	export interface InteractiveSessionVoteAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'vote';
+		// sessionId: string;
 		responseId: string;
 		direction: InteractiveSessionVoteDirection;
 	}
@@ -26,6 +27,7 @@ declare module 'vscode' {
 	export interface InteractiveSessionCopyAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'copy';
+		// sessionId: string;
 		responseId: string;
 		codeBlockIndex: number;
 		copyType: InteractiveSessionCopyKind;
@@ -37,6 +39,7 @@ declare module 'vscode' {
 	export interface InteractiveSessionInsertAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'insert';
+		// sessionId: string;
 		responseId: string;
 		codeBlockIndex: number;
 		totalCharacters: number;
@@ -46,6 +49,7 @@ declare module 'vscode' {
 	export interface InteractiveSessionTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
+		// sessionId: string;
 		responseId: string;
 		codeBlockIndex: number;
 		languageId?: string;
@@ -55,6 +59,12 @@ declare module 'vscode' {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'command';
 		command: InteractiveResponseCommand;
+	}
+
+	export interface InteractiveSessionFollowupAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'followUp';
+		followup: InteractiveSessionReplyFollowup;
 	}
 
 	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -14,6 +14,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { getActiveDocument, getWindowsCount, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { DomEmitter } from 'vs/base/browser/event';
+import { memoize } from 'vs/base/common/decorators';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -39,14 +43,29 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Focus
 
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
-		Event.map(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus),
-		Event.map(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus)
-	), undefined, this._store);
+	@memoize
+	get onDidChangeFocus(): Event<boolean> {
+		const emitter = this._register(new Emitter<boolean>());
+
+		// Main window: track via native API
+		this._register(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId, this._store)(() => emitter.fire(this.hasFocus)));
+		this._register(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId, this._store)(() => emitter.fire(this.hasFocus)));
+
+		// Aux windows: track via DOM APIs
+		this._register(onDidRegisterWindow(({ window, disposables }) => {
+			const focusTracker = disposables.add(trackFocus(window));
+			const onVisibilityChange = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
+
+			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
+			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
+			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
+		}));
+
+		return emitter.event;
+	}
 
 	get hasFocus(): boolean {
-		return document.hasFocus();
+		return getActiveDocument().hasFocus();
 	}
 
 	async hadLastFocus(): Promise<boolean> {
@@ -112,6 +131,14 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	toggleFullScreen(): Promise<void> {
 		return this.nativeHostService.toggleFullScreen();
+	}
+
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		if (getWindowsCount() <= 1) {
+			return; // does not apply when only one window is opened
+		}
+
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: await window.vscodeWindowId } : undefined);
 	}
 
 	//#endregion

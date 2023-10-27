@@ -7,15 +7,16 @@ import * as dom from 'vs/base/browser/dom';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IQuickInputService, IQuickWidget } from 'vs/platform/quickinput/common/quickInput';
 import { editorBackground, inputBackground, quickInputBackground, quickInputForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IChatWidgetService, IQuickChatService } from 'vs/workbench/contrib/chat/browser/chat';
+import { IChatWidgetService, IQuickChatService, IQuickChatOpenOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatViewOptions } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { ChatWidget } from 'vs/workbench/contrib/chat/browser/chatWidget';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
@@ -50,19 +51,28 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 		if (!widget) {
 			return false;
 		}
-		return dom.isAncestor(document.activeElement, widget);
+		return dom.isAncestorOfActiveElement(widget);
 	}
 
-	toggle(providerId?: string, query?: string | undefined): void {
-		// If the input is already shown, hide it. This provides a toggle behavior of the quick pick
-		if (this.focused) {
+	toggle(providerId?: string, options?: IQuickChatOpenOptions): void {
+		// If the input is already shown, hide it. This provides a toggle behavior of the quick
+		// pick. This should not happen when there is a query.
+		if (this.focused && !options?.query) {
 			this.close();
 		} else {
-			this.open(providerId, query);
+			this.open(providerId, options);
+			// If this is a partial query, the value should be cleared when closed as otherwise it
+			// would remain for the next time the quick chat is opened in any context.
+			if (options?.isPartialQuery) {
+				const disposable = this._store.add(Event.once(this.onDidClose)(() => {
+					this._currentChat?.clearValue();
+					this._store.delete(disposable);
+				}));
+			}
 		}
 	}
 
-	open(providerId?: string, query?: string | undefined): void {
+	open(providerId?: string, options?: IQuickChatOpenOptions): void {
 		if (this._input) {
 			return this.focus();
 		}
@@ -107,9 +117,11 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 
 		this._currentChat.focus();
 
-		if (query) {
-			this._currentChat.setValue(query);
-			this._currentChat.acceptInput();
+		if (options?.query) {
+			this._currentChat.setValue(options.query, options.selection);
+			if (!options.isPartialQuery) {
+				this._currentChat.acceptInput();
+			}
 		}
 	}
 	focus(): void {
@@ -155,12 +167,12 @@ class QuickChat extends Disposable {
 		this.widget.inputEditor.setValue('');
 	}
 
-	focus(): void {
+	focus(selection?: Selection): void {
 		if (this.widget) {
 			this.widget.focusInput();
 			const value = this.widget.inputEditor.getValue();
 			if (value) {
-				this.widget.inputEditor.setSelection({
+				this.widget.inputEditor.setSelection(selection ?? {
 					startLineNumber: 1,
 					startColumn: 1,
 					endLineNumber: 1,
@@ -207,7 +219,8 @@ class QuickChat extends Disposable {
 		this.widget = this._register(
 			scopedInstantiationService.createInstance(
 				ChatWidget,
-				{ resource: true, renderInputOnTop: true, renderStyle: 'compact' },
+				{ resource: true },
+				{ renderInputOnTop: true, renderStyle: 'compact' },
 				{
 					listForeground: quickInputForeground,
 					listBackground: quickInputBackground,
@@ -290,9 +303,13 @@ class QuickChat extends Disposable {
 		widget.focusInput();
 	}
 
-	setValue(value: string): void {
+	setValue(value: string, selection?: Selection): void {
 		this.widget.inputEditor.setValue(value);
-		this.focus();
+		this.focus(selection);
+	}
+
+	clearValue(): void {
+		this.widget.inputEditor.setValue('');
 	}
 
 	private updateModel(): void {

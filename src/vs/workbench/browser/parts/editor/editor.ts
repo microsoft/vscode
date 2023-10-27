@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitConfiguration, IEditorPartDecorationsConfiguration } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -13,19 +13,20 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { isObject } from 'vs/base/common/types';
+import { OptionalBooleanKey, OptionalNumberKey, OptionalStringKey, isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
+import { ensureOptionalBooleanValue, ensureOptionalNumberValue, ensureOptionalStringValue } from 'vs/base/common/objects';
 
 export interface IEditorPartCreationOptions {
-	restorePreviousState: boolean;
+	readonly restorePreviousState: boolean;
 }
 
 export const DEFAULT_EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
-	showTabs: true,
+	showTabs: 'multiple',
 	highlightModifiedTabs: false,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
@@ -47,7 +48,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	splitSizing: 'auto',
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
-	doubleClickTabToToggleEditorGroupSizes: true,
+	doubleClickTabToToggleEditorGroupSizes: 'expand',
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -85,9 +86,130 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
+	validateEditorPartOptions(options);
+
 	return options;
 }
 
+function validateEditorPartOptions(options: IEditorPartOptions): void {
+
+	// Migrate: Show tabs (config migration kicks in very late and can cause flicker otherwise)
+	if (typeof options.showTabs === 'boolean') {
+		options.showTabs = options.showTabs ? 'multiple' : 'single';
+	}
+
+	// Boolean options
+	const booleanOptions: Array<OptionalBooleanKey<IEditorPartOptions>> = [
+		'wrapTabs',
+		'scrollToSwitchTabs',
+		'highlightModifiedTabs',
+		'pinnedTabsOnSeparateRow',
+		'focusRecentEditorAfterClose',
+		'showIcons',
+		'enablePreview',
+		'enablePreviewFromQuickOpen',
+		'enablePreviewFromCodeNavigation',
+		'closeOnFileDelete',
+		'closeEmptyGroups',
+		'revealIfOpen',
+		'mouseBackForwardToNavigate',
+		'restoreViewState',
+		'splitOnDragAndDrop',
+		'centeredLayoutFixedWidth',
+	];
+	for (const option of booleanOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalBooleanValue(options, option, Boolean(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// Number options
+	const numberOptions: Array<OptionalNumberKey<IEditorPartOptions>> = [
+		'tabSizingFixedMinWidth',
+		'tabSizingFixedMaxWidth'
+	];
+	for (const option of numberOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalNumberValue(options, option, Number(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// String options
+	const stringOptions: Array<[OptionalStringKey<IEditorPartOptions>, Array<string>]> = [
+		['showTabs', ['multiple', 'single', 'none']],
+		['tabCloseButton', ['left', 'right', 'off']],
+		['tabSizing', ['fit', 'shrink', 'fixed']],
+		['pinnedTabSizing', ['normal', 'compact', 'shrink']],
+		['tabHeight', ['default', 'compact']],
+		['preventPinnedEditorClose', ['keyboardAndMouse', 'keyboard', 'mouse', 'never']],
+		['titleScrollbarSizing', ['default', 'large']],
+		['openPositioning', ['left', 'right', 'first', 'last']],
+		['openSideBySideDirection', ['right', 'down']],
+		['labelFormat', ['default', 'short', 'medium', 'long']],
+		['splitInGroupLayout', ['vertical', 'horizontal']],
+		['splitSizing', ['distribute', 'split', 'auto']],
+		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']]
+	];
+	for (const [option, allowed] of stringOptions) {
+		if (typeof option === 'string') {
+			ensureOptionalStringValue(options, option, allowed, String(DEFAULT_EDITOR_PART_OPTIONS[option]));
+		}
+	}
+
+	// Complex options
+	if (options.autoLockGroups && !(options.autoLockGroups instanceof Set)) {
+		options.autoLockGroups = undefined;
+	}
+	if (options.limit && !isObject(options.limit)) {
+		options.limit = undefined;
+	} else if (options.limit) {
+		const booleanLimitOptions: Array<OptionalBooleanKey<IEditorPartLimitConfiguration>> = [
+			'enabled',
+			'excludeDirty',
+			'perEditorGroup'
+		];
+		for (const option of booleanLimitOptions) {
+			if (typeof option === 'string') {
+				ensureOptionalBooleanValue(options.limit, option, undefined);
+			}
+		}
+		ensureOptionalNumberValue(options.limit, 'value', undefined);
+	}
+	if (options.decorations && !isObject(options.decorations)) {
+		options.decorations = undefined;
+	} else if (options.decorations) {
+		const booleanDecorationOptions: Array<OptionalBooleanKey<IEditorPartDecorationsConfiguration>> = [
+			'badges',
+			'colors'
+		];
+		for (const option of booleanDecorationOptions) {
+			if (typeof option === 'string') {
+				ensureOptionalBooleanValue(options.decorations, option, undefined);
+			}
+		}
+	}
+}
+
+/**
+ * A helper to access editor groups across all opened editor parts.
+ */
+export interface IEditorPartsView {
+
+	/**
+	 * An array of all editor groups across all editor parts.
+	 */
+	readonly groups: IEditorGroupView[];
+
+	/**
+	 * Get the group based on an identifier across all opened
+	 * editor parts.
+	 */
+	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
+}
+
+/**
+ * A helper to access and mutate editor groups within an editor part.
+ */
 export interface IEditorGroupsView {
 
 	readonly groups: IEditorGroupView[];
@@ -104,7 +226,7 @@ export interface IEditorGroupsView {
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
@@ -113,6 +235,8 @@ export interface IEditorGroupsView {
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
 
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
+	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void;
+	toggleExpandGroup(group?: IEditorGroupView | GroupIdentifier): void;
 }
 
 export interface IEditorGroupTitleHeight {
@@ -120,7 +244,7 @@ export interface IEditorGroupTitleHeight {
 	/**
 	 * The overall height of the editor group title control.
 	 */
-	total: number;
+	readonly total: number;
 
 	/**
 	 * The height offset to e.g. use when drawing drop overlays.
@@ -128,15 +252,20 @@ export interface IEditorGroupTitleHeight {
 	 * decides to have an `offset` that is within the title control
 	 * (e.g. when breadcrumbs are enabled).
 	 */
-	offset: number;
+	readonly offset: number;
 }
 
+/**
+ * A helper to access and mutate an editor group within an editor part.
+ */
 export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 
 	readonly onDidFocus: Event<void>;
 
 	readonly onDidOpenEditorFail: Event<EditorInput>;
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	readonly groupsView: IEditorGroupsView;
 
 	/**
 	 * A promise that resolves when the group has been restored.
@@ -153,6 +282,7 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 	setActive(isActive: boolean): void;
 
 	notifyIndexChanged(newIndex: number): void;
+	notifyLabelChanged(newLabel: string): void;
 
 	openEditor(editor: EditorInput, options?: IEditorOptions, internalOptions?: IInternalEditorOpenOptions): Promise<IEditorPane | undefined>;
 
@@ -195,7 +325,7 @@ export interface IInternalEditorTitleControlOptions {
 	 * A hint to defer updating the title control for perf reasons.
 	 * The caller must ensure to update the title control then.
 	 */
-	skipTitleUpdate?: boolean;
+	readonly skipTitleUpdate?: boolean;
 }
 
 export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlOptions {
@@ -207,12 +337,18 @@ export interface IInternalEditorOpenOptions extends IInternalEditorTitleControlO
 	 * not be considered as matching, even if the editor is
 	 * opened in one of the sides.
 	 */
-	supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
+	readonly supportSideBySide?: SideBySideEditor.ANY | SideBySideEditor.BOTH;
 
 	/**
 	 * When set to `true`, pass DOM focus into the tab control.
 	 */
-	focusTabControl?: boolean;
+	readonly focusTabControl?: boolean;
+
+	/**
+	 * When set to `true`, will not attempt to move the window to
+	 * the top that the editor opens in.
+	 */
+	readonly preserveWindowOrder?: boolean;
 }
 
 export interface IInternalEditorCloseOptions extends IInternalEditorTitleControlOptions {
@@ -221,12 +357,12 @@ export interface IInternalEditorCloseOptions extends IInternalEditorTitleControl
 	 * A hint that the editor is closed due to an error opening. This can be
 	 * used to optimize how error toasts are appearing if any.
 	 */
-	fromError?: boolean;
+	readonly fromError?: boolean;
 
 	/**
 	 * Additional context as to why an editor is closed.
 	 */
-	context?: EditorCloseContext;
+	readonly context?: EditorCloseContext;
 }
 
 export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
@@ -234,5 +370,5 @@ export interface IInternalMoveCopyOptions extends IInternalEditorOpenOptions {
 	/**
 	 * Whether to close the editor at the source or keep it.
 	 */
-	keepCopy?: boolean;
+	readonly keepCopy?: boolean;
 }

@@ -106,7 +106,7 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
 		if (hasExistingComments) {
 			this.createReplyButton(this.commentEditor, this.form);
-		} else if (this._commentThread.comments && this._commentThread.comments.length === 0) {
+		} else if ((this._commentThread.comments && this._commentThread.comments.length === 0) || this._pendingComment) {
 			this.expandReplyArea();
 		}
 		this._error = dom.append(this.form, dom.$('.validation-error.hidden'));
@@ -150,6 +150,12 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}
 
 		return undefined;
+	}
+
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expandReplyArea();
+		this.commentEditor.setValue(comment);
 	}
 
 	public layout(widthInPixel: number) {
@@ -278,9 +284,9 @@ export class CommentReply<T extends IRange | ICellRange> extends Disposable {
 		}));
 
 		this._commentFormActions = new CommentFormActions(container, async (action: IAction) => {
-			this._actionRunDelegate?.();
+			await this._actionRunDelegate?.();
 
-			action.run({
+			await action.run({
 				thread: this._commentThread,
 				text: this.commentEditor.getValue(),
 				$mid: MarshalledId.CommentThreadReply

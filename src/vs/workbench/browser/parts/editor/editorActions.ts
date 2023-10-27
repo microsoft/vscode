@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -33,7 +33,9 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorGroupEmptyContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, MaximizedEditorGroupContext, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { URI } from 'vs/base/common/uri';
+import { getActiveDocument } from 'vs/base/browser/dom';
 
 class ExecuteCommandAction extends Action2 {
 
@@ -1013,7 +1015,7 @@ export class MinimizeOtherGroupsAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.minimizeOtherEditors',
-			title: { value: localize('minimizeOtherEditorGroups', "Maximize Editor Group"), original: 'Maximize Editor Group' },
+			title: { value: localize('minimizeOtherEditorGroups', "Expand Editor Group"), original: 'Expand Editor Group' },
 			f1: true,
 			category: Categories.View
 		});
@@ -1022,7 +1024,7 @@ export class MinimizeOtherGroupsAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
+		editorGroupService.arrangeGroups(GroupsArrangement.EXPAND);
 	}
 }
 
@@ -1058,18 +1060,20 @@ export class ToggleGroupSizesAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
-		editorGroupService.arrangeGroups(GroupsArrangement.TOGGLE);
+		editorGroupService.toggleExpandGroup();
 	}
 }
 
-export class MaximizeGroupAction extends Action2 {
+
+export class MaximizeGroupHideSidebarAction extends Action2 {
 
 	constructor() {
 		super({
-			id: 'workbench.action.maximizeEditor',
-			title: { value: localize('maximizeEditor', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
+			id: 'workbench.action.maximizeEditorHideSidebar',
+			title: { value: localize('maximizeEditorHideSidebar', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(MaximizedEditorGroupContext.negate(), MultipleEditorGroupsContext)
 		});
 	}
 
@@ -1083,6 +1087,43 @@ export class MaximizeGroupAction extends Action2 {
 			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 			editorGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE);
 		}
+	}
+}
+
+export class ToggleMaximizeEditorGroupAction extends Action2 {
+
+	constructor() {
+		super({
+			id: TOGGLE_MAXIMIZE_EDITOR_GROUP,
+			title: { value: localize('toggleMaximizeEditorGroup', "Toggle Maximize Editor Group"), original: 'Toggle Maximize Editor Group' },
+			f1: true,
+			category: Categories.View,
+			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, MaximizedEditorGroupContext),
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
+			},
+			menu: [{
+				id: MenuId.EditorTitle,
+				order: -10000, // towards the front
+				group: 'navigation',
+				when: MaximizedEditorGroupContext
+			},
+			{
+				id: MenuId.EmptyEditorGroup,
+				order: -10000, // towards the front
+				group: 'navigation',
+				when: MaximizedEditorGroupContext
+			}],
+			icon: Codicon.screenFull,
+			toggled: MaximizedEditorGroupContext,
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
+		editorGroupsService.toggleMaximizeGroup(group);
 	}
 }
 
@@ -2276,7 +2317,8 @@ abstract class AbstractCreateEditorGroupAction extends Action2 {
 		// of an editor having keyboard focus in an inactive editor group
 		// (see https://github.com/microsoft/vscode/issues/189256)
 
-		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || document.activeElement === document.body;
+		const activeDocument = getActiveDocument();
+		const focusNewGroup = layoutService.hasFocus(Parts.EDITOR_PART) || activeDocument.activeElement === activeDocument.body;
 
 		const group = editorGroupService.addGroup(editorGroupService.activeGroup, this.direction);
 		editorGroupService.activateGroup(group);
@@ -2418,5 +2460,36 @@ export class ReOpenInTextEditorAction extends Action2 {
 				}
 			}
 		], activeEditorPane.group);
+	}
+}
+
+export class ExperimentalMoveEditorIntoNewWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.experimentalMoveEditorIntoNewWindowAction',
+			title: {
+				value: localize('popEditorOut', "Move Active Editor into a New Window (Experimental)"),
+				mnemonicTitle: localize({ key: 'miPopEditorOut', comment: ['&& denotes a mnemonic'] }, "&&Move Active Editor into a New Window (Experimental)"),
+				original: 'Move Active Editor into a New Window (Experimental)'
+			},
+			category: Categories.View,
+			precondition: ActiveEditorContext,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const activeEditorPane = editorService.activeEditorPane;
+		if (!activeEditorPane) {
+			return;
+		}
+
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+		activeEditorPane.group.moveEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
 	}
 }

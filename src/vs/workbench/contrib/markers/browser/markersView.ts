@@ -222,7 +222,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public getTitle(): string {
-		return Messages.MARKERS_PANEL_TITLE_PROBLEMS;
+		return Messages.MARKERS_PANEL_TITLE_PROBLEMS.value;
 	}
 
 	protected layoutBodyContent(height: number = this.currentHeight, width: number = this.currentWidth): void {
@@ -236,7 +236,8 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 	}
 
 	public override focus(): void {
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		super.focus();
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			return;
 		}
 
@@ -772,7 +773,7 @@ export class MarkersView extends FilterViewPane implements IMarkersView {
 
 	private updateRangeHighlights() {
 		this.rangeHighlightDecorations.removeHighlightRange();
-		if (this.widget.getHTMLElement() === document.activeElement) {
+		if (dom.isActiveElement(this.widget.getHTMLElement())) {
 			this.highlightCurrentSelectedMarkerRange();
 		}
 	}

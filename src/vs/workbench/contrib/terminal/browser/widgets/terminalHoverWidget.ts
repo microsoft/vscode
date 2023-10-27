@@ -103,13 +103,13 @@ class CellHoverTarget extends Widget implements IHoverTarget {
 
 		if (this._options.modifierDownCallback && this._options.modifierUpCallback) {
 			let down = false;
-			this._register(dom.addDisposableListener(document, 'keydown', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keydown', e => {
 				if (e.ctrlKey && !down) {
 					down = true;
 					this._options.modifierDownCallback!();
 				}
 			}));
-			this._register(dom.addDisposableListener(document, 'keyup', e => {
+			this._register(dom.addDisposableListener(container.ownerDocument, 'keyup', e => {
 				if (!e.ctrlKey) {
 					down = false;
 					this._options.modifierUpCallback!();

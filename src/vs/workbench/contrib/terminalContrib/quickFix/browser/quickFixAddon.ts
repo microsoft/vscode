@@ -186,6 +186,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (command.command !== '' && this._lastQuickFixId) {
 			this._disposeQuickFix(this._lastQuickFixId, false);
 		}
+
+
+		// Wait for the next command to start to ensure the quick fix marker is created on the next
+		// prompt line
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			await Event.toPromise(commandDetection.onCommandStarted);
+		}
+
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
 			if (lines === undefined) {
 				return undefined;
@@ -283,7 +292,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
-			const parentElement = e.closest('.xterm') as HTMLElement;
+			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
 				return;
 			}

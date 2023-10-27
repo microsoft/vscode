@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/dustypomerleau/rust-syntax/commit/20462d50ff97338f42c6b64c3f421c634fd60734",
+	"version": "https://github.com/dustypomerleau/rust-syntax/commit/328a68299533bc2b8c71028be741cce78a9e0d53",
 	"name": "Rust",
 	"scopeName": "source.rust",
 	"patterns": [
@@ -362,7 +362,7 @@
 				{
 					"comment": "decimal integers and floats",
 					"name": "constant.numeric.decimal.rust",
-					"match": "\\b\\d[\\d_]*(\\.?)[\\d_]*(?:(E)([+-])([\\d_]+))?(f32|f64|i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
+					"match": "\\b\\d[\\d_]*(\\.?)[\\d_]*(?:(E|e)([+-]?)([\\d_]+))?(f32|f64|i128|i16|i32|i64|i8|isize|u128|u16|u32|u64|u8|usize)?\\b",
 					"captures": {
 						"1": {
 							"name": "punctuation.separator.dot.decimal.rust"
@@ -888,7 +888,7 @@
 			"patterns": [
 				{
 					"comment": "namespace (non-type, non-function path segment)",
-					"match": "(?<![A-Za-z0-9_])([a-z0-9_]+)((?<!super|self)::)",
+					"match": "(?<![A-Za-z0-9_])([A-Za-z0-9_]+)((?<!super|self)::)",
 					"captures": {
 						"1": {
 							"name": "entity.name.namespace.rust"
