@@ -204,7 +204,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
+		const input = NotebookEditorInput.create(instantiationService, resource, undefined, viewType, options);
 		return input;
 	}
 }
@@ -639,7 +639,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
+		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
 	}
 
 	private async _installHandler(): Promise<void> {
