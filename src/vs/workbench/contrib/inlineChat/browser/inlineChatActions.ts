@@ -32,6 +32,7 @@ import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/brow
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
+export const LOCALIZED_START_INLINE_CHAT_WITH_KEYBINDING_STRING = (keybinding: string) => localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding);
 
 export class StartSessionAction extends EditorAction2 {
 
