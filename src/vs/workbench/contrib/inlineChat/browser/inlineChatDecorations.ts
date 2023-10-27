@@ -59,7 +59,10 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
-		this._register(this._keybindingService.onDidUpdateKeybindings(() => this._updateDecorationHover()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
+			this._updateDecorationHover();
+			this._onEnablementOrModelChanged();
+		}));
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
 	}
@@ -71,7 +74,6 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}
 		this._inlineChatKeybinding = keybinding;
 		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
-		this._onEnablementOrModelChanged();
 	}
 
 	private _onEnablementOrModelChanged(): void {
