@@ -34,17 +34,17 @@ jobs:
           path: "**/node_modules"
           key: ${{ runner.os }}-cacheNodeModules20-${{ steps.nodeModulesCacheKey.outputs.value }}
           restore-keys: ${{ runner.os }}-cacheNodeModules20-
-      - name: Get yarn cache directory path
-        id: yarnCacheDirPath
+      - name: Get npm cache directory path
+        id: npmCacheDirPath
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
-        run: echo "dir=$(yarn cache dir)" >> $GITHUB_OUTPUT
-      - name: Cache yarn directory
+        run: echo "dir=$(npm config get cache)" >> $GITHUB_OUTPUT
+      - name: Cache npm directory
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         uses: actions/cache@v3
         with:
-          path: ${{ steps.yarnCacheDirPath.outputs.dir }}
-          key: ${{ runner.os }}-yarnCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
-          restore-keys: ${{ runner.os }}-yarnCacheDir-
+          path: ${{ steps.npmCacheDirPath.outputs.dir }}
+          key: ${{ runner.os }}-npmCacheDir-${{ steps.nodeModulesCacheKey.outputs.value }}
+          restore-keys: ${{ runner.os }}-npmCacheDir-
       - name: Install libkrb5-dev
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: sudo apt install -y libkrb5-dev
@@ -58,17 +58,17 @@ jobs:
           npm ci
 
       - name: Download Playwright
-        run: yarn playwright-install
+        run: npm run playwright-install
 
       - name: Run Monaco Editor Checks
-        run: yarn monaco-compile-check
+        run: npm run monaco-compile-check
 
       - name: Editor Distro & ESM Bundle
-        run: yarn gulp editor-esm-bundle
+        run: npm run gulp editor-esm-bundle
 
       - name: Editor ESM sources check
         working-directory: ./test/monaco
-        run: yarn run esm-check
+        run: npm run esm-check
 
       - name: Typings validation prep
         run: |
@@ -77,20 +77,20 @@ jobs:
       - name: Typings validation
         working-directory: ./typings-test
         run: |
-          yarn init -yp
+          npm init -yp
           ../node_modules/.bin/tsc --init
           echo "import '../out-monaco-editor-core';" > a.ts
           ../node_modules/.bin/tsc --noEmit
 
       - name: Package Editor with Webpack
         working-directory: ./test/monaco
-        run: yarn run bundle-webpack
+        run: npm run bundle-webpack
 
       - name: Compile Editor Tests
         working-directory: ./test/monaco
-        run: yarn run compile
+        run: npm run compile
 
       - name: Run Editor Tests
         timeout-minutes: 5
         working-directory: ./test/monaco
-        run: yarn test
+        run: npm run test
