@@ -47,6 +47,7 @@ import { Event } from 'vs/base/common/event';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
@@ -260,7 +261,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
@@ -515,9 +516,11 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	private _openContextMenu() {
 		this._contextMenuService.showContextMenu({
+			actionRunner: new TerminalContextActionRunner(),
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
-			getActionsContext: () => this.label
+			// The context is always the active instance in the terminal view
+			getActionsContext: () => this._terminalGroupService.activeInstance ? [new InstanceContext(this._terminalGroupService.activeInstance)] : []
 		});
 	}
 }
