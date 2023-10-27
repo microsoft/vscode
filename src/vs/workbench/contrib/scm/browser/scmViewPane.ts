@@ -1809,8 +1809,8 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
-	// private toolbarContainer: HTMLElement | undefined;
-	// private actionBar: ActionBar | undefined;
+	private toolbarContainer: HTMLElement;
+	private actionBar: ActionBar;
 	private readonly disposables = new DisposableStore();
 
 	private model: { readonly input: ISCMInput; textModelRef?: IReference<IResolvedTextEditorModel> } | undefined;
@@ -1840,7 +1840,6 @@ class SCMInputWidget {
 
 		this.clearValidation();
 		this.element.classList.remove('synthetic-focus');
-		//this.editorContainer.classList.remove('synthetic-focus');
 
 		this.repositoryDisposables.clear();
 		this.repositoryIdContextKey.set(input?.repository.id);
@@ -1961,37 +1960,26 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
 
-		// ActionBar
-		// if (this.toolbarContainer && this.actionBar) {
-		// 	if (this.editorContainer.contains(this.toolbarContainer)) {
-		// 		this.editorContainer.removeChild(this.toolbarContainer);
-		// 	}
-		// 	this.repositoryDisposables.delete(this.actionBar);
-		// }
+		// Toolbar
+		const onDidChangeActionButton = () => {
+			this.actionBar.clear();
+			if (!input.actionButton) {
+				return;
+			}
 
-		// this.toolbarContainer = append(this.editorContainer, $('.scm-editor-toolbar'));
-		// this.actionBar = new ActionBar(this.toolbarContainer);
-		// this.repositoryDisposables.add(this.actionBar);
+			const action = new Action(
+				input.actionButton.command.id,
+				input.actionButton.command.title,
+				ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
+				input.actionButton.enabled,
+				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
-		// const onDidChangeActionButton = () => {
-		// 	this.actionBar!.clear();
-		// 	if (!input.actionButton) {
-		// 		return;
-		// 	}
+			this.actionBar.push(action, { icon: true, label: false });
+			this.layout();
+		};
 
-		// 	const action = new Action(
-		// 		input.actionButton.command.id,
-		// 		input.actionButton.command.title,
-		// 		ThemeIcon.isThemeIcon(input.actionButton.icon) ? ThemeIcon.asClassName(input.actionButton.icon) : undefined,
-		// 		input.actionButton.enabled,
-		// 		() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
-
-		// 	this.actionBar!.push(action, { icon: true, label: false });
-		// 	this.layout();
-		// };
-
-		// this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
-		// onDidChangeActionButton();
+		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
+		onDidChangeActionButton();
 	}
 
 	get selections(): Selection[] | null {
@@ -2034,11 +2022,12 @@ class SCMInputWidget {
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IOpenerService private readonly openerService: IOpenerService,
-		// @ICommandService private readonly commandService: ICommandService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
+		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
@@ -2063,7 +2052,6 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false,
-				// vertical: 'hidden',
 				useShadows: false
 			},
 			overflowWidgetsDomNode,
@@ -2103,12 +2091,10 @@ class SCMInputWidget {
 			}
 
 			this.element.classList.add('synthetic-focus');
-			//this.editorContainer.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
 		this.disposables.add(this.inputEditor.onDidBlurEditorText(() => {
 			this.element.classList.remove('synthetic-focus');
-			//this.editorContainer.classList.remove('synthetic-focus');
 
 			setTimeout(() => {
 				if (!this.validation || !this.validationHasFocus) {
@@ -2168,6 +2154,10 @@ class SCMInputWidget {
 		}));
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
+
+		// Toolbar
+		this.actionBar = new ActionBar(this.toolbarContainer);
+		this.disposables.add(this.actionBar);
 	}
 
 	getContentHeight(): number {
@@ -2179,8 +2169,8 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const toolbarWidth = 0; //this.toolbarContainer ? this.toolbarContainer.clientWidth + 2 : 0;
-		const dimension = new Dimension(this.element.clientWidth - toolbarWidth - 2, editorHeight);
+		const toolbarWidth = this.toolbarContainer.clientWidth + 2;
+		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
 
 		if (dimension.width < 0) {
 			this.lastLayoutWasTrash = true;
@@ -2190,6 +2180,7 @@ class SCMInputWidget {
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
 		this.placeholderTextContainer.style.width = `${dimension.width}px`;
+		this.toolbarContainer.classList.toggle('hidden', this.input?.actionButton === undefined);
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {
@@ -2207,7 +2198,6 @@ class SCMInputWidget {
 
 		this.inputEditor.focus();
 		this.element.classList.add('synthetic-focus');
-		// this.editorContainer.classList.add('synthetic-focus');
 	}
 
 	hasFocus(): boolean {
