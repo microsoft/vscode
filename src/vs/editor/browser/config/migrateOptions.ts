@@ -211,3 +211,13 @@ registerEditorSettingMigration('experimental.stickyScroll.maxLineCount', (value,
 // 		}
 // 	}
 // });
+
+// Migrate Quick Fix Settings
+registerEditorSettingMigration('codeActionWidget.includeNearbyQuickfixes', (value, read, write) => {
+	if (typeof value === 'boolean') {
+		write('codeActionWidget.includeNearbyQuickfixes', undefined);
+		if (typeof read('codeActionWidget.includeNearbyQuickFixes') === 'undefined') {
+			write('codeActionWidget.includeNearbyQuickFixes', value);
+		}
+	}
+});

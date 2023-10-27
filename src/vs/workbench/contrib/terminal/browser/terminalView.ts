@@ -335,11 +335,11 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstanceTitleChange(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstancePrimaryStatusChange(() => this._updateItems(), this));
 	}
 
 	override render(container: HTMLElement): void {
@@ -395,11 +395,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Register listeners to update the tab
 		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
-			this._terminalService.onDidChangeInstancePrimaryStatus,
+			this._terminalService.onAnyInstancePrimaryStatusChange,
 			this._terminalGroupService.onDidChangeActiveInstance,
-			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
-			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
-			this._terminalService.onDidChangeInstanceTitle,
+			Event.map(this._terminalService.onAnyInstanceIconChange, e => e.instance),
+			this._terminalService.onAnyInstanceTitleChange,
 			this._terminalService.onDidChangeInstanceCapability,
 		), (last, e) => {
 			if (!last) {
@@ -562,8 +561,7 @@ class TerminalThemeIconStyle extends Themable {
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
+		this._register(this._terminalService.onAnyInstanceIconChange(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}

@@ -70,10 +70,6 @@ export class ExtHostChat implements ExtHostChatShape {
 		this._proxy.$transferChatSession(sessionId, newWorkspace);
 	}
 
-	addChatRequest(context: vscode.InteractiveSessionRequestArgs): void {
-		this._proxy.$addRequest(context);
-	}
-
 	sendInteractiveRequestToProvider(providerId: string, message: vscode.InteractiveSessionDynamicRequest): void {
 		this._proxy.$sendRequestToProvider(providerId, message);
 	}
@@ -100,30 +96,6 @@ export class ExtHostChat implements ExtHostChatShape {
 			responderAvatarIconUri: session.responder?.icon,
 			inputPlaceholder: session.inputPlaceholder,
 		};
-	}
-
-	async $resolveRequest(handle: number, sessionId: number, context: any, token: CancellationToken): Promise<Omit<IChatRequestDto, 'id'> | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const realSession = this._chatSessions.get(sessionId);
-		if (!realSession) {
-			return undefined;
-		}
-
-		if (!entry.provider.resolveRequest) {
-			return undefined;
-		}
-		const request = await entry.provider.resolveRequest(realSession, context, token);
-		if (request) {
-			return {
-				message: typeof request.message === 'string' ? request.message : typeConvert.ChatReplyFollowup.from(request.message),
-			};
-		}
-
-		return undefined;
 	}
 
 	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined> {

@@ -1079,7 +1079,7 @@ export class FocusNextCursor extends EditorAction {
 		super({
 			id: 'editor.action.focusNextCursor',
 			label: nls.localize('mutlicursor.focusNextCursor', "Focus Next Cursor"),
-			description: {
+			metadata: {
 				description: nls.localize('mutlicursor.focusNextCursor.description', "Focuses the next cursor"),
 				args: [],
 			},
@@ -1118,7 +1118,7 @@ export class FocusPreviousCursor extends EditorAction {
 		super({
 			id: 'editor.action.focusPreviousCursor',
 			label: nls.localize('mutlicursor.focusPreviousCursor', "Focus Previous Cursor"),
-			description: {
+			metadata: {
 				description: nls.localize('mutlicursor.focusPreviousCursor.description', "Focuses the previous cursor"),
 				args: [],
 			},

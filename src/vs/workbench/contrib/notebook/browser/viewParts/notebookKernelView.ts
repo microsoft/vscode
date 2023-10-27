@@ -67,7 +67,7 @@ registerAction2(class extends Action2 {
 				group: 'status',
 				order: -10
 			}],
-			description: {
+			metadata: {
 				description: localize('notebookActions.selectKernel.args', "Notebook Kernel Args"),
 				args: [
 					{

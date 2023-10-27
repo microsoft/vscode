@@ -24,7 +24,7 @@ class RunCommands extends Action2 {
 			id: 'runCommands',
 			title: { value: nls.localize('runCommands', "Run Commands"), original: 'Run Commands' },
 			f1: false,
-			description: {
+			metadata: {
 				description: nls.localize('runCommands.description', "Run several commands"),
 				args: [
 					{

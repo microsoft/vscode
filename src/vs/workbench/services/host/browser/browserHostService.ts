@@ -501,6 +501,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
+	async moveTop(window: Window & typeof globalThis): Promise<void> {
+		// There seems to be no API to bring a window to front in browsers
+	}
+
 	//#endregion
 
 	//#region Lifecycle

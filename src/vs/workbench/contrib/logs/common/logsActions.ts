@@ -107,7 +107,7 @@ export class SetLogLevelAction extends Action {
 			const quickPick = this.quickInputService.createQuickPick();
 			quickPick.placeholder = logChannel ? nls.localize('selectLogLevelFor', " {0}: Select log level", logChannel?.label) : nls.localize('selectLogLevel', "Select log level");
 			quickPick.items = entries;
-			quickPick.activeItems = [entries[this.loggerService.getLogLevel()]];
+			quickPick.activeItems = entries.filter((entry) => entry.level === this.loggerService.getLogLevel());
 			let selectedItem: LogLevelQuickPickItem | undefined;
 			disposables.add(quickPick.onDidTriggerItemButton(e => {
 				quickPick.hide();

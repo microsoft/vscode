@@ -20,7 +20,8 @@ steps:
 
   - task: NodeTool@0
     inputs:
-      versionSpec: "18.x"
+      versionSource: fromFile
+      versionFilePath: .nvmrc
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../distro/download-distro.yml
@@ -370,4 +371,3 @@ steps:
       artifact: $(ARTIFACT_PREFIX)snap-$(VSCODE_ARCH)
       condition: and(succeededOrFailed(), ne(variables['SNAP_PATH'], ''))
       displayName: Publish snap pre-package
-

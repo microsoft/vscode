@@ -8,6 +8,7 @@
 }
 
 .settings-editor {
+	height: 100%;
 	overflow: hidden;
 	max-width: 1200px;
 	margin: auto;

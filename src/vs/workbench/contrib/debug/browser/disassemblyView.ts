@@ -535,7 +535,7 @@ export class DisassemblyView extends EditorPane {
 			const startN = binarySearch2(da.length, i => Number(da.row(i).address - firstAddr));
 			const start = startN < 0 ? ~startN : startN;
 			const endN = binarySearch2(da.length, i => Number(da.row(i).address - lastAddr));
-			const end = endN < 0 ? ~endN : endN;
+			const end = endN < 0 ? ~endN : endN + 1;
 			const toDelete = end - start;
 
 			// Go through everything we're about to add, and only show the source
@@ -799,6 +799,9 @@ class InstructionRenderer extends Disposable implements ITableRenderer<IDisassem
 				let textModel: ITextModel | undefined = undefined;
 				const sourceSB = new StringBuilder(10000);
 				const ref = await this.textModelService.createModelReference(sourceURI);
+				if (templateData.currentElement.element !== element) {
+					return; // avoid a race, #192831
+				}
 				textModel = ref.object.textEditorModel;
 				templateData.cellDisposable.push(ref);
 
