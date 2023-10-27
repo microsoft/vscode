@@ -64,6 +64,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
 import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
+import { InstanceContext } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -143,7 +144,7 @@ export class TerminalLaunchHelpAction extends Action {
  * - `precondition`: TerminalContextKeys.processSupported
  */
 export function registerTerminalAction(
-	options: IAction2Options & { run: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
+	options: IAction2Options & { run: (c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown, args2?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	// Set defaults
 	options.f1 = options.f1 ?? true;
@@ -158,8 +159,38 @@ export function registerTerminalAction(
 		constructor() {
 			super(strictOptions as IAction2Options);
 		}
-		run(accessor: ServicesAccessor, args?: unknown) {
-			return runFunc(getTerminalServices(accessor), accessor, args);
+		run(accessor: ServicesAccessor, args?: unknown, args2?: unknown) {
+			return runFunc(getTerminalServices(accessor), accessor, args, args2);
+		}
+	});
+}
+
+function parseActionArgs(args?: unknown): InstanceContext[] | undefined {
+	if (Array.isArray(args)) {
+		if (args.every(e => e instanceof InstanceContext)) {
+			return args as InstanceContext[];
+		}
+	} else if (args instanceof InstanceContext) {
+		return [args];
+	}
+	return undefined;
+}
+/**
+ * A wrapper around {@link registerTerminalAction} that runs a callback for all currently selected
+ * instances provided in the action context.
+ */
+export function registerContextualInstanceAction(
+	options: IAction2Options & { run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
+): IDisposable {
+	const originalRun = options.run;
+	return registerTerminalAction({
+		...options,
+		run: (c, accessor, focusedInstanceContext, allInstanceContext) => {
+			const results: (Promise<unknown> | void)[] = [];
+			for (const instance of getSelectedInstances2(accessor, allInstanceContext)) {
+				results.push(originalRun(instance, c, accessor, focusedInstanceContext));
+			}
+			return Promise.all(results);
 		}
 	});
 }
@@ -1384,12 +1415,12 @@ export function registerTerminalActions() {
 		run: (instancactiveInstance) => instancactiveInstance.toggleSizeToContentWidth()
 	});
 
-	registerTerminalAction({
+	registerContextualInstanceAction({
 		id: TerminalCommandId.SizeToContentWidthActiveTab,
 		title: terminalStrings.toggleSizeToContentWidth,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.focus),
-		run: (c, accessor) => getSelectedInstances(accessor)?.[0].toggleSizeToContentWidth()
+		run: (instance) => instance.toggleSizeToContentWidth()
 	});
 
 	registerTerminalAction({
@@ -1608,10 +1639,30 @@ interface IRemoteTerminalPick extends IQuickPickItem {
 	term: IRemoteTerminalAttachTarget;
 }
 
-function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] | undefined {
+function getSelectedInstances2(accessor: ServicesAccessor, args?: unknown): ITerminalInstance[] {
+	const terminalService = accessor.get(ITerminalService);
+	const result: ITerminalInstance[] = [];
+	const context = parseActionArgs(args);
+	if (context && context.length > 0) {
+		for (const instanceContext of context) {
+			const instance = terminalService.getInstanceFromId(instanceContext.instanceId);
+			if (instance) {
+				result.push(instance);
+			}
+		}
+		if (result.length > 0) {
+			console.log('found!', result);
+			return result;
+		}
+	}
+	return result;
+}
+
+function getSelectedInstances(accessor: ServicesAccessor, args?: unknown, args2?: unknown): ITerminalInstance[] | undefined {
 	const listService = accessor.get(IListService);
 	const terminalService = accessor.get(ITerminalService);
 	const terminalGroupService = accessor.get(ITerminalGroupService);
+	const result: ITerminalInstance[] = [];
 
 	// Get inline tab instance
 	if (terminalGroupService.lastAccessedMenu === 'inline-tab') {
@@ -1625,20 +1676,19 @@ function getSelectedInstances(accessor: ServicesAccessor): ITerminalInstance[] |
 	}
 	const selections = listService.lastFocusedList.getSelection();
 	const focused = listService.lastFocusedList.getFocus();
-	const instances: ITerminalInstance[] = [];
 
 	if (focused.length === 1 && !selections.includes(focused[0])) {
 		// focused length is always a max of 1
 		// if the focused one is not in the selected list, return that item
-		instances.push(terminalService.getInstanceFromIndex(focused[0]) as ITerminalInstance);
-		return instances;
+		result.push(terminalService.getInstanceFromIndex(focused[0]) as ITerminalInstance);
+		return result;
 	}
 
 	// multi-select
 	for (const selection of selections) {
-		instances.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
+		result.push(terminalService.getInstanceFromIndex(selection) as ITerminalInstance);
 	}
-	return instances;
+	return result;
 }
 
 export function validateTerminalName(name: string): { content: string; severity: Severity } | null {
