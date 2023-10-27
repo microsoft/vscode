@@ -145,10 +145,9 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 }
 
 GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
-	console.log('Inside of registerGutterActionsGenerator');
 	const inlineChatService = accessor.get(IInlineChatService);
-	const hasProviders = !Iterable.isEmpty(inlineChatService.getAllProvider());
-	if (!hasProviders) {
+	const noProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
+	if (noProviders) {
 		return;
 	}
 	const configurationService = accessor.get(IConfigurationService);
