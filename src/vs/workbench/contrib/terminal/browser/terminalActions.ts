@@ -181,13 +181,16 @@ function parseActionArgs(args?: unknown): InstanceContext[] | undefined {
  * contextual instances provided.
  */
 export function registerContextualInstanceAction(
-	options: IAction2Options & { run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown> }
+	options: IAction2Options & {
+		run: (instance: ITerminalInstance, c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
+		runAfter?: (instances: ITerminalInstance[], c: ITerminalServicesCollection, accessor: ServicesAccessor, args?: unknown) => void | Promise<unknown>;
+	}
 ): IDisposable {
 	const originalRun = options.run;
 	return registerTerminalAction({
 		...options,
-		run: (c, accessor, focusedInstanceContext, allInstanceContext) => {
-			let instances = getSelectedInstances2(accessor, allInstanceContext);
+		run: async (c, accessor, focusedInstanceArgs, allInstanceArgs) => {
+			let instances = getSelectedInstances2(accessor, allInstanceArgs);
 			if (!instances) {
 				const activeInstance = c.service.activeInstance;
 				if (!activeInstance) {
@@ -197,9 +200,12 @@ export function registerContextualInstanceAction(
 			}
 			const results: (Promise<unknown> | void)[] = [];
 			for (const instance of instances) {
-				results.push(originalRun(instance, c, accessor, focusedInstanceContext));
+				results.push(originalRun(instance, c, accessor, focusedInstanceArgs));
 			}
-			return Promise.all(results);
+			await Promise.all(results);
+			if (options.runAfter) {
+				options.runAfter(instances, c, accessor, focusedInstanceArgs);
+			}
 		}
 	});
 }
@@ -1294,7 +1300,7 @@ export function registerTerminalActions() {
 		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});
 
-	registerTerminalAction({
+	registerContextualInstanceAction({
 		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
@@ -1308,22 +1314,8 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: TerminalContextKeys.tabsFocus
 		},
-		run: async (c, accessor) => {
-			const selectedInstances = getSelectedInstances(accessor);
-			if (!selectedInstances) {
-				return;
-			}
-			const listService = accessor.get(IListService);
-			const disposePromises: Promise<void>[] = [];
-			for (const instance of selectedInstances) {
-				disposePromises.push(c.service.safeDisposeTerminal(instance));
-			}
-			await Promise.all(disposePromises);
-			if (c.service.instances.length > 0) {
-				c.groupService.focusTabs();
-				listService.lastFocusedList?.focusNext();
-			}
-		}
+		run: (instance, c) => c.service.safeDisposeTerminal(instance),
+		runAfter: (instances, c) => c.groupService.focusTabs()
 	});
 
 	registerTerminalAction({
