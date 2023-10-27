@@ -739,14 +739,6 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
-		id: TerminalCommandId.ChangeIconPanel,
-		title: terminalStrings.changeIcon,
-		f1: false,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c) => c.groupService.activeInstance?.changeIcon()
-	});
-
-	registerTerminalAction({
 		id: TerminalCommandId.ChangeIconActiveTab,
 		title: terminalStrings.changeIcon,
 		f1: false,
@@ -774,14 +766,6 @@ export function registerTerminalActions() {
 		title: terminalStrings.rename,
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: (c, accessor, args) => renameWithQuickPick(c, accessor, args)
-	});
-
-	registerTerminalAction({
-		id: TerminalCommandId.RenamePanel,
-		title: terminalStrings.rename,
-		f1: false,
-		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
-		run: (c, accessor) => renameWithQuickPick(c, accessor)
 	});
 
 	registerTerminalAction({
