@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
+import { isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
@@ -57,8 +57,8 @@ export class CommandCenterControl {
 			}
 		});
 
-		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
+		this._disposables.add(Event.filter(quickInputService.onHide, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, true)));
 		this._disposables.add(titleToolbar);
 	}
 

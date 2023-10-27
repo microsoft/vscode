@@ -64,7 +64,7 @@ export class CloseWindowAction extends Action2 {
 
 		const window = getActiveWindow();
 		if (isAuxiliaryWindow(window)) {
-			return nativeHostService.closeWindowById(await window.vscodeWindowId);
+			return nativeHostService.closeWindowById(window.vscodeWindowId);
 		}
 
 		return nativeHostService.closeWindow();
@@ -368,7 +368,7 @@ export class ExperimentalSplitWindowAction extends Action2 {
 		let activeWindowId: number;
 		const activeWindow = getActiveWindow();
 		if (isAuxiliaryWindow(activeWindow)) {
-			activeWindowId = await activeWindow.vscodeWindowId;
+			activeWindowId = activeWindow.vscodeWindowId;
 		} else {
 			activeWindowId = environmentService.window.id;
 		}

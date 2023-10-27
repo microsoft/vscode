@@ -46,12 +46,12 @@
 			/**
 			 * @param {string} channel
 			 * @param {any[]} args
-			 * @returns {Promise<any> | never}
+			 * @returns {Promise<any>}
 			 */
 			invoke(channel, ...args) {
-				if (validateIPC(channel)) {
-					return ipcRenderer.invoke(channel, ...args);
-				}
+				validateIPC(channel);
+
+				return ipcRenderer.invoke(channel, ...args);
 			}
 		},
 
