@@ -9,7 +9,7 @@ out/**
 extension.webpack.config.js
 extension-browser.webpack.config.js
 cgmanifest.json
-yarn.lock
+package-lock.json
 preview-src/**
 webpack.config.js
 esbuild-notebook.js
@@ -21,5 +21,5 @@ server/extension-browser.webpack.config.js
 server/tsconfig.json
 server/.vscode/**
 server/node_modules/**
-server/yarn.lock
+server/package-lock.json
 server/.npmignore

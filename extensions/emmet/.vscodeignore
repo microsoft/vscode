@@ -7,5 +7,5 @@ extension.webpack.config.js
 extension-browser.webpack.config.js
 CONTRIBUTING.md
 cgmanifest.json
-yarn.lock
+package-lock.json
 .vscode
