@@ -559,6 +559,10 @@ export class QuickInputController extends Disposable {
 		ui.inputBox.setFocus();
 	}
 
+	isVisible(): boolean {
+		return this.ui?.container.style.display !== 'none';
+	}
+
 	private setVisibilities(visibilities: Visibilities) {
 		const ui = this.getUI();
 		ui.title.style.display = visibilities.title ? '' : 'none';
