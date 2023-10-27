@@ -7,6 +7,7 @@
 
 const path = require('path');
 const { defineConfig } = require('@vscode/test-cli');
+const os = require('os');
 
 /**
  * A list of extension folders who have opted into tests, or configuration objects.
@@ -20,6 +21,21 @@ const extensions = [
 		workspaceFolder: `extensions/markdown-language-features/test-workspace`,
 		mocha: { timeout: 60_000 }
 	},
+	{
+		label: 'ipynb',
+		workspaceFolder: path.join(os.tmpdir(), `ipynb-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'notebook-renderers',
+		workspaceFolder: path.join(os.tmpdir(), `nbout-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	},
+	{
+		label: 'github-authentication',
+		workspaceFolder: path.join(os.tmpdir(), `msft-auth-${Math.floor(Math.random() * 100000)}`),
+		mocha: { timeout: 60_000 }
+	}
 ];
 
 
@@ -57,7 +73,7 @@ module.exports = defineConfig(extensions.map(extension => {
 	if (!config.platform || config.platform === 'desktop') {
 		config.launchArgs = defaultLaunchArgs;
 		config.useInstallation = {
-			fromPath: process.env.INTEGRATION_TEST_ELECTRON_PATH || `${__dirname}/scripts/code.${process.platform === 'win32' ? 'cmd' : 'sh'}`,
+			fromPath: process.env.INTEGRATION_TEST_ELECTRON_PATH || `${__dirname}/scripts/code.${process.platform === 'win32' ? 'bat' : 'sh'}`,
 		};
 		config.env = {
 			...config.env,

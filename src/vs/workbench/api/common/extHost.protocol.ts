@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentDetection, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatSlashFragment } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
@@ -1142,7 +1142,8 @@ export interface MainThreadSpeechShape extends IDisposable {
 }
 
 export interface ExtHostSpeechShape {
-	$createSpeechToTextSession(handle: number, session: number, token: CancellationToken): Promise<void>;
+	$createSpeechToTextSession(handle: number, session: number): Promise<void>;
+	$cancelSpeechToTextSession(session: number): Promise<void>;
 }
 
 export interface MainThreadChatProviderShape extends IDisposable {
@@ -1173,7 +1174,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
-	$handleProgressChunk(requestId: number, chunk: IChatResponseProgressDto): Promise<void>;
+	$handleProgressChunk(requestId: string, chunk: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
 }
 
 export interface ExtHostChatAgentsShape {
@@ -1181,11 +1182,11 @@ export interface ExtHostChatAgentsShape {
 }
 
 export interface ExtHostChatAgentsShape2 {
-	$invokeAgent(handle: number, sessionId: string, requestId: number, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
+	$invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
-	$acceptFeedback(handle: number, sessionId: string, vote: InteractiveSessionVoteDirection): void;
-	$acceptAction(handle: number, sessionId: string, action: IChatUserActionEvent): void;
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void;
+	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
 	$releaseSession(sessionId: string): void;
 }
 
@@ -1229,7 +1230,7 @@ export interface IChatDto {
 }
 
 export interface IChatRequestDto {
-	message: string | IChatReplyFollowup;
+	message: string;
 	variables?: Record<string, IChatRequestVariableValue[]>;
 }
 
@@ -1260,7 +1261,8 @@ export type IChatResponseProgressDto =
 	| { treeData: IChatResponseProgressFileTreeData }
 	| { documents: IDocumentContextDto[] }
 	| { reference: UriComponents | ILocationDto }
-	| { inlineReference: UriComponents | ILocationDto; title?: string };
+	| { inlineReference: UriComponents | ILocationDto; title?: string }
+	| IChatAgentDetection;
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1273,7 +1275,7 @@ export interface MainThreadChatShape extends IDisposable {
 
 export interface ExtHostChatShape {
 	$prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined>;
-	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined>;
+	$provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	$provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined>;
 	$provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined>;
@@ -1349,7 +1351,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 }
 
 export interface MainThreadFileSystemEventServiceShape extends IDisposable {
-	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions, correlate: boolean): void;
 	$unwatch(session: number): void;
 }
 
@@ -1411,6 +1413,12 @@ export interface SCMActionButtonDto {
 	command: ICommandDto;
 	secondaryCommands?: ICommandDto[][];
 	description?: string;
+	enabled: boolean;
+}
+
+export interface SCMInputActionButtonDto {
+	command: ICommandDto;
+	icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon;
 	enabled: boolean;
 }
 
@@ -1483,6 +1491,7 @@ export interface MainThreadSCMShape extends IDisposable {
 	$setInputBoxPlaceholder(sourceControlHandle: number, placeholder: string): void;
 	$setInputBoxEnablement(sourceControlHandle: number, enabled: boolean): void;
 	$setInputBoxVisibility(sourceControlHandle: number, visible: boolean): void;
+	$setInputBoxActionButton(sourceControlHandle: number, actionButton?: SCMInputActionButtonDto | null): void;
 	$showValidationMessage(sourceControlHandle: number, message: string | IMarkdownString, type: InputValidationType): void;
 	$setValidationProviderIsEnabled(sourceControlHandle: number, enabled: boolean): void;
 
@@ -2559,11 +2568,15 @@ export interface MainThreadLocalizationShape extends IDisposable {
 
 export interface ExtHostIssueReporterShape {
 	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
+	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
 }
 
 export interface MainThreadIssueReporterShape extends IDisposable {
 	$registerIssueUriRequestHandler(extensionId: string): void;
 	$unregisterIssueUriRequestHandler(extensionId: string): void;
+	$registerIssueDataProvider(extensionId: string): void;
+	$unregisterIssueDataProvider(extensionId: string): void;
 }
 
 export interface TunnelDto {

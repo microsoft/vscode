@@ -1887,7 +1887,7 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 	});
 }
 
-export class DeferredAsyncIterableObject<T> {
+export class AsyncIterableSource<T> {
 
 	private readonly _deferred = new DeferredPromise<void>();
 	private readonly _asyncIterable: AsyncIterableObject<T>;
@@ -1930,16 +1930,16 @@ export class DeferredAsyncIterableObject<T> {
 		return this._asyncIterable;
 	}
 
-	complete(): void {
+	resolve(): void {
 		this._deferred.complete();
 	}
 
-	error(error: Error): void {
+	reject(error: Error): void {
 		this._errorFn(error);
 		this._deferred.complete();
 	}
 
-	emit(item: T): void {
+	emitOne(item: T): void {
 		this._emitFn(item);
 	}
 }

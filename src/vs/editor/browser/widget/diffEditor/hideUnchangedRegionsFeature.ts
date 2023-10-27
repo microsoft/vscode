@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, h, reset } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getWindow, h, reset } from 'vs/base/browser/dom';
 import { renderIcon, renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { compareBy, numberComparator, reverseOrder } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
@@ -306,6 +306,7 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			const cur = this._unchangedRegion.visibleLineCountTop.get();
 			this._unchangedRegion.isDragged.set(true, undefined);
 
+			const window = getWindow(this._nodes.top);
 
 			const mouseMoveListener = addDisposableListener(window, 'mousemove', e => {
 				const currentTop = e.clientY;
@@ -339,6 +340,8 @@ class CollapsedCodeOverlayWidget extends ViewZoneOverlayWidget {
 			let didMove = false;
 			const cur = this._unchangedRegion.visibleLineCountBottom.get();
 			this._unchangedRegion.isDragged.set(true, undefined);
+
+			const window = getWindow(this._nodes.bottom);
 
 			const mouseMoveListener = addDisposableListener(window, 'mousemove', e => {
 				const currentTop = e.clientY;

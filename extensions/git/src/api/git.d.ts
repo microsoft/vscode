@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken } from 'vscode';
+import { Uri, Event, Disposable, ProviderResult, Command, CancellationToken, ThemeIcon } from 'vscode';
 export { ProviderResult } from 'vscode';
 
 export interface Git {
@@ -16,7 +16,8 @@ export interface InputBox {
 
 export const enum ForcePushMode {
 	Force,
-	ForceWithLease
+	ForceWithLease,
+	ForceWithLeaseIfIncludes,
 }
 
 export const enum RefType {
@@ -300,6 +301,12 @@ export interface BranchProtectionProvider {
 	provideBranchProtection(): BranchProtection[];
 }
 
+export interface CommitMessageProvider {
+	readonly title: string;
+	readonly icon?: Uri | { light: Uri, dark: Uri } | ThemeIcon;
+	provideCommitMessage(repository: Repository, changes: string[], cancellationToken?: CancellationToken): Promise<string | undefined>;
+}
+
 export type APIState = 'uninitialized' | 'initialized';
 
 export interface PublishEvent {
@@ -327,6 +334,7 @@ export interface API {
 	registerPostCommitCommandsProvider(provider: PostCommitCommandsProvider): Disposable;
 	registerPushErrorHandler(handler: PushErrorHandler): Disposable;
 	registerBranchProtectionProvider(root: Uri, provider: BranchProtectionProvider): Disposable;
+	registerCommitMessageProvider(provider: CommitMessageProvider): Disposable;
 }
 
 export interface GitExtension {
@@ -359,6 +367,8 @@ export const enum GitErrorCodes {
 	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
+	ForcePushWithLeaseRejected = 'ForcePushWithLeaseRejected',
+	ForcePushWithLeaseIfIncludesRejected = 'ForcePushWithLeaseIfIncludesRejected',
 	RemoteConnectionError = 'RemoteConnectionError',
 	DirtyWorkTree = 'DirtyWorkTree',
 	CantOpenResource = 'CantOpenResource',

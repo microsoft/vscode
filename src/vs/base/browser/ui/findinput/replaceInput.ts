@@ -140,7 +140,7 @@ export class ReplaceInput extends Widget {
 		const indexes = [this.preserveCase.domNode];
 		this.onkeydown(this.domNode, (event: IKeyboardEvent) => {
 			if (event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Escape)) {
-				const index = indexes.indexOf(<HTMLElement>document.activeElement);
+				const index = indexes.indexOf(<HTMLElement>this.domNode.ownerDocument.activeElement);
 				if (index >= 0) {
 					let newIndex: number = -1;
 					if (event.equals(KeyCode.RightArrow)) {

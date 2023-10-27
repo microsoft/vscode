@@ -49,7 +49,6 @@ import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class TerminalViewPane extends ViewPane {
-	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
@@ -178,14 +177,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		this._fontStyleElement = document.createElement('style');
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
-
-		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
@@ -300,21 +297,25 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		super.focus();
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._terminalGroupService.showPanel(true);
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this.element.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
-
-			return;
 		}
-		this._terminalGroupService.showPanel(true);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -554,8 +555,7 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}

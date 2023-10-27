@@ -4,14 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
-import { IChatAgent } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse, Response } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -28,10 +26,14 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
+}
+
+export interface IChangePlaceholderEvent {
+	kind: 'changePlaceholder';
 }
 
 export interface IChatViewModel {
@@ -43,6 +45,8 @@ export interface IChatViewModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	setInputPlaceholder(text: string): void;
+	resetInputPlaceholder(): void;
 }
 
 export interface IChatRequestViewModel {
@@ -69,7 +73,6 @@ export interface IChatResponseRenderData {
 }
 
 export interface IChatLiveUpdateData {
-	wordCountAfterLastUpdate: number;
 	loadingStartTime: number;
 	lastUpdateTime: number;
 	impliedWordLoadRate: number;
@@ -82,19 +85,22 @@ export interface IChatResponseViewModel {
 	readonly dataId: string;
 	readonly providerId: string;
 	readonly providerResponseId: string | undefined;
+	/** The ID of the associated IChatRequestViewModel */
+	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
-	readonly agent?: IChatAgent;
+	readonly agent?: IChatAgentData;
+	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
 	readonly isCanceled: boolean;
-	readonly isPlaceholder: boolean;
 	readonly vote: InteractiveSessionVoteDirection | undefined;
 	readonly replyFollowups?: IChatReplyFollowup[];
 	readonly commandFollowups?: IChatResponseCommandFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
@@ -109,8 +115,19 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
+	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
-		return this._model.inputPlaceholder;
+		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+	}
+
+	setInputPlaceholder(text: string): void {
+		this._inputPlaceholder = text;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
+	}
+
+	resetInputPlaceholder(): void {
+		this._inputPlaceholder = undefined;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 	}
 
 	get sessionId() {
@@ -265,11 +282,11 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.agent;
 	}
 
-	get response(): IResponse {
-		if (this._isPlaceholder) {
-			return new Response(new MarkdownString(localize('thinking', "Thinking") + '\u2026'));
-		}
+	get slashCommand() {
+		return this._model.slashCommand;
+	}
 
+	get response(): IResponse {
 		return this._model.response;
 	}
 
@@ -279,11 +296,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get isCanceled() {
 		return this._model.isCanceled;
-	}
-
-	private _isPlaceholder = false;
-	get isPlaceholder() {
-		return this._isPlaceholder;
 	}
 
 	get replyFollowups() {
@@ -302,11 +314,27 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.vote;
 	}
 
-	renderData: IChatResponseRenderData | undefined = undefined;
+	get requestId() {
+		return this._model.requestId;
+	}
 
+	renderData: IChatResponseRenderData | undefined = undefined;
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
-	usedReferencesExpanded?: boolean | undefined;
+	private _usedReferencesExpanded: boolean | undefined;
+
+	get usedReferencesExpanded(): boolean | undefined {
+		if (typeof this._usedReferencesExpanded === 'boolean') {
+			return this._usedReferencesExpanded;
+		}
+
+		return this.response.value.length === 0;
+	}
+
+	set usedReferencesExpanded(v: boolean) {
+		this._usedReferencesExpanded = v;
+	}
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;
 	get contentUpdateTimings(): IChatLiveUpdateData | undefined {
@@ -319,22 +347,15 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	) {
 		super();
 
-		this._isPlaceholder = !_model.response.asString() && !_model.isComplete;
-
 		if (!_model.isComplete) {
 			this._contentUpdateTimings = {
 				loadingStartTime: Date.now(),
 				lastUpdateTime: Date.now(),
-				wordCountAfterLastUpdate: this._isPlaceholder ? 0 : countWords(_model.response.asString()), // don't count placeholder text
 				impliedWordLoadRate: 0
 			};
 		}
 
 		this._register(_model.onDidChange(() => {
-			if (this._isPlaceholder && (_model.response.value || this.isComplete)) {
-				this._isPlaceholder = false;
-			}
-
 			if (this._contentUpdateTimings) {
 				// This should be true, if the model is changing
 				const now = Date.now();
@@ -347,7 +368,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 					this._contentUpdateTimings = {
 						loadingStartTime: this._contentUpdateTimings!.loadingStartTime,
 						lastUpdateTime: now,
-						wordCountAfterLastUpdate: wordCount,
 						impliedWordLoadRate
 					};
 				} else {

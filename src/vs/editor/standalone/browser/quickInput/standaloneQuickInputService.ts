@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./standaloneQuickInput';
+import { Event } from 'vs/base/common/event';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
@@ -42,10 +43,14 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get container() { return widget.getDomNode(); },
 				get containers() { return [widget.getDomNode()]; },
 				get activeContainer() { return widget.getDomNode(); },
-				get dimension() { return editor.getLayoutInfo(); },
-				get onDidLayout() { return editor.onDidLayoutChange; },
-				focus: () => editor.focus(),
-				offset: { top: 0, quickPickTop: 0 }
+				get mainContainerDimension() { return editor.getLayoutInfo(); },
+				get activeContainerDimension() { return editor.getLayoutInfo(); },
+				get onDidLayoutMainContainer() { return editor.onDidLayoutChange; },
+				get onDidLayoutActiveContainer() { return editor.onDidLayoutChange; },
+				get onDidChangeActiveContainer() { return Event.None; },
+				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
+				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
+				focus: () => editor.focus()
 			};
 		} else {
 			this.host = undefined;

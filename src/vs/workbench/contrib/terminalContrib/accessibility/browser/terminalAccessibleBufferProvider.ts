@@ -28,17 +28,17 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
 		@IModelService _modelService: IModelService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
 		this.options.customHelp = customHelp;
-		this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+		this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
-		this.add(_configurationService.onDidChangeConfiguration(e => {
+		this.add(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
-				this.options.position = _configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+				this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 			}
 		}));
 		this._focusedInstance = _terminalService.activeInstance;
@@ -115,3 +115,4 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+

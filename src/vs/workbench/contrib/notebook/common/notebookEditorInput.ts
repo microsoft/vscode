@@ -111,7 +111,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		let capabilities = EditorInputCapabilities.None;
+		let capabilities = EditorInputCapabilities.AuxWindowUnsupported;
 
 		if (this.resource.scheme === Schemas.untitled) {
 			capabilities |= EditorInputCapabilities.Untitled;

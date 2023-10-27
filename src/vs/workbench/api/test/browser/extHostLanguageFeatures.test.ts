@@ -508,8 +508,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
+		assert.strictEqual(value.size, 1);
+		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
 		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
@@ -529,8 +529,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
+		assert.strictEqual(value.size, 1);
+		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 5 });
 		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
@@ -550,8 +550,8 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = (await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None))!;
-		assert.strictEqual(value.length, 1);
-		const [entry] = value;
+		assert.strictEqual(value.size, 1);
+		const [entry] = Array.from(value.values())[0];
 		assert.deepStrictEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 3 });
 		assert.strictEqual(entry.kind, languages.DocumentHighlightKind.Text);
 	});
@@ -572,7 +572,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 		await rpcProtocol.sync();
 		const value = await getOccurrencesAtPosition(languageFeaturesService.documentHighlightProvider, model, new EditorPosition(1, 2), CancellationToken.None);
-		assert.strictEqual(value!.length, 1);
+		assert.strictEqual(value!.size, 1);
 	});
 
 	// --- references

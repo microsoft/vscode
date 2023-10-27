@@ -72,7 +72,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		super(themeService);
 
 		this.$el = dom.$('div.debug-toolbar');
-		this.$el.style.top = `${layoutService.offset.top}px`;
+		this.$el.style.top = `${layoutService.mainContainerOffset.top}px`;
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 
@@ -163,7 +163,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.offset.top));
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.mainContainerOffset.top));
 			});
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(window, (e: MouseEvent) => {
@@ -209,7 +209,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 	}
 
 	private setYCoordinate(y = this.yCoordinate): void {
-		const titlebarOffset = this.layoutService.offset.top;
+		const titlebarOffset = this.layoutService.mainContainerOffset.top;
 		this.$el.style.top = `${titlebarOffset + y}px`;
 		this.yCoordinate = y;
 	}
