@@ -19,7 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getColorClass, getColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, createColorStyleElement } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TaskQuickPickEntryType } from 'vs/workbench/contrib/tasks/browser/abstractTaskService';
 import { showWithPinnedItems } from 'vs/platform/quickinput/browser/quickPickPin';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -93,9 +93,8 @@ export class TaskQuickPick extends Disposable {
 	public static applyColorStyles(task: Task | ConfiguringTask, entry: TaskQuickPickEntryType | ITaskTwoLevelQuickPickEntry, themeService: IThemeService): void {
 		if (task.configurationProperties.icon?.color) {
 			const colorTheme = themeService.getColorTheme();
-			const styleElement = getColorStyleElement(colorTheme);
+			createColorStyleElement(colorTheme);
 			entry.iconClasses = [getColorClass(task.configurationProperties.icon.color)];
-			document.body.appendChild(styleElement);
 		}
 	}
 
