@@ -24,9 +24,9 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService, LayoutSettings, ActivityBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { Action2, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
+import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
@@ -36,14 +36,21 @@ import { CommandCenterControl } from 'vs/workbench/browser/parts/titlebar/comman
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
+import { WorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem } from 'vs/workbench/browser/parts/globalCompositeBar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IAction, SubmenuAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
+import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
+import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { IEditorCommandsContext } from 'vs/workbench/common/editor';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -85,10 +92,15 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected menubar?: HTMLElement;
 	protected lastLayoutDimensions: Dimension | undefined;
 
-	private actionToolBarElement: HTMLElement | undefined;
 	private actionToolBar!: WorkbenchToolBar;
-	private readonly actionToolBarMenuDisposables = this._register(new DisposableStore());
 	private editorChangeDisposable: IDisposable | undefined;
+	private actionToolBarElement!: HTMLElement;
+
+	private layoutToolbarMenu: IMenu | undefined;
+	private activityToolbarMenu: IMenu | undefined;
+	private readonly editorToolbarMenuDisposables = this._register(new DisposableStore());
+	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
+	private readonly activityToolbarMenuDisposables = this._register(new DisposableStore());
 
 	private hoverDelegate: IHoverDelegate;
 
@@ -113,6 +125,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IEditorService private editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
+		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, window, 'main'));
@@ -175,14 +188,18 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		}
 
-		if (this.titleBarStyle !== 'native' && this.actionToolBarElement && (
-			event.affectsConfiguration('workbench.layoutControl.enabled') ||
-			event.affectsConfiguration('workbench.editor.showTabs') ||
-			event.affectsConfiguration('workbench.editor.showEditorActionsInTitleBar'))
-		) {
-			this.updateRightToolBarMenu(this.actionToolBarElement);
-			this.updateEditorChangeListener();
-			this._onDidChange.fire(undefined);
+		if (this.titleBarStyle !== 'native' && this.actionToolBar) {
+			const affectsEditorActions = event.affectsConfiguration('workbench.editor.showEditorActionsInTitleBar') || event.affectsConfiguration('workbench.editor.showTabs');
+			const affectsLayoutControl = event.affectsConfiguration('workbench.layoutControl.enabled');
+			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
+			if (affectsEditorActions) {
+				this.createActionToolBar();
+				this.updateEditorChangeListener();
+			}
+			if (affectsEditorActions || affectsLayoutControl || affectsActivityControl) {
+				this.createActionToolBarMenus({ editorActions: affectsEditorActions, layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
+				this._onDidChange.fire(undefined);
+			}
 		}
 
 		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
@@ -294,34 +311,9 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (this.titleBarStyle !== 'native') {
 			// Create Toolbar Actions
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
-			this.actionToolBar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, this.actionToolBarElement, {
-				contextMenu: MenuId.TitleBarContext,
-				actionViewItemProvider: action => {
-					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
-				}
-			}));
-
-			// Update Toolbar Actions
-			this.updateRightToolBarMenu(this.actionToolBarElement);
+			this.createActionToolBar();
+			this.createActionToolBarMenus();
 			this.updateEditorChangeListener();
-
-			// Global Action Controls
-			const globalActionControls = append(this.rightContent, $('div.global-actions-container.show-control'));
-
-			this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, globalActionControls, MenuId.TitleBarGlobalControlMenu, {
-				contextMenu: MenuId.TitleBarContext,
-				toolbarOptions: { primaryGroup: () => true },
-				hiddenItemStrategy: HiddenItemStrategy.NoHide,
-				actionViewItemProvider: action => {
-					if (action.id === GLOBAL_ACTIVITY_ID) {
-						return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW });
-					}
-					if (action.id === ACCOUNTS_ACTIVITY_ID) {
-						return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW });
-					}
-					return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate });
-				}
-			}));
 		}
 
 		let primaryControlLocation = isMacintosh ? 'left' : 'right';
@@ -373,68 +365,143 @@ export class TitlebarPart extends Part implements ITitleService {
 		return this.element;
 	}
 
-	private updateRightToolBarMenu(editorActionControls: HTMLElement) {
-		this.actionToolBarMenuDisposables.clear();
-
-		const editorActionsEnabled = this.editorActionsEnabled();
-		const showEditorActions = this.editorService.activeEditor !== undefined && editorActionsEnabled;
-		const showLayoutActions = this.layoutControlEnabled;
-
-		if (!showEditorActions && !showLayoutActions) {
-			this.actionToolBar.setActions([], []);
-			return;
+	private actionViewItemProvider(action: IAction): IActionViewItem | undefined {
+		// --- Activity Actions
+		if (action.id === GLOBAL_ACTIVITY_ID) {
+			return this.instantiationService.createInstance(SimpleGlobalActivityActionViewItem, { position: () => HoverPosition.BELOW });
 		}
-
-		const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
+		if (action.id === ACCOUNTS_ACTIVITY_ID) {
+			return this.instantiationService.createInstance(SimpleAccountActivityActionViewItem, { position: () => HoverPosition.BELOW });
+		}
 
 		// --- Editor Actions
-		if (showEditorActions) {
+		const activeEditorPane = this.editorGroupService.activeGroup?.activeEditorPane;
+		if (activeEditorPane && activeEditorPane instanceof EditorPane) {
+			const result = activeEditorPane.getActionViewItem(action);
 
-			// Toolbar actions
-			const scopedService = this.editorGroupService.activeGroup.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
-			const editorToolbarMenu = this._register(this.menuService.createMenu(MenuId.EditorTitle, scopedService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 }));
-
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
-
-			// Create editor actions
-			createAndFillInActionBarActions(
-				editorToolbarMenu,
-				{ arg: { groupId: this.editorGroupService.activeGroup.id }, shouldForwardArgs: true },
-				actions,
-				'navigation',
-				shouldInlineGroup,
-				true
-			);
-
-			this.actionToolBarMenuDisposables.add(editorToolbarMenu.onDidChange(() => this.updateRightToolBarMenu(editorActionControls)));
+			if (result) {
+				return result;
+			}
 		}
 
-		// --- Global Layout Actions
-		if (showLayoutActions) {
-			const layoutToolbarMenu = this._register(this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService));
-
-			// Create layout actions
-			createAndFillInActionBarActions(
-				layoutToolbarMenu,
-				{},
-				actions,
-				() => !editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
-			);
-
-			this.actionToolBarMenuDisposables.add(layoutToolbarMenu.onDidChange(() => this.updateRightToolBarMenu(editorActionControls)));
-		}
-
-		this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
+		// Check extensions
+		return createActionViewItem(this.instantiationService, action, { hoverDelegate: this.hoverDelegate, menuAsChild: false });
 	}
 
-	private editorActionsEnabled(): boolean {
-		return !!this.editorGroupService.partOptions.showEditorActionsInTitleBar && this.editorGroupService.partOptions.showTabs === 'none';
+	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
+		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
+	}
+
+	private getEditorPaneAwareContextKeyService(): IContextKeyService {
+		return this.editorGroupService.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+	}
+
+	private createActionToolBar() {
+		if (this.actionToolBar) {
+			this.actionToolBar.dispose();
+		}
+		this.actionToolBar = this.instantiationService.createInstance(WorkbenchToolBar, this.actionToolBarElement, {
+			contextMenu: MenuId.TitleBarContext,
+			orientation: ActionsOrientation.HORIZONTAL,
+			ariaLabel: localize('ariaLabelTitleActions', "Title actions"),
+			getKeyBinding: action => this.getKeybinding(action),
+			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
+			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
+			telemetrySource: 'titlePart',
+			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions in overflow menu)
+			actionViewItemProvider: action => this.actionViewItemProvider(action)
+		});
+	}
+
+	private createActionToolBarMenus(update: true | { editorActions?: boolean; layoutActions?: boolean; activityActions?: boolean } = true) {
+		if (update === true) {
+			update = { editorActions: true, layoutActions: true, activityActions: true };
+		}
+
+		const updateToolBarActions = () => {
+			const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
+
+			// --- Editor Actions
+			if (this.editorActionsEnabled) {
+				const { primary, secondary } = this.editorGroupService.activeGroup?.getEditorActions(() => updateToolBarActions()) ?? { primary: [], secondary: [] };
+				actions.primary.push(...primary);
+				actions.secondary.push(...secondary);
+			}
+
+			// --- Layout Actions
+			if (this.layoutToolbarMenu) {
+				// Create layout actions
+				createAndFillInActionBarActions(
+					this.layoutToolbarMenu,
+					{},
+					actions,
+					() => !this.editorActionsEnabled // Layout Actions in overflow menu when editor actions enabled in title bar
+				);
+			}
+
+			if (this.activityToolbarMenu) {
+				// Create layout actions
+				createAndFillInActionBarActions(
+					this.activityToolbarMenu,
+					{},
+					actions,
+					() => true
+				);
+			}
+
+			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
+		};
+
+		if (update.editorActions) {
+			this.editorToolbarMenuDisposables.clear();
+
+			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
+				const context: IEditorCommandsContext = { groupId: this.editorGroupService.activeGroup.id };
+
+				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
+				this.actionToolBar.context = context;
+				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
+			} else {
+				this.actionToolBar.actionRunner = new ActionRunner();
+				this.actionToolBar.context = {};
+
+				this.editorToolbarMenuDisposables.add(this.actionToolBar.actionRunner);
+			}
+		}
+
+		if (update.layoutActions) {
+			this.layoutToolbarMenuDisposables.clear();
+
+			if (this.layoutControlEnabled) {
+				this.layoutToolbarMenu = this.menuService.createMenu(MenuId.LayoutControlMenu, this.contextKeyService);
+
+				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu);
+				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));
+			} else {
+				this.layoutToolbarMenu = undefined;
+			}
+		}
+
+		if (update.activityActions) {
+			this.activityToolbarMenuDisposables.clear();
+
+			if (this.activityActionsEnabled) {
+				this.activityToolbarMenu = this.menuService.createMenu(MenuId.TitleBarGlobalControlMenu, this.contextKeyService);
+
+				this.activityToolbarMenuDisposables.add(this.activityToolbarMenu);
+				this.activityToolbarMenuDisposables.add(this.activityToolbarMenu.onDidChange(() => updateToolBarActions()));
+			} else {
+				this.activityToolbarMenu = undefined;
+			}
+		}
+
+		updateToolBarActions();
 	}
 
 	private updateEditorChangeListener(): void {
-		const showEditorActions = this.editorActionsEnabled();
+		const showEditorActions = this.editorActionsEnabled;
 		if (showEditorActions && !this.editorChangeDisposable) {
-			this.editorChangeDisposable = this.editorService.onDidActiveEditorChange(() => this.updateRightToolBarMenu(this.actionToolBarElement!));
+			this.editorChangeDisposable = this.editorService.onDidActiveEditorChange(() => this.createActionToolBarMenus({ editorActions: true }));
 		} else if (!showEditorActions && this.editorChangeDisposable) {
 			this.editorChangeDisposable.dispose();
 			this.editorChangeDisposable = undefined;
@@ -500,6 +567,14 @@ export class TitlebarPart extends Part implements ITitleService {
 		return this.configurationService.getValue<boolean>('workbench.layoutControl.enabled');
 	}
 
+	private get editorActionsEnabled(): boolean {
+		return !!this.editorGroupService.partOptions.showEditorActionsInTitleBar && this.editorGroupService.partOptions.showTabs === 'none';
+	}
+
+	private get activityActionsEnabled(): boolean {
+		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.TOP;
+	}
+
 	protected get useCounterZoom(): boolean {
 		// Prevent zooming behavior if any of the following conditions are met:
 		// 1. Shrinking below the window control size (zoom < 1)
@@ -542,6 +617,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	public override dispose(): void {
 		this.editorChangeDisposable?.dispose();
+		this.actionToolBar?.dispose();
+
 		super.dispose();
 	}
 }

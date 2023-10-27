@@ -167,6 +167,7 @@ import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remot
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
+import { IAction } from 'vs/base/common/actions';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -949,6 +950,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
 	relayout() { }
+	getEditorActions(_updateToolBar: () => void): { primary: IAction[]; secondary: IAction[] } { throw new Error('not implemented'); }
 }
 
 export class TestEditorGroupAccessor implements IEditorGroupsView {

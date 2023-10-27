@@ -25,6 +25,7 @@ import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titleb
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -70,9 +71,10 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IEditorService editorService: IEditorService,
-		@IMenuService menuService: IMenuService
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 
 		this.environmentService = environmentService;
 	}

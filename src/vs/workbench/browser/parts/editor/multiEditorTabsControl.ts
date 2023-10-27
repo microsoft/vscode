@@ -154,7 +154,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, editorResolverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the

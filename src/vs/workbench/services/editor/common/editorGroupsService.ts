@@ -15,6 +15,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
+import { IAction } from 'vs/base/common/actions';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -805,6 +806,11 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
+
+	/**
+	 * Get the editor actions for the group.
+	 */
+	getEditorActions(updateToolBar: () => void): { readonly primary: IAction[]; readonly secondary: IAction[] };
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {
