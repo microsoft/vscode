@@ -40,7 +40,7 @@ steps:
       . azure-pipelines/win32/retry.ps1
       $ErrorActionPreference = "Stop"
       $env:CHILD_CONCURRENCY="1"
-      retry { exec { yarn --frozen-lockfile --check-files } }
+      retry { exec { npm ci } }
     workingDirectory: build
     displayName: Install build dependencies
 

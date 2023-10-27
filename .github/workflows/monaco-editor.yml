@@ -48,14 +48,14 @@ jobs:
       - name: Install libkrb5-dev
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         run: sudo apt install -y libkrb5-dev
-      - name: Execute yarn
+      - name: Install dependencies
         if: ${{ steps.cacheNodeModules.outputs.cache-hit != 'true' }}
         env:
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
         run: |
           npm i -g node-gyp@9.4.0
-          yarn --frozen-lockfile --network-timeout 180000
+          npm ci
 
       - name: Download Playwright
         run: yarn playwright-install

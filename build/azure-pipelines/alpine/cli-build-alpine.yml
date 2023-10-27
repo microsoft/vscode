@@ -26,7 +26,7 @@ steps:
 
     - script: |
         set -e
-        yarn --frozen-lockfile
+        npm ci
       workingDirectory: build
       displayName: Install pipeline build
 

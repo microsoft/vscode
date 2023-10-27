@@ -119,7 +119,7 @@ stages:
               $ErrorActionPreference = "Stop"
               $env:npm_config_node_gyp = "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
               $env:npm_config_arch = "$(NPM_ARCH)"
-              retry { exec { yarn --frozen-lockfile --check-files } }
+              retry { exec { npm ci } }
             env:
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
@@ -234,7 +234,7 @@ stages:
           - script: |
               set -e
               for i in {1..5}; do # try 5 times
-                yarn --cwd build --frozen-lockfile --check-files && break
+                (cd build && npm ci) && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2
                   exit 1
@@ -267,7 +267,7 @@ stages:
               fi
 
               for i in {1..5}; do # try 5 times
-                yarn --frozen-lockfile --check-files && break
+                npm ci && break
                 if [ $i -eq 3 ]; then
                   echo "Yarn failed too many times" >&2
                   exit 1
@@ -279,7 +279,7 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Install dependencies
 
-          - script: yarn --frozen-lockfile --check-files
+          - script: npm ci
             workingDirectory: .build/distro/npm
             env:
               npm_config_arch: $(NPM_ARCH)

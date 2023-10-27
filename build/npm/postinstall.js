@@ -37,12 +37,7 @@ function npmInstall(dir, opts) {
 		stdio: 'inherit',
 	};
 
-	const raw = process.env['npm_config_argv'] || '{}';
-	const argv = JSON.parse(raw);
-	const original = argv.original || [];
-
-	// TODO replace --frozen-lockfile and --check-files by npm ci
-	const args = original.filter(arg => arg === '--frozen-lockfile' || arg === '--check-files');
+	const command = process.env['npm_command'] || 'install';
 
 	if (process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'] && /^(.build\/distro\/npm\/)?remote$/.test(dir)) {
 		const userinfo = os.userInfo();
@@ -52,11 +47,11 @@ function npmInstall(dir, opts) {
 		if (process.env['npm_config_arch'] === 'arm64') {
 			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], opts);
 		}
-		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', dir, process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'npm', 'install', ...args], opts);
+		run('sudo', ['docker', 'run', '-e', 'GITHUB_TOKEN', '-e', 'npm_config_arch', '-v', `${process.env['VSCODE_HOST_MOUNT']}:/root/vscode`, '-v', `${process.env['VSCODE_HOST_MOUNT']}/.build/.netrc:/root/.netrc`, '-w', dir, process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME'], 'npm', command], opts);
 		run('sudo', ['chown', '-R', `${userinfo.uid}:${userinfo.gid}`, `${dir}/node_modules`], opts);
 	} else {
 		console.log(`Installing dependencies in ${dir}...`);
-		run('npm', ['install', ...args], opts);
+		run('npm', [command], opts);
 	}
 }
 
