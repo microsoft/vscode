@@ -431,7 +431,6 @@ export const enum TerminalCommandId {
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
 	Unsplit = 'workbench.action.terminal.unsplit',
-	UnsplitActiveTab = 'workbench.action.terminal.unsplitActiveTab',
 	JoinActiveTab = 'workbench.action.terminal.joinActiveTab',
 	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',

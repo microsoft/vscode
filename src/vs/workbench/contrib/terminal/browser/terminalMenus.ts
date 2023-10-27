@@ -631,7 +631,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.UnsplitActiveTab,
+						id: TerminalCommandId.Unsplit,
 						title: terminalStrings.unsplit.value
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),
