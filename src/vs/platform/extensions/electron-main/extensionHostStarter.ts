@@ -78,6 +78,21 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 				extHost.dispose();
 				this._extHosts.delete(id);
 			});
+
+			// See https://github.com/microsoft/vscode/issues/194477
+			// We have observed that sometimes the process sends an exit
+			// event, but does not really exit and is stuck in an endless
+			// loop. In these cases we kill the process forcefully after
+			// a certain timeout.
+			setTimeout(() => {
+				try {
+					process.kill(pid, 0); // will throw if the process doesn't exist anymore.
+					this._logService.error(`Extension host with pid ${pid} still exists, forcefully killing it...`);
+					process.kill(pid);
+				} catch (er) {
+					// ignore, as the process is already gone
+				}
+			}, 1000);
 		});
 		return { id };
 	}
