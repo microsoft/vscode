@@ -1394,7 +1394,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (restoreFocus) {
 					nextActiveGroup.focus();
 				} else {
-					this.groupsView.activateGroup(nextActiveGroup);
+					this.groupsView.activateGroup(nextActiveGroup, true);
 				}
 			}
 		}
@@ -1455,7 +1455,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Remove empty group if we should
 			if (closeEmptyGroup) {
-				this.groupsView.removeGroup(this);
+				this.groupsView.removeGroup(this, preserveFocus);
 			}
 		}
 	}
