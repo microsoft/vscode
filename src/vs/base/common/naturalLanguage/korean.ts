@@ -335,18 +335,24 @@ const compatibilityJamo = new Map<number, number>([
 ]);
 
 let codeBufferLength = 0;
-const codeBuffer = new Uint32Array(3);
+const codeBuffer = new Uint32Array(10);
 function disassembleKorean(code: number): Uint32Array | undefined {
 	codeBufferLength = 0;
 
 	getCodesFromArray(code, modernConsonants, 0x1100);
-	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
 
 	getCodesFromArray(code, modernVowels, 0x01161);
-	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
 
 	getCodesFromArray(code, modernLatterConsonants, 0x11A9);
-	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
 
 	// Hangul Compatibility Jamo
 	const compatJamo = compatibilityJamo.get(code);
@@ -368,36 +374,46 @@ function disassembleKorean(code: number): Uint32Array | undefined {
 		// Subtract 1 to skip initial null final consonant
 		const finalConsonantIndex = vowelAndFinalConsonantProduct % 28 - 1;
 
-		// TODO: This could be optimized
-		// const result: number[] = [
-		// 	...[...(
-		// 		initialConsonantIndex < modernConsonants.length
-		// 			? modernConsonants[initialConsonantIndex]
-		// 			: compatibilityJamo.get(0x1100 + initialConsonantIndex) ?? ''
-		// 	)].map(e => e.charCodeAt(0)),
-		// 	...[...(
-		// 		vowelIndex < modernVowels.length
-		// 			? modernVowels[vowelIndex]
-		// 			: compatibilityJamo.get(0x1161 + vowelIndex) ?? ''
-		// 	)].map(e => e.charCodeAt(0)),
-		// ];
-		// if (finalConsonantIndex >= 0) {
-		// 	result.push(...[...(
-		// 		finalConsonantIndex < modernLatterConsonants.length
-		// 			? modernLatterConsonants[finalConsonantIndex]
-		// 			: compatibilityJamo.get(0x11A9 + finalConsonantIndex) ?? ''
-		// 	)].map(e => e.charCodeAt(0)));
-		// }
+		if (initialConsonantIndex < modernConsonants.length) {
+			getCodesFromArray(initialConsonantIndex, modernConsonants, 0);
+		} else {
+			const compatJamo = compatibilityJamo.get(0x1100 + initialConsonantIndex);
+			if (compatJamo) {
+				addCodesToBuffer(compatJamo);
+			}
+		}
 
-		// return result;
+		if (vowelIndex < modernVowels.length) {
+			getCodesFromArray(vowelIndex, modernVowels, 0);
+		} else {
+			const compatJamo = compatibilityJamo.get(0x1161 + vowelIndex);
+			if (compatJamo) {
+				addCodesToBuffer(compatJamo);
+			}
+		}
+
+		if (finalConsonantIndex >= 0) {
+			if (finalConsonantIndex < modernLatterConsonants.length) {
+				getCodesFromArray(finalConsonantIndex, modernLatterConsonants, 0);
+			} else {
+				const compatJamo = compatibilityJamo.get(0x11A8 + finalConsonantIndex);
+				if (compatJamo) {
+					addCodesToBuffer(compatJamo);
+				}
+			}
+		}
+
+		if (codeBufferLength > 0) {
+			return codeBuffer.subarray(0, codeBufferLength);
+		}
 	}
 	return undefined;
 }
 
 function getCodesFromArray(code: number, array: ArrayLike<number>, arrayStartIndex: number): void {
 	if (code >= arrayStartIndex && code < arrayStartIndex + array.length) {
-		if (code - arrayStartIndex < modernConsonants.length) {
-			addCodesToBuffer(modernConsonants[code - arrayStartIndex]);
+		if (code - arrayStartIndex < array.length) {
+			addCodesToBuffer(array[code - arrayStartIndex]);
 			return;
 		}
 	}

@@ -135,14 +135,9 @@ function charactersMatch(codeA: number, codeB: number): boolean {
 	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
-let llF = 0;
 const alternateCharsCache: Map<number, ArrayLike<number> | undefined> = new Map();
 function getAlternateCodes(code: number): ArrayLike<number> | undefined {
 	if (alternateCharsCache.has(code)) {
-		if (llF !== code) {
-			console.log('hit', String.fromCharCode(code), '->', alternateCharsCache.get(code) === undefined ? 'undefined' : String.fromCharCode(alternateCharsCache.get(code)![0]));
-			llF = code;
-		}
 		return alternateCharsCache.get(code);
 	}
 
@@ -152,7 +147,6 @@ function getAlternateCodes(code: number): ArrayLike<number> | undefined {
 		result = codes;
 	}
 
-	console.log('miss', String.fromCharCode(code), '->', result);
 	alternateCharsCache.set(code, result);
 	return result;
 }
@@ -335,6 +329,8 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		if (!altChars) {
 			return null;
 		}
+		// TODO: This causes a problem as the alt char sequence doesn't need to match a contiguous
+		//       string in target
 		for (let k = 0; k < altChars.length; k++) {
 			if (!charactersMatch(altChars[k], target.charCodeAt(j + k))) {
 				return null;
