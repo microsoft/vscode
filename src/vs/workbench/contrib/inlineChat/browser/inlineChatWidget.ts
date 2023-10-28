@@ -542,10 +542,11 @@ export class InlineChatWidget {
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
 		this._codeBlockDisposables.clear();
-		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		const hasMessage = message?.value;
+		this._elements.markdownMessage.classList.toggle('hidden', !hasMessage);
 		let expansionState: ExpansionState;
 		let textContent: string | undefined = undefined;
-		if (!message) {
+		if (!hasMessage) {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
 			expansionState = ExpansionState.NOT_CROPPED;
