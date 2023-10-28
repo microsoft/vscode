@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -72,6 +73,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	async open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow> {
+		mark('code/auxiliaryWindow/willOpen');
+
 		const disposables = new DisposableStore();
 
 		const auxiliaryWindow = await this.doOpen(options);
@@ -96,6 +99,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const eventDisposables = new DisposableStore();
 		disposables.add(eventDisposables);
 		this._onDidOpenAuxiliaryWindow.fire({ window: result, disposables: eventDisposables });
+
+		mark('code/auxiliaryWindow/didOpen');
 
 		return result;
 	}
@@ -161,6 +166,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
+		mark('code/auxiliaryWindow/willApplyCSS');
+
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
 
 		function cloneNode(originalNode: Node): void {
@@ -223,9 +230,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		observer.observe(document.head, { childList: true, subtree: true });
 		disposables.add(toDisposable(() => observer.disconnect()));
+
+		mark('code/auxiliaryWindow/didApplyCSS');
 	}
 
 	private applyHTML(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): HTMLElement {
+		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes
 		const container = document.createElement('div');
@@ -235,6 +245,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		disposables.add(trackAttributes(document.documentElement, auxiliaryWindow.document.documentElement));
 		disposables.add(trackAttributes(document.body, auxiliaryWindow.document.body));
 		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
+
+		mark('code/auxiliaryWindow/didApplyHTML');
 
 		return container;
 	}
@@ -278,6 +290,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 	}
 
 	protected async patchMethods(auxiliaryWindow: AuxiliaryWindow): Promise<void> {
+		mark('code/auxiliaryWindow/willPatchMethods');
 
 		// Add a `vscodeWindowId` property to identify auxiliary windows
 		const resolvedWindowId = await this.resolveWindowId(auxiliaryWindow);
@@ -291,6 +304,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		auxiliaryWindow.document.createElement = function () {
 			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
 		};
+
+		mark('code/auxiliaryWindow/didPatchMethods');
 	}
 }
 
