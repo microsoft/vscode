@@ -5,7 +5,7 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BrowserAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
@@ -14,16 +14,9 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getActiveWindow } from 'vs/base/browser/dom';
 
-type AuxiliaryWindow = BaseAuxiliaryWindow & {
+type NativeAuxiliaryWindow = BrowserAuxiliaryWindow & {
 	readonly vscode: ISandboxGlobals;
-	readonly vscodeWindowId: number;
 };
-
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
-
-	return !!candidate?.vscode && Object.hasOwn(candidate, 'vscodeWindowId');
-}
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
@@ -36,7 +29,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService, dialogService);
 	}
 
-	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
+	protected override create(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore) {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
@@ -46,19 +39,12 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return super.create(auxiliaryWindow, disposables);
 	}
 
-	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
-		super.patchMethods(auxiliaryWindow);
+	protected override  resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:getWindowId');
+	}
 
-		// Obtain window identifier
-		let resolvedWindowId: number;
-		(async () => {
-			resolvedWindowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:getWindowId');
-		})();
-
-		// Add a `windowId` property
-		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
-			get: () => resolvedWindowId
-		});
+	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
+		await super.patchMethods(auxiliaryWindow);
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
@@ -69,7 +55,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 			originalWindowFocus();
 
 			if (getActiveWindow() !== auxiliaryWindow) {
-				that.nativeHostService.focusWindow({ targetWindowId: resolvedWindowId });
+				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
 			}
 		};
 	}
