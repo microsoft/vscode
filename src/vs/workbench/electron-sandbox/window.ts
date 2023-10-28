@@ -683,7 +683,7 @@ export class NativeWindow extends Disposable {
 			originalWindowFocus();
 
 			if (getActiveWindow() !== window) {
-				that.nativeHostService.focusWindow();
+				that.nativeHostService.focusWindow({ targetWindowId: that.nativeHostService.windowId });
 			}
 		};
 	}

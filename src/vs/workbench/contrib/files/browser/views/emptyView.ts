@@ -20,7 +20,7 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { isWeb } from 'vs/base/common/platform';
-import { DragAndDropObserver } from 'vs/base/browser/dom';
+import { DragAndDropObserver, getWindow } from 'vs/base/browser/dom';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 
 export class EmptyView extends ViewPane {
@@ -60,7 +60,7 @@ export class EmptyView extends ViewPane {
 			onDrop: e => {
 				container.style.backgroundColor = '';
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: !isWeb || isTemporaryWorkspace(this.contextService.getWorkspace()) });
-				dropHandler.handleDrop(e);
+				dropHandler.handleDrop(e, getWindow(container));
 			},
 			onDragEnter: () => {
 				const color = this.themeService.getColorTheme().getColor(listDropBackground);
