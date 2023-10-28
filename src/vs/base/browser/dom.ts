@@ -792,12 +792,16 @@ export function focusWindow(element: Node): void {
 
 const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
 
-export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	beforeAppend?.(style);
 	container.appendChild(style);
+
+	if (disposableStore) {
+		disposableStore.add(toDisposable(() => container.removeChild(style)));
+	}
 
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
@@ -807,14 +811,16 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 				continue; // main window is already tracked
 			}
 
-			const disposable = cloneGlobalStyleSheet(style, targetWindow);
+			const cloneDisposable = cloneGlobalStyleSheet(style, targetWindow);
+			disposableStore?.add(cloneDisposable);
 
-			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
+			disposableStore?.add(event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
 				if (unregisteredWindow === targetWindow) {
-					disposable.dispose();
+					cloneDisposable.dispose();
 				}
-			});
+			}));
 		}
+
 	}
 
 	return style;

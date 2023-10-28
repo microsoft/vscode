@@ -56,10 +56,7 @@ class InspectContextKeysAction extends Action2 {
 
 		const disposables = new DisposableStore();
 
-		const stylesheet = createStyleSheet();
-		disposables.add(toDisposable(() => {
-			stylesheet.parentNode?.removeChild(stylesheet);
-		}));
+		const stylesheet = createStyleSheet(undefined, undefined, disposables);
 		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
 
 		const hoverFeedback = document.createElement('div');
