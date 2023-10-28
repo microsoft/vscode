@@ -830,7 +830,7 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
-export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
+export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
 	const disposables = new DisposableStore();
 
 	for (const [globalStylesheet] of globalStylesheets) {
@@ -840,7 +840,7 @@ export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis)
 	return disposables;
 }
 
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): IDisposable {
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window): IDisposable {
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
 
