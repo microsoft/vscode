@@ -13,8 +13,119 @@
  *
  * @param code The character code to get alternate characters for
  */
-export function getKoreanAltChars(code: number): number[] | undefined {
-	return disassembleKorean(code);
+export function getKoreanAltChars(code: number): ArrayLike<number> | undefined {
+	const result = disassembleKorean(code);
+	if (result && result.length > 0) {
+		return new Uint32Array(result);
+	}
+	return undefined;
+}
+
+const enum AsciiCode {
+	A = 65,
+	B = 66,
+	C = 67,
+	D = 68,
+	E = 69,
+	F = 70,
+	G = 71,
+	H = 72,
+	I = 73,
+	J = 74,
+	K = 75,
+	L = 76,
+	M = 77,
+	N = 78,
+	O = 79,
+	P = 80,
+	Q = 81,
+	R = 82,
+	S = 83,
+	T = 84,
+	U = 85,
+	V = 86,
+	W = 87,
+	X = 88,
+	Y = 89,
+	Z = 90,
+	a = 97,
+	b = 98,
+	c = 99,
+	d = 100,
+	e = 101,
+	f = 102,
+	g = 103,
+	h = 104,
+	i = 105,
+	j = 106,
+	k = 107,
+	l = 108,
+	m = 109,
+	n = 110,
+	o = 111,
+	p = 112,
+	q = 113,
+	r = 114,
+	s = 115,
+	t = 116,
+	u = 117,
+	v = 118,
+	w = 119,
+	x = 120,
+	y = 121,
+	z = 122,
+}
+
+/**
+ * Numbers that represent multiple ascii codes. These are precomputed at compile time to reduce
+ * bundle and runtime overhead.
+ */
+const enum AsciiCodeCombo {
+	hk = AsciiCode.h << 8 | AsciiCode.k,
+	ho = AsciiCode.h << 8 | AsciiCode.o,
+	hl = AsciiCode.h << 8 | AsciiCode.l,
+	nj = AsciiCode.n << 8 | AsciiCode.j,
+	np = AsciiCode.n << 8 | AsciiCode.p,
+	nl = AsciiCode.n << 8 | AsciiCode.l,
+	ml = AsciiCode.m << 8 | AsciiCode.l,
+	rt = AsciiCode.r << 8 | AsciiCode.t,
+	sw = AsciiCode.s << 8 | AsciiCode.w,
+	sg = AsciiCode.s << 8 | AsciiCode.g,
+	fr = AsciiCode.f << 8 | AsciiCode.r,
+	fa = AsciiCode.f << 8 | AsciiCode.a,
+	fq = AsciiCode.f << 8 | AsciiCode.q,
+	ft = AsciiCode.f << 8 | AsciiCode.t,
+	fx = AsciiCode.f << 8 | AsciiCode.x,
+	fv = AsciiCode.f << 8 | AsciiCode.v,
+	fg = AsciiCode.f << 8 | AsciiCode.g,
+	qt = AsciiCode.q << 8 | AsciiCode.t,
+
+	ss = AsciiCode.s << 8 | AsciiCode.s,
+	se = AsciiCode.s << 8 | AsciiCode.e,
+	st = AsciiCode.s << 8 | AsciiCode.t,
+	frt = AsciiCode.f << 16 | AsciiCode.r << 8 | AsciiCode.t,
+	fe = AsciiCode.f << 8 | AsciiCode.e,
+	fqt = AsciiCode.f << 16 | AsciiCode.q << 8 | AsciiCode.t,
+	aq = AsciiCode.a << 8 | AsciiCode.q,
+	at = AsciiCode.a << 8 | AsciiCode.t,
+	qr = AsciiCode.q << 8 | AsciiCode.r,
+	qe = AsciiCode.q << 8 | AsciiCode.e,
+	qtr = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.r,
+	qte = AsciiCode.q << 16 | AsciiCode.t << 8 | AsciiCode.e,
+	qw = AsciiCode.q << 8 | AsciiCode.w,
+	qx = AsciiCode.q << 8 | AsciiCode.x,
+	tr = AsciiCode.t << 8 | AsciiCode.r,
+	ts = AsciiCode.t << 8 | AsciiCode.s,
+	te = AsciiCode.t << 8 | AsciiCode.e,
+	tq = AsciiCode.t << 8 | AsciiCode.q,
+	tw = AsciiCode.t << 8 | AsciiCode.w,
+	dd = AsciiCode.d << 8 | AsciiCode.d,
+	gg = AsciiCode.g << 8 | AsciiCode.g,
+	yi = AsciiCode.y << 8 | AsciiCode.i,
+	yO = AsciiCode.y << 8 | AsciiCode.O,
+	yl = AsciiCode.y << 8 | AsciiCode.l,
+	yu = AsciiCode.y << 8 | AsciiCode.u,
+	yP = AsciiCode.y << 8 | AsciiCode.P,
 }
 
 /**
@@ -27,27 +138,27 @@ export function getKoreanAltChars(code: number): number[] | undefined {
  * | U+110x | ᄀ | ᄁ | ᄂ | ᄃ | ᄄ | ᄅ | ᄆ | ᄇ | ᄈ | ᄉ | ᄊ | ᄋ | ᄌ | ᄍ | ᄎ | ᄏ |
  * | U+111x | ᄐ | ᄑ | ᄒ |
  */
-const modernConsonants: string[] = [
-	'r', // ㄱ
-	'R', // ㄲ
-	's', // ㄴ
-	'e', // ㄷ
-	'E', // ㄸ
-	'f', // ㄹ
-	'a', // ㅁ
-	'q', // ㅂ
-	'Q', // ㅃ
-	't', // ㅅ
-	'T', // ㅆ
-	'd', // ㅇ
-	'w', // ㅈ
-	'W', // ㅉ
-	'c', // ㅊ
-	'z', // ㅋ
-	'x', // ㅌ
-	'v', // ㅍ
-	'g', // ㅎ
-];
+const modernConsonants = new Uint8Array([
+	AsciiCode.r, // ㄱ
+	AsciiCode.R, // ㄲ
+	AsciiCode.s, // ㄴ
+	AsciiCode.e, // ㄷ
+	AsciiCode.E, // ㄸ
+	AsciiCode.f, // ㄹ
+	AsciiCode.a, // ㅁ
+	AsciiCode.q, // ㅂ
+	AsciiCode.Q, // ㅃ
+	AsciiCode.t, // ㅅ
+	AsciiCode.T, // ㅆ
+	AsciiCode.d, // ㅇ
+	AsciiCode.w, // ㅈ
+	AsciiCode.W, // ㅉ
+	AsciiCode.c, // ㅊ
+	AsciiCode.z, // ㅋ
+	AsciiCode.x, // ㅌ
+	AsciiCode.v, // ㅍ
+	AsciiCode.g, // ㅎ
+]);
 
 /**
  * Hangul Jamo - Modern Vowels
@@ -59,29 +170,29 @@ const modernConsonants: string[] = [
  * | U+116x |   | ᅡ | ᅢ | ᅣ | ᅤ | ᅥ | ᅦ | ᅧ | ᅨ | ᅩ | ᅪ | ᅫ | ᅬ | ᅭ | ᅮ | ᅯ |
  * | U+117x | ᅰ | ᅱ | ᅲ | ᅳ | ᅴ | ᅵ |
  */
-const modernVowels: string[] = [
-	'k', // ㅏ
-	'o', // ㅐ
-	'i', // ㅑ
-	'O', // ㅒ
-	'j', // ㅓ
-	'p', // ㅔ
-	'u', // ㅕ
-	'P', // ㅖ
-	'h', // ㅗ
-	'hk', // ㅘ
-	'ho', // ㅙ
-	'hl', // ㅚ
-	'y', // ㅛ
-	'n', // ㅜ
-	'nj', // ㅝ
-	'np', // ㅞ
-	'nl', // ㅟ
-	'b', // ㅠ
-	'm', // ㅡ
-	'ml', // ㅢ
-	'l', // ㅣ
-];
+const modernVowels = new Uint16Array([
+	AsciiCode.k,       //  -> ㅏ
+	AsciiCode.o,       //  -> ㅐ
+	AsciiCode.i,       //  -> ㅑ
+	AsciiCode.O,       //  -> ㅒ
+	AsciiCode.j,       //  -> ㅓ
+	AsciiCode.p,       //  -> ㅔ
+	AsciiCode.u,       //  -> ㅕ
+	AsciiCode.P,       //  -> ㅖ
+	AsciiCode.h,       //  -> ㅗ
+	AsciiCodeCombo.hk, //  -> ㅘ
+	AsciiCodeCombo.ho, //  -> ㅙ
+	AsciiCodeCombo.hl, //  -> ㅚ
+	AsciiCode.y,       //  -> ㅛ
+	AsciiCode.n,       //  -> ㅜ
+	AsciiCodeCombo.nj, //  -> ㅝ
+	AsciiCodeCombo.np, //  -> ㅞ
+	AsciiCodeCombo.nl, //  -> ㅟ
+	AsciiCode.b,       //  -> ㅠ
+	AsciiCode.m,       //  -> ㅡ
+	AsciiCodeCombo.ml, //  -> ㅢ
+	AsciiCode.l,       //  -> ㅣ
+]);
 
 /**
  * Hangul Jamo - Modern Consonants #2
@@ -94,39 +205,43 @@ const modernVowels: string[] = [
  * | U+11Bx | ᆰ | ᆱ | ᆲ | ᆳ | ᆴ | ᆵ | ᆶ | ᆷ | ᆸ | ᆹ | ᆺ | ᆻ | ᆼ | ᆽ | ᆾ | ᆿ |
  * | U+11Cx | ᇀ | ᇁ | ᇂ |
  */
-const modernLatterConsonants: string[] = [
-	'r', // ㄱ
-	'R', // ㄲ
-	'rt', // ㄳ
-	's', // ㄴ
-	'sw', // ㄵ
-	'sg', // ㄶ
-	'e', // ㄷ
-	'f', // ㄹ
-	'fr', // ㄺ
-	'fa', // ㄻ
-	'fq', // ㄼ
-	'ft', // ㄽ
-	'fx', // ㄾ
-	'fv', // ㄿ
-	'fg', // ㅀ
-	'a', // ㅁ
-	'q', // ㅂ
-	'qt', // ㅄ
-	't', // ㅅ
-	'T', // ㅆ
-	'd', // ㅇ
-	'w', // ㅈ
-	'c', // ㅊ
-	'z', // ㅋ
-	'x', // ㅌ
-	'v', // ㅍ
-	'g', // ㅎ
-];
+const modernLatterConsonants = new Uint16Array([
+	AsciiCode.r,       // ㄱ
+	AsciiCode.R,       // ㄲ
+	AsciiCodeCombo.rt, // ㄳ
+	AsciiCode.s,       // ㄴ
+	AsciiCodeCombo.sw, // ㄵ
+	AsciiCodeCombo.sg, // ㄶ
+	AsciiCode.e,       // ㄷ
+	AsciiCode.f,       // ㄹ
+	AsciiCodeCombo.fr, // ㄺ
+	AsciiCodeCombo.fa, // ㄻ
+	AsciiCodeCombo.fq, // ㄼ
+	AsciiCodeCombo.ft, // ㄽ
+	AsciiCodeCombo.fx, // ㄾ
+	AsciiCodeCombo.fv, // ㄿ
+	AsciiCodeCombo.fg, // ㅀ
+	AsciiCode.a,       // ㅁ
+	AsciiCode.q,       // ㅂ
+	AsciiCodeCombo.qt, // ㅄ
+	AsciiCode.t,       // ㅅ
+	AsciiCode.T,       // ㅆ
+	AsciiCode.d,       // ㅇ
+	AsciiCode.w,       // ㅈ
+	AsciiCode.c,       // ㅊ
+	AsciiCode.z,       // ㅋ
+	AsciiCode.x,       // ㅌ
+	AsciiCode.v,       // ㅍ
+	AsciiCode.g,       // ㅎ
+]);
+
 /**
  * Hangul Compatibility Jamo
  *
  * Range U+3131..U+318F
+ *
+ * This includes archaic jamo which are excluded, this is why it's stored as
+ * a Map.
  *
  * |        | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
  * |--------|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
@@ -137,129 +252,107 @@ const modernLatterConsonants: string[] = [
  * | U+317x | ㅰ | ㅱ | ㅲ | ㅳ | ㅴ | ㅵ | ㅶ | ㅷ | ㅸ | ㅹ | ㅺ | ㅻ | ㅼ | ㅽ | ㅾ | ㅿ |
  * | U+318x | ㆀ | ㆁ | ㆂ | ㆃ | ㆄ | ㆅ | ㆆ | ㆇ | ㆈ | ㆉ | ㆊ | ㆋ | ㆌ | ㆍ | ㆎ |
  */
-const compatibilityJamo = new Map<number, string>([
-	/* ㄱ */[0x3131, 'r'],
-	/* ㄲ */[0x3132, 'R'],
-	/* ㄳ */[0x3133, 'rt'],
-	/* ㄴ */[0x3134, 's'],
-	/* ㄵ */[0x3135, 'sw'],
-	/* ㄶ */[0x3136, 'sg'],
-	/* ㄷ */[0x3137, 'e'],
-	/* ㄸ */[0x3138, 'E'],
-	/* ㄹ */[0x3139, 'f'],
-	/* ㄺ */[0x313a, 'fr'],
-	/* ㄻ */[0x313b, 'fa'],
-	/* ㄼ */[0x313c, 'fq'],
-	/* ㄽ */[0x313d, 'ft'],
-	/* ㄾ */[0x313e, 'fx'],
-	/* ㄿ */[0x313f, 'fv'],
-	/* ㅀ */[0x3140, 'fg'],
-	/* ㅁ */[0x3141, 'a'],
-	/* ㅂ */[0x3142, 'q'],
-	/* ㅃ */[0x3143, 'Q'],
-	/* ㅄ */[0x3144, 'qt'],
-	/* ㅅ */[0x3145, 't'],
-	/* ㅆ */[0x3146, 'T'],
-	/* ㅇ */[0x3147, 'd'],
-	/* ㅈ */[0x3148, 'w'],
-	/* ㅉ */[0x3149, 'W'],
-	/* ㅊ */[0x314a, 'c'],
-	/* ㅋ */[0x314b, 'z'],
-	/* ㅌ */[0x314c, 'x'],
-	/* ㅍ */[0x314d, 'v'],
-	/* ㅎ */[0x314e, 'g'],
-	/* ㅏ */[0x314f, 'k'],
-	/* ㅐ */[0x3150, 'o'],
-	/* ㅑ */[0x3151, 'i'],
-	/* ㅒ */[0x3152, 'O'],
-	/* ㅓ */[0x3153, 'j'],
-	/* ㅔ */[0x3154, 'p'],
-	/* ㅕ */[0x3155, 'u'],
-	/* ㅖ */[0x3156, 'P'],
-	/* ㅗ */[0x3157, 'h'],
-	/* ㅘ */[0x3158, 'hk'],
-	/* ㅙ */[0x3159, 'ho'],
-	/* ㅚ */[0x315a, 'hl'],
-	/* ㅛ */[0x315b, 'y'],
-	/* ㅜ */[0x315c, 'n'],
-	/* ㅝ */[0x315d, 'nj'],
-	/* ㅞ */[0x315e, 'np'],
-	/* ㅟ */[0x315f, 'nl'],
-	/* ㅠ */[0x3160, 'b'],
-	/* ㅡ */[0x3161, 'm'],
-	/* ㅢ */[0x3162, 'ml'],
-	/* ㅣ */[0x3163, 'l'],
-	// HF,
-	/* ㅥ */[0x3165, 'ss'],
-	/* ㅦ */[0x3166, 'se'],
-	/* ㅧ */[0x3167, 'st'],
-	// /* ㅨ */ [0x0, 'a'],
-	/* ㅩ */[0x03169, 'frt'],
-	/* ㅪ */[0x0316a, 'fe'],
-	/* ㅫ */[0x0316b, 'fqt'],
-	// /* ㅬ */ [0x0, ''],
-	/* ㅭ */[0x316d, 'fg'],
-	/* ㅮ */[0x316e, 'aq'],
-	/* ㅯ */[0x316f, 'at'],
-	// /* ㅰ */ [0x0, ''],
-	// /* ㅱ */ [0x0, 'a'],
-	/* ㅲ */[0x3172, 'qr'],
-	/* ㅳ */[0x3173, 'qe'],
-	/* ㅴ */[0x3174, 'qtr'],
-	/* ㅵ */[0x3175, 'qte'],
-	/* ㅶ */[0x3176, 'qw'],
-	/* ㅷ */[0x3177, 'qx'],
-	// /* ㅸ */ [0x0, 'a'],
-	// /* ㅹ */ [0x0, 'a'],
-	/* ㅺ */[0x317a, 'tr'],
-	/* ㅻ */[0x317b, 'ts'],
-	/* ㅼ */[0x317c, 'te'],
-	/* ㅽ */[0x317d, 'tq'],
-	/* ㅾ */[0x317e, 'tw'],
-	// /* ㅿ */ [0x0, 'a'],
-	/* ㆀ */[0x3180, 'dd'],
-	// /* ㆁ */ [0x0, 'a'],
-	// /* ㆂ */ [0x0, 'a'],
-	// /* ㆃ */ [0x0, 'a'],
-	// /* ㆄ */ [0x0, 'a'],
-	/* ㆅ */[0x3185, 'gg'],
-	// /* ㆆ */ [0x0, 'a'],
-	/* ㆇ */[0x3187, 'yi'],
-	/* ㆈ */[0x3188, 'yO'],
-	/* ㆉ */[0x3189, 'yl'],
-	/* ㆊ */[0x318a, 'yu'],
-	/* ㆋ */[0x318b, 'yP'],
-	/* ㆌ */[0x318c, 'yl'],
-	// /* ㆍ */ [0x0, 'a'],
-	// /* ㆎ */ [0x0, 'a'],
+const compatibilityJamo = new Map<number, number>([
+	[0x3131, AsciiCode.r],        // ㄱ
+	[0x3132, AsciiCode.R],        // ㄲ
+	[0x3133, AsciiCodeCombo.rt],  // ㄳ
+	[0x3134, AsciiCode.s],        // ㄴ
+	[0x3135, AsciiCodeCombo.sw],  // ㄵ
+	[0x3136, AsciiCodeCombo.sg],  // ㄶ
+	[0x3137, AsciiCode.e],        // ㄷ
+	[0x3138, AsciiCode.E],        // ㄸ
+	[0x3139, AsciiCode.f],        // ㄹ
+	[0x313a, AsciiCodeCombo.fr],  // ㄺ
+	[0x313b, AsciiCodeCombo.fa],  // ㄻ
+	[0x313c, AsciiCodeCombo.fq],  // ㄼ
+	[0x313d, AsciiCodeCombo.ft],  // ㄽ
+	[0x313e, AsciiCodeCombo.fx],  // ㄾ
+	[0x313f, AsciiCodeCombo.fv],  // ㄿ
+	[0x3140, AsciiCodeCombo.fg],  // ㅀ
+	[0x3141, AsciiCode.a],        // ㅁ
+	[0x3142, AsciiCode.q],        // ㅂ
+	[0x3143, AsciiCode.Q],        // ㅃ
+	[0x3144, AsciiCodeCombo.qt],  // ㅄ
+	[0x3145, AsciiCode.t],        // ㅅ
+	[0x3146, AsciiCode.T],        // ㅆ
+	[0x3147, AsciiCode.d],        // ㅇ
+	[0x3148, AsciiCode.w],        // ㅈ
+	[0x3149, AsciiCode.W],        // ㅉ
+	[0x314a, AsciiCode.c],        // ㅊ
+	[0x314b, AsciiCode.z],        // ㅋ
+	[0x314c, AsciiCode.x],        // ㅌ
+	[0x314d, AsciiCode.v],        // ㅍ
+	[0x314e, AsciiCode.g],        // ㅎ
+	[0x314f, AsciiCode.k],        // ㅏ
+	[0x3150, AsciiCode.o],        // ㅐ
+	[0x3151, AsciiCode.i],        // ㅑ
+	[0x3152, AsciiCode.O],        // ㅒ
+	[0x3153, AsciiCode.j],        // ㅓ
+	[0x3154, AsciiCode.p],        // ㅔ
+	[0x3155, AsciiCode.u],        // ㅕ
+	[0x3156, AsciiCode.P],        // ㅖ
+	[0x3157, AsciiCode.h],        // ㅗ
+	[0x3158, AsciiCodeCombo.hk],  // ㅘ
+	[0x3159, AsciiCodeCombo.ho],  // ㅙ
+	[0x315a, AsciiCodeCombo.hl],  // ㅚ
+	[0x315b, AsciiCode.y],        // ㅛ
+	[0x315c, AsciiCode.n],        // ㅜ
+	[0x315d, AsciiCodeCombo.nj],  // ㅝ
+	[0x315e, AsciiCodeCombo.np],  // ㅞ
+	[0x315f, AsciiCodeCombo.nl],  // ㅟ
+	[0x3160, AsciiCode.b],        // ㅠ
+	[0x3161, AsciiCode.m],        // ㅡ
+	[0x3162, AsciiCodeCombo.ml],  // ㅢ
+	[0x3163, AsciiCode.l],        // ㅣ
+	[0x3165, AsciiCodeCombo.ss],  // ㅥ
+	[0x3166, AsciiCodeCombo.se],  // ㅦ
+	[0x3167, AsciiCodeCombo.st],  // ㅧ
+	[0x3169, AsciiCodeCombo.frt], // ㅩ
+	[0x316a, AsciiCodeCombo.fe],  // ㅪ
+	[0x316b, AsciiCodeCombo.fqt], // ㅫ
+	[0x316d, AsciiCodeCombo.fg],  // ㅭ
+	[0x316e, AsciiCodeCombo.aq],  // ㅮ
+	[0x316f, AsciiCodeCombo.at],  // ㅯ
+	[0x3172, AsciiCodeCombo.qr],  // ㅲ
+	[0x3173, AsciiCodeCombo.qe],  // ㅳ
+	[0x3174, AsciiCodeCombo.qtr], // ㅴ
+	[0x3175, AsciiCodeCombo.qte], // ㅵ
+	[0x3176, AsciiCodeCombo.qw],  // ㅶ
+	[0x3177, AsciiCodeCombo.qx],  // ㅷ
+	[0x317a, AsciiCodeCombo.tr],  // ㅺ
+	[0x317b, AsciiCodeCombo.ts],  // ㅻ
+	[0x317c, AsciiCodeCombo.te],  // ㅼ
+	[0x317d, AsciiCodeCombo.tq],  // ㅽ
+	[0x317e, AsciiCodeCombo.tw],  // ㅾ
+	[0x3180, AsciiCodeCombo.dd],  // ㆀ
+	[0x3185, AsciiCodeCombo.gg],  // ㆅ
+	[0x3187, AsciiCodeCombo.yi],  // ㆇ
+	[0x3188, AsciiCodeCombo.yO],  // ㆈ
+	[0x3189, AsciiCodeCombo.yl],  // ㆉ
+	[0x318a, AsciiCodeCombo.yu],  // ㆊ
+	[0x318b, AsciiCodeCombo.yP],  // ㆋ
+	[0x318c, AsciiCodeCombo.yl],  // ㆌ
 ]);
 
-function disassembleKorean(code: number): number[] | undefined {
-	// Hangul Jamo - Modern consonants #1
-	if (code >= 0x1100 && code <= 0x1112) {
-		if (code - 0x1100 < modernConsonants.length) {
-			return Array.from(modernConsonants[code - 0x1100]).map(e => e.charCodeAt(0));
-		}
-	}
+let codeBufferLength = 0;
+const codeBuffer = new Uint32Array(3);
+function disassembleKorean(code: number): Uint32Array | undefined {
+	codeBufferLength = 0;
 
-	// Hangul Jamo - Modern Vowels
-	if (code >= 0x1161 && code <= 0x1175) {
-		if (code - 0x1161 < modernVowels.length) {
-			return Array.from(modernVowels[code - 0x1161]).map(e => e.charCodeAt(0));
-		}
-	}
+	getCodesFromArray(code, modernConsonants, 0x1100);
+	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
 
-	// Hangul Jamo - Modern Consonants #2
-	if (code >= 0x11A9 && code <= 0x11C2) {
-		if (code - 0x11A9 < modernLatterConsonants.length) {
-			return Array.from(modernLatterConsonants[code - 0x11A9]).map(e => e.charCodeAt(0));
-		}
-	}
+	getCodesFromArray(code, modernVowels, 0x01161);
+	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
+
+	getCodesFromArray(code, modernLatterConsonants, 0x11A9);
+	if (codeBufferLength > 0) { return codeBuffer.subarray(0, codeBufferLength); }
 
 	// Hangul Compatibility Jamo
 	const compatJamo = compatibilityJamo.get(code);
 	if (compatJamo) {
-		return Array.from(compatJamo).map(e => e.charCodeAt(0));
+		addCodesToBuffer(compatJamo);
+		return codeBuffer.subarray(0, codeBufferLength);
 	}
 
 	// Hangul Syllables
@@ -275,27 +368,48 @@ function disassembleKorean(code: number): number[] | undefined {
 		// Subtract 1 to skip initial null final consonant
 		const finalConsonantIndex = vowelAndFinalConsonantProduct % 28 - 1;
 
-		const result: number[] = [
-			...[...(
-				initialConsonantIndex < modernConsonants.length
-					? modernConsonants[initialConsonantIndex]
-					: compatibilityJamo.get(0x1100 + initialConsonantIndex) ?? ''
-			)].map(e => e.charCodeAt(0)),
-			...[...(
-				vowelIndex < modernVowels.length
-					? modernVowels[vowelIndex]
-					: compatibilityJamo.get(0x1161 + vowelIndex) ?? ''
-			)].map(e => e.charCodeAt(0)),
-		];
-		if (finalConsonantIndex >= 0) {
-			result.push(...[...(
-				finalConsonantIndex < modernLatterConsonants.length
-					? modernLatterConsonants[finalConsonantIndex]
-					: compatibilityJamo.get(0x11A9 + finalConsonantIndex) ?? ''
-			)].map(e => e.charCodeAt(0)));
-		}
+		// TODO: This could be optimized
+		// const result: number[] = [
+		// 	...[...(
+		// 		initialConsonantIndex < modernConsonants.length
+		// 			? modernConsonants[initialConsonantIndex]
+		// 			: compatibilityJamo.get(0x1100 + initialConsonantIndex) ?? ''
+		// 	)].map(e => e.charCodeAt(0)),
+		// 	...[...(
+		// 		vowelIndex < modernVowels.length
+		// 			? modernVowels[vowelIndex]
+		// 			: compatibilityJamo.get(0x1161 + vowelIndex) ?? ''
+		// 	)].map(e => e.charCodeAt(0)),
+		// ];
+		// if (finalConsonantIndex >= 0) {
+		// 	result.push(...[...(
+		// 		finalConsonantIndex < modernLatterConsonants.length
+		// 			? modernLatterConsonants[finalConsonantIndex]
+		// 			: compatibilityJamo.get(0x11A9 + finalConsonantIndex) ?? ''
+		// 	)].map(e => e.charCodeAt(0)));
+		// }
 
-		return result;
+		// return result;
 	}
 	return undefined;
+}
+
+function getCodesFromArray(code: number, array: ArrayLike<number>, arrayStartIndex: number): void {
+	if (code >= arrayStartIndex && code < arrayStartIndex + array.length) {
+		if (code - arrayStartIndex < modernConsonants.length) {
+			addCodesToBuffer(modernConsonants[code - arrayStartIndex]);
+			return;
+		}
+	}
+}
+
+function addCodesToBuffer(codes: number): void {
+	// Number stored in format: OptionalThirdCode << 16 | OptionalSecondCode << 8 | Code
+	codeBuffer[codeBufferLength++] = codes & 0xFF;
+	if (codes >> 8) {
+		codeBuffer[codeBufferLength++] = (codes >> 8) & 0xFF;
+	}
+	if (codes >> 16) {
+		codeBuffer[codeBufferLength++] = (codes >> 16) & 0xFF;
+	}
 }

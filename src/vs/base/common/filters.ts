@@ -135,19 +135,25 @@ function charactersMatch(codeA: number, codeB: number): boolean {
 	return (codeA === codeB) || (isWordSeparator(codeA) && isWordSeparator(codeB));
 }
 
-const alternateCharsCache: Map<number, string | undefined> = new Map();
-function getAlternateChars(codeA: number): string | undefined {
-	if (alternateCharsCache.has(codeA)) {
-		return alternateCharsCache.get(codeA);
+let llF = 0;
+const alternateCharsCache: Map<number, ArrayLike<number> | undefined> = new Map();
+function getAlternateCodes(code: number): ArrayLike<number> | undefined {
+	if (alternateCharsCache.has(code)) {
+		if (llF !== code) {
+			console.log('hit', String.fromCharCode(code), '->', alternateCharsCache.get(code) === undefined ? 'undefined' : String.fromCharCode(alternateCharsCache.get(code)![0]));
+			llF = code;
+		}
+		return alternateCharsCache.get(code);
 	}
 
-	const codes = getKoreanAltChars(codeA);
-	let result: string | undefined;
+	const codes = getKoreanAltChars(code);
+	let result: ArrayLike<number> | undefined;
 	if (codes) {
-		result = String.fromCharCode(...codes);
+		result = codes;
 	}
 
-	alternateCharsCache.set(codeA, result);
+	console.log('miss', String.fromCharCode(code), '->', result);
+	alternateCharsCache.set(code, result);
 	return result;
 }
 
@@ -325,12 +331,12 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		return null;
 	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
 		// Verify alternate characters before exiting
-		const altChars = getAlternateChars(word.charCodeAt(i));
+		const altChars = getAlternateCodes(word.charCodeAt(i));
 		if (!altChars) {
 			return null;
 		}
 		for (let k = 0; k < altChars.length; k++) {
-			if (!charactersMatch(altChars.charCodeAt(k), target.charCodeAt(j + k))) {
+			if (!charactersMatch(altChars[k], target.charCodeAt(j + k))) {
 				return null;
 			}
 		}
@@ -354,13 +360,13 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
 	if (word.charCodeAt(i) !== target.charCodeAt(j)) {
-		const altChars = getAlternateChars(word.charCodeAt(i));
+		const altChars = getAlternateCodes(word.charCodeAt(i));
 		if (!altChars) {
 			return result;
 		}
 		// TODO: Check alt char match more gracefully
 		for (let k = 0; k < altChars.length; k++) {
-			if (altChars.charCodeAt(k) !== target.charCodeAt(j + k)) {
+			if (altChars[k] !== target.charCodeAt(j + k)) {
 				return result;
 			}
 		}
