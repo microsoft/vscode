@@ -1485,7 +1485,7 @@ export class TestHostService implements IHostService {
 		return await expectedShutdownTask();
 	}
 
-	async focus(options?: { force: boolean }): Promise<void> { }
+	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
