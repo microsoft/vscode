@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier, timeout } from 'vs/base/common/async';
+import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -69,6 +70,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
+	private _commandStartedWindowsBarrier?: Barrier;
+	private _windowsPromptPollingInProcess: boolean = false;
 	private _commandStartedWindowsBarrier?: Barrier;
 	private _windowsPromptPollingInProcess: boolean = false;
 
@@ -368,6 +371,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._windowsPromptPollingInProcess = false;
 		}
 		this._commandStartedWindowsBarrier = new Barrier();
+	private async _handleCommandStartWindows(): Promise<void> {
+		if (this._windowsPromptPollingInProcess) {
+			this._windowsPromptPollingInProcess = false;
+		}
+		this._commandStartedWindowsBarrier = new Barrier();
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
@@ -449,7 +457,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(?<prompt>.*(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
+		return line.translateToString(true)?.match(/^(?<prompt>(\(.+\)\s)?(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
@@ -498,6 +506,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onCommandExecuted.fire();
 	}
 
+	private async _handleCommandExecutedWindows(): Promise<void> {
+		await this._commandStartedWindowsBarrier?.wait();
 	private async _handleCommandExecutedWindows(): Promise<void> {
 		await this._commandStartedWindowsBarrier?.wait();
 		// On Windows, use the gathered cursor move markers to correct the command start and
@@ -574,6 +584,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._handleCommandStartOptions = undefined;
 	}
 
+	private async _preHandleCommandFinishedWindows(): Promise<void> {
 	private async _preHandleCommandFinishedWindows(): Promise<void> {
 		if (this._currentCommand.commandExecutedMarker) {
 			return;

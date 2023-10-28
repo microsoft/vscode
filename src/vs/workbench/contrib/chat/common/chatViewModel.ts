@@ -10,6 +10,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { ChatModelInitState, IChatModel, IChatRequestModel, IChatResponseModel, IChatWelcomeMessageContent, IResponse } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatReplyFollowup, IChatResponseCommandFollowup, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -26,7 +28,7 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -36,11 +38,8 @@ export interface IChangePlaceholderEvent {
 	kind: 'changePlaceholder';
 }
 
-export interface IChatSessionInitEvent {
-	kind: 'initialize';
-}
-
 export interface IChatViewModel {
+	readonly initState: ChatModelInitState;
 	readonly initState: ChatModelInitState;
 	readonly providerId: string;
 	readonly sessionId: string;
@@ -49,6 +48,8 @@ export interface IChatViewModel {
 	readonly requestInProgress: boolean;
 	readonly inputPlaceholder?: string;
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatWelcomeMessageViewModel)[];
+	setInputPlaceholder(text: string): void;
+	resetInputPlaceholder(): void;
 	setInputPlaceholder(text: string): void;
 	resetInputPlaceholder(): void;
 }
@@ -91,8 +92,12 @@ export interface IChatResponseViewModel {
 	readonly providerResponseId: string | undefined;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
+	/** The ID of the associated IChatRequestViewModel */
+	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
+	readonly agent?: IChatAgentData;
+	readonly slashCommand?: IChatAgentCommand;
 	readonly agent?: IChatAgentData;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
@@ -104,6 +109,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
+	agentAvatarHasBeenRendered?: boolean;
 	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
@@ -120,7 +126,19 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	private readonly _items: (ChatRequestViewModel | ChatResponseViewModel)[] = [];
 
 	private _inputPlaceholder: string | undefined = undefined;
+	private _inputPlaceholder: string | undefined = undefined;
 	get inputPlaceholder(): string | undefined {
+		return this._inputPlaceholder ?? this._model.inputPlaceholder;
+	}
+
+	setInputPlaceholder(text: string): void {
+		this._inputPlaceholder = text;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
+	}
+
+	resetInputPlaceholder(): void {
+		this._inputPlaceholder = undefined;
+		this._onDidChange.fire({ kind: 'changePlaceholder' });
 		return this._inputPlaceholder ?? this._model.inputPlaceholder;
 	}
 
@@ -148,52 +166,54 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	get initState() {
 		return this._model.initState;
-	}
+	get initState() {
+			return this._model.initState;
+		}
 
-	constructor(
-		private readonly _model: IChatModel,
-		@IInstantiationService private readonly instantiationService: IInstantiationService,
-	) {
-		super();
+		constructor(
+			private readonly _model: IChatModel,
+			@IInstantiationService private readonly instantiationService: IInstantiationService,
+		) {
+			super();
 
-		_model.getRequests().forEach((request, i) => {
-			this._items.push(new ChatRequestViewModel(request));
-			if (request.response) {
-				this.onAddResponse(request.response);
-			}
-		});
-
-		this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
-		this._register(_model.onDidChange(e => {
-			if (e.kind === 'addRequest') {
-				this._items.push(new ChatRequestViewModel(e.request));
-				if (e.request.response) {
-					this.onAddResponse(e.request.response);
+			_model.getRequests().forEach((request, i) => {
+				this._items.push(new ChatRequestViewModel(request));
+				if (request.response) {
+					this.onAddResponse(request.response);
 				}
-			} else if (e.kind === 'addResponse') {
-				this.onAddResponse(e.response);
-			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
-				if (requestIdx >= 0) {
-					this._items.splice(requestIdx, 1);
-				}
+			});
 
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
-				if (typeof responseIdx === 'number' && responseIdx >= 0) {
-					const items = this._items.splice(responseIdx, 1);
-					const item = items[0];
-					if (isResponseVM(item)) {
-						item.dispose();
+			this._register(_model.onDidDispose(() => this._onDidDisposeModel.fire()));
+			this._register(_model.onDidChange(e => {
+				if (e.kind === 'addRequest') {
+					this._items.push(new ChatRequestViewModel(e.request));
+					if (e.request.response) {
+						this.onAddResponse(e.request.response);
+					}
+				} else if (e.kind === 'addResponse') {
+					this.onAddResponse(e.response);
+				} else if (e.kind === 'removeRequest') {
+					const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+					if (requestIdx >= 0) {
+						this._items.splice(requestIdx, 1);
+					}
+
+					const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+					if (typeof responseIdx === 'number' && responseIdx >= 0) {
+						const items = this._items.splice(responseIdx, 1);
+						const item = items[0];
+						if (isResponseVM(item)) {
+							item.dispose();
+						}
 					}
 				}
-			}
 
-			const modelEventToVmEvent: IChatViewModelChangeEvent = e.kind === 'addRequest' ? { kind: 'addRequest' } :
-				e.kind === 'initialize' ? { kind: 'initialize' } :
-					null;
-			this._onDidChange.fire(modelEventToVmEvent);
-		}));
-	}
+				const modelEventToVmEvent: IChatViewModelChangeEvent = e.kind === 'addRequest' ? { kind: 'addRequest' } :
+					e.kind === 'initialize' ? { kind: 'initialize' } :
+						null;
+				this._onDidChange.fire(modelEventToVmEvent);
+			}));
+		}
 
 	private onAddResponse(responseModel: IChatResponseModel) {
 		const response = this.instantiationService.createInstance(ChatResponseViewModel, responseModel);
@@ -223,6 +243,7 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 	}
 
 	get dataId() {
+		return this.id + `_${ChatModelInitState[this._model.session.initState]}`;
 		return this.id + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
@@ -263,6 +284,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get dataId() {
 		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
+		return this._model.id + `_${this._modelChangeCount}` + `_${ChatModelInitState[this._model.session.initState]}`;
 	}
 
 	get providerId() {
@@ -283,6 +305,14 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get avatarIconUri() {
 		return this._model.avatarIconUri;
+	}
+
+	get agent() {
+		return this._model.agent;
+	}
+
+	get slashCommand() {
+		return this._model.slashCommand;
 	}
 
 	get agent() {
@@ -325,7 +355,12 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.requestId;
 	}
 
+	get requestId() {
+		return this._model.requestId;
+	}
+
 	renderData: IChatResponseRenderData | undefined = undefined;
+	agentAvatarHasBeenRendered?: boolean;
 	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
@@ -336,7 +371,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return !this.isComplete;
+		return this.response.value.length === 0;
 	}
 
 	set usedReferencesExpanded(v: boolean) {
@@ -399,23 +434,19 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 			// new data -> new id, new content to render
 			this._modelChangeCount++;
-			// new data -> new id, new content to render
-			this._modelChangeCount++;
 
 			this._onDidChange.fire();
 		}));
-		this._onDidChange.fire();
-	}));
-}
+	}
 
 	private trace(tag: string, message: string) {
-	this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
-}
+		this.logService.trace(`ChatResponseViewModel#${tag}: ${message}`);
+	}
 
-setVote(vote: InteractiveSessionVoteDirection): void {
-	this._modelChangeCount++;
-	this._model.setVote(vote);
-}
+	setVote(vote: InteractiveSessionVoteDirection): void {
+		this._modelChangeCount++;
+		this._model.setVote(vote);
+	}
 }
 
 export interface IChatWelcomeMessageViewModel {
@@ -423,6 +454,7 @@ export interface IChatWelcomeMessageViewModel {
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly content: IChatWelcomeMessageContent[];
+	readonly sampleQuestions: IChatReplyFollowup[];
 	readonly sampleQuestions: IChatReplyFollowup[];
 	currentRenderedHeight?: number;
 }
