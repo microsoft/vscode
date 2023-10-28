@@ -749,6 +749,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
+			oldOptions.pinnedTabButton !== newOptions.pinnedTabButton ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
@@ -1332,7 +1333,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Settings
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
+		const buttonOption = isTabSticky ? options.pinnedTabButton : options.tabCloseButton;
+		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : buttonOption;
 		for (const option of ['off', 'left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
 		}
