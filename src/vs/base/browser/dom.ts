@@ -749,9 +749,14 @@ export function isActiveDocument(element: Element): boolean {
 
 /**
  * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom events to handle multiple windows.
+ * Use this instead of `document` when reacting to dom
+ * events to handle multiple windows.
  */
 export function getActiveDocument(): Document {
+	if (getWindowsCount() <= 1) {
+		return document;
+	}
+
 	const documents = Array.from(getWindows()).map(window => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
@@ -797,9 +802,6 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
 	if (container === document.head) {
-		const clonedGlobalStylesheets = new Set<HTMLStyleElement>();
-		globalStylesheets.set(style, clonedGlobalStylesheets);
-
 		for (const targetWindow of getWindows()) {
 			if (targetWindow === window) {
 				continue; // main window is already tracked
@@ -845,13 +847,18 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow:
 	});
 	observer.observe(globalStylesheet, { childList: true });
 
-	globalStylesheets.get(globalStylesheet)?.add(clone);
+	let clonedGlobalStylesheets = globalStylesheets.get(globalStylesheet);
+	if (!clonedGlobalStylesheets) {
+		clonedGlobalStylesheets = new Set<HTMLStyleElement>();
+		globalStylesheets.set(globalStylesheet, clonedGlobalStylesheets);
+	}
+	clonedGlobalStylesheets.add(clone);
 
 	return toDisposable(() => {
 		observer.disconnect();
 		targetWindow.document.head.removeChild(clone);
 
-		globalStylesheets.get(globalStylesheet)?.delete(clone);
+		clonedGlobalStylesheets?.delete(clone);
 	});
 }
 

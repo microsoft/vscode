@@ -14,7 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { getActiveDocument, getWindowsCount, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
