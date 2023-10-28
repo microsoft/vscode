@@ -21,6 +21,102 @@ export function getKoreanAltChars(code: number): ArrayLike<number> | undefined {
 	return undefined;
 }
 
+let codeBufferLength = 0;
+const codeBuffer = new Uint32Array(10);
+function disassembleKorean(code: number): Uint32Array | undefined {
+	codeBufferLength = 0;
+
+	getCodesFromArray(code, modernConsonants, 0x1100);
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
+
+	getCodesFromArray(code, modernVowels, 0x01161);
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
+
+	getCodesFromArray(code, modernLatterConsonants, 0x11A9);
+	if (codeBufferLength > 0) {
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
+
+	// Hangul Compatibility Jamo
+	const compatJamo = compatibilityJamo.get(code);
+	if (compatJamo) {
+		addCodesToBuffer(compatJamo);
+		return codeBuffer.subarray(0, codeBufferLength);
+	}
+
+	// Hangul Syllables
+	if (code >= 0xAC00 && code <= 0xD7A3) {
+		const hangulIndex = code - 0xAC00;
+		const vowelAndFinalConsonantProduct = hangulIndex % 588;
+
+		// 0-based starting at 0x1100
+		const initialConsonantIndex = Math.floor(hangulIndex / 588);
+		// 0-based starting at 0x1161
+		const vowelIndex = Math.floor(vowelAndFinalConsonantProduct / 28);
+		// 0-based starting at 0x11A7
+		// Subtract 1 to skip initial null final consonant
+		const finalConsonantIndex = vowelAndFinalConsonantProduct % 28 - 1;
+
+		if (initialConsonantIndex < modernConsonants.length) {
+			getCodesFromArray(initialConsonantIndex, modernConsonants, 0);
+		} else {
+			const compatJamo = compatibilityJamo.get(0x1100 + initialConsonantIndex);
+			if (compatJamo) {
+				addCodesToBuffer(compatJamo);
+			}
+		}
+
+		if (vowelIndex < modernVowels.length) {
+			getCodesFromArray(vowelIndex, modernVowels, 0);
+		} else {
+			const compatJamo = compatibilityJamo.get(0x1161 + vowelIndex);
+			if (compatJamo) {
+				addCodesToBuffer(compatJamo);
+			}
+		}
+
+		if (finalConsonantIndex >= 0) {
+			if (finalConsonantIndex < modernLatterConsonants.length) {
+				getCodesFromArray(finalConsonantIndex, modernLatterConsonants, 0);
+			} else {
+				const compatJamo = compatibilityJamo.get(0x11A8 + finalConsonantIndex);
+				if (compatJamo) {
+					addCodesToBuffer(compatJamo);
+				}
+			}
+		}
+
+		if (codeBufferLength > 0) {
+			return codeBuffer.subarray(0, codeBufferLength);
+		}
+	}
+	return undefined;
+}
+
+function getCodesFromArray(code: number, array: ArrayLike<number>, arrayStartIndex: number): void {
+	if (code >= arrayStartIndex && code < arrayStartIndex + array.length) {
+		if (code - arrayStartIndex < array.length) {
+			addCodesToBuffer(array[code - arrayStartIndex]);
+			return;
+		}
+	}
+}
+
+function addCodesToBuffer(codes: number): void {
+	// Number stored in format: OptionalThirdCode << 16 | OptionalSecondCode << 8 | Code
+	codeBuffer[codeBufferLength++] = codes & 0xFF;
+	if (codes >> 8) {
+		codeBuffer[codeBufferLength++] = (codes >> 8) & 0xFF;
+	}
+	if (codes >> 16) {
+		codeBuffer[codeBufferLength++] = (codes >> 16) & 0xFF;
+	}
+}
+
 const enum AsciiCode {
 	A = 65,
 	B = 66,
@@ -333,99 +429,3 @@ const compatibilityJamo = new Map<number, number>([
 	[0x318b, AsciiCodeCombo.yP],  // ㆋ
 	[0x318c, AsciiCodeCombo.yl],  // ㆌ
 ]);
-
-let codeBufferLength = 0;
-const codeBuffer = new Uint32Array(10);
-function disassembleKorean(code: number): Uint32Array | undefined {
-	codeBufferLength = 0;
-
-	getCodesFromArray(code, modernConsonants, 0x1100);
-	if (codeBufferLength > 0) {
-		return codeBuffer.subarray(0, codeBufferLength);
-	}
-
-	getCodesFromArray(code, modernVowels, 0x01161);
-	if (codeBufferLength > 0) {
-		return codeBuffer.subarray(0, codeBufferLength);
-	}
-
-	getCodesFromArray(code, modernLatterConsonants, 0x11A9);
-	if (codeBufferLength > 0) {
-		return codeBuffer.subarray(0, codeBufferLength);
-	}
-
-	// Hangul Compatibility Jamo
-	const compatJamo = compatibilityJamo.get(code);
-	if (compatJamo) {
-		addCodesToBuffer(compatJamo);
-		return codeBuffer.subarray(0, codeBufferLength);
-	}
-
-	// Hangul Syllables
-	if (code >= 0xAC00 && code <= 0xD7A3) {
-		const hangulIndex = code - 0xAC00;
-		const vowelAndFinalConsonantProduct = hangulIndex % 588;
-
-		// 0-based starting at 0x1100
-		const initialConsonantIndex = Math.floor(hangulIndex / 588);
-		// 0-based starting at 0x1161
-		const vowelIndex = Math.floor(vowelAndFinalConsonantProduct / 28);
-		// 0-based starting at 0x11A7
-		// Subtract 1 to skip initial null final consonant
-		const finalConsonantIndex = vowelAndFinalConsonantProduct % 28 - 1;
-
-		if (initialConsonantIndex < modernConsonants.length) {
-			getCodesFromArray(initialConsonantIndex, modernConsonants, 0);
-		} else {
-			const compatJamo = compatibilityJamo.get(0x1100 + initialConsonantIndex);
-			if (compatJamo) {
-				addCodesToBuffer(compatJamo);
-			}
-		}
-
-		if (vowelIndex < modernVowels.length) {
-			getCodesFromArray(vowelIndex, modernVowels, 0);
-		} else {
-			const compatJamo = compatibilityJamo.get(0x1161 + vowelIndex);
-			if (compatJamo) {
-				addCodesToBuffer(compatJamo);
-			}
-		}
-
-		if (finalConsonantIndex >= 0) {
-			if (finalConsonantIndex < modernLatterConsonants.length) {
-				getCodesFromArray(finalConsonantIndex, modernLatterConsonants, 0);
-			} else {
-				const compatJamo = compatibilityJamo.get(0x11A8 + finalConsonantIndex);
-				if (compatJamo) {
-					addCodesToBuffer(compatJamo);
-				}
-			}
-		}
-
-		if (codeBufferLength > 0) {
-			return codeBuffer.subarray(0, codeBufferLength);
-		}
-	}
-	return undefined;
-}
-
-function getCodesFromArray(code: number, array: ArrayLike<number>, arrayStartIndex: number): void {
-	if (code >= arrayStartIndex && code < arrayStartIndex + array.length) {
-		if (code - arrayStartIndex < array.length) {
-			addCodesToBuffer(array[code - arrayStartIndex]);
-			return;
-		}
-	}
-}
-
-function addCodesToBuffer(codes: number): void {
-	// Number stored in format: OptionalThirdCode << 16 | OptionalSecondCode << 8 | Code
-	codeBuffer[codeBufferLength++] = codes & 0xFF;
-	if (codes >> 8) {
-		codeBuffer[codeBufferLength++] = (codes >> 8) & 0xFF;
-	}
-	if (codes >> 16) {
-		codeBuffer[codeBufferLength++] = (codes >> 16) & 0xFF;
-	}
-}
