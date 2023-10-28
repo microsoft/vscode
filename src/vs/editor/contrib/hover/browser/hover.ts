@@ -382,8 +382,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 				comment: [
 					'Label for action that will trigger the showing/focusing of a hover in the editor.',
 					'If the hover is not visible, it will show the hover.',
-					'This allows for users to show the hover without using the mouse.',
-					'If the hover is already visible, it will take focus.'
+					'This allows for users to show the hover without using the mouse.'
 				]
 			}, "Show or Focus Hover"),
 			metadata: {
@@ -394,7 +393,12 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls if when triggered with the keyboard, the hover should take focus immediately.',
+								description: 'Controls whether the hover should take focus immediately when triggered with the keyboard.',
+								type: 'boolean',
+								default: false
+							},
+							'focusOnVisible': {
+								description: 'Controls whether the hover should take focus when it is already visible.',
 								type: 'boolean',
 								default: false
 							}
@@ -422,12 +426,23 @@ class ShowOrFocusHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const focus = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled || !!args?.focus;
+
+		const focusImmediately = !!args?.focus;
+		const focusOnVisible = !!args?.focusOnVisible;
+		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
+
+		const _showContentHover = (focus: boolean) => {
+			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+		};
 
 		if (controller.isHoverVisible) {
-			controller.focus();
+			if (focusOnVisible) {
+				controller.focus();
+			} else {
+				_showContentHover(accessibilitySupportEnabled);
+			}
 		} else {
-			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
+			_showContentHover(focusImmediately || accessibilitySupportEnabled);
 		}
 	}
 }
