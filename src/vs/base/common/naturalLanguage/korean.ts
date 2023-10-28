@@ -3,7 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* allow-any-unicode-file */
+// allow-any-unicode-file
+
+/**
+ * Gets alternative Korean characters for the character code. This will return the ascii
+ * character code(s) that a Hangul character may have been input with using a qwerty layout.
+ *
+ * This only aims to cover modern (not archaic) Hangul syllables.
+ *
+ * @param code The character code to get alternate characters for
+ */
+export function getKoreanAltChars(code: number): number[] | undefined {
+	return disassembleKorean(code);
+}
 
 /**
  * Hangul Jamo - Modern consonants #1
@@ -222,11 +234,7 @@ const compatibilityJamo = new Map<number, string>([
 	// /* ㆎ */ [0x0, 'a'],
 ]);
 
-export function getKoreanAltChars(code: number): number[] | undefined {
-	return disassembleKorean(code);
-}
-
-export function disassembleKorean(code: number): number[] | undefined {
+function disassembleKorean(code: number): number[] | undefined {
 	// Hangul Jamo - Modern consonants #1
 	if (code >= 0x1100 && code <= 0x1112) {
 		if (code - 0x1100 < modernConsonants.length) {
