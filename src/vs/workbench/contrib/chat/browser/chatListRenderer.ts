@@ -16,7 +16,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { IntervalTimer } from 'vs/base/common/async';
+import { IntervalTimer, disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -70,6 +70,7 @@ interface IChatListItemTemplate {
 	readonly rowContainer: HTMLElement;
 	readonly titleToolbar: MenuWorkbenchToolBar;
 	readonly avatarContainer: HTMLElement;
+	readonly agentAvatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
 	readonly value: HTMLElement;
@@ -143,10 +144,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this._treePool = this._register(this.instantiationService.createInstance(TreePool, this._onDidChangeVisibility.event));
 		this._contentReferencesListPool = this._register(this.instantiationService.createInstance(ContentReferencesListPool, this._onDidChangeVisibility.event));
 
-		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
+		this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
 		this._register(configService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('chat.experimental.usedReferences')) {
-				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? productService.quality !== 'stable';
+				this._usedReferencesEnabled = configService.getValue('chat.experimental.usedReferences') ?? true;
 			}
 		}));
 	}
@@ -225,6 +226,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const header = dom.append(rowContainer, $('.header'));
 		const user = dom.append(header, $('.user'));
 		const avatarContainer = dom.append(user, $('.avatar-container'));
+		const agentAvatarContainer = dom.append(user, $('.agent-avatar-container'));
 		const username = dom.append(user, $('h3.username'));
 		const detailContainer = dom.append(user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
@@ -249,11 +251,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 
 
-		const template: IChatListItemTemplate = { avatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
-	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
+	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, height?: number): void {
 		const { element } = node;
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
@@ -320,7 +322,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				convertParsedRequestToMarkdown(element.message);
 			this.basicRenderElement([new MarkdownString(markdown)], element, index, templateData);
 		} else {
-			this.renderWelcomeMessage(element, templateData);
+			this.renderWelcomeMessage(element, templateData, height);
 		}
 	}
 
@@ -342,7 +344,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.detail.textContent = progressMsg;
-		templateData.detail.title = element.slashCommand?.description ?? '';
+		if (element.agent) {
+			templateData.detail.title = progressMsg + (element.slashCommand?.description ? `\n${element.slashCommand.description}` : '');
+		} else {
+			templateData.detail.title = '';
+		}
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -351,21 +357,38 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			avatarImgIcon.src = FileAccess.uriToBrowserUri(element.avatarIconUri).toString(true);
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarImgIcon));
 		} else {
-			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.hubot;
+			const defaultIcon = isRequestVM(element) ? Codicon.account : Codicon.copilot;
 			const avatarIcon = dom.$(ThemeIcon.asCSSSelector(defaultIcon));
 			templateData.avatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
 		}
 
 		if (isResponseVM(element) && element.agent && !element.agent.metadata.isDefault) {
+			dom.show(templateData.agentAvatarContainer);
 			const icon = this.getAgentIcon(element.agent.metadata);
 			if (icon instanceof URI) {
 				const avatarIcon = dom.$<HTMLImageElement>('img.icon');
 				avatarIcon.src = FileAccess.uriToBrowserUri(icon).toString(true);
-				templateData.avatarContainer.appendChild(dom.$('.avatar', undefined, avatarIcon));
+				templateData.agentAvatarContainer.replaceChildren(dom.$('.avatar', undefined, avatarIcon));
 			} else if (icon) {
 				const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
-				templateData.avatarContainer.appendChild(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+				templateData.agentAvatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+			} else {
+				dom.hide(templateData.agentAvatarContainer);
+				return;
 			}
+
+			templateData.agentAvatarContainer.classList.toggle('complete', element.isComplete);
+			if (!element.agentAvatarHasBeenRendered && !element.isComplete) {
+				element.agentAvatarHasBeenRendered = true;
+				templateData.agentAvatarContainer.classList.remove('loading');
+				templateData.elementDisposables.add(disposableTimeout(() => {
+					templateData.agentAvatarContainer.classList.toggle('loading', !element.isComplete);
+				}, 100));
+			} else {
+				templateData.agentAvatarContainer.classList.toggle('loading', !element.isComplete);
+			}
+		} else {
+			dom.hide(templateData.agentAvatarContainer);
 		}
 	}
 
@@ -439,7 +462,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
+	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate, height?: number) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 		const slashCommands = this.delegate.getSlashCommands();
@@ -464,7 +487,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		const newHeight = templateData.rowContainer.offsetHeight;
+		// When going from welcome content to actual chat list items, rowContainer.offsetHeight is initially 0,
+		// but the height that we get from `renderElement` is accurate, so use that
+		const newHeight = templateData.rowContainer.offsetHeight === 0 && height ? height : templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
@@ -1143,8 +1168,7 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
 		templateData.label.element.style.display = 'flex';
-		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
-		templateData.label.setFile(uri, {
+		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
 			fileKind: FileKind.FILE,
 			// Should not have this live-updating data on a historical reference
 			fileDecorations: { badges: false, colors: false },

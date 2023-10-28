@@ -67,7 +67,7 @@ export class QuickInputService extends Themable implements IQuickInputService {
 	protected createController(host: IQuickInputControllerHost = this.layoutService, options?: Partial<IQuickInputOptions>): QuickInputController {
 		const defaultOptions: IQuickInputOptions = {
 			idPrefix: 'quickInput_',
-			container: host.container,
+			container: host.activeContainer,
 			ignoreFocusOut: () => false,
 			backKeybindingLabel: () => undefined,
 			setContextKey: (id?: string) => this.setContextKey(id),
@@ -94,12 +94,20 @@ export class QuickInputService extends Themable implements IQuickInputService {
 			...options
 		},
 			this.themeService,
-			this.layoutService));
+			this.layoutService
+		));
 
-		controller.layout(host.dimension, host.offset.quickPickTop);
+		controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);
 
 		// Layout changes
-		this._register(host.onDidLayout(dimension => controller.layout(dimension, host.offset.quickPickTop)));
+		this._register(host.onDidLayoutActiveContainer(dimension => controller.layout(dimension, host.activeContainerOffset.quickPickTop)));
+		this._register(host.onDidChangeActiveContainer(() => {
+			if (controller.isVisible()) {
+				return;
+			}
+
+			controller.layout(host.activeContainerDimension, host.activeContainerOffset.quickPickTop);
+		}));
 
 		// Context keys
 		this._register(controller.onShow(() => {

@@ -602,8 +602,8 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 	}
 
 	async openParentRepository(repoPath: string): Promise<void> {
-		await this.openRepository(repoPath);
 		this._parentRepositoriesManager.openRepository(repoPath);
+		await this.openRepository(repoPath);
 	}
 
 	private async getRepositoryRoot(repoPath: string): Promise<{ repositoryRoot: string; unsafeRepositoryMatch: RegExpMatchArray | null }> {

@@ -13,7 +13,7 @@ import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/bro
 import { GoFilter, IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, UNMAXIMIZE_EDITOR_GROUP, MAXIMIZE_EDITOR_GROUP, resolveCommandsContext, getCommandsContext } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, MOVE_ACTIVE_EDITOR_COMMAND_ID, ActiveEditorMoveCopyArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, UNPIN_EDITOR_COMMAND_ID, COPY_ACTIVE_EDITOR_COMMAND_ID, SPLIT_EDITOR, resolveCommandsContext, getCommandsContext, TOGGLE_MAXIMIZE_EDITOR_GROUP } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorGroupsService, IEditorGroup, GroupsArrangement, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -1064,28 +1064,6 @@ export class ToggleGroupSizesAction extends Action2 {
 	}
 }
 
-export class MaximizeGroupAction extends Action2 {
-
-	constructor() {
-		super({
-			id: MAXIMIZE_EDITOR_GROUP,
-			title: { value: localize('maximizeEditor', "Maximize Editor Group"), original: 'Maximize Editor Group' },
-			f1: true,
-			category: Categories.View,
-			precondition: ContextKeyExpr.and(MaximizedEditorGroupContext.negate(), MultipleEditorGroupsContext),
-			keybinding: {
-				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
-			}
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
-		const editorsGroupService = accessor.get(IEditorGroupsService);
-		const { group } = resolveCommandsContext(editorsGroupService, getCommandsContext(resourceOrContext, context));
-		editorsGroupService.arrangeGroups(GroupsArrangement.MAXIMIZE, group);
-	}
-}
 
 export class MaximizeGroupHideSidebarAction extends Action2 {
 
@@ -1112,33 +1090,40 @@ export class MaximizeGroupHideSidebarAction extends Action2 {
 	}
 }
 
-export class UnmaximizeEditorGroupAction extends Action2 {
+export class ToggleMaximizeEditorGroupAction extends Action2 {
 
 	constructor() {
 		super({
-			id: UNMAXIMIZE_EDITOR_GROUP,
-			title: { value: localize('UnmaximizeEditorGroup', "Unmaximize Editor Group"), original: 'Unmaximize Editor Group' },
+			id: TOGGLE_MAXIMIZE_EDITOR_GROUP,
+			title: { value: localize('toggleMaximizeEditorGroup', "Toggle Maximize Editor Group"), original: 'Toggle Maximize Editor Group' },
 			f1: true,
 			category: Categories.View,
-			precondition: MaximizedEditorGroupContext,
+			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, MaximizedEditorGroupContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
 			},
-			menu: {
+			menu: [{
 				id: MenuId.EditorTitle,
 				order: -10000, // towards the front
 				group: 'navigation',
 				when: MaximizedEditorGroupContext
 			},
+			{
+				id: MenuId.EmptyEditorGroup,
+				order: -10000, // towards the front
+				group: 'navigation',
+				when: MaximizedEditorGroupContext
+			}],
 			icon: Codicon.screenFull,
 			toggled: MaximizedEditorGroupContext,
 		});
 	}
 
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		editorGroupService.toggleMaximizeGroup();
+	override async run(accessor: ServicesAccessor, resourceOrContext?: URI | IEditorCommandsContext, context?: IEditorCommandsContext): Promise<void> {
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const { group } = resolveCommandsContext(editorGroupsService, getCommandsContext(resourceOrContext, context));
+		editorGroupsService.toggleMaximizeGroup(group);
 	}
 }
 

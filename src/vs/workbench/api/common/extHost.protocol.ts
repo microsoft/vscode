@@ -1351,7 +1351,7 @@ export interface MainThreadFileSystemShape extends IDisposable {
 }
 
 export interface MainThreadFileSystemEventServiceShape extends IDisposable {
-	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions): void;
+	$watch(extensionId: string, session: number, resource: UriComponents, opts: files.IWatchOptions, correlate: boolean): void;
 	$unwatch(session: number): void;
 }
 
@@ -2568,11 +2568,15 @@ export interface MainThreadLocalizationShape extends IDisposable {
 
 export interface ExtHostIssueReporterShape {
 	$getIssueReporterUri(extensionId: string, token: CancellationToken): Promise<UriComponents>;
+	$getIssueReporterData(extensionId: string, token: CancellationToken): Promise<string>;
+	$getIssueReporterTemplate(extensionId: string, token: CancellationToken): Promise<string>;
 }
 
 export interface MainThreadIssueReporterShape extends IDisposable {
 	$registerIssueUriRequestHandler(extensionId: string): void;
 	$unregisterIssueUriRequestHandler(extensionId: string): void;
+	$registerIssueDataProvider(extensionId: string): void;
+	$unregisterIssueDataProvider(extensionId: string): void;
 }
 
 export interface TunnelDto {

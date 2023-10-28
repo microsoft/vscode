@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -32,6 +31,7 @@ import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -98,6 +98,9 @@ export class EditorPart extends Part implements IEditorPart {
 	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
 
+	private readonly _onDidChangeGroupLabel = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupLabel = this._onDidChangeGroupLabel.event;
+
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
 
@@ -152,6 +155,7 @@ export class EditorPart extends Part implements IEditorPart {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -377,7 +381,7 @@ export class EditorPart extends Part implements IEditorPart {
 					return; // need at least 2 groups to be maximized
 				}
 				this.gridWidget.maximizeView(target);
-				this.doSetGroupActive(target);
+				target.focus();
 				break;
 			case GroupsArrangement.EXPAND:
 				this.gridWidget.expandView(target);
@@ -403,6 +407,8 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private unmaximizeGroup(): void {
 		this.gridWidget.exitMaximizedView();
+		// When making views visible the focus can be affected, so restore it
+		this._activeGroup.focus();
 	}
 
 	private hasMaximizedGroup(): boolean {
@@ -639,6 +645,9 @@ export class EditorPart extends Part implements IEditorPart {
 				case GroupModelChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
 					break;
+				case GroupModelChangeKind.GROUP_LABEL:
+					this._onDidChangeGroupLabel.fire(groupView);
+					break;
 			}
 		}));
 
@@ -658,6 +667,10 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doSetGroupActive(group: IEditorGroupView): void {
+
+		// Ensure window on top
+		this.hostService.moveTop(getWindow(this.element));
+
 		if (this._activeGroup !== group) {
 			const previousActiveGroup = this._activeGroup;
 			this._activeGroup = group;
@@ -1214,6 +1227,12 @@ export class EditorPart extends Part implements IEditorPart {
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
 	}
 
+	notifyGroupsLabelChange(newLabel: string) {
+		for (const group of this.groups) {
+			group.notifyLabelChanged(newLabel);
+		}
+	}
+
 	private get isEmpty(): boolean {
 		return this.count === 1 && this._activeGroup.isEmpty;
 	}
@@ -1313,29 +1332,32 @@ export class MainEditorPart extends EditorPart {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 }
 
 export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorPart {
 
-	private static COUNTER = 0;
+	private static COUNTER = 1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
 		editorPartsView: IEditorPartsView,
+		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 
 	protected override saveState(): void {

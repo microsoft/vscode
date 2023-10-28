@@ -63,6 +63,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { Iterable } from 'vs/base/common/iterator';
 import { AccessibleViewProviderId, accessibleViewCurrentProviderId, accessibleViewIsShown, accessibleViewOnLastLine } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { isKeyboardEvent, isMouseEvent, isPointerEvent } from 'vs/base/browser/dom';
+import { editorGroupToColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 
 export const switchTerminalActionViewItemSeparator = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 export const switchTerminalShowTabsTitle = localize('showTerminalTabs', "Show Tabs");
@@ -266,7 +267,7 @@ export function registerTerminalActions() {
 			// called when a terminal is the active editor
 			const editorGroupsService = accessor.get(IEditorGroupsService);
 			const instance = await c.service.createTerminal({
-				location: { viewColumn: editorGroupsService.activeGroup.index }
+				location: { viewColumn: editorGroupToColumn(editorGroupsService, editorGroupsService.activeGroup) }
 			});
 			await instance.focusWhenReady();
 		}
@@ -766,20 +767,27 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 		run: async (c, accessor) => {
 			const notificationService = accessor.get(INotificationService);
-			const instance = getSelectedInstances(accessor)?.[0];
-			if (!instance) {
+			const instances = getSelectedInstances(accessor);
+			const firstInstance = instances?.[0];
+			if (!firstInstance) {
 				return;
 			}
-			c.service.setEditingTerminal(instance);
-			c.service.setEditable(instance, {
+			c.service.setEditingTerminal(firstInstance);
+			c.service.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
-					c.service.setEditable(instance, null);
+					c.service.setEditable(firstInstance, null);
 					c.service.setEditingTerminal(undefined);
 					if (success) {
+						const promises: Promise<void>[] = [];
+						for (const instance of instances) {
+							promises.push((async () => {
+								await instance.rename(value);
+							})());
+						}
 						try {
-							await instance.rename(value);
+							await Promise.all(promises);
 						} catch (e) {
 							notificationService.error(e);
 						}
@@ -1842,7 +1850,11 @@ async function focusActiveTerminal(instance: ITerminalInstance, c: ITerminalServ
 }
 
 async function renameWithQuickPick(c: ITerminalServicesCollection, accessor: ServicesAccessor, resource?: unknown) {
-	const instance = getResourceOrActiveInstance(c, resource);
+	let instance: ITerminalInstance | undefined = resource as ITerminalInstance;
+	if (!instance) {
+		instance = getResourceOrActiveInstance(c, resource);
+	}
+
 	if (instance) {
 		const title = await accessor.get(IQuickInputService).input({
 			value: instance.title,

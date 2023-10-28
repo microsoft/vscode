@@ -479,7 +479,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['side', 'top', 'hidden'],
 				'default': 'side',
-				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the activity bar. It can either show to the `side` or `top` (requires `{0}`) of the primary side bar or `hidden`.", '#window.commandCenter#'),
+				'markdownDescription': localize({ comment: ['This is the description for a setting'], key: 'activityBarLocation' }, "Controls the location of the activity bar. It can either show to the `side` or `top` (requires {0} set to {1}) of the primary side bar or `hidden`.", '`#window.titleBarStyle#`', '`custom`'),
 				'enumDescriptions': [
 					localize('workbench.activityBar.location.side', "Show the activity bar to the side of the primary side bar."),
 					localize('workbench.activityBar.location.top', "Show the activity bar on top of the primary side bar."),
@@ -775,8 +775,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
-		key: LayoutSettings.ACTIVITY_BAR_LOCATION, migrateFn: (value: any) => {
-			const result: ConfigurationKeyValuePairs = [['workbench.activityBar.visible', { value: undefined }]];
+		key: 'workbench.activityBar.visible', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value !== undefined) {
+				result.push(['workbench.activityBar.visible', { value: undefined }]);
+			}
 			if (value === false) {
 				result.push([LayoutSettings.ACTIVITY_BAR_LOCATION, { value: ActivityBarPosition.HIDDEN }]);
 			}

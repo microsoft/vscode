@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { createStyleSheet } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { clamp } from 'vs/base/common/numbers';
@@ -73,9 +74,8 @@ export class UnfocusedViewDimmingContribution extends Disposable implements IWor
 
 	private _getStyleElement(): HTMLStyleElement {
 		if (!this._styleElement) {
-			this._styleElement = document.createElement('style');
+			this._styleElement = createStyleSheet();
 			this._styleElement.className = 'accessibilityUnfocusedViewOpacity';
-			document.head.appendChild(this._styleElement);
 		}
 		return this._styleElement;
 	}

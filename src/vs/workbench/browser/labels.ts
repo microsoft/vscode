@@ -614,10 +614,13 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		const rangePart = this.label.range ? `:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` : '';
-		const label = this.label.name ?
-			this.label.name + rangePart : '';
-		this.setLabel(label, this.label.description, iconLabelOptions);
+		if (this.label.range) {
+			iconLabelOptions.suffix = this.label.range.startLineNumber !== this.label.range.endLineNumber ?
+				`:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` :
+				`:${this.label.range.startLineNumber}`;
+		}
+
+		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 

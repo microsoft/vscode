@@ -33,7 +33,6 @@ declare module 'vscode' {
 	}
 
 	export interface ChatAgentSlashCommand {
-
 		/**
 		 * A short name by which this command is referred to in the UI, e.g. `fix` or
 		 * `explain` for commands that fix an issue or explain code.
@@ -44,6 +43,19 @@ declare module 'vscode' {
 		 * Human-readable description explaining what this command does.
 		 */
 		readonly description: string;
+
+		/**
+		 * Whether executing the command puts the
+		 * chat into a persistent mode, where the
+		 * slash command is prepended to the chat input.
+		 */
+		readonly shouldRepopulate?: boolean;
+		/**
+		 * Placeholder text to render in the chat input
+		 * when the slash command has been repopulated.
+		 * Has no effect if `shouldRepopulate` is `false`.
+		 */
+		readonly followupPlaceholder?: string;
 	}
 
 	export interface ChatAgentSlashCommandProvider {
