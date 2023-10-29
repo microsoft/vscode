@@ -39,8 +39,8 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		return super.create(auxiliaryWindow, disposables);
 	}
 
-	protected override  resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
-		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:getWindowId');
+	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
 	}
 
 	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
