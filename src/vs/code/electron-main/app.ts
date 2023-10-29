@@ -449,8 +449,6 @@ export class CodeApplication extends Disposable {
 
 		//#region Bootstrap IPC Handlers
 
-		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
-
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
 			// Prefer to use the args and env from the target window
