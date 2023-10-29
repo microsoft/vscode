@@ -15,6 +15,8 @@ export interface IAuxiliaryWindow {
 	readonly id: number;
 	readonly win: BrowserWindow | null;
 
+	readonly parentId: number;
+
 	readonly lastFocusTime: number;
 
 	focus(options?: { force: boolean }): void;
@@ -23,6 +25,8 @@ export interface IAuxiliaryWindow {
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly id = this.contents.id;
+
+	parentId = -1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
