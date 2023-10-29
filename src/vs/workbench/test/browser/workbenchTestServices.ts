@@ -588,8 +588,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	openedDefaultEditors = false;
 
-	dimension: IDimension = { width: 800, height: 600 };
-	offset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	mainContainerDimension: IDimension = { width: 800, height: 600 };
+	activeContainerDimension: IDimension = { width: 800, height: 600 };
+	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	hasContainer = true;
 	container: HTMLElement = window.document.body;
@@ -603,8 +605,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
-	onDidLayout = Event.None;
+	onDidLayoutMainContainer = Event.None;
+	onDidLayoutActiveContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
+	onDidAddContainer = Event.None;
+	onDidRemoveContainer = Event.None;
+	onDidChangeActiveContainer = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -823,6 +829,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
 	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupIndex: Event<IEditorGroup> = Event.None;
+	onDidChangeGroupLabel: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupLocked: Event<IEditorGroup> = Event.None;
 	onDidChangeGroupMaximized: Event<boolean> = Event.None;
 	onDidLayout: Event<IDimension> = Event.None;
@@ -941,6 +948,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	get scopedContextKeyService(): IContextKeyService { throw new Error('not implemented'); }
 	setActive(_isActive: boolean): void { }
 	notifyIndexChanged(_index: number): void { }
+	notifyLabelChanged(_label: string): void { }
 	dispose(): void { }
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }

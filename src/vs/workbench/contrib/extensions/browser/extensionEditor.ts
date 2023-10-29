@@ -623,9 +623,8 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		this.activeElement?.focus();
-
 		super.focus();
+		this.activeElement?.focus();
 	}
 
 	showFind(): void {

@@ -131,6 +131,7 @@ export class OpenEditorsView extends ViewPane {
 						this.focusActiveEditor();
 						break;
 					case GroupModelChangeKind.GROUP_INDEX:
+					case GroupModelChangeKind.GROUP_LABEL:
 						if (index >= 0) {
 							this.list.splice(index, 1, [group]);
 						}
@@ -286,6 +287,9 @@ export class OpenEditorsView extends ViewPane {
 				this.openEditor(e.element, { preserveFocus: e.editorOptions.preserveFocus, pinned: e.editorOptions.pinned, sideBySide: e.sideBySide });
 			} else {
 				this.editorGroupService.activateGroup(e.element);
+				if (!e.editorOptions.preserveFocus) {
+					e.element.focus();
+				}
 			}
 		}));
 

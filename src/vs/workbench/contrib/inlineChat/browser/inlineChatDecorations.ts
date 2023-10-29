@@ -60,6 +60,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._onEnablementOrModelChanged();
 	}
 
 	private _onEnablementOrModelChanged(): void {
@@ -144,6 +145,11 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 }
 
 GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const inlineChatService = accessor.get(IInlineChatService);
+	const noProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
+	if (noProviders) {
+		return;
+	}
 	const configurationService = accessor.get(IConfigurationService);
 	result.push(new Action(
 		'inlineChat.toggleShowGutterIcon',

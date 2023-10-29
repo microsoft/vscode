@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement, GroupsOrder, IAuxiliaryEditorPart, IEditorDropTargetDelegate, IEditorGroupsService, IEditorSideGroup, IFindGroupScope, IMergeGroupOptions } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { Event, Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
@@ -50,7 +51,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		partContainer.setAttribute('role', 'main');
 		auxiliaryWindow.container.appendChild(partContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this, this.getGroupsLabel(this.parts.size)));
 		disposables.add(this.registerEditorPart(editorPart));
 
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
@@ -60,7 +61,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
-		disposables.add(auxiliaryWindow.onWillLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
+		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 		auxiliaryWindow.layout();
 
 		this._onDidAddGroup.fire(editorPart.activeGroup);
@@ -78,11 +79,26 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		this.parts.add(part);
 
 		const disposables = this._register(new DisposableStore());
-		disposables.add(toDisposable(() => this.parts.delete(part)));
+		disposables.add(toDisposable(() => this.unregisterEditorPart(part)));
 
 		this.registerEditorPartListeners(part, disposables);
 
 		return disposables;
+	}
+
+	private unregisterEditorPart(part: EditorPart): void {
+		this.parts.delete(part);
+
+		// Notify all parts about a groups label change
+		// given it is computed based on the index
+
+		Array.from(this.parts).forEach((part, index) => {
+			if (part === this.mainPart) {
+				return;
+			}
+
+			part.notifyGroupsLabelChange(this.getGroupsLabel(index));
+		});
 	}
 
 	private registerEditorPartListeners(part: EditorPart, disposables: DisposableStore): void {
@@ -101,6 +117,10 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 		disposables.add(part.onDidChangeGroupIndex(group => this._onDidChangeGroupIndex.fire(group)));
 		disposables.add(part.onDidChangeGroupLocked(group => this._onDidChangeGroupLocked.fire(group)));
+	}
+
+	private getGroupsLabel(index: number): string {
+		return localize('groupLabel', "Window {0}", index + 1);
 	}
 
 	//#endregion

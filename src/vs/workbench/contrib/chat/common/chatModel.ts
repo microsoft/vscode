@@ -522,12 +522,12 @@ export class ChatModel extends Disposable implements IChatModel {
 
 	private readonly _initialRequesterAvatarIconUri: URI | undefined;
 	get requesterAvatarIconUri(): URI | undefined {
-		return this._session?.requesterAvatarIconUri ?? this._initialRequesterAvatarIconUri;
+		return this._session ? this._session.requesterAvatarIconUri : this._initialRequesterAvatarIconUri;
 	}
 
 	private readonly _initialResponderAvatarIconUri: URI | undefined;
 	get responderAvatarIconUri(): URI | undefined {
-		return this._session?.responderAvatarIconUri ?? this._initialResponderAvatarIconUri;
+		return this._session ? this._session.responderAvatarIconUri : this._initialResponderAvatarIconUri;
 	}
 
 	get initState(): ChatModelInitState {

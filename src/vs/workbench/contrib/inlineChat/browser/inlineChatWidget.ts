@@ -542,10 +542,11 @@ export class InlineChatWidget {
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
 		this._codeBlockDisposables.clear();
-		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		const hasMessage = message?.value;
+		this._elements.markdownMessage.classList.toggle('hidden', !hasMessage);
 		let expansionState: ExpansionState;
 		let textContent: string | undefined = undefined;
-		if (!message) {
+		if (!hasMessage) {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
 			expansionState = ExpansionState.NOT_CROPPED;
@@ -667,12 +668,6 @@ export class InlineChatWidget {
 
 	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel, allEdits: ISingleEditOperation[][]) {
 
-		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
-		if (!diff || diff.changes.length === 0) {
-			this.hideEditsPreview();
-			return;
-		}
-
 		this._elements.previewDiff.classList.remove('hidden');
 
 		const languageSelection: ILanguageSelection = { languageId: textModel0.getLanguageId(), onDidChange: Event.None };
@@ -680,6 +675,13 @@ export class InlineChatWidget {
 		for (const edits of allEdits) {
 			modified.applyEdits(edits, false);
 		}
+
+		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, modified.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		if (!diff || diff.changes.length === 0) {
+			this.hideEditsPreview();
+			return;
+		}
+
 		this._previewDiffEditor.value.setModel({ original: textModel0, modified });
 
 		// joined ranges

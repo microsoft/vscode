@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -61,6 +61,14 @@ export class QuickChatService extends Disposable implements IQuickChatService {
 			this.close();
 		} else {
 			this.open(providerId, options);
+			// If this is a partial query, the value should be cleared when closed as otherwise it
+			// would remain for the next time the quick chat is opened in any context.
+			if (options?.isPartialQuery) {
+				const disposable = this._store.add(Event.once(this.onDidClose)(() => {
+					this._currentChat?.clearValue();
+					this._store.delete(disposable);
+				}));
+			}
 		}
 	}
 
@@ -228,11 +236,11 @@ class QuickChat extends Disposable {
 	}
 
 	private get maxHeight(): number {
-		return this.layoutService.dimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
+		return this.layoutService.mainContainerDimension.height - QuickChat.DEFAULT_HEIGHT_OFFSET;
 	}
 
 	private registerListeners(parent: HTMLElement): void {
-		this._register(this.layoutService.onDidLayout(() => {
+		this._register(this.layoutService.onDidLayoutMainContainer(() => {
 			if (this.widget.visible) {
 				this.widget.updateDynamicChatTreeItemLayout(2, this.maxHeight);
 			} else {
@@ -298,6 +306,10 @@ class QuickChat extends Disposable {
 	setValue(value: string, selection?: Selection): void {
 		this.widget.inputEditor.setValue(value);
 		this.focus(selection);
+	}
+
+	clearValue(): void {
+		this.widget.inputEditor.setValue('');
 	}
 
 	private updateModel(): void {

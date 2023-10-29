@@ -73,9 +73,11 @@ interface IOccurenceAtPositionRequest {
 }
 
 interface IWordHighlighterQuery {
-	readonly model: ITextModel;
-	readonly selection: Selection;
-	readonly word: IWordAtPosition;
+	modelInfo: {
+		model: ITextModel;
+		selection: Selection;
+	} | null;
+	readonly word: IWordAtPosition | null;
 }
 
 abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest {
@@ -93,7 +95,6 @@ abstract class OccurenceAtPositionRequest implements IOccurenceAtPositionRequest
 			this._result = createCancelablePromise(token => this._compute(this._model, this._selection, this._wordSeparators, token));
 		}
 		return this._result;
-
 	}
 
 	protected abstract _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>>;
@@ -177,18 +178,27 @@ class TextualOccurenceRequest extends OccurenceAtPositionRequest {
 
 	private readonly _otherModels: ITextModel[];
 	private readonly _selectionIsEmpty: boolean;
+	private readonly _word: IWordAtPosition | null;
 
-	constructor(model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]) {
+	constructor(model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string, otherModels: ITextModel[]) {
 		super(model, selection, wordSeparators);
 		this._otherModels = otherModels;
 		this._selectionIsEmpty = selection.isEmpty();
+		this._word = word;
 	}
 
 	protected _compute(model: ITextModel, selection: Selection, wordSeparators: string, token: CancellationToken): Promise<ResourceMap<DocumentHighlight[]>> {
 		return timeout(250, token).then(() => {
 			const result = new ResourceMap<DocumentHighlight[]>();
-			const word = model.getWordAtPosition(selection.getPosition());
-			if (!word) {
+
+			let wordResult;
+			if (this._word) {
+				wordResult = this._word;
+			} else {
+				wordResult = model.getWordAtPosition(selection.getPosition());
+			}
+
+			if (!wordResult) {
 				return new ResourceMap<DocumentHighlight[]>();
 			}
 
@@ -199,7 +209,7 @@ class TextualOccurenceRequest extends OccurenceAtPositionRequest {
 					continue;
 				}
 
-				const matches = otherModel.findMatches(word.word, true, false, true, wordSeparators, false);
+				const matches = otherModel.findMatches(wordResult.word, true, false, true, wordSeparators, false);
 				const highlights = matches.map(m => ({
 					range: m.range,
 					kind: DocumentHighlightKind.Text
@@ -222,18 +232,18 @@ class TextualOccurenceRequest extends OccurenceAtPositionRequest {
 	}
 }
 
-function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string): IOccurenceAtPositionRequest {
+function computeOccurencesAtPosition(registry: LanguageFeatureRegistry<DocumentHighlightProvider>, model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string): IOccurenceAtPositionRequest {
 	if (registry.has(model)) {
 		return new SemanticOccurenceAtPositionRequest(model, selection, wordSeparators, registry);
 	}
-	return new TextualOccurenceRequest(model, selection, wordSeparators, []);
+	return new TextualOccurenceRequest(model, selection, word, wordSeparators, []);
 }
 
-function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, selection: Selection, wordSeparators: string, otherModels: ITextModel[]): IOccurenceAtPositionRequest {
+function computeOccurencesMultiModel(registry: LanguageFeatureRegistry<MultiDocumentHighlightProvider>, model: ITextModel, selection: Selection, word: IWordAtPosition | null, wordSeparators: string, otherModels: ITextModel[]): IOccurenceAtPositionRequest {
 	if (registry.has(model)) {
 		return new MultiModelOccurenceRequest(model, selection, wordSeparators, registry, otherModels);
 	}
-	return new TextualOccurenceRequest(model, selection, wordSeparators, otherModels);
+	return new TextualOccurenceRequest(model, selection, word, wordSeparators, otherModels);
 }
 
 registerModelAndPositionCommand('_executeDocumentHighlights', (accessor, model, position) => {
@@ -326,9 +336,9 @@ class WordHighlighter {
 		this.renderDecorationsTimer = -1;
 
 		// if there is a query already, highlight off that query
-		// if (WordHighlighter.query) {
-		// 	this._run();
-		// }
+		if (WordHighlighter.query) {
+			this._run();
+		}
 	}
 
 	public hasDecorations(): boolean {
@@ -396,14 +406,6 @@ class WordHighlighter {
 	}
 
 	private _removeSingleDecorations(): void {
-		// Clear current query if editor is focused
-		// if (this.editor.hasWidgetFocus() && this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
-		if (this.editor.hasWidgetFocus() && !(WordHighlighter.query?.model.uri.scheme === Schemas.vscodeNotebookCell || this.editor.getModel()?.uri.scheme === Schemas.vscodeNotebookCell)) {
-			// if (this.editor.hasWidgetFocus()) {
-			// ! WordHighlighter.query?.model.dispose();
-			WordHighlighter.query = null;
-		}
-
 		// return if no model
 		if (!this.editor.hasModel()) {
 			return;
@@ -455,9 +457,15 @@ class WordHighlighter {
 		// Remove any existing decorations + a possible query, and re - run to update decorations
 		this._removeSingleDecorations();
 
-		// don't re-run notebooks
-		if (this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell) {
-			this._run();
+		if (this.editor.hasWidgetFocus()) {
+			if (this.editor.getModel()?.uri.scheme !== Schemas.vscodeNotebookCell && WordHighlighter.query?.modelInfo?.model.uri.scheme !== Schemas.vscodeNotebookCell) { // clear query if focused non-nb editor
+				WordHighlighter.query = null;
+				this._run();
+			} else { // remove modelInfo to account for nb cell being disposed
+				if (WordHighlighter.query?.modelInfo) {
+					WordHighlighter.query.modelInfo = null;
+				}
+			}
 		}
 
 		// Cancel any renderDecorationsTimer
@@ -594,7 +602,6 @@ class WordHighlighter {
 		if (!this.editor.hasWidgetFocus()) { // no focus (new nb cell, etc)
 			if (WordHighlighter.query === null) {
 				// no previous query, nothing to highlight
-				this._stopAll();
 				return;
 			}
 		} else {
@@ -625,8 +632,10 @@ class WordHighlighter {
 			workerRequestIsValid = (this.workerRequest && this.workerRequest.isValid(this.model, editorSelection, this.decorations));
 
 			WordHighlighter.query = {
-				model: this.model,
-				selection: editorSelection,
+				modelInfo: {
+					model: this.model,
+					selection: editorSelection,
+				},
 				word: word
 			};
 		}
@@ -660,19 +669,35 @@ class WordHighlighter {
 
 			const otherModelsToHighlight = this.getOtherModelsToHighlight(this.editor.getModel());
 
-			if (!otherModelsToHighlight.length) {
-				this.workerRequest = computeOccurencesAtPosition(this.providers, WordHighlighter.query.model, WordHighlighter.query.selection, this.editor.getOption(EditorOption.wordSeparators));
-			} else {
-				this.workerRequest = computeOccurencesMultiModel(this.multiDocumentProviders, WordHighlighter.query.model, WordHighlighter.query.selection, this.editor.getOption(EditorOption.wordSeparators), otherModelsToHighlight);
+			// 2 cases where we want to send the word
+			// a) there is no stored query model, but there is a word. This signals the editor that drove the highlight is disposed (cell out of viewport, etc)
+			// b) the queried model is not the current model. This signals that the editor that drove the highlight is still in the viewport, but we are highlighting a different cell
+			// otherwise, we send null in place of the word, and the model and selection are used to compute the word
+			const sendWord = (!WordHighlighter.query.modelInfo && WordHighlighter.query.word) ||
+				(WordHighlighter.query.modelInfo?.model.uri !== this.model.uri)
+				? true : false;
+
+			if (!WordHighlighter.query.modelInfo || (WordHighlighter.query.modelInfo.model.uri !== this.model.uri)) { // use this.model
+				this.workerRequest = this.computeWithModel(this.model, this.editor.getSelection(), sendWord ? WordHighlighter.query.word : null, otherModelsToHighlight);
+			} else { // use stored query model + selection
+				this.workerRequest = this.computeWithModel(WordHighlighter.query.modelInfo.model, WordHighlighter.query.modelInfo.selection, WordHighlighter.query.word, otherModelsToHighlight);
 			}
 
-			this.workerRequest.result.then(data => {
+			this.workerRequest?.result.then(data => {
 				if (myRequestId === this.workerRequestTokenId) {
 					this.workerRequestCompleted = true;
 					this.workerRequestValue = data || [];
 					this._beginRenderDecorations();
 				}
 			}, onUnexpectedError);
+		}
+	}
+
+	private computeWithModel(model: ITextModel, selection: Selection, word: IWordAtPosition | null, otherModels: ITextModel[]): IOccurenceAtPositionRequest | null {
+		if (!otherModels.length) {
+			return computeOccurencesAtPosition(this.providers, model, selection, word, this.editor.getOption(EditorOption.wordSeparators));
+		} else {
+			return computeOccurencesMultiModel(this.multiDocumentProviders, model, selection, word, this.editor.getOption(EditorOption.wordSeparators), otherModels);
 		}
 	}
 
@@ -725,6 +750,7 @@ class WordHighlighter {
 				WordHighlighter.storedDecorations = WordHighlighter.storedDecorations.set(uri, newDecorationIDs);
 
 				if (newDecorations.length > 0) {
+					editorHighlighterContrib.wordHighlighter?.decorations.set(newDecorations);
 					editorHighlighterContrib.wordHighlighter?._hasWordHighlights.set(true);
 				}
 			}
