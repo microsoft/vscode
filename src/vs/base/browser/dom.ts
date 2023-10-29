@@ -875,7 +875,7 @@ interface IMutationObserver {
 
 export const sharedMutationObserver = new class {
 
-	private readonly mutationObservers = new Map<Node, Map<number, IMutationObserver>>();
+	readonly mutationObservers = new Map<Node, Map<number, IMutationObserver>>();
 
 	observe(target: Node, disposables: DisposableStore, options?: MutationObserverInit): event.Event<MutationRecord[]> {
 		let mutationObserversPerTarget = this.mutationObservers.get(target);
