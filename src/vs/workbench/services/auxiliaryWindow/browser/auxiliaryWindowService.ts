@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -191,7 +191,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Listen to new stylesheets as they are being added or removed in the main window
 		// and apply to child window (including changes to existing stylesheets elements)
-		const observer = new MutationObserver(mutations => {
+		disposables.add(sharedMutationObserver.observe(document.head, disposables, { childList: true, subtree: true })(mutations => {
 			for (const mutation of mutations) {
 				if (
 					mutation.type !== 'childList' ||						// only interested in added/removed nodes
@@ -226,10 +226,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 					}
 				}
 			}
-		});
-
-		observer.observe(document.head, { childList: true, subtree: true });
-		disposables.add(toDisposable(() => observer.disconnect()));
+		}));
 
 		mark('code/auxiliaryWindow/didApplyCSS');
 	}

@@ -12,10 +12,11 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 
 export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Set([window]);
@@ -841,17 +842,19 @@ export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
 }
 
 function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window): IDisposable {
+	const disposables = new DisposableStore();
+
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
+	disposables.add(toDisposable(() => targetWindow.document.head.removeChild(clone)));
 
 	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	const observer = new MutationObserver(() => {
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
 		clone.textContent = globalStylesheet.textContent;
-	});
-	observer.observe(globalStylesheet, { childList: true });
+	}));
 
 	let clonedGlobalStylesheets = globalStylesheets.get(globalStylesheet);
 	if (!clonedGlobalStylesheets) {
@@ -859,14 +862,62 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow:
 		globalStylesheets.set(globalStylesheet, clonedGlobalStylesheets);
 	}
 	clonedGlobalStylesheets.add(clone);
+	disposables.add(toDisposable(() => clonedGlobalStylesheets?.delete(clone)));
 
-	return toDisposable(() => {
-		observer.disconnect();
-		targetWindow.document.head.removeChild(clone);
-
-		clonedGlobalStylesheets?.delete(clone);
-	});
+	return disposables;
 }
+
+interface IMutationObserver {
+	users: number;
+	readonly observer: MutationObserver;
+	readonly onDidMutate: event.Event<MutationRecord[]>;
+}
+
+export const sharedMutationObserver = new class {
+
+	private readonly mutationObservers = new Map<Node, Map<number, IMutationObserver>>();
+
+	observe(target: Node, disposables: DisposableStore, options?: MutationObserverInit): event.Event<MutationRecord[]> {
+		let mutationObserversPerTarget = this.mutationObservers.get(target);
+		if (!mutationObserversPerTarget) {
+			mutationObserversPerTarget = new Map<number, IMutationObserver>();
+			this.mutationObservers.set(target, mutationObserversPerTarget);
+		}
+
+		const optionsHash = hash(options);
+		let mutationObserverPerOptions = mutationObserversPerTarget.get(optionsHash);
+		if (!mutationObserverPerOptions) {
+			const onDidMutate = new event.Emitter<MutationRecord[]>();
+			const observer = new MutationObserver(mutations => onDidMutate.fire(mutations));
+			observer.observe(target, options);
+
+			const resolvedMutationObserverPerOptions = mutationObserverPerOptions = {
+				users: 1,
+				observer,
+				onDidMutate: onDidMutate.event
+			};
+
+			disposables.add(toDisposable(() => {
+				resolvedMutationObserverPerOptions.users -= 1;
+
+				if (resolvedMutationObserverPerOptions.users === 0) {
+					onDidMutate.dispose();
+					observer.disconnect();
+
+					mutationObserversPerTarget?.delete(optionsHash);
+
+					if (mutationObserversPerTarget?.size === 0) {
+						this.mutationObservers.delete(target);
+					}
+				}
+			}));
+
+			mutationObserversPerTarget.set(optionsHash, mutationObserverPerOptions);
+		}
+
+		return mutationObserverPerOptions.onDidMutate;
+	}
+};
 
 export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
@@ -2105,35 +2156,6 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-interface IObserver extends IDisposable {
-	readonly onDidChangeAttribute: event.Event<string>;
-}
-
-function observeAttributes(element: Element, filter?: string[]): IObserver {
-	const onDidChangeAttribute = new event.Emitter<string>();
-
-	const observer = new MutationObserver(mutations => {
-		for (const mutation of mutations) {
-			if (mutation.type === 'attributes' && mutation.attributeName) {
-				onDidChangeAttribute.fire(mutation.attributeName);
-			}
-		}
-	});
-
-	observer.observe(element, {
-		attributes: true,
-		attributeFilter: filter
-	});
-
-	return {
-		onDidChangeAttribute: onDidChangeAttribute.event,
-		dispose: () => {
-			observer.disconnect();
-			onDidChangeAttribute.dispose();
-		}
-	};
-}
-
 export function copyAttributes(from: Element, to: Element): void {
 	for (const { name, value } of from.attributes) {
 		to.setAttribute(name, value);
@@ -2152,10 +2174,15 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
 	copyAttributes(from, to);
 
-	const observer = observeAttributes(from, filter);
+	const disposables = new DisposableStore();
 
-	return combinedDisposable(
-		observer,
-		observer.onDidChangeAttribute(name => copyAttribute(from, to, name))
-	);
+	disposables.add(sharedMutationObserver.observe(from, disposables, { attributes: true, attributeFilter: filter })(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				copyAttribute(from, to, mutation.attributeName);
+			}
+		}
+	}));
+
+	return disposables;
 }
