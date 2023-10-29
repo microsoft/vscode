@@ -305,46 +305,50 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	}
 
 	let result: IMatch[] | null = null;
-	let i = 0;
+	let targetIndex = 0;
 
 	word = word.toLowerCase();
 	target = target.toLowerCase();
-	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous)) === null) {
-		i = nextWord(target, i + 1);
+	while (targetIndex < target.length) {
+		result = _matchesWords(word, target, 0, targetIndex, contiguous);
+		if (result !== null) {
+			break;
+		}
+		targetIndex = nextWord(target, targetIndex + 1);
 	}
 
 	return result;
 }
 
-function _matchesWords(word: string, target: string, i: number, j: number, contiguous: boolean): IMatch[] | null {
-	let jOffset = 0;
+function _matchesWords(word: string, target: string, wordIndex: number, targetIndex: number, contiguous: boolean): IMatch[] | null {
+	let targetIndexOffset = 0;
 
-	if (i === word.length) {
+	if (wordIndex === word.length) {
 		return [];
-	} else if (j === target.length) {
+	} else if (targetIndex === target.length) {
 		return null;
-	} else if (!charactersMatch(word.charCodeAt(i), target.charCodeAt(j))) {
+	} else if (!charactersMatch(word.charCodeAt(wordIndex), target.charCodeAt(targetIndex))) {
 		// Verify alternate characters before exiting
-		const altChars = getAlternateCodes(word.charCodeAt(i));
+		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
 			return null;
 		}
 		// TODO: This causes a problem as the alt char sequence doesn't need to match a contiguous
 		//       string in target
 		for (let k = 0; k < altChars.length; k++) {
-			if (!charactersMatch(altChars[k], target.charCodeAt(j + k))) {
+			if (!charactersMatch(altChars[k], target.charCodeAt(targetIndex + k))) {
 				return null;
 			}
 		}
-		jOffset += altChars.length - 1;
+		targetIndexOffset += altChars.length - 1;
 	}
 
 	let result: IMatch[] | null = null;
-	let nextWordIndex = j + jOffset + 1;
-	result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
+	let nextWordIndex = targetIndex + targetIndexOffset + 1;
+	result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
 	if (!contiguous) {
 		while (!result && (nextWordIndex = nextWord(target, nextWordIndex)) < target.length) {
-			result = _matchesWords(word, target, i + 1, nextWordIndex, contiguous);
+			result = _matchesWords(word, target, wordIndex + 1, nextWordIndex, contiguous);
 			nextWordIndex++;
 		}
 	}
@@ -355,20 +359,20 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 
 	// If the characters don't exactly match, then they must be word separators (see charactersMatch(...)).
 	// We don't want to include this in the matches but we don't want to throw the target out all together so we return `result`.
-	if (word.charCodeAt(i) !== target.charCodeAt(j)) {
-		const altChars = getAlternateCodes(word.charCodeAt(i));
+	if (word.charCodeAt(wordIndex) !== target.charCodeAt(targetIndex)) {
+		const altChars = getAlternateCodes(word.charCodeAt(wordIndex));
 		if (!altChars) {
 			return result;
 		}
 		// TODO: Check alt char match more gracefully
 		for (let k = 0; k < altChars.length; k++) {
-			if (altChars[k] !== target.charCodeAt(j + k)) {
+			if (altChars[k] !== target.charCodeAt(targetIndex + k)) {
 				return result;
 			}
 		}
 	}
 
-	return join({ start: j, end: nextWordIndex }, result);
+	return join({ start: targetIndex, end: nextWordIndex }, result);
 }
 
 function nextWord(word: string, start: number): number {
