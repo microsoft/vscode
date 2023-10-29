@@ -154,10 +154,17 @@
     is-plain-object "^5.0.0"
     universal-user-agent "^6.0.0"
 
+ snyk-upgrade-bde420dd48bd1e17ae2a3d7c9756bbe7
+"@octokit/graphql-schema@14.32.1":
+  version "14.32.1"
+  resolved "https://registry.yarnpkg.com/@octokit/graphql-schema/-/graphql-schema-14.32.1.tgz#ec1aacb5e7b7b4373c0f482ce59d65fddf489ee6"
+  integrity sha512-z915htH8OH6OzgdKI0ktldpDiwad5fw1Sy9293thBSYIh8QRnvbGvZ2jqb2bYNmbLbBiHcDFH071RkUMIKa9xw==
+
 "@octokit/graphql-schema@14.32.0":
   version "14.32.0"
   resolved "https://registry.yarnpkg.com/@octokit/graphql-schema/-/graphql-schema-14.32.0.tgz#9e6d68b0bb8e7ba713b5f9515db030f0f83197ed"
   integrity sha512-Cs43xO5TpJt5OnAqkmgxK3Yj4YlflatKbz7H6s/oiqSfyb3KMWpW5pcybdcIJKW7OpJZDQc/evMJFwI5OfS5yw==
+
   dependencies:
     graphql "^16.0.0"
     graphql-tag "^2.10.3"
