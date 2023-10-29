@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BrowserWindow, BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { BrowserWindow, BrowserWindowConstructorOptions, WebContents, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
 import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
@@ -15,16 +15,34 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly windows = new Map<number, IAuxiliaryWindow>();
+	private readonly windows = new Map<number, AuxiliaryWindow>();
 
 	constructor(
 		@IInstantiationService private readonly instantiationService: IInstantiationService
-	) { }
+	) {
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+
+		// We have to ensure that an auxiliary window gets to know its
+		// parent `BrowserWindow` so that it can apply listeners to it
+		// Unfortunately we cannot rely on static `BrowserWindow` methods
+		// because we might call the methods too early before the window
+		// is created.
+
+		app.on('browser-window-created', (_event, browserWindow) => {
+			const auxiliaryWindow = this.getWindowById(browserWindow.id);
+			if (auxiliaryWindow) {
+				auxiliaryWindow.tryClaimWindow();
+			}
+		});
+	}
 
 	createWindow(): BrowserWindowConstructorOptions {
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-slim.js').fsPath
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 			}
 		});
 	}
@@ -36,7 +54,7 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		Event.once(auxiliaryWindow.onDidClose)(() => this.windows.delete(auxiliaryWindow.id));
 	}
 
-	getWindowById(windowId: number): IAuxiliaryWindow | undefined {
+	getWindowById(windowId: number): AuxiliaryWindow | undefined {
 		return this.windows.get(windowId);
 	}
 
@@ -51,5 +69,9 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 
 	getLastActiveWindow(): IAuxiliaryWindow | undefined {
 		return getLastFocused(Array.from(this.windows.values()));
+	}
+
+	getWindows(): readonly IAuxiliaryWindow[] {
+		return Array.from(this.windows.values());
 	}
 }

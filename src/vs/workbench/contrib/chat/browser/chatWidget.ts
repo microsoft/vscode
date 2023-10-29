@@ -7,9 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { disposableTimeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { isEqual } from 'vs/base/common/resources';
+import { isDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import 'vs/css!./media/chat';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -19,6 +21,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IViewsService } from 'vs/workbench/common/views';
 import { ChatTreeItem, IChatWidgetViewOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
@@ -135,7 +138,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		CONTEXT_IN_CHAT_SESSION.bindTo(contextKeyService).set(true);
@@ -192,7 +196,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			revealLastElement(this.tree);
 		}
 
-		this.contribs = ChatWidget.CONTRIBS.map(contrib => this._register(this.instantiationService.createInstance(contrib, this)));
+		this.contribs = ChatWidget.CONTRIBS.map(contrib => {
+			try {
+				return this._register(this.instantiationService.createInstance(contrib, this));
+			} catch (err) {
+				this._logService.error('Failed to instantiate chat widget contrib', toErrorMessage(err));
+				return undefined;
+			}
+		}).filter(isDefined);
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {
@@ -265,7 +276,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 			const lastItem = treeItems[treeItems.length - 1]?.element;
 			if (lastItem && isResponseVM(lastItem) && lastItem.isComplete) {
-				this.renderFollowups(lastItem.replyFollowups);
+				this.renderFollowups(lastItem.replyFollowups, lastItem);
 			} else if (lastItem && isWelcomeVM(lastItem)) {
 				this.renderFollowups(lastItem.sampleQuestions);
 			} else {
@@ -274,8 +285,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	private async renderFollowups(items?: IChatReplyFollowup[]): Promise<void> {
-		this.inputPart.renderFollowups(items);
+	private async renderFollowups(items: IChatReplyFollowup[] | undefined, response?: IChatResponseViewModel): Promise<void> {
+		this.inputPart.renderFollowups(items, response);
 
 		if (this.bodyDimension) {
 			this.layout(this.bodyDimension.height, this.bodyDimension.width);
@@ -411,9 +422,29 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.render(container, '', this);
 
 		this._register(this.inputPart.onDidFocus(() => this._onDidFocus.fire()));
-		this._register(this.inputPart.onDidAcceptFollowup(followup => {
-			// this.chatService.notifyUserAction
-			this.acceptInput(followup.message);
+		this._register(this.inputPart.onDidAcceptFollowup(e => {
+			if (!this.viewModel) {
+				return;
+			}
+
+			this.acceptInput(e.followup.message);
+
+			if (!e.response) {
+				// Followups can be shown by the welcome message, then there is no response associated.
+				// At some point we probably want telemetry for these too.
+				return;
+			}
+
+			this.chatService.notifyUserAction({
+				providerId: this.viewModel.providerId,
+				sessionId: this.viewModel.sessionId,
+				requestId: e.response.requestId,
+				agentId: e.response?.agent?.id,
+				action: {
+					kind: 'followUp',
+					followup: e.followup
+				},
+			});
 		}));
 		this._register(this.inputPart.onDidChangeHeight(() => this.bodyDimension && this.layout(this.bodyDimension.height, this.bodyDimension.width)));
 	}
@@ -483,18 +514,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setValue(value);
 	}
 
+	getInput(): string {
+		return this.inputPart.inputEditor.getValue();
+	}
+
 	async acceptInput(query?: string): Promise<void> {
+		this._acceptInput(query ? { query } : undefined);
+	}
+
+	async acceptInputWithPrefix(prefix: string): Promise<void> {
+		this._acceptInput({ prefix });
+	}
+
+	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined): Promise<void> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
-			const editorValue = this.inputPart.inputEditor.getValue();
+			const editorValue = this.getInput();
 			this._chatAccessibilityService.acceptRequest();
-			const input = query ?? editorValue;
+			const input = !opts ? editorValue :
+				'query' in opts ? opts.query :
+					`${opts.prefix} ${editorValue}`;
+			const isUserQuery = !opts || 'query' in opts;
 			const usedSlashCommand = this.lookupSlashCommand(input);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
-				this.inputPart.acceptInput(query);
+				this.inputPart.acceptInput(isUserQuery ? input : undefined);
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -666,7 +712,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getViewState(): IViewState {
 		this.inputPart.saveState();
-		return { inputValue: this.inputPart.inputEditor.getValue() };
+		return { inputValue: this.getInput() };
 	}
 }
 

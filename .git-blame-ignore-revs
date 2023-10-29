@@ -1,4 +1,5 @@
 # https://git-scm.com/docs/git-blame#Documentation/git-blame.txt---ignore-revs-fileltfilegt
+# https://docs.github.com/en/repositories/working-with-files/using-files/viewing-a-file#ignore-commits-in-the-blame-view
 
 # mjbvz: Fix spacing
 13f4f052582bcec3d6c6c6a70d995c9dee2cac13
@@ -22,7 +23,6 @@ ae1452eea678f5266ef513f22dacebb90955d6c9
 494cbbd02d67e87727ec885f98d19551aa33aad1
 a3cb14be7f2cceadb17adf843675b1a59537dbbd
 ee1655a82ebdfd38bf8792088a6602c69f7bbd94
-
 
 # jrieken: new eslint-rule
 4a130c40ed876644ed8af2943809d08221375408

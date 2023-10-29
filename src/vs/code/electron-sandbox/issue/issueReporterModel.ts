@@ -9,6 +9,7 @@ import { ISettingSearchResult, IssueReporterExtensionData, IssueType } from 'vs/
 export interface IssueReporterData {
 	issueType: IssueType;
 	issueDescription?: string;
+	extensionData?: string;
 
 	versionInfo?: any;
 	systemInfo?: SystemInfo;
@@ -20,6 +21,7 @@ export interface IssueReporterData {
 	includeProcessInfo: boolean;
 	includeExtensions: boolean;
 	includeExperiments: boolean;
+	includeExtensionData: boolean;
 
 	numberOfThemeExtesions?: number;
 	allExtensions: IssueReporterExtensionData[];
@@ -47,6 +49,7 @@ export class IssueReporterModel {
 			includeProcessInfo: true,
 			includeExtensions: true,
 			includeExperiments: true,
+			includeExtensionData: true,
 			allExtensions: []
 		};
 
@@ -121,6 +124,12 @@ ${this.getInfos()}
 		let info = '';
 
 		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
+			if (!this._data.fileOnMarketplace && this._data.includeExtensionData && this._data.extensionData) {
+				info += this.getExtensionData();
+			}
+		}
+
+		if (this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue) {
 			if (!this._data.fileOnMarketplace && this._data.includeSystemInfo && this._data.systemInfo) {
 				info += this.generateSystemInfoMd();
 			}
@@ -150,6 +159,10 @@ ${this.getInfos()}
 		}
 
 		return info;
+	}
+
+	private getExtensionData(): string {
+		return this._data.extensionData ?? '';
 	}
 
 	private generateSystemInfoMd(): string {

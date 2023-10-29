@@ -30,11 +30,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private _win: BrowserWindow | null = null;
 	get win() {
 		if (!this._win) {
-			const window = BrowserWindow.fromWebContents(this.contents);
-			if (window) {
-				this._win = window;
-				this.registerWindowListeners(window);
-			}
+			this.tryClaimWindow();
 		}
 
 		return this._win;
@@ -62,6 +58,30 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		if (this.environmentMainService.args['open-devtools'] === true) {
 			this.contents.openDevTools({ mode: 'bottom' });
 		}
+
+		// Try to claim now
+		this.tryClaimWindow();
+	}
+
+	tryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
+		}
+
+		if (this._store.isDisposed || this.contents.isDestroyed()) {
+			return; // already disposed
+		}
+
+		const window = BrowserWindow.fromWebContents(this.contents);
+		if (window) {
+			this._win = window;
+
+			// Disable Menu
+			window.setMenu(null);
+
+			// Listeners
+			this.registerWindowListeners(window);
+		}
 	}
 
 	private registerWindowListeners(window: BrowserWindow): void {
@@ -77,5 +97,11 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		window.on('focus', () => {
 			this._lastFocusTime = Date.now();
 		});
+	}
+
+	override dispose(): void {
+		super.dispose();
+
+		this._win = null!; // Important to dereference the window object to allow for GC
 	}
 }

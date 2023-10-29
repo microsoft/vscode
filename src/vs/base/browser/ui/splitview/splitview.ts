@@ -442,7 +442,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	private scrollableElement: SmoothScrollableElement;
 	private size = 0;
 	private layoutContext: TLayoutContext | undefined;
-	private contentSize = 0;
+	private _contentSize = 0;
 	private proportions: (number | undefined)[] | undefined = undefined;
 	private viewItems: ViewItem<TLayoutContext, TView>[] = [];
 	sashItems: ISashItem[] = []; // used in tests
@@ -458,6 +458,11 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	private _orthogonalEndSash: Sash | undefined;
 	private _startSnappingEnabled = true;
 	private _endSnappingEnabled = true;
+
+	/**
+	 * The sum of all views' sizes.
+	 */
+	get contentSize(): number { return this._contentSize; }
 
 	/**
 	 * Fires whenever the user resizes a {@link Sash sash}.
@@ -624,7 +629,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 			});
 
 			// Initialize content size and proportions for first layout
-			this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+			this._contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 			this.saveProportions();
 		}
 	}
@@ -834,7 +839,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	 * @param layoutContext An optional layout context to pass along to {@link IView views}.
 	 */
 	layout(size: number, layoutContext?: TLayoutContext): void {
-		const previousSize = Math.max(this.size, this.contentSize);
+		const previousSize = Math.max(this.size, this._contentSize);
 		this.size = size;
 		this.layoutContext = layoutContext;
 
@@ -862,7 +867,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 				const item = this.viewItems[i];
 				const proportion = this.proportions[i];
 
-				if (typeof proportion === 'number') {
+				if (typeof proportion === 'number' && total > 0) {
 					item.size = clamp(Math.round(proportion * size / total), item.minimumSize, item.maximumSize);
 				}
 			}
@@ -873,8 +878,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	}
 
 	private saveProportions(): void {
-		if (this.proportionalLayout && this.contentSize > 0) {
-			this.proportions = this.viewItems.map(i => i.proportionalLayout ? i.size / this.contentSize : undefined);
+		if (this.proportionalLayout && this._contentSize > 0) {
+			this.proportions = this.viewItems.map(v => v.proportionalLayout && v.visible ? v.size / this._contentSize : undefined);
 		}
 	}
 
@@ -887,8 +892,8 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 		// This way, we can press Alt while we resize a sash, macOS style!
 		const disposable = combinedDisposable(
-			addDisposableListener(document.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
-			addDisposableListener(document.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
+			addDisposableListener(this.el.ownerDocument.body, 'keydown', e => resetSashDragState(this.sashDragState!.current, e.altKey)),
+			addDisposableListener(this.el.ownerDocument.body, 'keyup', () => resetSashDragState(this.sashDragState!.current, false))
 		);
 
 		const resetSashDragState = (start: number, alt: boolean) => {
@@ -1052,7 +1057,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 	/**
 	 * Returns whether all other {@link IView views} are at their minimum size.
 	 */
-	isViewSizeMaximized(index: number): boolean {
+	isViewExpanded(index: number): boolean {
 		if (index < 0 || index >= this.viewItems.length) {
 			return false;
 		}
@@ -1347,7 +1352,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 	private layoutViews(): void {
 		// Save new content size
-		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
+		this._contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
 		// Layout views
 		let offset = 0;
@@ -1367,12 +1372,12 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		if (this.orientation === Orientation.VERTICAL) {
 			this.scrollableElement.setScrollDimensions({
 				height: this.size,
-				scrollHeight: this.contentSize
+				scrollHeight: this._contentSize
 			});
 		} else {
 			this.scrollableElement.setScrollDimensions({
 				width: this.size,
-				scrollWidth: this.contentSize
+				scrollWidth: this._contentSize
 			});
 		}
 	}
@@ -1411,7 +1416,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 
 				if (snappedBefore && collapsesUp[index] && (position > 0 || this.startSnappingEnabled)) {
 					sash.state = SashState.AtMinimum;
-				} else if (snappedAfter && collapsesDown[index] && (position < this.contentSize || this.endSnappingEnabled)) {
+				} else if (snappedAfter && collapsesDown[index] && (position < this._contentSize || this.endSnappingEnabled)) {
 					sash.state = SashState.AtMaximum;
 				} else {
 					sash.state = SashState.Disabled;

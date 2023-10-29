@@ -83,7 +83,7 @@
 			"project": "vscode-workbench"
 		},
 		{
-			"name": "vs/workbench/services/voiceRecognition",
+			"name": "vs/workbench/services/auxiliaryWindow",
 			"project": "vscode-workbench"
 		},
 		{
@@ -540,6 +540,10 @@
 		},
 		{
 			"name": "vs/workbench/services/secrets",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/contrib/accountEntitlements",
 			"project": "vscode-workbench"
 		}
 	]

@@ -35,7 +35,7 @@ import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowCon
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -82,7 +82,7 @@ const enum ReadyState {
 	READY
 }
 
-export abstract class BaseWindow extends Disposable {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected abstract getWin(): BrowserWindow | null;
 
@@ -374,10 +374,7 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 				this._win.maximize();
 
 				if (this.windowState.mode === WindowMode.Fullscreen) {
-					this.logConditionally('WindowMode.Fullscreen');
 					this.setFullScreen(true);
-				} else {
-					this.logConditionally('WindowMode.Maximized');
 				}
 
 				// to reduce flicker from the default window size
@@ -403,13 +400,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	private logConditionally(msg: string): void {
-		// TODO@bpasero remove me eventually
-		if (this.configurationService.getValue('window.logFullScreenTransitions')) {
-			this.logService.info(`window-fullscreen-bug: ${msg})`);
-		}
 	}
 
 	setRepresentedFilename(filename: string): void {
@@ -550,7 +540,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win.on('enter-full-screen', () => {
 			this.sendWhenReady('vscode:enterFullScreen', CancellationToken.None);
 
-			this.logConditionally(`enter-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		});
@@ -558,7 +547,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 		this._win.on('leave-full-screen', () => {
 			this.sendWhenReady('vscode:leaveFullScreen', CancellationToken.None);
 
-			this.logConditionally(`leave-full-screen: ${Date.now()}`);
 			this.joinNativeFullScreenTransition?.complete();
 			this.joinNativeFullScreenTransition = undefined;
 		});
@@ -1288,18 +1276,12 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	}
 
 	get isFullScreen(): boolean {
-		this.logConditionally(`isFullScreen(): begin at ${Date.now()}`);
-
 		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
-			this.logConditionally(`isFullScreen(): returning transientIsNativeFullScreen = ${this.transientIsNativeFullScreen}`);
-
 			return this.transientIsNativeFullScreen;
 		}
 
 		const isFullScreen = this._win.isFullScreen();
 		const isSimpleFullScreen = this._win.isSimpleFullScreen();
-
-		this.logConditionally(`isFullScreen(): returning natively, isFullScreen = ${isFullScreen}, isSimpleFullScreen = ${isSimpleFullScreen}`);
 
 		return isFullScreen || isSimpleFullScreen;
 	}
@@ -1314,16 +1296,18 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private doSetNativeFullScreen(fullscreen: boolean): void {
 		if (isMacintosh) {
-			this.logConditionally(`doSetNativeFullScreen(${fullscreen}): begin at ${Date.now()}`);
-
 			this.transientIsNativeFullScreen = fullscreen;
 			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
 			Promise.race([
 				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
+				// still timeout after some time in case the transition is unusually slow
+				// this can easily happen for an OS update where macOS tries to reopen
+				// previous applications and that can take multiple seconds, probably due
+				// to security checks. its worth noting that if this takes more than
+				// 10 seconds, users would see a window that is not-fullscreen but without
+				// custom titlebar...
+				timeout(10000)
 			]).finally(() => {
-				this.logConditionally(`doSetNativeFullScreen(${fullscreen}): finish at ${Date.now()}`);
-
 				this.transientIsNativeFullScreen = undefined;
 			});
 		}

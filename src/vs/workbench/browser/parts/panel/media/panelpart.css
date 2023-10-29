@@ -41,6 +41,12 @@
 	background-color: var(--vscode-panel-background);
 }
 
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .monaco-editor-background {
+	background-color: inherit;
+}
+
 .monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus .action-label,
 .monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:hover .action-label {
 	color: var(--vscode-panelTitle-activeForeground) !important;
@@ -52,4 +58,20 @@
 
 .monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus {
 	outline: none;
+}
+
+/* Rotate icons when panel is on right */
+.monaco-workbench .part.basepanel.right .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(-90deg);
+}
+
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.basepanel.left .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(90deg);
 }

@@ -62,7 +62,6 @@ import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/bro
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
@@ -237,7 +236,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -474,6 +472,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	override focus(): void {
+		super.focus();
+
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			if (!platform.isIOS) {
 				// #122044
@@ -493,8 +493,6 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
 			this.tocTree.domFocus();
 		}
-
-		super.focus();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -962,7 +960,7 @@ export class SettingsEditor2 extends EditorPane {
 		}));
 
 		this._register(this.settingsTree.onDidFocus(() => {
-			const classList = document.activeElement?.classList;
+			const classList = container.ownerDocument.activeElement?.classList;
 			if (classList && classList.contains('monaco-list') && classList.contains('settings-editor-tree')) {
 				this._currentFocusContext = SettingsFocusContext.SettingTree;
 				this.settingRowFocused.set(true);
@@ -1291,27 +1289,21 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
-		const toggleData = await getExperimentalExtensionToggleData(this.workbenchAssignmentService, this.environmentService, this.productService);
-		if (this.extensionGalleryService.isEnabled() && toggleData && groups.filter(g => g.extensionInfo).length) {
+		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.environmentService, this.productService);
+		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
-				const extensionId = key;
-				// Recommend prerelease if not on Stable.
-				const isStable = this.productService.quality === 'stable';
-				const [extension] = await this.extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
-				if (!extension) {
-					continue;
-				}
-
-				let groupTitle: string | undefined;
+				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
 				const manifest = await this.extensionGalleryService.getManifest(extension, CancellationToken.None);
 				const contributesConfiguration = manifest?.contributes?.configuration;
+
+				let groupTitle: string | undefined;
 				if (!Array.isArray(contributesConfiguration)) {
 					groupTitle = contributesConfiguration?.title;
 				} else if (contributesConfiguration.length === 1) {
 					groupTitle = contributesConfiguration[0].title;
 				}
 
-				const extensionName = extension?.displayName ?? extension?.name ?? extensionId;
+				const extensionName = extension?.displayName ?? extension?.name ?? extension.identifier.id;
 				const settingKey = `${key}.manageExtension`;
 				const setting: ISetting = {
 					range: nullRange,
@@ -1325,7 +1317,7 @@ export class SettingsEditor2 extends EditorPane {
 					title: extensionName,
 					scope: ConfigurationScope.WINDOW,
 					type: 'null',
-					displayExtensionId: extensionId,
+					displayExtensionId: extension.identifier.id,
 					prereleaseExtensionId: key,
 					stableExtensionId: key,
 					extensionGroupTitle: groupTitle ?? extensionName
@@ -1339,7 +1331,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		resolvedSettingsRoot.children!.push(await createTocTreeForExtensionSettings(this.extensionService, groups.filter(g => g.extensionInfo)));
 
-		const commonlyUsedDataToUse = await getCommonlyUsedData(this.workbenchAssignmentService, this.environmentService, this.productService);
+		const commonlyUsedDataToUse = getCommonlyUsedData(toggleData);
 		const commonlyUsed = resolveSettingsTree(commonlyUsedDataToUse, groups, this.logService);
 		resolvedSettingsRoot.children!.unshift(commonlyUsed.tree);
 
@@ -1406,8 +1398,10 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private getActiveControlInSettingsTree(): HTMLElement | null {
-		return (document.activeElement && DOM.isAncestor(document.activeElement, this.settingsTree.getHTMLElement())) ?
-			<HTMLElement>document.activeElement :
+		const element = this.settingsTree.getHTMLElement();
+		const activeElement = element.ownerDocument.activeElement;
+		return (activeElement && DOM.isAncestorOfActiveElement(element)) ?
+			<HTMLElement>activeElement :
 			null;
 	}
 
@@ -1467,7 +1461,7 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	private contextViewFocused(): boolean {
-		return !!DOM.findParentWithClass(<HTMLElement>document.activeElement, 'context-view');
+		return !!DOM.findParentWithClass(<HTMLElement>this.rootElement.ownerDocument.activeElement, 'context-view');
 	}
 
 	private refreshTree(): void {

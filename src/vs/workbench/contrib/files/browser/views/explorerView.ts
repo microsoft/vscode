@@ -323,6 +323,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
@@ -332,7 +333,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	}
 
 	hasFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.container);
+		return DOM.isAncestorOfActiveElement(this.container);
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
