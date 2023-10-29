@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
-import { extname, basename } from 'vs/base/common/path';
+import { extname, basename, isAbsolute } from 'vs/base/common/path';
 import * as resources from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -1082,28 +1082,6 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
-const getNativeFileUri = (file: File) => {
-	return URI.file(file.path);
-};
-
-const hasPath = (file: File) => {
-	return file.path;
-};
-
-const getNativeFileUris = (files: FileList): readonly URI[] => {
-	const filesArray = [...files];
-	return filesArray.filter(hasPath).map(getNativeFileUri);
-};
-
-
-const getFilesToPaste = async (fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> => {
-	if (fileList) {
-		const nativeFiles = getNativeFileUris(fileList);
-		return nativeFiles;
-	}
-	return resources.distinctParents(await clipboardService.readResources(), r => r);
-};
-
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1196,6 +1174,16 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 		}
 	}
 };
+
+async function getFilesToPaste(fileList: FileList | undefined, clipboardService: IClipboardService): Promise<readonly URI[]> {
+	if (fileList) {
+		// with a `fileList` we support natively pasting files from clipboard
+		return [...fileList].filter(file => !!file.path && isAbsolute(file.path)).map(file => URI.file(file.path));
+	} else {
+		// otherwise we fallback to reading resources from our clipboard service
+		return resources.distinctParents(await clipboardService.readResources(), resource => resource);
+	}
+}
 
 export const openFilePreserveFocusHandler = async (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);

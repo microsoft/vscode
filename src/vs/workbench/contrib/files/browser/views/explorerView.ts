@@ -314,10 +314,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 		}));
 
-		this._register(DOM.addDisposableListener(window, 'paste', async event => {
+		// Support for paste of files into explorer
+		this._register(DOM.addDisposableListener(DOM.getWindow(this.container), DOM.EventType.PASTE, async event => {
 			if (!this.hasFocus() || this.readonlyContext.get()) {
 				return;
 			}
+
 			await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
 		}));
 	}

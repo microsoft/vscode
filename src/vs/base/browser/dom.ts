@@ -971,6 +971,7 @@ export const EventType = {
 	UNLOAD: 'unload',
 	PAGE_SHOW: 'pageshow',
 	PAGE_HIDE: 'pagehide',
+	PASTE: 'paste',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',

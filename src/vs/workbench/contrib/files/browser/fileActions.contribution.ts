@@ -119,7 +119,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 CommandsRegistry.registerCommand(PASTE_FILE_ID, pasteFileHandler);
 
 KeybindingsRegistry.registerKeybindingRule({
-	id: `^${PASTE_FILE_ID}`,
+	id: `^${PASTE_FILE_ID}`, // the `^` enables pasting files into the explorer by preventing default bubble up
 	weight: KeybindingWeight.WorkbenchContrib + explorerCommandsWeightBonus,
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KeyV,
