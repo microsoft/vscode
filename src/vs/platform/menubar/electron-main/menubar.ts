@@ -242,7 +242,8 @@ export class Menubar {
 			return;
 		}
 
-		this.noActiveWindow = !BrowserWindow.getFocusedWindow();
+		const focusedWindow = BrowserWindow.getFocusedWindow();
+		this.noActiveWindow = !focusedWindow || !!this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
 		this.scheduleUpdateMenu();
 	}
 
@@ -377,8 +378,10 @@ export class Menubar {
 
 		Menu.setApplicationMenu(menu);
 
-		for (const window of this.auxiliaryWindowsMainService.getWindows()) {
-			window.win?.setMenu(null);
+		if (menu) {
+			for (const window of this.auxiliaryWindowsMainService.getWindows()) {
+				window.win?.setMenu(null);
+			}
 		}
 	}
 
