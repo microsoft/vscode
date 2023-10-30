@@ -33,7 +33,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 import { getFocusedOrLastActiveWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -112,16 +112,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Window
 
-	async getWindows(): Promise<IOpenedWindow[]> {
-		const windows = this.windowsMainService.getWindows();
-
-		return windows.map(window => ({
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
+	async getWindows(windowId: number | undefined, options: { includeAuxiliaryWindows: boolean }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>> {
+		const mainWindows = this.windowsMainService.getWindows().map(window => ({
 			id: window.id,
 			workspace: window.openedWorkspace ?? toWorkspaceIdentifier(window.backupPath, window.isExtensionDevelopmentHost),
 			title: window.win?.getTitle() ?? '',
 			filename: window.getRepresentedFilename(),
 			dirty: window.isDocumentEdited()
 		}));
+
+		const auxiliaryWindows = [];
+		if (options.includeAuxiliaryWindows) {
+			auxiliaryWindows.push(...this.auxiliaryWindowsMainService.getWindows().map(window => ({
+				id: window.id,
+				parentId: window.parentId,
+				title: window.win?.getTitle() ?? '',
+				filename: window.getRepresentedFilename()
+			})));
+		}
+
+		return [...mainWindows, ...auxiliaryWindows];
 	}
 
 	async getWindowCount(windowId: number | undefined): Promise<number> {
@@ -218,7 +230,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async moveWindowTop(windowId: number | undefined, options?: { targetWindowId?: number }): Promise<void> {
-		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(windowId);
+		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
 			window.win.moveTop();
 		}
@@ -245,7 +257,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	async focusWindow(windowId: number | undefined, options?: { targetWindowId?: number; force?: boolean }): Promise<void> {
-		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(windowId);
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.focus({ force: options?.force ?? false });
 	}
 
@@ -439,13 +451,13 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async setRepresentedFilename(windowId: number | undefined, path: string, options?: { targetWindowId?: number }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setRepresentedFilename(path);
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: { targetWindowId?: number }): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
 	}
 
@@ -797,8 +809,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#endregion
 
-	private windowById(windowId: number | undefined): ICodeWindow | IAuxiliaryWindow | undefined {
-		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId);
+	private windowById(windowId: number | undefined, fallbackCodeWindowId?: number): ICodeWindow | IAuxiliaryWindow | undefined {
+		return this.codeWindowById(windowId) ?? this.auxiliaryWindowById(windowId) ?? this.codeWindowById(fallbackCodeWindowId);
 	}
 
 	private codeWindowById(windowId: number | undefined): ICodeWindow | undefined {
