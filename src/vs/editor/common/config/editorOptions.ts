@@ -563,6 +563,11 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlight?: boolean;
 	/**
+	 * Enable semantic occurrences highlight.
+	 * Defaults to true.
+	 */
+	multiDocumentOccurrencesHighlight?: boolean;
+	/**
 	 * Show code lens
 	 * Defaults to true.
 	 */
@@ -5116,6 +5121,7 @@ export const enum EditorOption {
 	multiCursorModifier,
 	multiCursorPaste,
 	multiCursorLimit,
+	multiDocumentOccurrencesHighlight,
 	occurrencesHighlight,
 	overviewRulerBorder,
 	overviewRulerLanes,
@@ -5615,6 +5621,10 @@ export const EditorOptions = {
 	occurrencesHighlight: register(new EditorBooleanOption(
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
+	)),
+	multiDocumentOccurrencesHighlight: register(new EditorBooleanOption(
+		EditorOption.multiDocumentOccurrencesHighlight, 'multiDocumentOccurrencesHighlight', false,
+		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Experimental: Controls whether the editor should highlight word occurrences accross multiple open editors.") }
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

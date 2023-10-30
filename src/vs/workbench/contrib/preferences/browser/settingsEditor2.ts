@@ -62,7 +62,6 @@ import { ISettingOverrideClickEvent } from 'vs/workbench/contrib/preferences/bro
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/common/assignmentService';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
@@ -237,7 +236,6 @@ export class SettingsEditor2 extends EditorPane {
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
-		@IWorkbenchAssignmentService private readonly workbenchAssignmentService: IWorkbenchAssignmentService,
 		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
@@ -474,6 +472,8 @@ export class SettingsEditor2 extends EditorPane {
 	}
 
 	override focus(): void {
+		super.focus();
+
 		if (this._currentFocusContext === SettingsFocusContext.Search) {
 			if (!platform.isIOS) {
 				// #122044
@@ -493,8 +493,6 @@ export class SettingsEditor2 extends EditorPane {
 		} else if (this._currentFocusContext === SettingsFocusContext.TableOfContents) {
 			this.tocTree.domFocus();
 		}
-
-		super.focus();
 	}
 
 	protected override setEditorVisible(visible: boolean, group: IEditorGroup | undefined): void {
@@ -1291,7 +1289,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
-		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.workbenchAssignmentService, this.environmentService, this.productService);
+		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.environmentService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension = toggleData.recommendedExtensionsGalleryInfo[key];

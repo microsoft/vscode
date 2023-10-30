@@ -723,8 +723,7 @@ export class DirtyDiffController extends Disposable implements DirtyDiffContribu
 	) {
 		super();
 		this.enabled = !contextKeyService.getContextKeyValue('isInDiffEditor');
-		this.stylesheet = dom.createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.remove()));
+		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
 
 		if (this.enabled) {
 			this.isDirtyDiffVisible = isDirtyDiffVisible.bindTo(contextKeyService);
@@ -1557,8 +1556,7 @@ export class DirtyDiffWorkbenchController extends Disposable implements ext.IWor
 		@ITextFileService private readonly textFileService: ITextFileService
 	) {
 		super();
-		this.stylesheet = dom.createStyleSheet();
-		this._register(toDisposable(() => this.stylesheet.parentElement!.removeChild(this.stylesheet)));
+		this.stylesheet = dom.createStyleSheet(undefined, undefined, this._store);
 
 		const onDidChangeConfiguration = Event.filter(configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.diffDecorations'));
 		this._register(onDidChangeConfiguration(this.onDidChangeConfiguration, this));

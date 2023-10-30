@@ -185,3 +185,7 @@
 	width: 100%;
 	height: 100%;
 }
+
+.monaco-workbench .part.editor > .content .editor-group-container > .monaco-progress-container {
+	top: max(calc(var(--editor-group-tabs-height) - 2px), 0px); /* Override top position of progress bar which defined in vs/workbench/browser/media/part.css */
+}

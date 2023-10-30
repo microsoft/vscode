@@ -491,7 +491,12 @@ export class ViewModel extends Disposable implements IViewModel {
 				this.viewLayout.onFlushed(this.getLineCount());
 				this.viewLayout.onHeightMaybeChanged();
 			}
-			stableViewport.recoverViewportStart(this.coordinatesConverter, this.viewLayout);
+
+			const firstModelLineInViewPort = stableViewport.viewportStartModelPosition?.lineNumber;
+			const firstModelLineIsHidden = firstModelLineInViewPort && mergedRanges.some(range => range.startLineNumber <= firstModelLineInViewPort && firstModelLineInViewPort <= range.endLineNumber);
+			if (!firstModelLineIsHidden) {
+				stableViewport.recoverViewportStart(this.coordinatesConverter, this.viewLayout);
+			}
 		} finally {
 			this._eventDispatcher.endEmitViewEvents();
 		}

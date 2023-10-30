@@ -52,6 +52,7 @@ declare module 'vscode' {
 	export interface InteractiveEditorProgressItem {
 		message?: string;
 		edits?: TextEdit[];
+		editsShouldBeInstant?: boolean;
 		slashCommand?: InteractiveEditorSlashCommand;
 		content?: string | MarkdownString;
 	}

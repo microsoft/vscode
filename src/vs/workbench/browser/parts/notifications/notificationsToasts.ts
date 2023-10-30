@@ -93,7 +93,7 @@ export class NotificationsToasts extends Themable implements INotificationsToast
 	private registerListeners(): void {
 
 		// Layout
-		this._register(this.layoutService.onDidLayout(dimension => this.layout(Dimension.lift(dimension))));
+		this._register(this.layoutService.onDidLayoutMainContainer(dimension => this.layout(Dimension.lift(dimension))));
 
 		// Delay some tasks until after we have restored
 		// to reduce UI pressure from the startup phase

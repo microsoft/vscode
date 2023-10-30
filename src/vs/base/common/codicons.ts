@@ -568,7 +568,18 @@ export const Codicon = {
 	sparkle: register('sparkle', 0xec10),
 	insert: register('insert', 0xec11),
 	mic: register('mic', 0xec12),
-
+	thumbsDownFilled: register('thumbsdown-filled', 0xec13),
+	thumbsUpFilled: register('thumbsup-filled', 0xec14),
+	coffee: register('coffee', 0xec15),
+	snake: register('snake', 0xec16),
+	game: register('game', 0xec17),
+	vr: register('vr', 0xec18),
+	chip: register('chip', 0xec19),
+	piano: register('piano', 0xec1a),
+	music: register('music', 0xec1b),
+	micFilled: register('mic-filled', 0xec1c),
+	gitFetch: register('git-fetch', 0xec1d),
+	copilot: register('copilot', 0xec1e),
 
 	// derived icons, that could become separate icons
 

@@ -150,7 +150,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			tags: ['accessibility']
 		},
 		'audioCues.format': {
-			'markdownDescription': localize('audioCues.format', "Plays a sound when a file or notebook is formatted. Also see {0}", '`#accessibility.alert.formatted#`'),
+			'markdownDescription': localize('audioCues.format', "Plays a sound when a file or notebook is formatted. Also see {0}", '`#accessibility.alert.format#`'),
 			'type': 'string',
 			'enum': ['userGesture', 'always', 'never'],
 			'default': 'never',

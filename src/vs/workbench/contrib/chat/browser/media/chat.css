@@ -43,6 +43,47 @@
 	font-weight: 600;
 }
 
+.interactive-item-container .header .detail-container {
+	font-size: 0.9em;
+	opacity: 0.7;
+}
+
+.interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
+	display: none;
+}
+
+@keyframes ellipsis {
+	0% {
+		content: "";
+	}
+	25% {
+		content: ".";
+	}
+	50% {
+		content: "..";
+	}
+	75% {
+		content: "...";
+	}
+	100% {
+		content: "";
+	}
+}
+
+.chat-animated-ellipsis::after {
+	content: '';
+	white-space: nowrap;
+	overflow: hidden;
+	width: 3em;
+	animation: ellipsis steps(4, end) 1s infinite;
+}
+
+.interactive-item-container .header .avatar-container {
+	display: flex;
+	pointer-events: none;
+	user-select: none;
+}
+
 .interactive-item-container .header .avatar {
 	display: flex;
 	align-items: center;
@@ -50,9 +91,15 @@
 	width: 24px;
 	height: 24px;
 	border-radius: 50%;
-	background: var(--vscode-badge-background);
-	pointer-events: none;
-	user-select: none;
+	outline: 1px solid var(--vscode-chat-requestBorder)
+}
+
+.interactive-item-container .header .avatar.codicon-avatar {
+	background: var(--vscode-chat-avatarBackground);
+}
+
+.interactive-item-container .header .avatar+.avatar {
+	margin-left: -8px;
 }
 
 .interactive-item-container .header .avatar .icon {
@@ -62,7 +109,25 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-badge-foreground) !important;
+	color: var(--vscode-chat-avatarForeground);
+	font-size: 14px;
+}
+
+.interactive-item-container .header .agent-avatar-container {
+	margin-left: -30px;
+	transition: margin 0.15s ease-out;
+	transition-delay: 0.5s;
+	z-index: -1;
+}
+
+.interactive-item-container .header .agent-avatar-container.loading {
+	margin-left: 0px;
+	z-index: 1;
+}
+
+.interactive-item-container .header .agent-avatar-container.complete {
+	margin-left: -12px;
+	z-index: 1;
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,
@@ -200,6 +265,14 @@
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
 	width: 16px;
 	height: 16px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+	font-size: 12px;
+}
+
+.interactive-item-container.interactive-item-compact .header .avatar+.avatar {
+	margin-left: -4px;
 }
 
 .interactive-item-container.interactive-item-compact .value {

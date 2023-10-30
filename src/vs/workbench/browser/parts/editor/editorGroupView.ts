@@ -11,7 +11,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { Emitter, Relay } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement } from 'vs/base/browser/dom';
+import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, focusWindow } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
@@ -135,8 +135,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private readonly editorPartsView: IEditorPartsView,
-		private readonly groupsView: IEditorGroupsView,
-		private readonly groupsLabel: string,
+		public readonly groupsView: IEditorGroupsView,
+		private groupsLabel: string,
 		private _index: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
@@ -449,7 +449,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this.isEmpty) {
 			this.element.classList.add('empty');
 			this.element.tabIndex = 0;
-			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.label));
+			this.element.setAttribute('aria-label', localize('emptyEditorGroup', "{0} (empty)", this.ariaLabel));
 		}
 
 		// Non-Empty Container: revert empty container attributes
@@ -680,12 +680,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close all inactive editors first to prevent UI flicker
 		for (const inactiveEditor of inactiveEditors) {
-			this.doCloseEditor(inactiveEditor, false);
+			this.doCloseEditor(inactiveEditor, true);
 		}
 
 		// Close active one last
 		if (activeEditor) {
-			this.doCloseEditor(activeEditor, false);
+			this.doCloseEditor(activeEditor, true);
 		}
 	}
 
@@ -700,6 +700,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control switch between singleEditorTabs, multiEditorTabs and multiRowEditorTabs
 		if (
 			event.oldPartOptions.showTabs !== event.newPartOptions.showTabs ||
+			event.oldPartOptions.tabHeight !== event.newPartOptions.tabHeight ||
 			(event.oldPartOptions.showTabs === 'multiple' && event.oldPartOptions.pinnedTabsOnSeparateRow !== event.newPartOptions.pinnedTabsOnSeparateRow)
 		) {
 
@@ -761,6 +762,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	get ariaLabel(): string {
+		if (this.groupsLabel) {
+			return localize('groupAriaLabelLong', "{0}: Editor Group {1}", this.groupsLabel, this._index + 1);
+		}
+
 		return localize('groupAriaLabel', "Editor Group {0}", this._index + 1);
 	}
 
@@ -781,6 +786,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		if (this._index !== newIndex) {
 			this._index = newIndex;
 			this.model.setIndex(newIndex);
+		}
+	}
+
+	notifyLabelChanged(newLabel: string): void {
+		if (this.groupsLabel !== newLabel) {
+			this.groupsLabel = newLabel;
+			this.model.setLabel(newLabel);
 		}
 	}
 
@@ -897,6 +909,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	focus(): void {
+
+		// Ensure window focus
+		focusWindow(this.element);
 
 		// Pass focus to editor panes
 		if (this.activeEditorPane) {
@@ -1044,9 +1059,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Conditionally lock the group
 		if (
-			isNew &&							// only if this editor was new for the group
-			this.count === 1 &&					// only when this editor was the first editor in the group
-			this.groupsView.groups.length > 1	// only when there are more than one groups open
+			isNew &&				// only if this editor was new for the group
+			this.count === 1 &&		// only when this editor was the first editor in the group
+			this.canLock()			// only when we met the requirements to lock
 		) {
 			// only when the editor identifier is configured as such
 			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
@@ -1093,8 +1108,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				// Without an editor pane, recover by closing the active editor
 				// (if the input is still the active one)
 				if (!pane && this.activeEditor === editor) {
-					const focusNext = !options || !options.preserveFocus;
-					this.doCloseEditor(editor, focusNext, { fromError: true });
+					this.doCloseEditor(editor, options?.preserveFocus, { fromError: true });
 				}
 
 				return pane;
@@ -1268,7 +1282,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// ...and a close afterwards (unless we copy)
 		if (!keepCopy) {
-			this.doCloseEditor(editor, false /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
+			this.doCloseEditor(editor, true /* do not focus next one behind if any */, { ...internalOptions, context: EditorCloseContext.MOVE });
 		}
 	}
 
@@ -1333,12 +1347,12 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Do close
-		this.doCloseEditor(editor, options?.preserveFocus ? false : undefined, internalOptions);
+		this.doCloseEditor(editor, options?.preserveFocus, internalOptions);
 
 		return true;
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = (this.groupsView.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): void {
+	private doCloseEditor(editor: EditorInput, preserveFocus = (this.groupsView.activeGroup !== this), internalOptions?: IInternalEditorCloseOptions): void {
 
 		// Forward to title control unless skipped via internal options
 		if (!internalOptions?.skipTitleUpdate) {
@@ -1347,7 +1361,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Closing the active editor of the group is a bit more work
 		if (this.model.isActive(editor)) {
-			this.doCloseActiveEditor(focusNext, internalOptions);
+			this.doCloseActiveEditor(preserveFocus, internalOptions);
 		}
 
 		// Closing inactive editor is just a model update
@@ -1361,9 +1375,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 	}
 
-	private doCloseActiveEditor(focusNext = (this.groupsView.activeGroup === this), internalOptions?: IInternalEditorCloseOptions): void {
+	private doCloseActiveEditor(preserveFocus = (this.groupsView.activeGroup !== this), internalOptions?: IInternalEditorCloseOptions): void {
 		const editorToClose = this.activeEditor;
-		const restoreFocus = this.shouldRestoreFocus(this.element);
+		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.element);
 
 		// Optimization: if we are about to close the last editor in this group and settings
 		// are configured to close the group since it will be empty, we first set the last
@@ -1380,7 +1394,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				if (restoreFocus) {
 					nextActiveGroup.focus();
 				} else {
-					this.groupsView.activateGroup(nextActiveGroup);
+					this.groupsView.activateGroup(nextActiveGroup, true);
 				}
 			}
 		}
@@ -1393,8 +1407,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Open next active if there are more to show
 		const nextActiveEditor = this.model.activeEditor;
 		if (nextActiveEditor) {
-			const preserveFocus = !focusNext;
-
 			let activation: EditorActivation | undefined = undefined;
 			if (preserveFocus && this.groupsView.activeGroup !== this) {
 				// If we are opening the next editor in an inactive group
@@ -1443,7 +1455,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			// Remove empty group if we should
 			if (closeEmptyGroup) {
-				this.groupsView.removeGroup(this);
+				this.groupsView.removeGroup(this, preserveFocus);
 			}
 		}
 	}
@@ -1708,7 +1720,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Close active editor last if contained in editors list to close
 		if (closeActiveEditor) {
-			this.doCloseActiveEditor(options?.preserveFocus ? false : undefined);
+			this.doCloseActiveEditor(options?.preserveFocus);
 		}
 
 		// Forward to title control
@@ -1812,7 +1824,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			if (!editor.matches(replacement)) {
 				let closed = false;
 				if (forceReplaceDirty) {
-					this.doCloseEditor(editor, false, { context: EditorCloseContext.REPLACE });
+					this.doCloseEditor(editor, true, { context: EditorCloseContext.REPLACE });
 					closed = true;
 				} else {
 					closed = await this.doCloseEditorWithConfirmationHandling(editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
@@ -1833,7 +1845,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			// Close replaced active editor unless they match
 			if (!activeReplacement.editor.matches(activeReplacement.replacement)) {
 				if (activeReplacement.forceReplaceDirty) {
-					this.doCloseEditor(activeReplacement.editor, false, { context: EditorCloseContext.REPLACE });
+					this.doCloseEditor(activeReplacement.editor, true, { context: EditorCloseContext.REPLACE });
 				} else {
 					await this.doCloseEditorWithConfirmationHandling(activeReplacement.editor, { preserveFocus: true }, { context: EditorCloseContext.REPLACE });
 				}
@@ -1848,7 +1860,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Locking
 
 	get isLocked(): boolean {
-		if (this.groupsView.groups.length === 1) {
+		if (!this.canLock()) {
 			// Special case: if only 1 group is opened, never report it as locked
 			// to ensure editors can always open in the "default" editor group
 			return false;
@@ -1858,13 +1870,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	lock(locked: boolean): void {
-		if (this.groupsView.groups.length === 1) {
+		if (!this.canLock()) {
 			// Special case: if only 1 group is opened, never allow to lock
 			// to ensure editors can always open in the "default" editor group
 			locked = false;
 		}
 
 		this.model.lock(locked);
+	}
+
+	private canLock(): boolean {
+		if (this.groupsView.isAuxiliary) {
+			return true; // always allow locking in auxiliary parts, even single groups
+		}
+
+		return this.groupsView.groups.length > 1; // only allow locking if more than 1 group is opened
 	}
 
 	//#endregion
@@ -1929,6 +1949,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			container: new Dimension(width, height),
 			available: new Dimension(width, height - this.editorPane.minimumHeight)
 		});
+
+		this.element.style.setProperty('--editor-group-tabs-height', `${this.titleHeight.offset}px`);
 
 		// Pass the container width and remaining height to the editor layout
 		const editorHeight = Math.max(0, height - titleControlSize.height);

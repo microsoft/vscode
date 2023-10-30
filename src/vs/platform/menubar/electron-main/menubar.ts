@@ -11,6 +11,7 @@ import { mnemonicMenuLabel } from 'vs/base/common/labels';
 import { isMacintosh, language } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
 import { ILifecycleMainService } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
@@ -48,7 +49,7 @@ export class Menubar {
 	private willShutdown: boolean | undefined;
 	private appMenuInstalled: boolean | undefined;
 	private closedLastWindow: boolean;
-	private noActiveWindow: boolean;
+	private noActiveMainWindow: boolean;
 
 	private menuUpdater: RunOnceScheduler;
 	private menuGC: RunOnceScheduler;
@@ -74,7 +75,8 @@ export class Menubar {
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@ILogService private readonly logService: ILogService,
 		@INativeHostMainService private readonly nativeHostMainService: INativeHostMainService,
-		@IProductService private readonly productService: IProductService
+		@IProductService private readonly productService: IProductService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		this.menuUpdater = new RunOnceScheduler(() => this.doUpdateMenu(), 0);
 
@@ -90,7 +92,7 @@ export class Menubar {
 		this.addFallbackHandlers();
 
 		this.closedLastWindow = false;
-		this.noActiveWindow = false;
+		this.noActiveMainWindow = false;
 
 		this.oldMenus = [];
 
@@ -115,7 +117,11 @@ export class Menubar {
 	private addFallbackHandlers(): void {
 
 		// File Menu Items
-		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
+		this.fallbackMenuHandlers['workbench.action.files.newUntitledFile'] = (menuItem, win, event) => {
+			if (!this.runActionInRenderer({ type: 'commandId', commandId: 'workbench.action.files.newUntitledFile' })) { // this is one of the few supported actions when aux window has focus
+				this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
+			}
+		};
 		this.fallbackMenuHandlers['workbench.action.newWindow'] = (menuItem, win, event) => this.windowsMainService.openEmptyWindow({ context: OpenContext.MENU, contextWindowId: win?.id });
 		this.fallbackMenuHandlers['workbench.action.files.openFileFolder'] = (menuItem, win, event) => this.nativeHostMainService.pickFileFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
 		this.fallbackMenuHandlers['workbench.action.files.openFolder'] = (menuItem, win, event) => this.nativeHostMainService.pickFolderAndOpen(undefined, { forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } });
@@ -240,7 +246,8 @@ export class Menubar {
 			return;
 		}
 
-		this.noActiveWindow = !BrowserWindow.getFocusedWindow();
+		const focusedWindow = BrowserWindow.getFocusedWindow();
+		this.noActiveMainWindow = !focusedWindow || !!this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
 		this.scheduleUpdateMenu();
 	}
 
@@ -255,7 +262,7 @@ export class Menubar {
 		// If we don't have a menu yet, set it to null to avoid the electron menu.
 		// This should only happen on the first launch ever
 		if (Object.keys(this.menubarMenus).length === 0) {
-			Menu.setApplicationMenu(isMacintosh ? new Menu() : null);
+			this.doSetApplicationMenu(isMacintosh ? new Menu() : null);
 			return;
 		}
 
@@ -358,13 +365,28 @@ export class Menubar {
 		}
 
 		if (menubar.items && menubar.items.length > 0) {
-			Menu.setApplicationMenu(menubar);
+			this.doSetApplicationMenu(menubar);
 		} else {
-			Menu.setApplicationMenu(null);
+			this.doSetApplicationMenu(null);
 		}
 
 		// Dispose of older menus after some time
 		this.menuGC.schedule();
+	}
+
+	private doSetApplicationMenu(menu: (Menu) | (null)): void {
+
+		// Setting the application menu sets it to all opened windows,
+		// but we currently do not support a menu in auxiliary windows,
+		// so we need to unset it there.
+
+		Menu.setApplicationMenu(menu);
+
+		if (menu) {
+			for (const window of this.auxiliaryWindowsMainService.getWindows()) {
+				window.win?.setMenu(null);
+			}
+		}
 	}
 
 	private setMacApplicationMenu(macApplicationMenu: Menu): void {
@@ -455,12 +477,12 @@ export class Menubar {
 			case 'File':
 			case 'Help':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow) || (!!this.menubarMenus && !!this.menubarMenus[menuId]);
 				}
 
 			case 'Window':
 				if (isMacintosh) {
-					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow) || !!this.menubarMenus;
+					return (this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) || (this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow) || !!this.menubarMenus;
 				}
 
 			default:
@@ -487,7 +509,7 @@ export class Menubar {
 
 				if (isMacintosh) {
 					if ((this.windowsMainService.getWindowCount() === 0 && this.closedLastWindow) ||
-						(this.windowsMainService.getWindowCount() > 0 && this.noActiveWindow)) {
+						(this.windowsMainService.getWindowCount() > 0 && this.noActiveMainWindow)) {
 						// In the fallback scenario, we are either disabled or using a fallback handler
 						if (this.fallbackMenuHandlers[item.id]) {
 							menu.append(new MenuItem(this.likeAction(item.id, { label: this.mnemonicLabel(item.label), click: this.fallbackMenuHandlers[item.id] })));
@@ -732,13 +754,24 @@ export class Menubar {
 		};
 	}
 
-	private runActionInRenderer(invocation: IMenuItemInvocation): void {
+	private runActionInRenderer(invocation: IMenuItemInvocation): boolean {
+
+		// We want to support auxililary windows that may have focus by
+		// returning their parent windows as target to support running
+		// actions via the main window.
+		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
+		if (activeBrowserWindow) {
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(activeBrowserWindow.id);
+			if (auxiliaryWindowCandidate) {
+				activeBrowserWindow = this.windowsMainService.getWindowById(auxiliaryWindowCandidate.parentId)?.win ?? null;
+			}
+		}
+
 		// We make sure to not run actions when the window has no focus, this helps
 		// for https://github.com/microsoft/vscode/issues/25907 and specifically for
 		// https://github.com/microsoft/vscode/issues/11928
 		// Still allow to run when the last active window is minimized though for
 		// https://github.com/microsoft/vscode/issues/63000
-		let activeBrowserWindow = BrowserWindow.getFocusedWindow();
 		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
 			if (lastActiveWindow?.isMinimized()) {
@@ -755,7 +788,7 @@ export class Menubar {
 					// prevent this action from running twice on macOS (https://github.com/microsoft/vscode/issues/62719)
 					// we already register a keybinding in bootstrap-window.js for opening developer tools in case something
 					// goes wrong and that keybinding is only removed when the application has loaded (= window ready).
-					return;
+					return false;
 				}
 			}
 
@@ -766,8 +799,12 @@ export class Menubar {
 				const runKeybindingPayload: INativeRunKeybindingInWindowRequest = { userSettingsLabel: invocation.userSettingsLabel };
 				activeWindow.sendWhenReady('vscode:runKeybinding', CancellationToken.None, runKeybindingPayload);
 			}
+
+			return true;
 		} else {
 			this.logService.trace('menubar#runActionInRenderer: no active window found', invocation);
+
+			return false;
 		}
 	}
 
