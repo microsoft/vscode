@@ -746,10 +746,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
-			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
+			oldOptions.tabActionLocation !== newOptions.tabActionLocation ||
+			oldOptions.tabActionCloseVisibility !== newOptions.tabActionCloseVisibility ||
+			oldOptions.tabActionUnpinVisibility !== newOptions.tabActionUnpinVisibility ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
-			oldOptions.tabUnpinButton !== newOptions.tabUnpinButton ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
@@ -1323,7 +1324,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const hasUnpinAction = isTabSticky && options.tabUnpinButton !== 'off';
+		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
 		const tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
 		if (!tabActionBar.hasAction(tabAction)) {
 			if (!tabActionBar.isEmpty()) {
@@ -1334,13 +1335,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Settings
-		const tabActionPosition = hasUnpinAction ? options.tabUnpinButton : options.tabCloseButton;
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' : tabActionPosition; /* treat sticky compact tabs as tabCloseButton/tabUnpinButton: 'off' */
+		const tabActionsVisibility = (hasUnpinAction && options.pinnedTabSizing !== 'compact') || options.tabActionCloseVisibility; /* treat sticky (pinned) compact tabs as tabActionButtonVisibility: false */
+		const tabActionsStylePostfix = tabActionsVisibility ? options.tabActionLocation : 'off';
 		for (const option of ['off', 'left', 'right']) {
-			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
+			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsStylePostfix === option);
 		}
 
-		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && options.tabUnpinButton === 'off');
+		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !options.tabActionUnpinVisibility);
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		for (const option of ['fit', 'shrink', 'fixed']) {
