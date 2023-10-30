@@ -127,7 +127,7 @@ class InputEditorDecorations extends Disposable {
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
-		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
+		await this.widget.getSlashCommands(); // Leaving for candidate fix- waits for model initialization
 
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {
@@ -136,10 +136,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (!inputValue) {
 			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const defaultPlaceholder = slashCommands?.length ?
-				localize('interactive.input.placeholderWithCommands', "Ask a question or type '@' or '/'") :
-				localize('interactive.input.placeholderNoCommands', "Ask a question");
-			const placeholder = viewModelPlaceholder ?? defaultPlaceholder;
+			const placeholder = viewModelPlaceholder ?? '';
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
