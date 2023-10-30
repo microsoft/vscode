@@ -41,8 +41,24 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
+	private static EditorCache: Record<string, NotebookEditorInput> = {};
+
 	static create(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
+		let editor = NotebookEditorInput.EditorCache[cacheId];
+
+		if (!editor) {
+			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+			NotebookEditorInput.EditorCache[resource.toString()] = editor;
+
+			editor.onWillDispose(() => {
+				delete NotebookEditorInput.EditorCache[cacheId];
+			});
+		} else if (preferredResource) {
+			editor.setPreferredResource(preferredResource);
+		}
+
+		return editor;
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
