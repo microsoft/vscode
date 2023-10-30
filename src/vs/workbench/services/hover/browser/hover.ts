@@ -156,6 +156,11 @@ export interface IHoverOptions {
 	 * element's container hiding on `focusout`.
 	 */
 	container?: HTMLElement;
+
+	/**
+	 * Whether to make the hover sticky, this means it will not be hidden when the mouse leaves the hover.
+	 */
+	sticky?: boolean;
 }
 
 export interface IHoverAction {
