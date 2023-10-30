@@ -89,7 +89,6 @@ steps:
       displayName: Compile /build
 
     - script: .github/workflows/check-clean-git-state.sh
-      workingDirectory: build
       displayName: Check /build
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
