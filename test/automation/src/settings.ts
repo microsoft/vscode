@@ -61,8 +61,6 @@ export class SettingsEditor {
 	}
 
 	async searchSettingsUI(query: string): Promise<void> {
-		await this.openUserSettingsUI();
-
 		await this.code.waitAndClick(SEARCH_BOX);
 		if (process.platform === 'darwin') {
 			await this.code.dispatchKeybinding('cmd+a');
