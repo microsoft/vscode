@@ -45,13 +45,12 @@ properties:
         includeRecommended: true
         components:
           - Microsoft.VisualStudio.Workload.VCTools
-    # TODO@lszomoru
-    # - resource: YarnDsc/YarnInstall
-    #   dependsOn:
-    #     - npm
-    #   directives:
-    #     description: Install dependencies
-    #     allowPrerelease: true
-    #   settings:
-    #     PackageDirectory: '${WinGetConfigRoot}\..\'
+    - resource: NpmDsc/NpmInstall
+      dependsOn:
+        - npm
+      directives:
+        description: Install dependencies
+        allowPrerelease: true
+      settings:
+        PackageDirectory: '${WinGetConfigRoot}\..\'
   configurationVersion: 0.2.0
