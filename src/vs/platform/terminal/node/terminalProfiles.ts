@@ -405,8 +405,9 @@ async function detectAvailableUnixProfiles(
 	const detectedProfiles: Map<string, IUnresolvedTerminalProfile> = new Map();
 
 	// Add non-quick launch profiles
-	if (includeDetectedProfiles) {
-		const contents = (await fsProvider.readFile('/etc/shells')).toString();
+	const shellsPath = '/etc/shells';
+	if (includeDetectedProfiles && await fsProvider.existsFile(shellsPath)) {
+		const contents = (await fsProvider.readFile(shellsPath)).toString();
 		const profiles = (
 			(testPaths || contents.split('\n'))
 				.map(e => {
