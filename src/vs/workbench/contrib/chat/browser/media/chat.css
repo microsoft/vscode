@@ -109,7 +109,7 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-chat-avatarForeground);
+	color: var(--vscode-chat-avatarForeground) !important;
 	font-size: 14px;
 }
 
