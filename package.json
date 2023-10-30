@@ -1,6 +1,6 @@
 {
   "name": "code-oss-dev",
-  "version": "1.84.0",
+  "version": "1.85.0",
   "distro": "ff0198cd90b25ba7ca853279cea9b8bb3cf5164d",
   "author": {
     "name": "Microsoft Corporation"
@@ -208,7 +208,7 @@
     "ts-loader": "^9.4.2",
     "ts-node": "^10.9.1",
     "tsec": "0.2.7",
-    "typescript": "^5.3.0-dev.20231002",
+    "typescript": "^5.3.0-dev.20231030",
     "typescript-formatter": "7.1.0",
     "vscode-nls-dev": "^3.3.1",
     "webpack": "^5.77.0",

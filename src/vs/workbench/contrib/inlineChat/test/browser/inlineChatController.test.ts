@@ -113,8 +113,8 @@ suite('InteractiveChatController', function () {
 				}
 			}],
 			[IChatAccessibilityService, new class extends mock<IChatAccessibilityService>() {
-				override acceptResponse(response?: IChatResponseViewModel): void { }
-				override acceptRequest(): void { }
+				override acceptResponse(response: IChatResponseViewModel | undefined, requestId: number): void { }
+				override acceptRequest(): number { return -1; }
 			}],
 			[IAccessibleViewService, new class extends mock<IAccessibleViewService>() {
 				override getOpenAriaHint(verbositySettingKey: AccessibilityVerbositySettingId): string | null {

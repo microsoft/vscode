@@ -494,6 +494,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 
 	/**
+	 * Get the editor part that is rooted in the provided container.
+	 */
+	getPart(container: unknown /* HTMLElement */): IEditorPart | undefined;
+
+	/**
 	 * Opens a new window with a full editor part instantiated
 	 * in there at the optional position on screen.
 	 */

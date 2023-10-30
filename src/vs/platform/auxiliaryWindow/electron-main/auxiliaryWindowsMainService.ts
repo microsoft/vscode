@@ -6,6 +6,7 @@
 import { BrowserWindow, BrowserWindowConstructorOptions, WebContents, app } from 'electron';
 import { Event } from 'vs/base/common/event';
 import { FileAccess } from 'vs/base/common/network';
+import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -26,7 +27,7 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 	private registerListeners(): void {
 
 		// We have to ensure that an auxiliary window gets to know its
-		// parent `BrowserWindow` so that it can apply listeners to it
+		// containing `BrowserWindow` so that it can apply listeners to it
 		// Unfortunately we cannot rely on static `BrowserWindow` methods
 		// because we might call the methods too early before the window
 		// is created.
@@ -37,12 +38,21 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 				auxiliaryWindow.tryClaimWindow();
 			}
 		});
+
+		validatedIpcMain.handle('vscode:registerAuxiliaryWindow', async (event, mainWindowId: number) => {
+			const auxiliaryWindow = this.getWindowById(event.sender.id);
+			if (auxiliaryWindow) {
+				auxiliaryWindow.parentId = mainWindowId;
+			}
+
+			return event.sender.id;
+		});
 	}
 
 	createWindow(): BrowserWindowConstructorOptions {
 		return this.instantiationService.invokeFunction(defaultBrowserWindowOptions, undefined, {
 			webPreferences: {
-				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-slim.js').fsPath
+				preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload-aux.js').fsPath
 			}
 		});
 	}

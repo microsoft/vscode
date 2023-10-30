@@ -10,6 +10,7 @@ import { IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views
 import { GLOBAL_ACTIVITY_ID, ACCOUNTS_ACTIVITY_ID } from 'vs/workbench/common/activity';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { isUndefined } from 'vs/base/common/types';
 
 class ViewContainerActivityByView extends Disposable {
 
@@ -82,10 +83,10 @@ export class ActivityService extends Disposable implements IActivityService {
 				this.viewContainerActivities.set(viewContainerId, activities);
 			}
 			for (let i = 0; i <= activities.length; i++) {
-				if (i === activities.length) {
+				if (i === activities.length || isUndefined(activity.priority)) {
 					activities.push(activity);
 					break;
-				} else if (activities[i].priority ?? 0 <= (activity.priority ?? 0)) {
+				} else if (isUndefined(activities[i].priority) || activities[i].priority! <= activity.priority) {
 					activities.splice(i, 0, activity);
 					break;
 				}

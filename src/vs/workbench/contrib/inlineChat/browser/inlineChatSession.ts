@@ -9,7 +9,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
-import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
 import { IActiveCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -226,7 +226,7 @@ export class Session {
 		};
 		for (const exchange of this._exchange) {
 			const response = exchange.response;
-			if (response instanceof MarkdownResponse || response instanceof EditResponse) {
+			if (response instanceof ReplyResponse) {
 				result.exchanges.push({ prompt: exchange.prompt.value, res: response.raw });
 			}
 		}
@@ -258,7 +258,7 @@ export class SessionExchange {
 
 	constructor(
 		readonly prompt: SessionPrompt,
-		readonly response: MarkdownResponse | EditResponse | EmptyResponse | ErrorResponse
+		readonly response: ReplyResponse | EmptyResponse | ErrorResponse
 	) { }
 }
 
@@ -279,37 +279,32 @@ export class ErrorResponse {
 	}
 }
 
-export class MarkdownResponse {
-	constructor(
-		readonly localUri: URI,
-		readonly raw: IInlineChatMessageResponse,
-		readonly mdContent: IMarkdownString,
-	) { }
-}
-
-export class EditResponse {
+export class ReplyResponse {
 
 	readonly allLocalEdits: TextEdit[][] = [];
 	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
 	readonly workspaceEdits: ResourceEdit[] | undefined;
 	readonly workspaceEditsIncludeLocalEdits: boolean = false;
 
+	readonly responseType: InlineChateResponseTypes;
+
 	constructor(
+		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse | IInlineChatMessageResponse,
+		readonly mdContent: IMarkdownString,
 		localUri: URI,
 		readonly modelAltVersionId: number,
-		readonly raw: IInlineChatBulkEditResponse | IInlineChatEditResponse,
 		progressEdits: TextEdit[][],
 	) {
 
 		this.allLocalEdits.push(...progressEdits);
 
-		if (raw.type === 'editorEdit') {
+		if (raw.type === InlineChatResponseType.EditorEdit) {
 			//
 			this.allLocalEdits.push(raw.edits);
 			this.singleCreateFileEdit = undefined;
 			this.workspaceEdits = undefined;
 
-		} else {
+		} else if (raw.type === InlineChatResponseType.BulkEdit) {
 			//
 			const edits = ResourceEdit.convert(raw.edits);
 			this.workspaceEdits = edits;
@@ -351,6 +346,10 @@ export class EditResponse {
 				this.singleCreateFileEdit = undefined;
 			}
 		}
+
+		this.responseType = (this.allLocalEdits.length || this.workspaceEdits)
+			? mdContent.value ? InlineChateResponseTypes.Mixed : InlineChateResponseTypes.OnlyEdits
+			: InlineChateResponseTypes.OnlyMessages;
 	}
 }
 
