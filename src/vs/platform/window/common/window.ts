@@ -70,19 +70,19 @@ export interface IAddFoldersRequest {
 	readonly foldersToAdd: UriComponents[];
 }
 
-export interface IOpenedMainWindow {
+interface IOpenedWindow {
 	readonly id: number;
-	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly title: string;
 	readonly filename?: string;
+}
+
+export interface IOpenedMainWindow extends IOpenedWindow {
+	readonly workspace?: IAnyWorkspaceIdentifier;
 	readonly dirty: boolean;
 }
 
-export interface IOpenedAuxiliaryWindow {
-	readonly id: number;
+export interface IOpenedAuxiliaryWindow extends IOpenedWindow {
 	readonly parentId: number;
-	readonly title: string;
-	readonly filename?: string;
 }
 
 export function isOpenedAuxiliaryWindow(candidate: IOpenedMainWindow | IOpenedAuxiliaryWindow): candidate is IOpenedAuxiliaryWindow {
