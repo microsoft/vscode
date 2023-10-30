@@ -15,10 +15,7 @@ steps:
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM Registry
 
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      yarn config set registry "$NPM_REGISTRY"
+  - script: npm config set registry "$NPM_REGISTRY" --location=project
     workingDirectory: build
     condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM

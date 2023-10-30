@@ -27,10 +27,7 @@ steps:
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      yarn config set registry "$NPM_REGISTRY"
+  - script: npm config set registry "$NPM_REGISTRY" --location=project
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 

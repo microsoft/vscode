@@ -41,10 +41,7 @@ steps:
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      yarn config set registry "$NPM_REGISTRY"
+  - script: npm config set registry "$NPM_REGISTRY" --location=project
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
@@ -108,7 +105,7 @@ steps:
   - script: |
       set -e
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64") # TODO@joaomoreno
-      yarn gulp vscode-reh-$TARGET-min-ci
+      npm exec gulp vscode-reh-$TARGET-min-ci
       (cd .. && mv vscode-reh-$TARGET vscode-server-$TARGET) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/server/vscode-server-$TARGET.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)
@@ -121,7 +118,7 @@ steps:
   - script: |
       set -e
       TARGET=$([ "$VSCODE_ARCH" == "x64" ] && echo "linux-alpine" || echo "alpine-arm64")
-      yarn gulp vscode-reh-web-$TARGET-min-ci
+      npm exec gulp vscode-reh-web-$TARGET-min-ci
       (cd .. && mv vscode-reh-web-$TARGET vscode-server-$TARGET-web) # TODO@joaomoreno
       ARCHIVE_PATH=".build/linux/web/vscode-server-$TARGET-web.tar.gz"
       mkdir -p $(dirname $ARCHIVE_PATH)

@@ -2,9 +2,6 @@
 
 set -e
 
-# To workaround the issue of yarn not respecting the registry value from .npmrc
-yarn config set registry "$NPM_REGISTRY"
-
 if [ -z "$CC" ] || [ -z "$CXX" ]; then
   # Download clang based on chromium revision used by vscode
   curl -s https://raw.githubusercontent.com/chromium/chromium/114.0.5735.199/tools/clang/scripts/update.py | python - --output-dir=$PWD/.build/CR_Clang --host-os=linux

@@ -5,7 +5,7 @@
 
 const fs = require('fs');
 
-// Complete list of directories where yarn should be executed to install node modules
+// Complete list of directories where npm should be executed to install node modules
 const dirs = [
 	'',
 	'build',

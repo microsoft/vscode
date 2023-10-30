@@ -36,11 +36,11 @@ steps:
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: yarn test-node
+      - script: npm run test-node
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - script: yarn test-browser-no-install --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
@@ -51,11 +51,11 @@ steps:
         displayName: Run unit tests (Electron)
         timeoutInMinutes: 15
 
-      - script: yarn test-node --build
+      - script: npm run test-node -- --build
         displayName: Run unit tests (node.js)
         timeoutInMinutes: 15
 
-      - script: yarn test-browser-no-install --build --browser chromium --tfs "Browser Unit Tests"
+      - script: npm run test-browser-no-install -- --build --browser chromium --tfs "Browser Unit Tests"
         env:
           DEBUG: "*browser*"
         displayName: Run unit tests (Browser, Chromium)
@@ -64,7 +64,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - script: |
         set -e
-        yarn gulp \
+        npm exec gulp \
           compile-extension:configuration-editing \
           compile-extension:css-language-features-server \
           compile-extension:emmet \
@@ -145,30 +145,30 @@ steps:
       condition: succeededOrFailed()
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: yarn --cwd test/smoke compile
+      - script: cd test/smoke && npm run compile
         displayName: Compile smoke tests
 
-      - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
+      - script: npm exec compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
-      - script: yarn smoketest-no-compile --tracing
+      - script: npm run smoketest-no-compile -- --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Browser, Chromium)
 
-      - script: yarn smoketest-no-compile --remote --tracing
+      - script: npm run smoketest-no-compile -- --remote --tracing
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 
     - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
-      - script: yarn smoketest-no-compile --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
+      - script: npm run smoketest-no-compile -- --tracing --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Electron)
 
-      - script: yarn smoketest-no-compile --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
+      - script: npm run smoketest-no-compile -- --web --tracing --headless --electronArgs="--disable-dev-shm-usage"
         env:
           VSCODE_REMOTE_SERVER_PATH: $(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)-web
         timeoutInMinutes: 20
@@ -176,10 +176,10 @@ steps:
 
       - script: |
           set -e
-          yarn gulp compile-extension:vscode-test-resolver
+          npm exec compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
-          yarn smoketest-no-compile --tracing --remote --build "$APP_PATH"
+          npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
         timeoutInMinutes: 20
         displayName: Run smoke tests (Remote)
 

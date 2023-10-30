@@ -129,14 +129,14 @@ stages:
             env:
               VSCODE_QUALITY: stable
 
-          - powershell: yarn compile
+          - powershell: npm run compile
             displayName: Compile
 
           - task: CodeQL3000Finalize@0
             displayName: CodeQL Finalize
             condition: eq(variables['Codeql.enabled'], 'True')
 
-          - powershell: yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
+          - powershell: npm exec gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
             env:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
@@ -205,9 +205,7 @@ stages:
               KeyVaultName: vscode-build-secrets
               SecretsFilter: "github-distro-mixin-password"
 
-          - script: |
-              set -e
-              npm config set registry "$NPM_REGISTRY" --location=project
+          - script: npm config set registry "$NPM_REGISTRY" --location=project
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM
 
@@ -283,7 +281,7 @@ stages:
             env:
               VSCODE_QUALITY: stable
 
-          - script: yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
+          - script: npm exec gulp vscode-symbols-linux-$(VSCODE_ARCH)
             env:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Build

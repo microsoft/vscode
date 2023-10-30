@@ -83,10 +83,7 @@ steps:
     condition: and(succeeded(), eq(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Extract node_modules cache
 
-  - script: |
-      set -e
-      npm config set registry "$NPM_REGISTRY" --location=project
-      yarn config set registry "$NPM_REGISTRY"
+  - script: npm config set registry "$NPM_REGISTRY" --location=project
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
     displayName: Setup NPM
 
@@ -190,7 +187,7 @@ steps:
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - script: |
         set -e
-        yarn gulp vscode-linux-$(VSCODE_ARCH)-min-ci
+        npm exec gulp vscode-linux-$(VSCODE_ARCH)-min-ci
         ARCHIVE_PATH=".build/linux/client/code-${{ parameters.VSCODE_QUALITY }}-$(VSCODE_ARCH)-$(date +%s).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
         echo "##vso[task.setvariable variable=CLIENT_PATH]$ARCHIVE_PATH"
@@ -223,7 +220,7 @@ steps:
 
     - script: |
         set -e
-        yarn gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
+        npm exec gulp vscode-reh-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH) # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/server/vscode-server-linux-$(VSCODE_ARCH).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
@@ -235,7 +232,7 @@ steps:
 
     - script: |
         set -e
-        yarn gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
+        npm exec gulp vscode-reh-web-linux-$(VSCODE_ARCH)-min-ci
         mv ../vscode-reh-web-linux-$(VSCODE_ARCH) ../vscode-server-linux-$(VSCODE_ARCH)-web # TODO@joaomoreno
         ARCHIVE_PATH=".build/linux/web/vscode-server-linux-$(VSCODE_ARCH)-web.tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
@@ -246,7 +243,7 @@ steps:
       displayName: Build server (web)
 
   - ${{ else }}:
-    - script: yarn gulp "transpile-client-swc" "transpile-extensions"
+    - script: npm exec gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -267,12 +264,12 @@ steps:
         -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
         -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
+        npm exec gulp "vscode-linux-$(VSCODE_ARCH)-prepare-deb"
       displayName: Prepare deb package
 
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
+        npm exec gulp "vscode-linux-$(VSCODE_ARCH)-build-deb"
         echo "##vso[task.setvariable variable=DEB_PATH]$(ls .build/linux/deb/*/deb/*.deb)"
       displayName: Build deb package
 
@@ -283,18 +280,18 @@ steps:
         -v /mnt/vss/_work/1/VSCode-linux-$(VSCODE_ARCH):/home/builduser/VSCode-linux-$(VSCODE_ARCH) \
         -u 1000:1000 \
         -w /home/builduser/vscode vscodehub.azurecr.io/vscode-linux-build-agent:bionic-$(VSCODE_ARCH) \
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
+        npm exec gulp "vscode-linux-$(VSCODE_ARCH)-prepare-rpm"
       displayName: Prepare rpm package
 
     - script:  |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+        npm exec gulp "vscode-linux-$(VSCODE_ARCH)-build-rpm"
         echo "##vso[task.setvariable variable=RPM_PATH]$(ls .build/linux/rpm/*/*.rpm)"
       displayName: Build rpm package
 
     - script: |
         set -e
-        yarn gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
+        npm exec gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
         ARCHIVE_PATH=".build/linux/snap-tarball/snap-$(VSCODE_ARCH).tar.gz"
         mkdir -p $(dirname $ARCHIVE_PATH)
         tar -czf $ARCHIVE_PATH -C .build/linux snap

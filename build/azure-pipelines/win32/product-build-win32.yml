@@ -146,7 +146,7 @@ steps:
       retryCountOnTaskFailure: 3
 
   - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-    - powershell: yarn gulp "transpile-client-swc" "transpile-extensions"
+    - powershell: npm exec gulp "transpile-client-swc" "transpile-extensions"
       env:
         GITHUB_TOKEN: "$(github-distro-mixin-password)"
       displayName: Transpile client and extensions
@@ -159,8 +159,8 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
-        exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
+        exec { npm exec gulp "vscode-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm exec gulp "vscode-win32-$(VSCODE_ARCH)-inno-updater" }
         echo "##vso[task.setvariable variable=BUILT_CLIENT]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(agent.builddirectory)/VSCode-win32-$(VSCODE_ARCH)"
       env:
@@ -170,7 +170,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm exec gulp "vscode-reh-win32-$(VSCODE_ARCH)-min-ci" }
         mv ..\vscode-reh-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH) # TODO@joaomoreno
         echo "##vso[task.setvariable variable=BUILT_SERVER]true"
         echo "##vso[task.setvariable variable=CodeSigningFolderPath]$(CodeSigningFolderPath),$(agent.builddirectory)/vscode-server-win32-$(VSCODE_ARCH)"
@@ -182,7 +182,7 @@ steps:
     - powershell: |
         . build/azure-pipelines/win32/exec.ps1
         $ErrorActionPreference = "Stop"
-        exec { yarn gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
+        exec { npm exec gulp "vscode-reh-web-win32-$(VSCODE_ARCH)-min-ci" }
         mv ..\vscode-reh-web-win32-$(VSCODE_ARCH) ..\vscode-server-win32-$(VSCODE_ARCH)-web # TODO@joaomoreno
         echo "##vso[task.setvariable variable=BUILT_WEB]true"
       env:
@@ -288,7 +288,7 @@ steps:
           $env:ESRPPKI = "$(ESRP-PKI)"
           $env:ESRPAADUsername = "$(esrp-aad-username)"
           $env:ESRPAADPassword = "$(esrp-aad-password)"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
+          exec { npm exec gulp "vscode-win32-$(VSCODE_ARCH)-system-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=SYSTEM_SETUP_PATH]$SetupPath"
@@ -300,7 +300,7 @@ steps:
           $env:ESRPPKI = "$(ESRP-PKI)"
           $env:ESRPAADUsername = "$(esrp-aad-username)"
           $env:ESRPAADPassword = "$(esrp-aad-password)"
-          exec { yarn gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
+          exec { npm exec gulp "vscode-win32-$(VSCODE_ARCH)-user-setup" --sign }
           $SetupPath = ".build\win32-$(VSCODE_ARCH)\user-setup\VSCodeUserSetup-$(VSCODE_ARCH)-$(VSCODE_VERSION).exe"
           mv .build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe $SetupPath
           echo "##vso[task.setvariable variable=USER_SETUP_PATH]$SetupPath"

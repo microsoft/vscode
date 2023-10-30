@@ -113,7 +113,7 @@ jobs:
         run: npm ci
 
       - name: Run Hygiene Checks
-        run: npm run gulp hygiene
+        run: npm exec gulp hygiene
 
       - name: Run Valid Layers Checks
         run: npm run valid-layers-check
