@@ -66,6 +66,21 @@
             "default": true,
             "description": "%css.validate.desc%"
           },
+          "css.alias.paths": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "[^/]$": {
+                "type": "string",
+                "pattern": "((\\.css)|/\\*)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or folder glob '/*'"
+              },
+              "patternErrorMessage": "Alias must not end with forward slash"
+            },
+            "scope": "resource",
+            "default": null,
+            "description": "%css.alias.paths%"
+          },
           "css.hover.documentation": {
             "type": "boolean",
             "scope": "resource",
@@ -381,6 +396,21 @@
             "scope": "resource",
             "default": true,
             "description": "%scss.validate.desc%"
+          },
+          "scss.alias.paths": {
+            "type": "object",
+            "additionalProperties": false,
+            "patternProperties": {
+              "[^/]$": {
+                "type": "string",
+                "pattern": "((\\.s?css)|/\\*)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or folder glob '/*'"
+              },
+              "patternErrorMessage": "Alias must not end with forward slash"
+            },
+            "scope": "resource",
+            "default": null,
+            "description": "%scss.alias.paths%"
           },
           "scss.hover.documentation": {
             "type": "boolean",
