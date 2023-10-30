@@ -15,14 +15,24 @@ export interface IAuxiliaryWindow {
 	readonly id: number;
 	readonly win: BrowserWindow | null;
 
+	readonly parentId: number;
+
 	readonly lastFocusTime: number;
 
 	focus(options?: { force: boolean }): void;
+
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly id = this.contents.id;
+
+	parentId = -1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -30,11 +40,7 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private _win: BrowserWindow | null = null;
 	get win() {
 		if (!this._win) {
-			const window = BrowserWindow.fromWebContents(this.contents);
-			if (window) {
-				this._win = window;
-				this.registerWindowListeners(window);
-			}
+			this.tryClaimWindow();
 		}
 
 		return this._win;
@@ -61,6 +67,30 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 		// Handle devtools argument
 		if (this.environmentMainService.args['open-devtools'] === true) {
 			this.contents.openDevTools({ mode: 'bottom' });
+		}
+
+		// Try to claim now
+		this.tryClaimWindow();
+	}
+
+	tryClaimWindow(): void {
+		if (this._win) {
+			return; // already claimed
+		}
+
+		if (this._store.isDisposed || this.contents.isDestroyed()) {
+			return; // already disposed
+		}
+
+		const window = BrowserWindow.fromWebContents(this.contents);
+		if (window) {
+			this._win = window;
+
+			// Disable Menu
+			window.setMenu(null);
+
+			// Listeners
+			this.registerWindowListeners(window);
 		}
 	}
 

@@ -1073,6 +1073,7 @@ export const enum GroupModelChangeKind {
 	/* Group Changes */
 	GROUP_ACTIVE,
 	GROUP_INDEX,
+	GROUP_LABEL,
 	GROUP_LOCKED,
 
 	/* Editor Changes */
@@ -1093,6 +1094,18 @@ export interface IWorkbenchEditorConfiguration {
 		editor?: IEditorPartConfiguration;
 		iconTheme?: string;
 	};
+}
+
+export interface IEditorPartLimitConfiguration {
+	enabled?: boolean;
+	excludeDirty?: boolean;
+	value?: number;
+	perEditorGroup?: boolean;
+}
+
+export interface IEditorPartDecorationsConfiguration {
+	badges?: boolean;
+	colors?: boolean;
 }
 
 interface IEditorPartConfiguration {
@@ -1127,17 +1140,9 @@ interface IEditorPartConfiguration {
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
 	centeredLayoutFixedWidth?: boolean;
-	doubleClickTabToToggleEditorGroupSizes?: boolean;
-	limit?: {
-		enabled?: boolean;
-		excludeDirty?: boolean;
-		value?: number;
-		perEditorGroup?: boolean;
-	};
-	decorations?: {
-		badges?: boolean;
-		colors?: boolean;
-	};
+	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
+	limit?: IEditorPartLimitConfiguration;
+	decorations?: IEditorPartDecorationsConfiguration;
 }
 
 export interface IEditorPartOptions extends IEditorPartConfiguration {

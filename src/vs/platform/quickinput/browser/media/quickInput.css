@@ -150,11 +150,6 @@
 	position: relative;
 }
 
-.quick-input-progress.monaco-progress-container,
-.quick-input-progress.monaco-progress-container .progress-bit {
-	height: 2px;
-}
-
 .quick-input-list {
 	line-height: 22px;
 }

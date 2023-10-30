@@ -16,7 +16,8 @@ export interface InputBox {
 
 export const enum ForcePushMode {
 	Force,
-	ForceWithLease
+	ForceWithLease,
+	ForceWithLeaseIfIncludes,
 }
 
 export const enum RefType {
@@ -366,6 +367,8 @@ export const enum GitErrorCodes {
 	StashConflict = 'StashConflict',
 	UnmergedChanges = 'UnmergedChanges',
 	PushRejected = 'PushRejected',
+	ForcePushWithLeaseRejected = 'ForcePushWithLeaseRejected',
+	ForcePushWithLeaseIfIncludesRejected = 'ForcePushWithLeaseIfIncludesRejected',
 	RemoteConnectionError = 'RemoteConnectionError',
 	DirtyWorkTree = 'DirtyWorkTree',
 	CantOpenResource = 'CantOpenResource',

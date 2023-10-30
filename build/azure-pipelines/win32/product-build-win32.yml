@@ -105,6 +105,7 @@ steps:
       exec { git checkout v9.4.0 } "Checking out v9.4.0 failed"
       exec { git am --3way --whitespace=fix ../../build/npm/gyp/patches/gyp_spectre_mitigation_support.patch } "Apply spectre patch failed"
       exec { npm install } "Building node-gyp failed"
+      exec { python3 -m pip install setuptools } "Installing setuptools failed"
     displayName: Install custom node-gyp
     workingDirectory: .build/node-gyp
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
