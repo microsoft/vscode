@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor } from 'vs/workbench/common/editor';
+import { IEditorIdentifier, IEditorCommandsContext, CloseDirection, SaveReason, EditorsOrder, EditorInputCapabilities, DEFAULT_EDITOR_ASSOCIATION, GroupIdentifier, EditorResourceAccessor, IEditorPartOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { SideBySideEditorInput } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
@@ -417,7 +417,11 @@ export class CloseEditorAction extends Action {
 	}
 }
 
-export class UnpinEditorAction extends Action {
+abstract class TabAction extends Action {
+	abstract Visibility(options: IEditorPartOptions): boolean;
+}
+
+export class UnpinEditorAction extends TabAction {
 
 	static readonly ID = 'workbench.action.unpinActiveEditor';
 	static readonly LABEL = localize('unpinEditor', "Unpin Editor");
@@ -430,12 +434,16 @@ export class UnpinEditorAction extends Action {
 		super(id, label, ThemeIcon.asClassName(Codicon.pinned));
 	}
 
+	Visibility(options: IEditorPartOptions) {
+		return options.tabActionUnpinVisibility === true;
+	}
+
 	override run(context?: IEditorCommandsContext): Promise<void> {
 		return this.commandService.executeCommand(UNPIN_EDITOR_COMMAND_ID, undefined, context);
 	}
 }
 
-export class CloseOneEditorAction extends Action {
+export class CloseOneEditorAction extends TabAction {
 
 	static readonly ID = 'workbench.action.closeActiveEditor';
 	static readonly LABEL = localize('closeOneEditor', "Close");
@@ -446,6 +454,10 @@ export class CloseOneEditorAction extends Action {
 		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, ThemeIcon.asClassName(Codicon.close));
+	}
+
+	Visibility(options: IEditorPartOptions) {
+		return options.tabActionCloseVisibility === true;
 	}
 
 	override async run(context?: IEditorCommandsContext): Promise<void> {

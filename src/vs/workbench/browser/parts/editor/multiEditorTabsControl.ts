@@ -1324,7 +1324,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
+		const hasUnpinAction = isTabSticky && this.unpinEditorAction.Visibility(options);
 		const tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
 		if (!tabActionBar.hasAction(tabAction)) {
 			if (!tabActionBar.isEmpty()) {
@@ -1335,7 +1335,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Settings
-		const tabActionsVisibility = (hasUnpinAction && options.pinnedTabSizing !== 'compact') || options.tabActionCloseVisibility; /* treat sticky (pinned) compact tabs as tabActionButtonVisibility: false */
+		const tabActionsVisibility = (hasUnpinAction && options.pinnedTabSizing !== 'compact') || tabAction.Visibility(options); /* treat sticky (pinned) compact tabs as tabActionButtonVisibility: false */
 		const tabActionsStylePostfix = tabActionsVisibility ? options.tabActionLocation : 'off';
 		for (const option of ['off', 'left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsStylePostfix === option);
