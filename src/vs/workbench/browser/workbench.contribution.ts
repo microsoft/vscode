@@ -189,11 +189,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				],
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabSizing' }, "Controls the size of pinned editor tabs. Pinned tabs are sorted to the beginning of all opened tabs and typically do not close until unpinned. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
-			'workbench.editor.pinnedTabButton': {
+			'workbench.editor.tabUnpinButton': {
 				'type': 'string',
 				'enum': ['left', 'right', 'off'],
 				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'pinnedTabButton' }, "Controls the position of the editor's tabs pin buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabUnpinButton' }, "Controls the position of the editor's tabs pin buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
 			},
 			'workbench.editor.pinnedTabsOnSeparateRow': {
 				'type': 'boolean',

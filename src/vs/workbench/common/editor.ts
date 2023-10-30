@@ -1118,7 +1118,7 @@ interface IEditorPartConfiguration {
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
-	pinnedTabButton?: 'left' | 'right' | 'off';
+	tabUnpinButton?: 'left' | 'right' | 'off';
 	pinnedTabsOnSeparateRow?: boolean;
 	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;

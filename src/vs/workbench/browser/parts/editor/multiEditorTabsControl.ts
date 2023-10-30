@@ -749,7 +749,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
-			oldOptions.pinnedTabButton !== newOptions.pinnedTabButton ||
+			oldOptions.tabUnpinButton !== newOptions.tabUnpinButton ||
 			oldOptions.showIcons !== newOptions.showIcons ||
 			oldOptions.hasIcons !== newOptions.hasIcons ||
 			oldOptions.highlightModifiedTabs !== newOptions.highlightModifiedTabs ||
@@ -1323,7 +1323,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
+		const hasUnpinAction = isTabSticky && options.tabUnpinButton !== 'off';
+		const tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
 		if (!tabActionBar.hasAction(tabAction)) {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
@@ -1333,11 +1334,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 
 		// Settings
-		const buttonOption = isTabSticky ? options.pinnedTabButton : options.tabCloseButton;
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : buttonOption;
+		const tabActionPosition = hasUnpinAction ? options.tabUnpinButton : options.tabCloseButton;
+		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' : tabActionPosition; /* treat sticky compact tabs as tabCloseButton/tabUnpinButton: 'off' */
 		for (const option of ['off', 'left', 'right']) {
 			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
 		}
+
+		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && options.tabUnpinButton === 'off');
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
 		for (const option of ['fit', 'shrink', 'fixed']) {
