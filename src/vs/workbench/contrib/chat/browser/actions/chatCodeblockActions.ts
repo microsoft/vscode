@@ -406,8 +406,8 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: {
-					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
-					original: 'Run in Terminal'
+					value: localize('interactive.runInTerminal.label', "Insert into Terminal"),
+					original: 'Insert into Terminal'
 				},
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
