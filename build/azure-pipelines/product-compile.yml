@@ -152,11 +152,6 @@ steps:
         artifactName: Compilation
       displayName: Publish compilation artifact
 
-    - script: npm run download-builtin-extensions-cg
-      env:
-        GITHUB_TOKEN: "$(github-distro-mixin-password)"
-      displayName: Download component details of built-in extensions
-
     - task: ms.vss-governance-buildtask.governance-build-task-component-detection.ComponentGovernanceComponentDetection@0
       displayName: "Component Detection"
       inputs:
