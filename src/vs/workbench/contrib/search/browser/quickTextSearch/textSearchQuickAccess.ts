@@ -83,6 +83,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 	override provide(picker: IQuickPick<IPickerQuickAccessItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
 		const disposables = new DisposableStore();
+		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
+			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
+		}
 		disposables.add(super.provide(picker, token, runOptions));
 		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
 		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
