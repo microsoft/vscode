@@ -89,7 +89,7 @@ class InputEditorDecorations extends Disposable {
 
 	private registerViewModelListeners(): void {
 		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
-			if (e?.kind === 'changePlaceholder') {
+			if (e?.kind === 'changePlaceholder' || e?.kind === 'initialize') {
 				this.updateInputEditorDecorations();
 			}
 		});
@@ -127,7 +127,6 @@ class InputEditorDecorations extends Disposable {
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
-		await this.widget.getSlashCommands(); // Leaving for candidate fix- waits for model initialization
 
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {

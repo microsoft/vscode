@@ -26,7 +26,7 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -34,6 +34,10 @@ export interface IChatAddRequestEvent {
 
 export interface IChangePlaceholderEvent {
 	kind: 'changePlaceholder';
+}
+
+export interface IChatSessionInitEvent {
+	kind: 'initialize';
 }
 
 export interface IChatViewModel {
@@ -184,7 +188,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			}
 
-			this._onDidChange.fire(e.kind === 'addRequest' ? { kind: 'addRequest' } : null);
+			const modelEventToVmEvent: IChatViewModelChangeEvent = e.kind === 'addRequest' ? { kind: 'addRequest' } :
+				e.kind === 'initialize' ? { kind: 'initialize' } :
+					null;
+			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}
 
