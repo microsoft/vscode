@@ -367,7 +367,8 @@ export class NativeWindow extends Disposable {
 			this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
 				const auxiliaryWindowEditorPart = this.editorGroupService.getPart(window.container);
 				if (auxiliaryWindowEditorPart) {
-					disposables.add(this.editorService.createScoped(auxiliaryWindowEditorPart, disposables).onDidActiveEditorChange(() => updateRepresentedFilename(this.mainPartEditorService, window.window.vscodeWindowId)));
+					const auxiliaryEditorService = this.editorService.createScoped(auxiliaryWindowEditorPart, disposables);
+					disposables.add(auxiliaryEditorService.onDidActiveEditorChange(() => updateRepresentedFilename(auxiliaryEditorService, window.window.vscodeWindowId)));
 				}
 			}));
 		}

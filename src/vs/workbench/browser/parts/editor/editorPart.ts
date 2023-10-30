@@ -756,10 +756,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 
 		// Remove group with editors
-		this.doRemoveGroupWithEditors(groupView, preserveFocus);
+		this.doRemoveGroupWithEditors(groupView);
 	}
 
-	private doRemoveGroupWithEditors(groupView: IEditorGroupView, preserveFocus?: boolean): void {
+	private doRemoveGroupWithEditors(groupView: IEditorGroupView): void {
 		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 		let lastActiveGroup: IEditorGroupView;
