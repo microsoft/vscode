@@ -514,18 +514,33 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.inputPart.setValue(value);
 	}
 
+	getInput(): string {
+		return this.inputPart.inputEditor.getValue();
+	}
+
 	async acceptInput(query?: string): Promise<void> {
+		this._acceptInput(query ? { query } : undefined);
+	}
+
+	async acceptInputWithPrefix(prefix: string): Promise<void> {
+		this._acceptInput({ prefix });
+	}
+
+	private async _acceptInput(opts: { query: string } | { prefix: string } | undefined): Promise<void> {
 		if (this.viewModel) {
 			this._onDidAcceptInput.fire();
 
-			const editorValue = this.inputPart.inputEditor.getValue();
+			const editorValue = this.getInput();
 			this._chatAccessibilityService.acceptRequest();
-			const input = query ?? editorValue;
+			const input = !opts ? editorValue :
+				'query' in opts ? opts.query :
+					`${opts.prefix} ${editorValue}`;
+			const isUserQuery = !opts || 'query' in opts;
 			const usedSlashCommand = this.lookupSlashCommand(input);
 			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
 
 			if (result) {
-				this.inputPart.acceptInput(query);
+				this.inputPart.acceptInput(isUserQuery ? input : undefined);
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
@@ -697,7 +712,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getViewState(): IViewState {
 		this.inputPart.saveState();
-		return { inputValue: this.inputPart.inputEditor.getValue() };
+		return { inputValue: this.getInput() };
 	}
 }
 

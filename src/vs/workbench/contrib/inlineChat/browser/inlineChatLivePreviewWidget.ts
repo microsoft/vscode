@@ -21,7 +21,7 @@ import { LineRange } from 'vs/editor/common/core/lineRange';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { Position } from 'vs/editor/common/core/position';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { IEditorDecorationsCollection, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { ILogService } from 'vs/platform/log/common/log';
 import { lineRangeAsRange, invertLineRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
@@ -33,7 +33,6 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
-import { WordHighlighterContribution } from 'vs/editor/contrib/wordHighlighter/browser/wordHighlighter';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { generateUuid } from 'vs/base/common/uuid';
 
@@ -58,7 +57,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		@ILogService private readonly _logService: ILogService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
-		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, ordinal: 10000 + 1 });
+		super(editor, { showArrow: false, showFrame: false, isResizeable: false, isAccessible: true, allowUnlimitedHeight: true, showInHiddenAreas: true, keepEditorSelection: true, ordinal: 10000 + 1 });
 		super.create();
 		assertType(editor.hasModel());
 
@@ -102,10 +101,6 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 			this._disposables.add(this._diffEditor.onDidUpdateDiff(() => { onDidChangeDiff(); }));
 		}
 
-		const highlighter = WordHighlighterContribution.get(editor);
-		if (highlighter) {
-			this._disposables.add(highlighter.linkWordHighlighters(this._diffEditor.getModifiedEditor()));
-		}
 
 		const doStyle = () => {
 			const theme = themeService.getColorTheme();
@@ -208,7 +203,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._hideEditorRanges(this._diffEditor.getOriginalEditor(), ranges.originalDiffHidden);
 		this._hideEditorRanges(this._diffEditor.getModifiedEditor(), ranges.modifiedDiffHidden);
 
-		this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
+		// this._diffEditor.revealLine(ranges.modifiedHidden.startLineNumber, ScrollType.Immediate);
 
 		const lineCountModified = ranges.modifiedHidden.length;
 		const lineCountOriginal = ranges.originalHidden.length;

@@ -292,7 +292,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
-			const parentElement = e.closest('.xterm') as HTMLElement;
+			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
 				return;
 			}

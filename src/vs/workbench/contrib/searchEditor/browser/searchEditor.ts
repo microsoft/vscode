@@ -272,14 +272,14 @@ export class SearchEditor extends AbstractTextCodeEditor<SearchEditorViewState> 
 	}
 
 	override focus() {
+		super.focus();
+
 		const viewState = this.loadEditorViewState(this.getInput());
 		if (viewState && viewState.focused === 'editor') {
 			this.searchResultEditor.focus();
 		} else {
 			this.queryEditorWidget.focus();
 		}
-
-		super.focus();
 	}
 
 	focusSearchInput() {

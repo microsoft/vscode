@@ -31,7 +31,7 @@ export function getAccessibilityHelpText(accessor: ServicesAccessor, type: 'pane
 	} else {
 		const startChatKeybinding = keybindingService.lookupKeybinding('inlineChat.start')?.getAriaLabel();
 		content.push(localize('inlineChat.overview', "Inline chat occurs within a code editor and takes into account the current selection. It is useful for making changes to the current editor. For example, fixing diagnostics, documenting or refactoring code. Keep in mind that AI generated code may be incorrect."));
-		content.push(localize('inlineChat.access', "It can be activated via code actions or directly using the command: Inline Chat: Start Code Chat ({0}).", startChatKeybinding));
+		content.push(localize('inlineChat.access', "It can be activated via code actions or directly using the command: Inline Chat: Start Inline Chat ({0}).", startChatKeybinding));
 		const upHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.previousFromHistory')?.getAriaLabel();
 		const downHistoryKeybinding = keybindingService.lookupKeybinding('inlineChat.nextFromHistory')?.getAriaLabel();
 		if (upHistoryKeybinding && downHistoryKeybinding) {

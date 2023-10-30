@@ -111,8 +111,16 @@ export class HistoryService extends Disposable implements IHistoryService {
 			mouseBackForwardSupportListener.clear();
 
 			if (this.configurationService.getValue(HistoryService.MOUSE_NAVIGATION_SETTING)) {
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
-				mouseBackForwardSupportListener.add(addDisposableListener(this.layoutService.container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
+
+				this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
+					const disposables = new DisposableStore();
+					disposables.add(addDisposableListener(container, EventType.MOUSE_DOWN, e => this.onMouseDownOrUp(e, true)));
+					disposables.add(addDisposableListener(container, EventType.MOUSE_UP, e => this.onMouseDownOrUp(e, false)));
+
+					this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => disposables.dispose()));
+
+					mouseBackForwardSupportListener.add(disposables);
+				}, this.layoutService.container));
 			}
 		};
 
