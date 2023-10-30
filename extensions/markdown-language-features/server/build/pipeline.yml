@@ -25,7 +25,7 @@ extends:
         workingDirectory: extensions/markdown-language-features/server
 
         buildSteps:
-          - script: yarn install
+          - script: npm ci
             displayName: Install dependencies
 
           - script: gulp compile-extension:markdown-language-features-server

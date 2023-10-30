@@ -59,7 +59,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Markdown tests
-call yarn test-extension -l markdown-language-features
+call npm run test-extension -l markdown-language-features
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -77,12 +77,12 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Ipynb tests
-call yarn test-extension -l ipynb
+call npm run test-extension -l ipynb
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### Notebook Output tests
-call yarn test-extension -l notebook-renderers
+call npm run test-extension -l notebook-renderers
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
@@ -94,7 +94,7 @@ if %errorlevel% neq 0 exit /b %errorlevel%
 
 echo.
 echo ### GitHub Authentication tests
-call yarn test-extension -l github-authentication
+call npm run test-extension -l github-authentication
 if %errorlevel% neq 0 exit /b %errorlevel%
 
 :: Tests standalone (CommonJS)

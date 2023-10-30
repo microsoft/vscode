@@ -76,7 +76,7 @@ async function update() {
 		}
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote'), path.join(vscodeDir, 'remote/web')]) {
 			console.log(`${path.join(cwd, 'package.json')}: Updating ${moduleWithVersion}`);
-			cp.execSync(`yarn add ${moduleWithVersion}`, { cwd });
+			cp.execSync(`npm install ${moduleWithVersion}`, { cwd });
 		}
 	}
 
@@ -88,7 +88,7 @@ async function update() {
 		}
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote')]) {
 			console.log(`${path.join(cwd, 'package.json')}: Updating ${moduleWithVersion}`);
-			cp.execSync(`yarn add ${moduleWithVersion}`, { cwd });
+			cp.execSync(`npm install ${moduleWithVersion}`, { cwd });
 		}
 	}
 }
