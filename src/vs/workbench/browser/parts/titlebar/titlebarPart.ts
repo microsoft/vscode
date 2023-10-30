@@ -389,11 +389,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		return this.keybindingService.lookupKeybinding(action.id, this.getEditorPaneAwareContextKeyService());
-	}
-
-	private getEditorPaneAwareContextKeyService(): IContextKeyService {
-		return this.editorGroupService.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const editorPaneAwareContextKeyService = this.editorGroupService.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
 
 	private createActionToolBar() {
@@ -408,7 +405,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			overflowBehavior: { maxItems: 9, exempted: [ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID, ...EDITOR_CORE_NAVIGATION_COMMANDS] },
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			telemetrySource: 'titlePart',
-			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions in overflow menu)
+			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions are not shown as toggled)
 			actionViewItemProvider: action => this.actionViewItemProvider(action)
 		});
 	}
@@ -501,8 +498,10 @@ export class TitlebarPart extends Part implements ITitleService {
 	private updateEditorChangeListener(): void {
 		const showEditorActions = this.editorActionsEnabled;
 		if (showEditorActions && !this.editorChangeDisposable) {
+			// Install editor change listener if not yet installed
 			this.editorChangeDisposable = this.editorService.onDidActiveEditorChange(() => this.createActionToolBarMenus({ editorActions: true }));
 		} else if (!showEditorActions && this.editorChangeDisposable) {
+			// Uninstall editor change listener if installed
 			this.editorChangeDisposable.dispose();
 			this.editorChangeDisposable = undefined;
 		}
