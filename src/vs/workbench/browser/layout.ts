@@ -1230,7 +1230,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focus(): void {
-		this.focusPart(Parts.EDITOR_PART);
+		const activeContainer = this.activeContainer;
+		if (activeContainer === this.container) {
+			// main window
+			this.focusPart(Parts.EDITOR_PART);
+		} else {
+			// auxiliary window
+			this.editorGroupService.getPart(activeContainer)?.activeGroup.focus();
+		}
 	}
 
 	getDimension(part: Parts): Dimension | undefined {
