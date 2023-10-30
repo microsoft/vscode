@@ -958,6 +958,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
+	isAuxiliary: boolean = false;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;

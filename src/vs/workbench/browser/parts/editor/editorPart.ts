@@ -150,6 +150,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		private readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
+		public readonly isAuxiliary: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -1336,7 +1337,7 @@ export class MainEditorPart extends EditorPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 }
 
@@ -1358,7 +1359,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IHostService hostService: IHostService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 
 	protected override saveState(): void {

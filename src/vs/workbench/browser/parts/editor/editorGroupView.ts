@@ -1059,9 +1059,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Conditionally lock the group
 		if (
-			isNew &&							// only if this editor was new for the group
-			this.count === 1 &&					// only when this editor was the first editor in the group
-			this.groupsView.groups.length > 1	// only when there are more than one groups open
+			isNew &&				// only if this editor was new for the group
+			this.count === 1 &&		// only when this editor was the first editor in the group
+			this.canLock()			// only when we met the requirements to lock
 		) {
 			// only when the editor identifier is configured as such
 			if (openedEditor.editorId && this.groupsView.partOptions.autoLockGroups?.has(openedEditor.editorId)) {
@@ -1860,7 +1860,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Locking
 
 	get isLocked(): boolean {
-		if (this.groupsView.groups.length === 1) {
+		if (!this.canLock()) {
 			// Special case: if only 1 group is opened, never report it as locked
 			// to ensure editors can always open in the "default" editor group
 			return false;
@@ -1870,13 +1870,21 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	lock(locked: boolean): void {
-		if (this.groupsView.groups.length === 1) {
+		if (!this.canLock()) {
 			// Special case: if only 1 group is opened, never allow to lock
 			// to ensure editors can always open in the "default" editor group
 			locked = false;
 		}
 
 		this.model.lock(locked);
+	}
+
+	private canLock(): boolean {
+		if (this.groupsView.isAuxiliary) {
+			return true; // always allow locking in auxiliary parts, even single groups
+		}
+
+		return this.groupsView.groups.length > 1; // only allow locking if more than 1 group is opened
 	}
 
 	//#endregion
