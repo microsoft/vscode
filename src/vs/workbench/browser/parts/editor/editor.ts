@@ -212,6 +212,8 @@ export interface IEditorPartsView {
  */
 export interface IEditorGroupsView {
 
+	readonly isAuxiliary: boolean;
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
@@ -223,7 +225,7 @@ export interface IEditorGroupsView {
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
-	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	activateGroup(identifier: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
@@ -232,7 +234,7 @@ export interface IEditorGroupsView {
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
+	removeGroup(group: IEditorGroupView | GroupIdentifier, preserveFocus?: boolean): void;
 
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void;

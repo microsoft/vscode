@@ -14,7 +14,7 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { getActiveDocument, getWindowsCount, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
@@ -133,7 +133,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
-	async moveTop(window: Window & typeof globalThis): Promise<void> {
+	async moveTop(window: Window): Promise<void> {
 		if (getWindowsCount() <= 1) {
 			return; // does not apply when only one window is opened
 		}
@@ -146,8 +146,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Lifecycle
 
-	focus(options?: { force: boolean }): Promise<void> {
-		return this.nativeHostService.focusWindow(options);
+	focus(window: Window, options?: { force: boolean }): Promise<void> {
+		return this.nativeHostService.focusWindow({
+			force: options?.force,
+			targetWindowId: isAuxiliaryWindow(window) ? window.vscodeWindowId : this.nativeHostService.windowId
+		});
 	}
 
 	restart(): Promise<void> {

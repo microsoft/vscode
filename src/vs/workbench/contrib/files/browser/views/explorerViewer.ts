@@ -1260,7 +1260,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Use local file import when supported
 				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, window);
 				}
 				// Otherwise fallback to browser based file upload
 				else {

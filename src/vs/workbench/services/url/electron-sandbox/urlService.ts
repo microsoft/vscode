@@ -70,7 +70,7 @@ export class RelayURLService extends NativeURLService implements IURLHandler, IO
 		if (result) {
 			this.logService.trace('URLService#handleURL(): handled', uri.toString(true));
 
-			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */ });
+			await this.nativeHostService.focusWindow({ force: true /* Application may not be active */, targetWindowId: this.nativeHostService.windowId });
 		} else {
 			this.logService.trace('URLService#handleURL(): not handled', uri.toString(true));
 		}

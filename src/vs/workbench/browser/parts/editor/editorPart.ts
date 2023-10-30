@@ -14,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -79,7 +79,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorPart {
+export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
@@ -150,6 +150,7 @@ export class EditorPart extends Part implements IEditorPart {
 		private readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
+		public readonly isAuxiliary: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -337,9 +338,14 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	activateGroup(group: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
+
+		// Ensure window on top unless disabled
+		if (!preserveWindowOrder) {
+			this.hostService.moveTop(getWindow(this.element));
+		}
 
 		return groupView;
 	}
@@ -667,10 +673,6 @@ export class EditorPart extends Part implements IEditorPart {
 	}
 
 	private doSetGroupActive(group: IEditorGroupView): void {
-
-		// Ensure window on top
-		this.hostService.moveTop(getWindow(this.element));
-
 		if (this._activeGroup !== group) {
 			const previousActiveGroup = this._activeGroup;
 			this._activeGroup = group;
@@ -743,7 +745,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return fallback;
 	}
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
+	removeGroup(group: IEditorGroupView | GroupIdentifier, preserveFocus?: boolean): void {
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1) {
 			return; // Cannot remove the last root group
@@ -751,7 +753,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Remove empty group
 		if (groupView.isEmpty) {
-			return this.doRemoveEmptyGroup(groupView);
+			return this.doRemoveEmptyGroup(groupView, preserveFocus);
 		}
 
 		// Remove group with editors
@@ -773,14 +775,14 @@ export class EditorPart extends Part implements IEditorPart {
 		this.mergeGroup(groupView, lastActiveGroup);
 	}
 
-	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const restoreFocus = this.shouldRestoreFocus(this.container);
+	private doRemoveEmptyGroup(groupView: IEditorGroupView, preserveFocus?: boolean): void {
+		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
 			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-			this.activateGroup(nextActiveGroup);
+			this.doSetGroupActive(nextActiveGroup);
 		}
 
 		// Remove from grid widget & dispose
@@ -830,7 +832,7 @@ export class EditorPart extends Part implements IEditorPart {
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
 			sourceView.closeAllEditors();
-			this.removeGroup(sourceView);
+			this.removeGroup(sourceView, restoreFocus);
 		}
 
 		// Restore focus if we had it previously after completing the grid
@@ -892,7 +894,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Remove source if the view is now empty and not already removed
 		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
-			this.removeGroup(sourceView);
+			this.removeGroup(sourceView, true);
 		}
 
 		return targetView;
@@ -1335,7 +1337,7 @@ export class MainEditorPart extends EditorPart {
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService hostService: IHostService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 }
 
@@ -1357,7 +1359,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IHostService hostService: IHostService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 
 	protected override saveState(): void {
