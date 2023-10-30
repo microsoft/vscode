@@ -109,8 +109,25 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-chat-avatarForeground);
+	color: var(--vscode-chat-avatarForeground) !important;
 	font-size: 14px;
+}
+
+.interactive-item-container .header .agent-avatar-container {
+	margin-left: -30px;
+	transition: margin 0.15s ease-out;
+	transition-delay: 0.5s;
+	z-index: -1;
+}
+
+.interactive-item-container .header .agent-avatar-container.loading {
+	margin-left: 0px;
+	z-index: 1;
+}
+
+.interactive-item-container .header .agent-avatar-container.complete {
+	margin-left: -12px;
+	z-index: 1;
 }
 
 .monaco-list-row:not(.focused) .interactive-item-container:not(:hover) .header .monaco-toolbar,

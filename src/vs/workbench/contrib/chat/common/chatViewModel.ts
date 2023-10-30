@@ -26,7 +26,7 @@ export function isWelcomeVM(item: unknown): item is IChatWelcomeMessageViewModel
 	return !!item && typeof item === 'object' && 'content' in item;
 }
 
-export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | null;
+export type IChatViewModelChangeEvent = IChatAddRequestEvent | IChangePlaceholderEvent | IChatSessionInitEvent | null;
 
 export interface IChatAddRequestEvent {
 	kind: 'addRequest';
@@ -34,6 +34,10 @@ export interface IChatAddRequestEvent {
 
 export interface IChangePlaceholderEvent {
 	kind: 'changePlaceholder';
+}
+
+export interface IChatSessionInitEvent {
+	kind: 'initialize';
 }
 
 export interface IChatViewModel {
@@ -100,6 +104,7 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly contentUpdateTimings?: IChatLiveUpdateData;
 	renderData?: IChatResponseRenderData;
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
@@ -183,7 +188,10 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 				}
 			}
 
-			this._onDidChange.fire(e.kind === 'addRequest' ? { kind: 'addRequest' } : null);
+			const modelEventToVmEvent: IChatViewModelChangeEvent = e.kind === 'addRequest' ? { kind: 'addRequest' } :
+				e.kind === 'initialize' ? { kind: 'initialize' } :
+					null;
+			this._onDidChange.fire(modelEventToVmEvent);
 		}));
 	}
 
@@ -318,7 +326,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	}
 
 	renderData: IChatResponseRenderData | undefined = undefined;
-
+	agentAvatarHasBeenRendered?: boolean;
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
@@ -328,7 +336,7 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 			return this._usedReferencesExpanded;
 		}
 
-		return !this.isComplete;
+		return this.response.value.length === 0;
 	}
 
 	set usedReferencesExpanded(v: boolean) {

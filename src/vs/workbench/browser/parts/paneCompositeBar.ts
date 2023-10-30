@@ -407,7 +407,7 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
-		if (this.options.icon && !this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
+		if (!this.hasExtensionsRegistered && !(this.part === Parts.SIDEBAR_PART && this.environmentService.remoteAuthority && isNative)) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet

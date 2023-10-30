@@ -172,22 +172,23 @@
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact .badge-content {
 	position: absolute;
-	top: 12px;
+	top: 11px;
 	right: 0px;
 	font-size: 9px;
 	font-weight: 600;
-	min-width: 12px;
-	height: 12px;
-	line-height: 12px;
+	min-width: 13px;
+	height: 13px;
+	line-height: 13px;
 	padding: 0 2px;
 	border-radius: 16px;
 	text-align: center;
 }
 
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .badge.compact.progress-badge .badge-content::before {
-	mask-size: 12px;
-	-webkit-mask-size: 12px;
-	top: 2px;
+	mask-size: 11px;
+	-webkit-mask-size: 11px;
+	top: 3px;
+	left: 1px;
 }
 
 /* active item indicator */

@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { localize } from 'vs/nls';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, $, EventHelper, addDisposableGenericMouseDownListener, getWindow } from 'vs/base/browser/dom';
 import { Event, Emitter, Relay } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, GroupsOrder, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument, IEditorSideGroup, IEditorDropTargetDelegate, IAuxiliaryEditorPart, IEditorPart } from 'vs/workbench/services/editor/common/editorGroupsService';
@@ -15,7 +14,7 @@ import { IView, orthogonal, LayoutPriority, IViewSize, Direction, SerializableGr
 import { GroupIdentifier, EditorInputWithOptions, IEditorPartOptions, IEditorPartOptionsChangeEvent, GroupModelChangeKind } from 'vs/workbench/common/editor';
 import { EDITOR_GROUP_BORDER, EDITOR_PANE_BACKGROUND } from 'vs/workbench/common/theme';
 import { distinct, coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, getEditorPartOptions, impactsEditorPartOptions, IEditorPartCreationOptions, IEditorPartsView, IEditorGroupsView } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -32,6 +31,7 @@ import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -79,7 +79,7 @@ class GridWidgetView<T extends IView> implements IView {
 	}
 }
 
-export class EditorPart extends Part implements IEditorPart {
+export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
@@ -97,6 +97,9 @@ export class EditorPart extends Part implements IEditorPart {
 
 	private readonly _onDidChangeGroupIndex = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupIndex = this._onDidChangeGroupIndex.event;
+
+	private readonly _onDidChangeGroupLabel = this._register(new Emitter<IEditorGroupView>());
+	readonly onDidChangeGroupLabel = this._onDidChangeGroupLabel.event;
 
 	private readonly _onDidChangeGroupLocked = this._register(new Emitter<IEditorGroupView>());
 	readonly onDidChangeGroupLocked = this._onDidChangeGroupLocked.event;
@@ -147,11 +150,13 @@ export class EditorPart extends Part implements IEditorPart {
 		private readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
+		public readonly isAuxiliary: boolean,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -333,9 +338,14 @@ export class EditorPart extends Part implements IEditorPart {
 		}
 	}
 
-	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	activateGroup(group: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
+
+		// Ensure window on top unless disabled
+		if (!preserveWindowOrder) {
+			this.hostService.moveTop(getWindow(this.element));
+		}
 
 		return groupView;
 	}
@@ -641,6 +651,9 @@ export class EditorPart extends Part implements IEditorPart {
 				case GroupModelChangeKind.GROUP_INDEX:
 					this._onDidChangeGroupIndex.fire(groupView);
 					break;
+				case GroupModelChangeKind.GROUP_LABEL:
+					this._onDidChangeGroupLabel.fire(groupView);
+					break;
 			}
 		}));
 
@@ -732,7 +745,7 @@ export class EditorPart extends Part implements IEditorPart {
 		return fallback;
 	}
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
+	removeGroup(group: IEditorGroupView | GroupIdentifier, preserveFocus?: boolean): void {
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1) {
 			return; // Cannot remove the last root group
@@ -740,7 +753,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Remove empty group
 		if (groupView.isEmpty) {
-			return this.doRemoveEmptyGroup(groupView);
+			return this.doRemoveEmptyGroup(groupView, preserveFocus);
 		}
 
 		// Remove group with editors
@@ -762,14 +775,14 @@ export class EditorPart extends Part implements IEditorPart {
 		this.mergeGroup(groupView, lastActiveGroup);
 	}
 
-	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const restoreFocus = this.shouldRestoreFocus(this.container);
+	private doRemoveEmptyGroup(groupView: IEditorGroupView, preserveFocus?: boolean): void {
+		const restoreFocus = !preserveFocus && this.shouldRestoreFocus(this.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
 			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-			this.activateGroup(nextActiveGroup);
+			this.doSetGroupActive(nextActiveGroup);
 		}
 
 		// Remove from grid widget & dispose
@@ -819,7 +832,7 @@ export class EditorPart extends Part implements IEditorPart {
 		else {
 			movedView = targetView.groupsView.addGroup(targetView, direction, sourceView);
 			sourceView.closeAllEditors();
-			this.removeGroup(sourceView);
+			this.removeGroup(sourceView, restoreFocus);
 		}
 
 		// Restore focus if we had it previously after completing the grid
@@ -881,7 +894,7 @@ export class EditorPart extends Part implements IEditorPart {
 
 		// Remove source if the view is now empty and not already removed
 		if (sourceView.isEmpty && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
-			this.removeGroup(sourceView);
+			this.removeGroup(sourceView, true);
 		}
 
 		return targetView;
@@ -1216,6 +1229,12 @@ export class EditorPart extends Part implements IEditorPart {
 		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach((group, index) => group.notifyIndexChanged(index));
 	}
 
+	notifyGroupsLabelChange(newLabel: string) {
+		for (const group of this.groups) {
+			group.notifyLabelChanged(newLabel);
+		}
+	}
+
 	private get isEmpty(): boolean {
 		return this.count === 1 && this._activeGroup.isEmpty;
 	}
@@ -1315,29 +1334,32 @@ export class MainEditorPart extends EditorPart {
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 }
 
 export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorPart {
 
-	private static COUNTER = 0;
+	private static COUNTER = 1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
 
 	constructor(
 		editorPartsView: IEditorPartsView,
+		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
-		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
+		@IHostService hostService: IHostService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, localize('auxiliaryEditorPartLabel', "Window {0}", id + 1), instantiationService, themeService, configurationService, storageService, layoutService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
 	}
 
 	protected override saveState(): void {

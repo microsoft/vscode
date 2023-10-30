@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -47,11 +47,12 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
+	activeContainer: 'main' | number /* window ID */;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -145,14 +146,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private readonly _onDidChangeNotificationsVisibility = this._register(new Emitter<boolean>());
 	readonly onDidChangeNotificationsVisibility = this._onDidChangeNotificationsVisibility.event;
 
-	private readonly _onDidLayout = this._register(new Emitter<IDimension>());
-	readonly onDidLayout = this._onDidLayout.event;
+	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
+	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
+
+	private readonly _onDidLayoutActiveContainer = this._register(new Emitter<IDimension>());
+	readonly onDidLayoutActiveContainer = this._onDidLayoutActiveContainer.event;
 
 	private readonly _onDidAddContainer = this._register(new Emitter<HTMLElement>());
 	readonly onDidAddContainer = this._onDidAddContainer.event;
 
 	private readonly _onDidRemoveContainer = this._register(new Emitter<HTMLElement>());
 	readonly onDidRemoveContainer = this._onDidRemoveContainer.event;
+
+	private readonly _onDidChangeActiveContainer = this._register(new Emitter<void>());
+	readonly onDidChangeActiveContainer = this._onDidChangeActiveContainer.event;
 
 	//#endregion
 
@@ -180,25 +187,52 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private _dimension!: IDimension;
-	get dimension(): IDimension { return this._dimension; }
+	private _mainContainerDimension!: IDimension;
+	get mainContainerDimension(): IDimension { return this._mainContainerDimension; }
 
-	get offset() {
+	get activeContainerDimension(): IDimension {
+		const activeContainer = this.activeContainer;
+		if (activeContainer === this.container) {
+			// main window
+			return this.mainContainerDimension;
+		} else {
+			// auxiliary window
+			return getClientArea(activeContainer);
+		}
+	}
+
+	get mainContainerOffset() {
 		let top = 0;
 		let quickPickTop = 0;
+
 		if (this.isVisible(Parts.BANNER_PART)) {
 			top = this.getPart(Parts.BANNER_PART).maximumHeight;
 			quickPickTop = top;
 		}
+
 		if (this.isVisible(Parts.TITLEBAR_PART)) {
 			top += this.getPart(Parts.TITLEBAR_PART).maximumHeight;
 			quickPickTop = top;
 		}
-		// If the command center is visible then the quickinput should go over the title bar and the banner
+
 		if (this.titleService.isCommandCenterVisible) {
+			// If the command center is visible then the quickinput
+			// should go over the title bar and the banner
 			quickPickTop = 6;
 		}
+
 		return { top, quickPickTop };
+	}
+
+	get activeContainerOffset() {
+		const activeContainer = this.activeContainer;
+		if (activeContainer === this.container) {
+			// main window
+			return this.mainContainerOffset;
+		} else {
+			// TODO@bpasero auxiliary window: no support for custom title bar or banner yet
+			return { top: 0, quickPickTop: 0 };
+		}
 	}
 
 	//#endregion
@@ -346,6 +380,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._register(this.auxiliaryWindowService.onDidOpenAuxiliaryWindow(({ window, disposables }) => {
 			this._onDidAddContainer.fire(window.container);
 
+			disposables.add(window.onDidLayout(dimension => this.handleContainerDidLayout(window.container, dimension)));
 			disposables.add(toDisposable(() => this._onDidRemoveContainer.fire(window.container)));
 		}));
 	}
@@ -369,7 +404,17 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// Move layout call to any time the menubar
 			// is toggled to update consumers of offset
 			// see issue #115267
-			this._onDidLayout.fire(this._dimension);
+			this.handleContainerDidLayout(this.container, this._mainContainerDimension);
+		}
+	}
+
+	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
+		if (container === this.container) {
+			this._onDidLayoutMainContainer.fire(dimension);
+		}
+
+		if (isActiveDocument(container)) {
+			this._onDidLayoutActiveContainer.fire(dimension);
 		}
 	}
 
@@ -406,12 +451,30 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	private onWindowFocusChanged(hasFocus: boolean): void {
-		if (this.state.runtime.hasFocus === hasFocus) {
-			return;
+		if (hasFocus) {
+			const activeContainerId = this.getActiveContainerId();
+			if (this.state.runtime.activeContainer !== activeContainerId) {
+				this.state.runtime.activeContainer = activeContainerId;
+				this._onDidChangeActiveContainer.fire();
+			}
 		}
 
-		this.state.runtime.hasFocus = hasFocus;
-		this.updateWindowBorder();
+		if (this.state.runtime.hasFocus !== hasFocus) {
+			this.state.runtime.hasFocus = hasFocus;
+			this.updateWindowBorder();
+		}
+	}
+
+	private getActiveContainerId(): 'main' | number {
+		const activeContainer = this.activeContainer;
+		if (activeContainer !== this.container) {
+			const containerWindow = getWindow(activeContainer);
+			if (isAuxiliaryWindow(containerWindow)) {
+				return containerWindow.vscodeWindowId;
+			}
+		}
+
+		return 'main';
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -552,6 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout Runtime State
 		const layoutRuntimeState: ILayoutRuntimeState = {
+			activeContainer: this.getActiveContainerId(),
 			fullscreen: isFullscreen(),
 			hasFocus: this.hostService.hasFocus,
 			maximized: false,
@@ -1166,7 +1230,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focus(): void {
-		this.focusPart(Parts.EDITOR_PART);
+		const activeContainer = this.activeContainer;
+		if (activeContainer === this.container) {
+			// main window
+			this.focusPart(Parts.EDITOR_PART);
+		} else {
+			// auxiliary window
+			this.editorGroupService.getPart(activeContainer)?.activeGroup.focus();
+		}
 	}
 
 	getDimension(part: Parts): Dimension | undefined {
@@ -1187,8 +1258,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			(this.isVisible(Parts.STATUSBAR_PART) ? this.statusBarPartView.minimumHeight : 0) +
 			(this.isVisible(Parts.PANEL_PART) && !isColumn ? this.panelPartView.minimumHeight : 0);
 
-		const availableWidth = this.dimension.width - takenWidth;
-		const availableHeight = this.dimension.height - takenHeight;
+		const availableWidth = this._mainContainerDimension.width - takenWidth;
+		const availableHeight = this._mainContainerDimension.height - takenHeight;
 
 		return new Dimension(availableWidth, availableHeight);
 	}
@@ -1401,7 +1472,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					this.setEditorHidden(!visible, true);
 				}
 				this._onDidChangePartVisibility.fire();
-				this._onDidLayout.fire(this._dimension);
+				this.handleContainerDidLayout(this.container, this._mainContainerDimension);
 			}));
 		}
 
@@ -1430,24 +1501,20 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}));
 	}
 
-	private getClientArea(): Dimension {
-		return getClientArea(this.parent);
-	}
-
 	layout(): void {
 		if (!this.disposed) {
-			this._dimension = this.getClientArea();
-			this.logService.trace(`Layout#layout, height: ${this._dimension.height}, width: ${this._dimension.width}`);
+			this._mainContainerDimension = getClientArea(this.parent);
+			this.logService.trace(`Layout#layout, height: ${this._mainContainerDimension.height}, width: ${this._mainContainerDimension.width}`);
 
 			position(this.container, 0, 0, 0, 0, 'relative');
-			size(this.container, this._dimension.width, this._dimension.height);
+			size(this.container, this._mainContainerDimension.width, this._mainContainerDimension.height);
 
 			// Layout the grid widget
-			this.workbenchGrid.layout(this._dimension.width, this._dimension.height);
+			this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
 			this.initialized = true;
 
 			// Emit as event
-			this._onDidLayout.fire(this._dimension);
+			this.handleContainerDidLayout(this.container, this._mainContainerDimension);
 		}
 	}
 
