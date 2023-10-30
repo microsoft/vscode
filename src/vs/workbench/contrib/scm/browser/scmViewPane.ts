@@ -2052,7 +2052,7 @@ class SCMInputWidget {
 			quickSuggestions: false,
 			scrollbar: {
 				alwaysConsumeMouseWheel: false,
-				useShadows: false
+				vertical: 'hidden'
 			},
 			overflowWidgetsDomNode,
 			formatOnType: true,
@@ -2114,6 +2114,9 @@ class SCMInputWidget {
 			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
 		}));
+		this.disposables.add(this.inputEditor.onDidScrollChange(e => {
+			this.toolbarContainer.classList.toggle('scroll-decoration', e.scrollTop > 0);
+		}));
 
 		const relevantSettings = [
 			'scm.inputFontFamily',
@@ -2169,7 +2172,7 @@ class SCMInputWidget {
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const toolbarWidth = this.toolbarContainer.clientWidth + 2;
+		const toolbarWidth = this.toolbarContainer.clientWidth;
 		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
 
 		if (dimension.width < 0) {

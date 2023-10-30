@@ -245,11 +245,15 @@
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar {
-	padding: 1px;
+	padding: 1px 3px 1px 1px;
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar.hidden {
 	display: none;
+}
+
+.scm-view .scm-input .scm-editor .scm-editor-toolbar.scroll-decoration {
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
 }
 
 .scm-view .scm-input .scm-editor .scm-editor-toolbar .action-label.codicon.codicon-debug-stop {
