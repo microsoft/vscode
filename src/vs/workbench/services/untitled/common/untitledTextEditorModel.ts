@@ -274,7 +274,12 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	async revert(): Promise<void> {
 
 		// Reset contents to be empty
-		this.updateTextEditorModel(createTextBufferFactory(''));
+		this.ignoreDirtyOnModelContentChange = true;
+		try {
+			this.updateTextEditorModel(createTextBufferFactory(''));
+		} finally {
+			this.ignoreDirtyOnModelContentChange = false;
+		}
 
 		// No longer dirty
 		this.setDirty(false);
@@ -304,6 +309,8 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	//#endregion
 
 	//#region Resolve
+
+	private ignoreDirtyOnModelContentChange = false;
 
 	override async resolve(): Promise<void> {
 
@@ -373,16 +380,18 @@ export class UntitledTextEditorModel extends BaseTextEditorModel implements IUnt
 	}
 
 	private onModelContentChanged(textEditorModel: ITextModel, e: IModelContentChangedEvent): void {
+		if (!this.ignoreDirtyOnModelContentChange) {
 
-		// mark the untitled text editor as non-dirty once its content becomes empty and we do
-		// not have an associated path set. we never want dirty indicator in that case.
-		if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
-			this.setDirty(false);
-		}
+			// mark the untitled text editor as non-dirty once its content becomes empty and we do
+			// not have an associated path set. we never want dirty indicator in that case.
+			if (!this.hasAssociatedFilePath && textEditorModel.getLineCount() === 1 && textEditorModel.getLineLength(1) === 0) {
+				this.setDirty(false);
+			}
 
-		// turn dirty otherwise
-		else {
-			this.setDirty(true);
+			// turn dirty otherwise
+			else {
+				this.setDirty(true);
+			}
 		}
 
 		// Check for name change if first line changed in the range of 0-FIRST_LINE_NAME_CANDIDATE_MAX_LENGTH columns
