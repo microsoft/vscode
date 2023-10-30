@@ -601,7 +601,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
 	group: 'z_clear',
 	command: {
 		id: ClearRecentFilesAction.ID,
-		title: localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+		title: localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened...")
 	},
 	order: 1
 });

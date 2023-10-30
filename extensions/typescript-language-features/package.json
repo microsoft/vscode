@@ -1067,6 +1067,12 @@
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
           "scope": "resource"
         },
+        "typescript.preferences.preferTypeOnlyAutoImports": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%typescript.preferences.preferTypeOnlyAutoImports%",
+          "scope": "resource"
+        },
         "javascript.preferences.renameShorthandProperties": {
           "type": "boolean",
           "default": true,
