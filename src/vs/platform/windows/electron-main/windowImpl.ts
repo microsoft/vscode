@@ -86,6 +86,41 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 
 	protected abstract getWin(): BrowserWindow | null;
 
+	private representedFilename: string | undefined;
+	private documentEdited: boolean | undefined;
+
+	setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.getWin()?.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	getRepresentedFilename(): string | undefined {
+		if (isMacintosh) {
+			return this.getWin()?.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this.getWin()?.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return Boolean(this.getWin()?.isDocumentEdited());
+		}
+
+		return !!this.documentEdited;
+	}
+
 	focus(options?: { force: boolean }): void {
 		if (isMacintosh && options?.force) {
 			app.focus({ steal: true });
@@ -181,9 +216,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 	// transitioning into and out of native full screen.
 	private transientIsNativeFullScreen: boolean | undefined = undefined;
 	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
-
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
 
 	private readonly hasWindowControlOverlay: boolean = false;
 
@@ -400,38 +432,6 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
-			this._win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
-		}
-	}
-
-	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
-			return this._win.getRepresentedFilename();
-		}
-
-		return this.representedFilename;
-	}
-
-	setDocumentEdited(edited: boolean): void {
-		if (isMacintosh) {
-			this._win.setDocumentEdited(edited);
-		}
-
-		this.documentEdited = edited;
-	}
-
-	isDocumentEdited(): boolean {
-		if (isMacintosh) {
-			return this._win.isDocumentEdited();
-		}
-
-		return !!this.documentEdited;
 	}
 
 	private readyState = ReadyState.NONE;

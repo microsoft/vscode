@@ -12,7 +12,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -60,7 +60,8 @@ export interface ICommonNativeHostService {
 	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
 	// Window
-	getWindows(): Promise<IOpenedWindow[]>;
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 
@@ -111,8 +112,8 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string): Promise<void>;
-	setDocumentEdited(edited: boolean): Promise<void>;
+	setRepresentedFilename(path: string, options?: { targetWindowId?: number }): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: { targetWindowId?: number }): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 

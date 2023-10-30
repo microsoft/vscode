@@ -20,6 +20,12 @@ export interface IAuxiliaryWindow {
 	readonly lastFocusTime: number;
 
 	focus(options?: { force: boolean }): void;
+
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
