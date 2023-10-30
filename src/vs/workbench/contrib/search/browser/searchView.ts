@@ -1075,21 +1075,22 @@ export class SearchView extends ViewPane {
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
 		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
-			return false;
+			if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
+				return false;
+			}
+
+			const searchString = controller.getState().searchString;
+			if (searchString === '') {
+				return false;
+			}
+
+			this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
+			this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
+			this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
+			this.updateText(searchString, allowSearchOnType);
+
+			return true;
 		}
-
-		const searchString = controller.getState().searchString;
-		if (searchString === '') {
-			return false;
-		}
-
-		this.searchWidget.searchInput?.setCaseSensitive(controller.getState().matchCase);
-		this.searchWidget.searchInput?.setWholeWords(controller.getState().wholeWord);
-		this.searchWidget.searchInput?.setRegex(controller.getState().isRegex);
-		this.updateText(searchString, allowSearchOnType);
-
-		return true;
-	}
 
 	private updateTextFromSelection({ allowUnselectedWord = true, allowSearchOnType = true }, editor?: IEditor): boolean {
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find!.seedSearchStringFromSelection;
@@ -1278,18 +1279,19 @@ export class SearchView extends ViewPane {
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
 		if (dom.isAncestorOfActiveElement(this.getContainer())) {
-			return null;
+			if (dom.isAncestorOfActiveElement(this.getContainer())) {
+				return null;
+			}
+
+			editor = editor ?? this.editorService.activeTextEditorControl;
+
+			if (!editor) {
+				return null;
+			}
+
+			const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
+			return getSelectionTextFromEditor(allowUnselected, editor);
 		}
-
-		editor = editor ?? this.editorService.activeTextEditorControl;
-
-		if (!editor) {
-			return null;
-		}
-
-		const allowUnselected = this.searchConfig.seedWithNearestWord && allowUnselectedWord;
-		return getSelectionTextFromEditor(allowUnselected, editor);
-	}
 
 	private showsFileTypes(): boolean {
 		return this.queryDetails.classList.contains('more');
