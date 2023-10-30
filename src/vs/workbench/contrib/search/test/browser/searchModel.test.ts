@@ -40,6 +40,7 @@ import { INotebookSearchService } from 'vs/workbench/contrib/search/common/noteb
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -65,6 +66,7 @@ const lineOneRange = new OneLineRange(1, 0, 1);
 suite('SearchModel', () => {
 
 	let instantiationService: TestInstantiationService;
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const testSearchStats: IFileSearchStats = {
 		fromCache: false,
@@ -252,6 +254,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		const actual = testObject.searchResult.matches();
@@ -352,6 +355,7 @@ suite('SearchModel', () => {
 		const notebookSearchService = instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([aRawMatchWithCells('/1', cellMatchMd, cellMatchCode)], undefined));
 		const notebookSearch = sinon.spy(notebookSearchService, "notebookSearch");
 		const model: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(model);
 		await model.search({ contentPattern: { pattern: 'test' }, type: QueryType.Text, folderQueries }).asyncResults;
 		const actual = model.searchResult.matches();
 
@@ -404,6 +408,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		assert.ok(target.calledThrice);
@@ -421,6 +426,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		return result.then(() => {
@@ -443,6 +449,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		return result.then(() => {
@@ -466,6 +473,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		return result.then(() => { }, () => {
@@ -488,6 +496,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 
 		deferredPromise.cancel();
@@ -511,6 +520,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, searchServiceWithResults(results, { limitHit: false, messages: [], results: [] }));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries }).asyncResults;
 		assert.ok(!testObject.searchResult.isEmpty());
 
@@ -525,6 +535,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], tokenSource));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		testObject.search({ contentPattern: { pattern: 'somestring' }, type: QueryType.Text, folderQueries });
 		instantiationService.stub(ISearchService, searchServiceWithResults([]));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
@@ -542,6 +553,7 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], undefined));
 
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);
+		store.add(testObject);
 		await testObject.search({ contentPattern: { pattern: 're' }, type: QueryType.Text, folderQueries }).asyncResults;
 		testObject.replaceString = 'hello';
 		let match = testObject.searchResult.matches()[0].matches()[0];
@@ -578,14 +590,18 @@ suite('SearchModel', () => {
 		const config = new TestConfigurationService();
 		config.setUserConfiguration('search', { searchOnType: true });
 		instantiationService.stub(IConfigurationService, config);
-		return instantiationService.createInstance(ModelService);
+		const modelService = instantiationService.createInstance(ModelService);
+		store.add(modelService);
+		return modelService;
 	}
 
 	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
 		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
 		instantiationService.stub(IContextKeyService, new MockContextKeyService());
 		instantiationService.stub(IEditorService, new TestEditorService());
-		return instantiationService.createInstance(NotebookEditorWidgetService);
+		const notebookEditorWidgetService = instantiationService.createInstance(NotebookEditorWidgetService);
+		store.add(notebookEditorWidgetService);
+		return notebookEditorWidgetService;
 	}
 });
 

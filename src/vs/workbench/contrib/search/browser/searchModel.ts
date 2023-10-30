@@ -1041,15 +1041,15 @@ export class FolderMatch extends Disposable {
 	}
 
 	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
-		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder);
+		const folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder));
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
 		return folderMatch;
 	}
 
 	public configureIntermediateMatch(folderMatch: FolderMatchWithResource) {
-		const disposable = folderMatch.onChange((event) => this.onFolderChange(folderMatch, event));
-		folderMatch.onDispose(() => disposable.dispose());
+		const disposable = this._register(folderMatch.onChange((event) => this.onFolderChange(folderMatch, event)));
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
 	}
 
 	clear(clearingAll = false): void {
@@ -1378,8 +1378,8 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 				searchInstanceID
 			);
 		parent.doAddFile(fileMatch);
-		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
-		fileMatch.onDispose(() => disposable.dispose());
+		const disposable = this._register(fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove)));
+		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 
@@ -1431,17 +1431,17 @@ export class FolderMatchNoRoot extends FolderMatch {
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): FileMatch {
-		const fileMatch = this.instantiationService.createInstance(
+		const fileMatch = this._register(this.instantiationService.createInstance(
 			FileMatch,
 			this._query.contentPattern,
 			this._query.previewOptions,
 			this._query.maxResults,
 			this, rawFileMatch,
 			null,
-			searchInstanceID);
+			searchInstanceID));
 		this.doAddFile(fileMatch);
-		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
-		fileMatch.onDispose(() => disposable.dispose());
+		const disposable = this._register(fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove)));
+		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 }
@@ -1590,7 +1590,7 @@ export class SearchResult extends Disposable {
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
-	private disposePastResults: () => void = () => { };
+	private disposePastResults: () => Promise<void> = () => Promise.resolve();
 	private _isDirty = false;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
@@ -1674,10 +1674,11 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
-		new Promise<void>(resolve => this.disposePastResults = resolve)
-			.then(() => oldFolderMatches.forEach(match => match.clear()))
-			.then(() => oldFolderMatches.forEach(match => match.dispose()))
-			.then(() => this._isDirty = false);
+		this.disposePastResults = async () => {
+			oldFolderMatches.forEach(match => match.clear());
+			oldFolderMatches.forEach(match => match.dispose());
+			this._isDirty = false;
+		};
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
@@ -1736,12 +1737,12 @@ export class SearchResult extends Disposable {
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
 		let folderMatch: FolderMatch;
 		if (resource) {
-			folderMatch = this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this);
+			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this));
 		} else {
-			folderMatch = this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this);
+			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this));
 		}
-		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		folderMatch.onDispose(() => disposable.dispose());
+		const disposable = this._register(folderMatch.onChange((event) => this._onChange.fire(event)));
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
 		return folderMatch;
 	}
 
@@ -1922,13 +1923,13 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
-	override dispose(): void {
+	override async dispose(): Promise<void> {
 		this._onWillChangeModelListener?.dispose();
 		this._onDidChangeModelListener?.dispose();
-		this.disposePastResults();
-		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
+		this.disposeMatches();
 		super.dispose();
+		await this.disposePastResults();
 	}
 }
 
@@ -2331,9 +2332,9 @@ export class RangeHighlightDecorations implements IDisposable {
 	dispose() {
 		if (this._model) {
 			this.removeHighlightRange();
-			this._modelDisposables.dispose();
 			this._model = null;
 		}
+		this._modelDisposables.dispose();
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
