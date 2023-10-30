@@ -349,7 +349,7 @@ MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPL
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_LEFT, title: localize('splitLeft', "Split Left") }, group: '2_split', order: 30 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: SPLIT_EDITOR_RIGHT, title: localize('splitRight', "Split Right") }, group: '2_split', order: 40 });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: TOGGLE_LOCK_GROUP_COMMAND_ID, title: localize('toggleLockGroup', "Lock Group"), toggled: ActiveEditorGroupLockedContext }, group: '3_lock', order: 10, when: MultipleEditorGroupsContext });
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '4_close', order: 10, when: EditorPartMultipleEditorGroupsContext });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('close', "Close") }, group: '4_close', order: 10, when: MultipleEditorGroupsContext });
 
 // Editor Tab Container Context Menu
 MenuRegistry.appendMenuItem(MenuId.EditorTabsBarContext, { command: { id: SPLIT_EDITOR_UP, title: localize('splitUp', "Split Up") }, group: '2_split', order: 10 });
@@ -583,7 +583,7 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITOR
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_SAVED_EDITORS_COMMAND_ID, title: { value: localize('closeSavedEditors', "Close Saved Editors in Group"), original: 'Close Saved Editors in Group' }, category: Categories.View } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: { value: localize('closeOtherEditors', "Close Other Editors in Group"), original: 'Close Other Editors in Group' }, category: Categories.View } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: { value: localize('closeRightEditors', "Close Editors to the Right in Group"), original: 'Close Editors to the Right in Group' }, category: Categories.View }, when: ActiveEditorLastInGroupContext.toNegated() });
-MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: Categories.View }, when: EditorPartMultipleEditorGroupsContext });
+MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: CLOSE_EDITORS_AND_GROUP_COMMAND_ID, title: { value: localize('closeEditorGroup', "Close Editor Group"), original: 'Close Editor Group' }, category: Categories.View }, when: MultipleEditorGroupsContext });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: REOPEN_WITH_COMMAND_ID, title: { value: localize('reopenWith', "Reopen Editor With..."), original: 'Reopen Editor With...' }, category: Categories.View }, when: ActiveEditorAvailableEditorIdsContext });
 
 // File menu
@@ -992,7 +992,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	command: {
 		id: 'workbench.action.focusLeftGroup',
 		title: localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left"),
-		precondition: EditorPartMultipleEditorGroupsContext
+		precondition: MultipleEditorGroupsContext
 	},
 	order: 1
 });
@@ -1002,7 +1002,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	command: {
 		id: 'workbench.action.focusRightGroup',
 		title: localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right"),
-		precondition: EditorPartMultipleEditorGroupsContext
+		precondition: MultipleEditorGroupsContext
 	},
 	order: 2
 });
@@ -1012,7 +1012,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	command: {
 		id: 'workbench.action.focusAboveGroup',
 		title: localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above"),
-		precondition: EditorPartMultipleEditorGroupsContext
+		precondition: MultipleEditorGroupsContext
 	},
 	order: 3
 });
@@ -1022,7 +1022,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarSwitchGroupMenu, {
 	command: {
 		id: 'workbench.action.focusBelowGroup',
 		title: localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below"),
-		precondition: EditorPartMultipleEditorGroupsContext
+		precondition: MultipleEditorGroupsContext
 	},
 	order: 4
 });
