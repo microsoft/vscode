@@ -94,7 +94,11 @@ suite('SearchModel', () => {
 		instantiationService.stub(INotebookEditorService, stubNotebookEditorService(instantiationService));
 		instantiationService.stub(ISearchService, {});
 		instantiationService.stub(ISearchService, 'textSearch', Promise.resolve({ results: [] }));
-		instantiationService.stub(IUriIdentityService, new UriIdentityService(new FileService(new NullLogService())));
+		const fileService = new FileService(new NullLogService());
+		store.add(fileService);
+		const uriIdentityService = new UriIdentityService(fileService);
+		store.add(uriIdentityService);
+		instantiationService.stub(IUriIdentityService, uriIdentityService);
 		instantiationService.stub(ILogService, new NullLogService());
 	});
 
@@ -166,12 +170,18 @@ suite('SearchModel', () => {
 	function canceleableSearchService(tokenSource: CancellationTokenSource): ISearchService {
 		return <ISearchService>{
 			textSearch(query: ITextQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-				token?.onCancellationRequested(() => tokenSource.cancel());
+				const disposable = token?.onCancellationRequested(() => tokenSource.cancel());
+				if (disposable) {
+					store.add(disposable);
+				}
 
 				return this.textSearchSplitSyncAsync(query, token, onProgress).asyncResults;
 			},
 			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
-				token?.onCancellationRequested(() => tokenSource.cancel());
+				const disposable = token?.onCancellationRequested(() => tokenSource.cancel());
+				if (disposable) {
+					store.add(disposable);
+				}
 				return new Promise(resolve => {
 					queueMicrotask(() => {
 						resolve(<any>{});
@@ -179,7 +189,10 @@ suite('SearchModel', () => {
 				});
 			},
 			textSearchSplitSyncAsync(query: ITextQuery, token?: CancellationToken | undefined, onProgress?: ((result: ISearchProgressItem) => void) | undefined): { syncResults: ISearchComplete; asyncResults: Promise<ISearchComplete> } {
-				token?.onCancellationRequested(() => tokenSource.cancel());
+				const disposable = token?.onCancellationRequested(() => tokenSource.cancel());
+				if (disposable) {
+					store.add(disposable);
+				}
 				return {
 					syncResults: {
 						results: [],
@@ -221,7 +234,10 @@ suite('SearchModel', () => {
 				completeData: Promise<ISearchComplete>;
 				allScannedFiles: Promise<ResourceSet>;
 			} {
-				token?.onCancellationRequested(() => tokenSource?.cancel());
+				const disposable = token?.onCancellationRequested(() => tokenSource?.cancel());
+				if (disposable) {
+					store.add(disposable);
+				}
 				const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
 
 				results.forEach(r => {
@@ -532,6 +548,7 @@ suite('SearchModel', () => {
 
 	test('Search Model: Previous search is cancelled when new search is called', async () => {
 		const tokenSource = new CancellationTokenSource();
+		store.add(tokenSource);
 		instantiationService.stub(ISearchService, canceleableSearchService(tokenSource));
 		instantiationService.stub(INotebookSearchService, notebookSearchServiceWithInfo([], tokenSource));
 		const testObject: SearchModel = instantiationService.createInstance(SearchModel);

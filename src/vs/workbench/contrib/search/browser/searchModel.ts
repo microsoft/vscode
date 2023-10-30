@@ -2081,7 +2081,7 @@ export class SearchModel extends Disposable {
 
 		this._searchResult.query = this._searchQuery;
 
-		const progressEmitter = new Emitter<void>();
+		const progressEmitter = this._register(new Emitter<void>());
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
 
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
@@ -2101,7 +2101,7 @@ export class SearchModel extends Disposable {
 
 		const start = Date.now();
 
-		Promise.race([asyncResults, Event.toPromise(progressEmitter.event)]).finally(() => {
+		Promise.race([asyncResults, new Promise(resolve => this._register(Event.once(progressEmitter.event)(resolve)))]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
 					"owner": "roblourens",
