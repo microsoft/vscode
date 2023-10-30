@@ -1600,7 +1600,7 @@ export class ClearRecentFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: ClearRecentFilesAction.ID,
-			title: { value: localize('clearRecentFiles', "Clear Recently Opened"), original: 'Clear Recently Opened' },
+			title: { value: localize('clearRecentFiles', "Clear Recently Opened..."), original: 'Clear Recently Opened...' },
 			f1: true,
 			category: Categories.File
 		});
