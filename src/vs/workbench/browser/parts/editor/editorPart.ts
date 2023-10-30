@@ -32,6 +32,9 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { EditorPartContextKeysHandler } from 'vs/workbench/browser/contextkeys';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 
 interface IEditorPartUIState {
 	readonly serializedGrid: ISerializedGrid;
@@ -140,6 +143,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private container: HTMLElement | undefined;
 
+	private scopedInstantiationService!: IInstantiationService;
+
 	private centeredLayoutWidget!: CenteredViewLayout;
 
 	private gridWidget!: SerializableGrid<IEditorGroupView>;
@@ -156,7 +161,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService
 	) {
 		super(id, { hasTitle: false }, themeService, storageService, layoutService);
 
@@ -214,7 +220,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	readonly sideGroup: IEditorSideGroup = {
 		openEditor: (editor, options) => {
-			const [group] = this.instantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+			const [group] = this.scopedInstantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
 
 			return group.openEditor(editor, options);
 		}
@@ -624,11 +630,11 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Create group view
 		let groupView: IEditorGroupView;
 		if (from instanceof EditorGroupView) {
-			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createCopy(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService,);
 		} else if (isSerializedEditorGroupModel(from)) {
-			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
 		} else {
-			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.instantiationService);
+			groupView = EditorGroupView.createNew(this.editorPartsView, this, this.groupsLabel, this.count, this.scopedInstantiationService);
 		}
 
 		// Keep in map
@@ -930,7 +936,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	createEditorDropTarget(container: unknown, delegate: IEditorDropTargetDelegate): IDisposable {
 		assertType(container instanceof HTMLElement);
 
-		return this.instantiationService.createInstance(EditorDropTarget, container, delegate);
+		return this.scopedInstantiationService.createInstance(EditorDropTarget, container, delegate);
 	}
 
 	//#region Part
@@ -966,6 +972,14 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.container = document.createElement('div');
 		this.container.classList.add('content');
 		parent.appendChild(this.container);
+
+		// Scoped contexkey & instantiation service
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
+		this._register(new EditorPartContextKeysHandler(this, scopedContextKeyService));
+
+		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
+			[IContextKeyService, scopedContextKeyService],
+		));
 
 		// Grid control
 		this.doCreateGridControl(options);
@@ -1335,9 +1349,10 @@ export class MainEditorPart extends EditorPart {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, Parts.EDITOR_PART, '', false, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 }
 
@@ -1356,10 +1371,11 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		@IConfigurationService configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IHostService hostService: IHostService
+		@IHostService hostService: IHostService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		const id = AuxiliaryEditorPart.COUNTER++;
-		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService);
+		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
 	protected override saveState(): void {
