@@ -10,14 +10,32 @@ declare module 'vscode' {
 		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
 	}
 
-	export interface ChatAgentContent {
-		// TODO@API This is an awkward way to describe this but this is temporary until inline references are fully supported and adopted
+	export interface ChatAgent2 {
+		onDidPerformAction: Event<ChatAgentUserActionEvent>;
+	}
+
+	/**
+	 * This is temporary until inline references are fully supported and adopted
+	 */
+	export interface ChatAgentMarkdownContent {
 		markdownContent: MarkdownString;
 	}
 
-	export interface ChatAgent2 {
+	export interface ChatAgentDetectedAgent {
+		agentName: string;
+		command?: ChatAgentSlashCommand;
+	}
 
-		// TODO@API We need this- can't handle telemetry on the vscode side yet
-		onDidPerformAction: Event<ChatAgentUserActionEvent>;
+	export type ChatAgentExtendedProgress = ChatAgentProgress
+		| ChatAgentMarkdownContent
+		| ChatAgentDetectedAgent;
+
+	export type ChatAgentExtendedHandler = (request: ChatAgentRequest, context: ChatAgentContext, progress: Progress<ChatAgentExtendedProgress>, token: CancellationToken) => ProviderResult<ChatAgentResult2>;
+
+	export namespace chat {
+		/**
+		 * Create a chat agent with the extended progress type
+		 */
+		export function createChatAgent(name: string, handler: ChatAgentExtendedHandler): ChatAgent2;
 	}
 }

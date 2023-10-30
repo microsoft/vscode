@@ -36,7 +36,6 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageSelector } from 'vs/editor/common/languageSelector';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
-import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { invertLineRange, lineRangeAsRange } from 'vs/workbench/contrib/inlineChat/browser/utils';
 import { ICodeEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
 import { LineRange } from 'vs/editor/common/core/lineRange';
@@ -62,6 +61,7 @@ import { MenuId } from 'vs/platform/actions/common/actions';
 import { editorForeground, inputBackground, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { Lazy } from 'vs/base/common/lazy';
+import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -111,7 +111,7 @@ const _inputEditorOptions: IEditorConstructionOptions = {
 };
 
 const _previewEditorEditorOptions: IDiffEditorConstructionOptions = {
-	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false },
+	scrollbar: { useShadows: false, alwaysConsumeMouseWheel: false, ignoreHorizontalScrollbarInContentHeight: true, },
 	renderMarginRevertIcon: false,
 	diffCodeLens: false,
 	scrollBeyondLastLine: false,
@@ -215,7 +215,8 @@ export class InlineChatWidget {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService
+		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
 	) {
 
 		// input editor logic
@@ -541,10 +542,11 @@ export class InlineChatWidget {
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
 		this._codeBlockDisposables.clear();
-		this._elements.markdownMessage.classList.toggle('hidden', !message);
+		const hasMessage = message?.value;
+		this._elements.markdownMessage.classList.toggle('hidden', !hasMessage);
 		let expansionState: ExpansionState;
 		let textContent: string | undefined = undefined;
-		if (!message) {
+		if (!hasMessage) {
 			reset(this._elements.message);
 			this._ctxMessageCropState.reset();
 			expansionState = ExpansionState.NOT_CROPPED;
@@ -664,27 +666,30 @@ export class InlineChatWidget {
 
 	// --- preview
 
-	showEditsPreview(textModelv0: ITextModel, allEdits: ISingleEditOperation[][], changes: readonly DetailedLineRangeMapping[]) {
-		if (changes.length === 0) {
+	async showEditsPreview(textModel0: ITextModel, textModelN: ITextModel, allEdits: ISingleEditOperation[][]) {
+
+		this._elements.previewDiff.classList.remove('hidden');
+
+		const languageSelection: ILanguageSelection = { languageId: textModel0.getLanguageId(), onDidChange: Event.None };
+		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModel0.createSnapshot()), languageSelection, undefined, true);
+		for (const edits of allEdits) {
+			modified.applyEdits(edits, false);
+		}
+
+		const diff = await this._editorWorkerService.computeDiff(textModel0.uri, modified.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
+		if (!diff || diff.changes.length === 0) {
 			this.hideEditsPreview();
 			return;
 		}
 
-		this._elements.previewDiff.classList.remove('hidden');
-
-		const languageSelection: ILanguageSelection = { languageId: textModelv0.getLanguageId(), onDidChange: Event.None };
-		const modified = this._modelService.createModel(createTextBufferFactoryFromSnapshot(textModelv0.createSnapshot()), languageSelection, undefined, true);
-		for (const edits of allEdits) {
-			modified.applyEdits(edits, false);
-		}
-		this._previewDiffEditor.value.setModel({ original: textModelv0, modified });
+		this._previewDiffEditor.value.setModel({ original: textModel0, modified });
 
 		// joined ranges
-		let originalLineRange = changes[0].original;
-		let modifiedLineRange = changes[0].modified;
-		for (let i = 1; i < changes.length; i++) {
-			originalLineRange = originalLineRange.join(changes[i].original);
-			modifiedLineRange = modifiedLineRange.join(changes[i].modified);
+		let originalLineRange = diff.changes[0].original;
+		let modifiedLineRange = diff.changes[0].modified;
+		for (let i = 1; i < diff.changes.length; i++) {
+			originalLineRange = originalLineRange.join(diff.changes[i].original);
+			modifiedLineRange = modifiedLineRange.join(diff.changes[i].modified);
 		}
 
 		// apply extra padding
@@ -695,10 +700,10 @@ export class InlineChatWidget {
 
 		const newEndLineModified = Math.min(modifiedLineRange.endLineNumberExclusive + pad, modified.getLineCount());
 		modifiedLineRange = new LineRange(modifiedLineRange.startLineNumber, newEndLineModified);
-		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModelv0.getLineCount());
+		const newEndLineOriginal = Math.min(originalLineRange.endLineNumberExclusive + pad, textModel0.getLineCount());
 		originalLineRange = new LineRange(originalLineRange.startLineNumber, newEndLineOriginal);
 
-		const hiddenOriginal = invertLineRange(originalLineRange, textModelv0);
+		const hiddenOriginal = invertLineRange(originalLineRange, textModel0);
 		const hiddenModified = invertLineRange(modifiedLineRange, modified);
 		this._previewDiffEditor.value.getOriginalEditor().setHiddenAreas(hiddenOriginal.map(lineRangeAsRange), 'diff-hidden');
 		this._previewDiffEditor.value.getModifiedEditor().setHiddenAreas(hiddenModified.map(lineRangeAsRange), 'diff-hidden');

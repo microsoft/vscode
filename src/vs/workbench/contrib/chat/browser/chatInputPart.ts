@@ -79,6 +79,9 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private inputEditorHasText: IContextKey<boolean>;
 	private providerId: string | undefined;
 
+	private cachedDimensions: dom.Dimension | undefined;
+	private cachedToolbarWidth: number | undefined;
+
 	readonly inputUri = URI.parse(`${ChatInputPart.INPUT_SCHEME}:input-${ChatInputPart._counter++}`);
 
 	constructor(
@@ -157,11 +160,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
-	async acceptInput(query?: string): Promise<void> {
-		const editorValue = this._inputEditor.getValue();
-		if (!query && editorValue) {
-			// Followups and programmatic messages don't go to history
-			this.history.add(editorValue);
+	/**
+	 * Reset the input and update history.
+	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
+	 */
+	async acceptInput(userQuery?: string): Promise<void> {
+		if (userQuery) {
+			this.history.add(userQuery);
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {
@@ -251,6 +256,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}));
 		this.toolbar.getElement().classList.add('interactive-execute-toolbar');
 		this.toolbar.context = <IChatExecuteActionContext>{ widget };
+		this._register(this.toolbar.onDidChangeMenuItems(() => {
+			if (this.cachedDimensions && typeof this.cachedToolbarWidth === 'number' && this.cachedToolbarWidth !== this.toolbar.getItemsWidth()) {
+				this.layout(this.cachedDimensions.height, this.cachedDimensions.width);
+			}
+		}));
 
 		if (this.options.renderStyle === 'compact') {
 			const toolbarSide = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, inputAndSideToolbar, MenuId.ChatInputSide, {
@@ -285,6 +295,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	layout(height: number, width: number): number {
+		this.cachedDimensions = new dom.Dimension(width, height);
+
 		return this._layout(height, width);
 	}
 
@@ -301,7 +313,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		const editorBorder = 2;
 		const editorPadding = 8;
-		const executeToolbarWidth = this.toolbar.getItemsWidth();
+		const executeToolbarWidth = this.cachedToolbarWidth = this.toolbar.getItemsWidth();
 		const sideToolbarWidth = this.options.renderStyle === 'compact' ? 20 : 0;
 
 		const initialEditorScrollWidth = this._inputEditor.getScrollWidth();

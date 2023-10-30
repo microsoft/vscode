@@ -10,10 +10,12 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
 
 export interface ILayoutOffsetInfo {
+
 	/**
 	 * Generic top offset
 	 */
 	readonly top: number;
+
 	/**
 	 * Quick pick specific top offset.
 	 */
@@ -25,9 +27,29 @@ export interface ILayoutService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * The dimensions of the container.
+	 * An event that is emitted when the main container is layed out.
 	 */
-	readonly dimension: IDimension;
+	readonly onDidLayoutMainContainer: Event<IDimension>;
+
+	/**
+	 * An event that is emitted when the active container is layed out.
+	 */
+	readonly onDidLayoutActiveContainer: Event<IDimension>;
+
+	/**
+	 * An event that is emitted when the active container changes.
+	 */
+	readonly onDidChangeActiveContainer: Event<void>;
+
+	/**
+	 * The dimensions of the main container.
+	 */
+	readonly mainContainerDimension: IDimension;
+
+	/**
+	 * The dimensions of the active container.
+	 */
+	readonly activeContainerDimension: IDimension;
 
 	/**
 	 * Does the application have a single container?
@@ -35,7 +57,7 @@ export interface ILayoutService {
 	readonly hasContainer: boolean;
 
 	/**
-	 * Container of the application.
+	 * Main container of the application.
 	 *
 	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.
 	 * Therefore, in the standalone editor case, there are multiple containers, not just
@@ -60,15 +82,14 @@ export interface ILayoutService {
 	readonly containers: Iterable<HTMLElement>;
 
 	/**
-	 * An offset to use for positioning elements inside the container.
+	 * An offset to use for positioning elements inside the main container.
 	 */
-	readonly offset: ILayoutOffsetInfo;
+	readonly mainContainerOffset: ILayoutOffsetInfo;
 
 	/**
-	 * An event that is emitted when the container is layed out. The
-	 * event carries the dimensions of the container as part of it.
+	 * An offset to use for positioning elements inside the container.
 	 */
-	readonly onDidLayout: Event<IDimension>;
+	readonly activeContainerOffset: ILayoutOffsetInfo;
 
 	/**
 	 * Focus the primary component of the container.

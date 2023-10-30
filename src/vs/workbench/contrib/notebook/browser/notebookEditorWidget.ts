@@ -1996,7 +1996,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		const windowSelection = window.getSelection();
+		const windowSelection = DOM.getWindow(this.getDomNode()).getSelection();
 		if (windowSelection?.rangeCount !== 1) {
 			return false;
 		}

@@ -156,7 +156,7 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		return;
 	}
 
-	updateCommentThread(commentThread: languages.CommentThread<T>) {
+	updateCommentThread(commentThread: languages.CommentThread<T>, preserveFocus: boolean) {
 		const oldCommentsLen = this._commentElements.length;
 		const newCommentsLen = commentThread.comments ? commentThread.comments.length : 0;
 
@@ -222,7 +222,9 @@ export class CommentThreadBody<T extends IRange | ICellRange = IRange> extends D
 		}
 
 		this._updateAriaLabel();
-		this._setFocusedComment(this._focusedComment);
+		if (!preserveFocus) {
+			this._setFocusedComment(this._focusedComment);
+		}
 	}
 
 	private _updateAriaLabel() {

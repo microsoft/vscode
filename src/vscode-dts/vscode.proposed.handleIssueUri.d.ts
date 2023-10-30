@@ -14,6 +14,18 @@ declare module 'vscode' {
 		handleIssueUrlRequest(): ProviderResult<Uri>;
 	}
 
+	export interface IssueDataProvider {
+		/**
+		 * Provide the data to be used in the issue reporter.
+		 */
+		provideIssueData(token: CancellationToken): ProviderResult<string>;
+
+		/**
+		 * Provide the template to be used in the description of issue reporter.
+		 */
+		provideIssueTemplate(token: CancellationToken): ProviderResult<string>;
+	}
+
 	export namespace env {
 		/**
 		 * Register an {@link IssueUriRequestHandler}. By registering an issue uri request handler,
@@ -27,5 +39,19 @@ declare module 'vscode' {
 		 * @param handler the issue uri request handler to register for this extension.
 		 */
 		export function registerIssueUriRequestHandler(handler: IssueUriRequestHandler): Disposable;
+
+		/**
+		 * Register an {@link IssueDataProvider}. By registering an issue data provider,
+		 * you can provide additional information to the built-in issue reporter.
+		 * The repo url must be provided by package.json's repository field.
+		 *
+		 * Examples:
+		 * - Provide additional information about the current workspace, current extension, current user, or OS
+		 * - Provide data in the form of a string to the secondary description/data text box of the issue reporter.
+		 * - Provide a template for the description of the issue reporter
+		 *
+		 * @param provider the issue data provider to register for this extension.
+		 */
+		export function registerIssueDataProvider(provider: IssueDataProvider): Disposable;
 	}
 }
