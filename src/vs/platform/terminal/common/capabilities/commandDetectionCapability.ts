@@ -461,6 +461,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return prompt;
 		}
 
+		//allow-any-unicode-next-line
+		const customMatch = lineText.match(/.*❯(?=[^❯]*$)/g);
+		if (customMatch) {
+			return customMatch[0];
+		}
+
 		// Command Prompt
 		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
 		return cmdMatch?.groups?.prompt;
