@@ -791,8 +791,6 @@ export function focusWindow(element: Node): void {
 	}
 }
 
-const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
-
 export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
@@ -826,6 +824,8 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 
 	return style;
 }
+
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
 
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
@@ -905,7 +905,6 @@ export const sharedMutationObserver = new class {
 					observer.disconnect();
 
 					mutationObserversPerTarget?.delete(optionsHash);
-
 					if (mutationObserversPerTarget?.size === 0) {
 						this.mutationObservers.delete(target);
 					}
@@ -913,6 +912,8 @@ export const sharedMutationObserver = new class {
 			}));
 
 			mutationObserversPerTarget.set(optionsHash, mutationObserverPerOptions);
+		} else {
+			mutationObserverPerOptions.users += 1;
 		}
 
 		return mutationObserverPerOptions.onDidMutate;
