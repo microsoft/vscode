@@ -92,7 +92,7 @@ export interface ILayoutService {
 	readonly activeContainerOffset: ILayoutOffsetInfo;
 
 	/**
-	 * Focus the primary component of the container.
+	 * Focus the primary component of the active container.
 	 */
 	focus(): void;
 }

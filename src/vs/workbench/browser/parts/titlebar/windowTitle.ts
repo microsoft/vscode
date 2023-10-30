@@ -54,7 +54,7 @@ export class WindowTitle extends Disposable {
 	private readonly editorService: IEditorService;
 
 	constructor(
-		private readonly targetWindow: Window & typeof globalThis,
+		private readonly targetWindow: Window,
 		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IEditorService editorService: IEditorService,

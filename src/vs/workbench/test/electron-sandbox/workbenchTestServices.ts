@@ -12,7 +12,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle } from 'vs/platform/window/common/window';
+import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle } from 'vs/platform/window/common/window';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -78,7 +78,7 @@ export class TestNativeHostService implements INativeHostService {
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
 
-	async getWindows(): Promise<IOpenedWindow[]> { return []; }
+	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;

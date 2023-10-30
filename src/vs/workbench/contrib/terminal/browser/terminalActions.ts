@@ -789,20 +789,27 @@ export function registerTerminalActions() {
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
 		run: async (c, accessor) => {
 			const notificationService = accessor.get(INotificationService);
-			const instance = getSelectedInstances(accessor)?.[0];
-			if (!instance) {
+			const instances = getSelectedInstances(accessor);
+			const firstInstance = instances?.[0];
+			if (!firstInstance) {
 				return;
 			}
-			c.service.setEditingTerminal(instance);
-			c.service.setEditable(instance, {
+			c.service.setEditingTerminal(firstInstance);
+			c.service.setEditable(firstInstance, {
 				validationMessage: value => validateTerminalName(value),
 				onFinish: async (value, success) => {
 					// Cancel editing first as instance.rename will trigger a rerender automatically
-					c.service.setEditable(instance, null);
+					c.service.setEditable(firstInstance, null);
 					c.service.setEditingTerminal(undefined);
 					if (success) {
+						const promises: Promise<void>[] = [];
+						for (const instance of instances) {
+							promises.push((async () => {
+								await instance.rename(value);
+							})());
+						}
 						try {
-							await instance.rename(value);
+							await Promise.all(promises);
 						} catch (e) {
 							notificationService.error(e);
 						}
