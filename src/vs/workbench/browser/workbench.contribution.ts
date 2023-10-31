@@ -50,9 +50,14 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': 'multiple'
 			},
 			'workbench.editor.showEditorActionsInTitleBar': {
-				'type': 'boolean',
-				'markdownDescription': localize('showEditorActionsInTitleBar', "Controls whether editor actions are shown in the title bar. This value only applies when `#window.titleBarStyle#` is set to `custom` and `#workbench.editor.showTabs#` is set to `none`."),
-				'default': true
+				'type': 'string',
+				'enum': ['noTabs', 'never'],
+				'enumDescriptions': [
+					localize('workbench.editor.showEditorActionsInTitleBar.noTabs', "Show editor actions in the editor title bar only when `#workbench.editor.showTabs#` is set to `none`. Otherwise, editor actions show up in the tab bar."),
+					localize('workbench.editor.showEditorActionsInTitleBar.never', "Do not show editor actions in the editor title bar"),
+				],
+				'markdownDescription': localize('showEditorActionsInTitleBar', "Controls whether editor actions are shown in the title bar. This value only applies when `#window.titleBarStyle#` is set to `custom`."),
+				'default': 'noTabs'
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',

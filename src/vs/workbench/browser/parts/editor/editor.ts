@@ -49,7 +49,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
-	showEditorActionsInTitleBar: true,
+	showEditorActionsInTitleBar: 'noTabs',
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {

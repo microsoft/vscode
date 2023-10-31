@@ -574,7 +574,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return !!this.editorGroupService.partOptions.showEditorActionsInTitleBar && this.editorGroupService.partOptions.showTabs === 'none';
+		return this.editorGroupService.partOptions.showEditorActionsInTitleBar !== 'never' && this.editorGroupService.partOptions.showTabs === 'none';
 	}
 
 	private get activityActionsEnabled(): boolean {
