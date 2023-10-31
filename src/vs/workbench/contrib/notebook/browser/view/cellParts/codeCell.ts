@@ -191,7 +191,7 @@ export class CodeCell extends Disposable {
 					if (
 						this.notebookEditor.getActiveCell() === this.viewCell &&
 						this.viewCell.focusMode === CellFocusMode.Editor &&
-						(this.notebookEditor.hasEditorFocus() || document.activeElement === document.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
+						(this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body)) // Don't steal focus from other workbench parts, but if body has focus, we can take it
 					{
 						this.templateData.editor?.focus();
 					}
@@ -338,7 +338,7 @@ export class CodeCell extends Disposable {
 		// the document active element is inside the notebook editor or the document body (cell editor being disposed previously)
 		return this.notebookEditor.getActiveCell() === this.viewCell
 			&& this.viewCell.focusMode === CellFocusMode.Editor
-			&& (this.notebookEditor.hasEditorFocus() || document.activeElement === document.body);
+			&& (this.notebookEditor.hasEditorFocus() || this.notebookEditor.getDomNode().ownerDocument.activeElement === this.notebookEditor.getDomNode().ownerDocument.body);
 	}
 
 	private updateEditorForFocusModeChange() {

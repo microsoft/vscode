@@ -377,10 +377,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !prompt) {
 			this._windowsPromptPollingInProcess = true;
-			// Poll for 200ms until the cursor position is correct.
+			// Poll for 1000ms until the cursor position is correct.
 			let i = 0;
-			for (; i < 20; i++) {
-				await timeout(10);
+			for (; i < 50; i++) {
+				await timeout(20);
 				prompt = this._getWindowsPrompt();
 				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
@@ -390,7 +390,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				}
 			}
 			this._windowsPromptPollingInProcess = false;
-			if (i === 20) {
+			if (i >= 50) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
@@ -428,9 +428,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _cursorOnNextLine(): boolean {
 		const lastCommand = this.commands.at(-1);
 
+		// There is only a single command, so this check is unnecessary
 		if (!lastCommand) {
-			return false;
+			return true;
 		}
+
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		// If the cursor position is within the last command, we should poll.
 		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
@@ -442,8 +444,26 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(?<prompt>(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
+		// TODO: fine tune prompt regex to accomodate for unique configurations.
+		const lineText = line.translateToString(true);
+		if (!lineText) {
+			return;
+		}
+
+		// PowerShell
+		const pwshMatch = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/);
+		if (pwshMatch) {
+			let prompt = pwshMatch?.groups?.prompt;
+			if (lineText === prompt && prompt.endsWith('>')) {
+				// Conpty may not 'render' the space at the end of the prompt
+				prompt += ' ';
+			}
+			return prompt;
+		}
+
+		// Command Prompt
+		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
+		return cmdMatch?.groups?.prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {

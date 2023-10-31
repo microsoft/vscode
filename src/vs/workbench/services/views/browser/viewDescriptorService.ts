@@ -378,6 +378,10 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		this.saveViewCustomizations();
 	}
 
+	isViewContainerRemovedPermanently(viewContainerId: string): boolean {
+		return this.isGeneratedContainerId(viewContainerId) && !this.viewContainersCustomLocations.has(viewContainerId);
+	}
+
 	private onDidChangeDefaultContainer(views: IViewDescriptor[], from: ViewContainer, to: ViewContainer): void {
 		const viewsToMove = views.filter(view =>
 			!this.viewDescriptorsCustomLocations.has(view.id) // Move views which are not already moved
@@ -775,11 +779,7 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 							title: viewDescriptor.name,
 							menu: [{
 								id: ViewsSubMenu,
-								group: '1_toggleViews',
-								when: ContextKeyExpr.and(
-									ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
-									ContextKeyExpr.equals('viewContainerLocation', ViewContainerLocationToString(ViewContainerLocation.Sidebar)),
-								),
+								when: ContextKeyExpr.equals('viewContainer', viewContainerModel.viewContainer.id),
 								order: index,
 							}, {
 								id: MenuId.ViewContainerTitleContext,

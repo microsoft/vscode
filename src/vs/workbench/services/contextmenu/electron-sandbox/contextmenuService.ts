@@ -129,6 +129,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 					}
 
 					if (!isMacintosh) {
+						const window = dom.getWindow(anchor);
 						const availableHeightForMenu = window.screen.height - y;
 						if (availableHeightForMenu < actions.length * (isWindows ? 45 : 32) /* guess of 1 menu item height */) {
 							// this is a guess to detect whether the context menu would

@@ -10,14 +10,14 @@ import Severity from 'vs/base/common/severity';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { EditorExtensions, EditorInputCapabilities, IEditorOpenContext, IVisibleEditorPane, createEditorOpenError, isEditorOpenError } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow, getActiveWindow } from 'vs/base/browser/dom';
+import { Dimension, show, hide, IDomNodePagePosition, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorPaneRegistry, IEditorPaneDescriptor } from 'vs/workbench/browser/editor';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
-import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { assertIsDefined } from 'vs/base/common/types';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { ErrorPlaceholderEditor, IErrorEditorPlaceholderOptions, WorkspaceTrustRequiredPlaceholderEditor } from 'vs/workbench/browser/parts/editor/editorPlaceholder';
@@ -126,7 +126,7 @@ export class EditorPanes extends Disposable {
 		}
 	}
 
-	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	async openEditor(editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
@@ -138,12 +138,12 @@ export class EditorPanes extends Disposable {
 							return this.groupView.closeEditor(editor);
 						}
 					})
-				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, context);
+				], { forceMessage: true, forceSeverity: Severity.Warning }), editor, options, internalOptions, context);
 			}
 
 			// Open editor normally
 			else {
-				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, context);
+				return await this.doOpenEditor(this.getEditorPaneDescriptor(editor), editor, options, internalOptions, context);
 			}
 		} catch (error) {
 
@@ -159,11 +159,11 @@ export class EditorPanes extends Disposable {
 			// For that reason we have place holder editors that can convey a
 			// message with actions the user can click on.
 
-			return this.doShowError(error, editor, options, context);
+			return this.doShowError(error, editor, options, internalOptions, context);
 		}
 	}
 
-	private async doShowError(error: Error, editor: EditorInput, options?: IEditorOptions, context?: IEditorOpenContext): Promise<IOpenEditorResult> {
+	private async doShowError(error: Error, editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context?: IEditorOpenContext): Promise<IOpenEditorResult> {
 
 		// Always log the error to figure out what is going on
 		this.logService.error(error);
@@ -186,7 +186,7 @@ export class EditorPanes extends Disposable {
 		}
 
 		return {
-			...(await this.doOpenEditor(ErrorPlaceholderEditor.DESCRIPTOR, editor, editorPlaceholderOptions, context)),
+			...(await this.doOpenEditor(ErrorPlaceholderEditor.DESCRIPTOR, editor, editorPlaceholderOptions, internalOptions, context)),
 			error
 		};
 	}
@@ -258,28 +258,26 @@ export class EditorPanes extends Disposable {
 		return errorHandled;
 	}
 
-	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
+	private async doOpenEditor(descriptor: IEditorPaneDescriptor, editor: EditorInput, options: IEditorOptions | undefined, internalOptions: IInternalEditorOpenOptions | undefined, context: IEditorOpenContext = Object.create(null)): Promise<IOpenEditorResult> {
 
 		// Editor pane
 		const pane = this.doShowEditorPane(descriptor);
 
 		// Remember current active element for deciding to restore focus later
-		const activeElement = document.activeElement;
+		const activeElement = this.editorPanesParent.ownerDocument.activeElement;
 
 		// Apply input to pane
 		const { changed, cancelled } = await this.doSetInput(pane, editor, options, context);
 
 		// Make sure to pass focus to the pane or otherwise
-		// make sure that the pane window is visible.
+		// make sure that the pane window is visible unless
+		// this has been explicitly disabled.
 		if (!cancelled) {
 			const focus = !options || !options.preserveFocus;
 			if (focus && this.shouldRestoreFocus(activeElement)) {
 				pane.focus();
-			} else {
-				const paneWindow = getWindow(pane.getContainer());
-				if (paneWindow !== getActiveWindow()) {
-					this.hostService.moveTop(paneWindow);
-				}
+			} else if (!internalOptions?.preserveWindowOrder) {
+				this.hostService.moveTop(getWindow(pane.getContainer()));
 			}
 		}
 
@@ -295,9 +293,8 @@ export class EditorPanes extends Disposable {
 			return true; // restore focus if nothing was focused
 		}
 
-		const activeElement = document.activeElement;
-
-		if (!activeElement || activeElement === document.body) {
+		const activeElement = expectedActiveElement.ownerDocument.activeElement;
+		if (!activeElement || activeElement === expectedActiveElement.ownerDocument.body) {
 			return true; // restore focus if nothing is focused currently
 		}
 

@@ -165,10 +165,6 @@ export class CodeApplication extends Disposable {
 
 		const isUrlFromWebview = (requestingUrl: string | undefined) => requestingUrl?.startsWith(`${Schemas.vscodeWebview}://`);
 
-		const allowedPermissionsInMainFrame = new Set(
-			this.productService.quality === 'stable' ? [] : ['media']
-		);
-
 		const allowedPermissionsInWebview = new Set([
 			'clipboard-read',
 			'clipboard-sanitized-write',
@@ -179,20 +175,12 @@ export class CodeApplication extends Disposable {
 				return callback(allowedPermissionsInWebview.has(permission));
 			}
 
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return callback(allowedPermissionsInMainFrame.has(permission));
-			}
-
 			return callback(false);
 		});
 
 		session.defaultSession.setPermissionCheckHandler((_webContents, permission, _origin, details) => {
 			if (isUrlFromWebview(details.requestingUrl)) {
 				return allowedPermissionsInWebview.has(permission);
-			}
-
-			if (details.isMainFrame && details.securityOrigin === `${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`) {
-				return allowedPermissionsInMainFrame.has(permission);
 			}
 
 			return false;
@@ -460,8 +448,6 @@ export class CodeApplication extends Disposable {
 		});
 
 		//#region Bootstrap IPC Handlers
-
-		validatedIpcMain.handle('vscode:getWindowId', event => Promise.resolve(event.sender.id));
 
 		validatedIpcMain.handle('vscode:fetchShellEnv', event => {
 
@@ -791,7 +777,7 @@ export class CodeApplication extends Disposable {
 			],
 			message: localize('confirmOpenMessage', "An external application wants to open '{0}' in {1}. Do you want to open this file or folder?", uri.authority === Schemas.file ? getPathLabel(uri, { os: OS, tildify: this.environmentMainService }) : uri.toString(true), this.productService.nameShort),
 			detail: localize('confirmOpenDetail', "If you did not initiate this request, it may represent an attempted attack on your system. Unless you took an explicit action to initiate this request, you should press 'No'"),
-			checkboxLabel: localize('doNotAskAgain', "Do not ask me again"),
+			checkboxLabel: uri.authority === Schemas.file ? localize('doNotAskAgainLocal', "Allow opening local paths without asking") : localize('doNotAskAgainRemote', "Allow opening remote paths without asking"),
 			cancelId: 1
 		});
 

@@ -33,6 +33,19 @@ declare module 'vscode' {
 
 	export namespace workspace {
 
+		/**
+		 * A variant of {@link workspace.createFileSystemWatcher} that optionally allows to specify
+		 * a set of glob patterns to exclude from watching.
+		 *
+		 * It provides the following advantages over the other {@link workspace.createFileSystemWatcher}
+		 * method:
+		 * - the configured excludes from `files.watcherExclude` setting are NOT applied
+		 * - requests for recursive file watchers inside the opened workspace are NOT ignored
+		 * - the watcher is ONLY notified for events from this request and not from any other watcher
+		 *
+		 * As such, this method is prefered in cases where you want full control over the watcher behavior
+		 * without being impacted by settings or other watchers that are installed.
+		 */
 		export function createFileSystemWatcher(pattern: RelativePattern, options?: FileSystemWatcherOptions): FileSystemWatcher;
 	}
 }

@@ -15,7 +15,7 @@ import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/p
 import { isWindows, isWeb, isMacintosh } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { trim } from 'vs/base/common/strings';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorGroupsContainer } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { template } from 'vs/base/common/labels';
 import { ILabelService, Verbosity as LabelVerbosity } from 'vs/platform/label/common/label';
 import { Emitter } from 'vs/base/common/event';
@@ -45,15 +45,21 @@ export class WindowTitle extends Disposable {
 	private readonly onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.onDidChangeEmitter.event;
 
+	get value() { return this.title ?? ''; }
+	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;
 
+	private readonly editorService: IEditorService;
+
 	constructor(
+		private readonly targetWindow: Window,
+		editorGroupsContainer: IEditorGroupsContainer | 'main',
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
-		@IEditorService private readonly editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBrowserWorkbenchEnvironmentService protected readonly environmentService: IBrowserWorkbenchEnvironmentService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
-		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IUserDataProfileService private readonly userDataProfileService: IUserDataProfileService,
 		@IProductService private readonly productService: IProductService,
@@ -61,16 +67,10 @@ export class WindowTitle extends Disposable {
 	) {
 		super();
 
+		this.editorService = editorService.createScoped(editorGroupsContainer, this._store);
+
 		this.updateTitleIncludesFocusedView();
 		this.registerListeners();
-	}
-
-	get value() {
-		return this.title ?? '';
-	}
-
-	get workspaceName() {
-		return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace());
 	}
 
 	private registerListeners(): void {
@@ -138,12 +138,14 @@ export class WindowTitle extends Disposable {
 	private doUpdateTitle(): void {
 		const title = this.getFullWindowTitle();
 		if (title !== this.title) {
+
 			// Always set the native window title to identify us properly to the OS
 			let nativeTitle = title;
 			if (!trim(nativeTitle)) {
 				nativeTitle = this.productService.nameLong;
 			}
-			if (!window.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
+
+			if (!this.targetWindow.document.title && isMacintosh && nativeTitle === this.productService.nameLong) {
 				// TODO@electron macOS: if we set a window title for
 				// the first time and it matches the one we set in
 				// `windowImpl.ts` somehow the window does not appear
@@ -151,26 +153,30 @@ export class WindowTitle extends Disposable {
 				// briefly to something different to ensure macOS
 				// recognizes we have a window.
 				// See: https://github.com/microsoft/vscode/issues/191288
-				window.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
+				this.targetWindow.document.title = `${this.productService.nameLong} ${WindowTitle.TITLE_DIRTY}`;
 			}
-			window.document.title = nativeTitle;
+
+			this.targetWindow.document.title = nativeTitle;
 			this.title = title;
+
 			this.onDidChangeEmitter.fire();
 		}
 	}
 
 	private getFullWindowTitle(): string {
-		let title = this.getWindowTitle() || this.productService.nameLong;
 		const { prefix, suffix } = this.getTitleDecorations();
+
+		let title = this.getWindowTitle() || this.productService.nameLong;
 		if (prefix) {
 			title = `${prefix} ${title}`;
 		}
+
 		if (suffix) {
 			title = `${title} ${suffix}`;
 		}
+
 		// Replace non-space whitespace
-		title = title.replace(/[^\S ]/g, ' ');
-		return title;
+		return title.replace(/[^\S ]/g, ' ');
 	}
 
 	getTitleDecorations() {
@@ -180,6 +186,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.prefix) {
 			prefix = this.properties.prefix;
 		}
+
 		if (this.environmentService.isExtensionDevelopment) {
 			prefix = !prefix
 				? WindowTitle.NLS_EXTENSION_HOST
@@ -189,6 +196,7 @@ export class WindowTitle extends Disposable {
 		if (this.properties.isAdmin) {
 			suffix = WindowTitle.NLS_USER_IS_ADMIN;
 		}
+
 		return { prefix, suffix };
 	}
 

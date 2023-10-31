@@ -54,6 +54,8 @@ import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataPro
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
+import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 //#region Helper Interfaces
 
@@ -216,7 +218,8 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		@IDialogMainService private readonly dialogMainService: IDialogMainService,
 		@IFileService private readonly fileService: IFileService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
-		@IThemeMainService private readonly themeMainService: IThemeMainService
+		@IThemeMainService private readonly themeMainService: IThemeMainService,
+		@IAuxiliaryWindowsMainService private readonly auxiliaryWindowsMainService: IAuxiliaryWindowsMainService
 	) {
 		super();
 
@@ -636,7 +639,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen?: IFilesToOpen): ICodeWindow {
 		this.logService.trace('windowsManager#doOpenFilesInExistingWindow', { filesToOpen });
 
-		window.focus(); // make sure window has focus
+		this.focusMainOrChildWindow(window); // make sure window or any of the children has focus
 
 		const params: INativeOpenFileRequest = {
 			filesToOpenOrCreate: filesToOpen?.filesToOpenOrCreate,
@@ -648,6 +651,20 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		window.sendWhenReady('vscode:openFiles', CancellationToken.None, params);
 
 		return window;
+	}
+
+	private focusMainOrChildWindow(mainWindow: ICodeWindow): void {
+		let windowToFocus: ICodeWindow | IAuxiliaryWindow = mainWindow;
+
+		const focusedWindow = BrowserWindow.getFocusedWindow();
+		if (focusedWindow && focusedWindow.id !== mainWindow.id) {
+			const auxiliaryWindowCandidate = this.auxiliaryWindowsMainService.getWindowById(focusedWindow.id);
+			if (auxiliaryWindowCandidate && auxiliaryWindowCandidate.parentId === mainWindow.id) {
+				windowToFocus = auxiliaryWindowCandidate;
+			}
+		}
+
+		windowToFocus.focus();
 	}
 
 	private doAddFoldersToExistingWindow(window: ICodeWindow, foldersToAdd: URI[]): ICodeWindow {

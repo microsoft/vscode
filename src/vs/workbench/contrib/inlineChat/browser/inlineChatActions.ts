@@ -31,13 +31,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
+export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
 			id: 'inlineChat.start',
-			title: { value: localize('run', 'Start Code Chat'), original: 'Start Code Chat' },
+			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
@@ -64,7 +65,7 @@ export class UnstashSessionAction extends EditorAction2 {
 	constructor() {
 		super({
 			id: 'inlineChat.unstash',
-			title: { value: localize('unstash', 'Resume Last Dismissed Code Chat'), original: 'Resume Last Dismissed Code Chat' },
+			title: { value: localize('unstash', 'Resume Last Dismissed Inline Chat'), original: 'Resume Last Dismissed Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_STASHED_SESSION, EditorContextKeys.writable),
 			keybinding: {
@@ -331,7 +332,7 @@ export class DiscardAction extends AbstractInlineChatAction {
 	}
 
 	async runInlineChatCommand(_accessor: ServicesAccessor, ctrl: InlineChatController, _editor: ICodeEditor, ..._args: any[]): Promise<void> {
-		ctrl.cancelSession();
+		await ctrl.cancelSession();
 	}
 }
 
@@ -357,7 +358,7 @@ export class DiscardToClipboardAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController): Promise<void> {
 		const clipboardService = accessor.get(IClipboardService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			clipboardService.writeText(changedText);
 		}
@@ -381,7 +382,7 @@ export class DiscardUndoToNewFileAction extends AbstractInlineChatAction {
 
 	override async runInlineChatCommand(accessor: ServicesAccessor, ctrl: InlineChatController, editor: ICodeEditor, ..._args: any[]): Promise<void> {
 		const editorService = accessor.get(IEditorService);
-		const changedText = ctrl.cancelSession();
+		const changedText = await ctrl.cancelSession();
 		if (changedText !== undefined) {
 			const input: IUntitledTextResourceEditorInput = { forceUntitled: true, resource: undefined, contents: changedText, languageId: editor.getModel()?.getLanguageId() };
 			editorService.openEditor(input, SIDE_GROUP);

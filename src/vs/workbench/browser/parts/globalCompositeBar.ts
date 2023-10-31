@@ -110,11 +110,11 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
-		// Extension registration
-		const disposables = this._register(new DisposableStore());
-		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, disposables)(() => this.toggleAccountsActivity(), this, disposables);
-		}));
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			if (!this._store.isDisposed) {
+				this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, this._store)(() => this.toggleAccountsActivity()));
+			}
+		});
 	}
 
 	create(parent: HTMLElement): void {
@@ -195,7 +195,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionVi
 	}
 
 	private getCumulativeNumberBadge(activityCache: IActivity[], priority: number): NumberBadge {
-		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && activity.priority === priority);
+		const numberActivities = activityCache.filter(activity => activity.badge instanceof NumberBadge && (activity.priority ?? 0) === priority);
 		const number = numberActivities.reduce((result, activity) => { return result + (<NumberBadge>activity.badge).number; }, 0);
 		const descriptorFn = (): string => {
 			return numberActivities.reduce((result, activity, index) => {
@@ -351,6 +351,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		// Resolving the menu doesn't need to happen immediately, so we can wait until after the workbench has been restored
 		// and only run this when the system is idle.
 		await this.lifecycleService.when(LifecyclePhase.Restored);
+		if (this._store.isDisposed) {
+			return;
+		}
 		const disposable = this._register(runWhenIdle(async () => {
 			await this.doInitialize();
 			disposable.dispose();

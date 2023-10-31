@@ -217,7 +217,7 @@ class FocusAccessibleBufferAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalCommandId.FocusAccessibleBuffer,
-			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
+			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Terminal View'), original: 'Focus Accessible Terminal View' },
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 			keybinding: [
 				{

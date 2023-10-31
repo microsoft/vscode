@@ -32,6 +32,7 @@
       isCanceled: false,
       vote: undefined,
       agent: undefined,
+      slashCommand: undefined,
       usedContext: { documents: [
           {
             uri: {

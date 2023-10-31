@@ -5,72 +5,59 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BaseAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BrowserAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { DeferredPromise } from 'vs/base/common/async';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
 
-type AuxiliaryWindow = BaseAuxiliaryWindow & {
-	moveTop: () => void;
+type NativeAuxiliaryWindow = BrowserAuxiliaryWindow & {
+	readonly vscode: ISandboxGlobals;
 };
-
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
-
-	return typeof candidate?.moveTop === 'function';
-}
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@INativeHostService private readonly nativeHostService: INativeHostService
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(layoutService);
+		super(layoutService, dialogService);
 	}
 
-	protected override create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
+	protected override create(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore) {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
+		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
 		return super.create(auxiliaryWindow, disposables);
 	}
 
-	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
-		super.patchMethods(auxiliaryWindow);
+	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+	}
 
-		// Obtain window identifier
-		const windowId = new DeferredPromise<number>();
-		(async () => {
-			windowId.complete(await getGlobals(auxiliaryWindow)?.ipcRenderer.invoke('vscode:getWindowId'));
-		})();
+	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
+		await super.patchMethods(auxiliaryWindow);
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
 		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
-		auxiliaryWindow.focus = async function () {
+		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			await that.nativeHostService.focusWindow({ targetWindowId: await windowId.p });
+			if (getActiveWindow() !== auxiliaryWindow) {
+				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
+			}
 		};
-
-		// Add a method to move window to the top
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: async () => {
-				await that.nativeHostService.moveWindowTop({ targetWindowId: await windowId.p });
-			},
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
 	}
 }
 

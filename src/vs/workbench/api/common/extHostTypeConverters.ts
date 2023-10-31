@@ -47,6 +47,7 @@ import * as types from './extHostTypes';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export namespace Command {
 
@@ -1833,7 +1834,7 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage2): ITestErrorMessage.Serialized {
+	export function from(message: vscode.TestMessage): ITestErrorMessage.Serialized {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
 			type: TestMessageType.Error,
@@ -1844,7 +1845,7 @@ export namespace TestMessage {
 		};
 	}
 
-	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage2 {
+	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
@@ -2302,16 +2303,21 @@ export namespace InteractiveEditorResponseFeedbackKind {
 }
 
 export namespace ChatResponseProgress {
-	export function from(progress: vscode.InteractiveProgress | vscode.ChatAgentProgress): extHostProtocol.IChatResponseProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
 			return { placeholder: progress.placeholder };
 		} else if ('responseId' in progress) {
 			return { requestId: progress.responseId };
+		} else if ('markdownContent' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.markdownContent) };
 		} else if ('content' in progress) {
-			return {
-				content: 'markdownContent' in progress ? progress.markdownContent :
-					(typeof progress.content === 'string' ? progress.content : MarkdownString.from(progress.content))
-			};
+			if (typeof progress.content === 'string') {
+				return progress;
+			}
+
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.content) };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
@@ -2337,6 +2343,9 @@ export namespace ChatResponseProgress {
 					} : progress.inlineReference,
 				title: progress.title,
 			};
+		} else if ('agentName' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return progress;
 		} else {
 			return progress;
 		}

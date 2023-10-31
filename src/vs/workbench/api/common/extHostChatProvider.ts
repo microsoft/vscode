@@ -12,7 +12,7 @@ import type * as vscode from 'vscode';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { IChatMessage, IChatResponseFragment } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ExtensionIdentifier, ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
-import { DeferredAsyncIterableObject } from 'vs/base/common/async';
+import { AsyncIterableSource } from 'vs/base/common/async';
 import { Emitter } from 'vs/base/common/event';
 
 type ProviderData = {
@@ -23,10 +23,10 @@ type ProviderData = {
 class ChatResponseStream {
 
 	readonly apiObj: vscode.ChatResponseStream;
-	readonly stream = new DeferredAsyncIterableObject<string>();
+	readonly stream = new AsyncIterableSource<string>();
 
-	constructor(option: number, stream?: DeferredAsyncIterableObject<string>) {
-		this.stream = stream ?? new DeferredAsyncIterableObject<string>();
+	constructor(option: number, stream?: AsyncIterableSource<string>) {
+		this.stream = stream ?? new AsyncIterableSource<string>();
 		const that = this;
 		this.apiObj = {
 			option: option,
@@ -41,7 +41,7 @@ class ChatRequest {
 
 	private readonly _onDidStart = new Emitter<vscode.ChatResponseStream>();
 	private readonly _responseStreams = new Map<number, ChatResponseStream>();
-	private readonly _defaultStream = new DeferredAsyncIterableObject<string>();
+	private readonly _defaultStream = new AsyncIterableSource<string>();
 	private _isDone: boolean = false;
 
 	constructor(
@@ -60,10 +60,10 @@ class ChatRequest {
 			this._isDone = true;
 			if (this._responseStreams.size > 0) {
 				for (const [, value] of this._responseStreams) {
-					value.stream.complete();
+					value.stream.resolve();
 				}
 			} else {
-				this._defaultStream.complete();
+				this._defaultStream.resolve();
 			}
 		});
 	}
@@ -83,7 +83,7 @@ class ChatRequest {
 			this._responseStreams.set(fragment.index, res);
 			this._onDidStart.fire(res.apiObj);
 		}
-		res.stream.emit(fragment.part);
+		res.stream.emitOne(fragment.part);
 	}
 
 }
@@ -124,8 +124,8 @@ export class ExtHostChatProvider implements ExtHostChatProviderShape {
 				this._logService.warn(`[CHAT](${data.extension.value}) CANNOT send progress because the REQUEST IS CANCELLED`);
 				return;
 			}
-			await this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
-		}, { async: true });
+			this._proxy.$handleProgressChunk(requestId, { index: fragment.index, part: fragment.part });
+		});
 
 		return data.provider.provideChatResponse(messages.map(typeConvert.ChatMessage.to), options, progress, token);
 	}

@@ -34,6 +34,7 @@ export function registerClearActions() {
 				},
 				icon: Codicon.clearAll,
 				f1: false,
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
@@ -99,6 +100,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 		group: 'navigation',
 		order: 0
 	},
+	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,
 	icon: Codicon.clearAll,
 	f1: false

@@ -34,7 +34,10 @@ export class ChatRequestTextPart implements IParsedChatRequestPart {
 	}
 }
 
-export const chatVariableLeader = '#'; // warning, this also shows up in a regex in the parser
+// warning, these also show up in a regex in the parser
+export const chatVariableLeader = '#';
+export const chatAgentLeader = '@';
+export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
@@ -63,7 +66,7 @@ export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgent) { }
 
 	get text(): string {
-		return `@${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.id}`;
 	}
 
 	get promptText(): string {
@@ -80,7 +83,7 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
 
 	get text(): string {
-		return `/${this.command.name}`;
+		return `${chatSubcommandLeader}${this.command.name}`;
 	}
 
 	get promptText(): string {
@@ -97,16 +100,16 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 
 	get text(): string {
-		return `/${this.slashCommand.command}`;
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
 	}
 
 	get promptText(): string {
-		return `/${this.slashCommand.command}`;
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
 	}
 }
 
 /**
- * An invocation of a dynamic reference like '$file:'
+ * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
@@ -118,7 +121,7 @@ export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	}
 
 	get text(): string {
-		return `$${this.referenceText}`;
+		return `${chatVariableLeader}${this.referenceText}`;
 	}
 
 	get promptText(): string {
