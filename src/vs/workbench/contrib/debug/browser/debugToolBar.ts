@@ -36,7 +36,7 @@ import { debugToolBarBackground, debugToolBarBorder } from 'vs/workbench/contrib
 import { CONTINUE_ID, CONTINUE_LABEL, DISCONNECT_AND_SUSPEND_ID, DISCONNECT_AND_SUSPEND_LABEL, DISCONNECT_ID, DISCONNECT_LABEL, FOCUS_SESSION_ID, FOCUS_SESSION_LABEL, PAUSE_ID, PAUSE_LABEL, RESTART_LABEL, RESTART_SESSION_ID, REVERSE_CONTINUE_ID, STEP_BACK_ID, STEP_INTO_ID, STEP_INTO_LABEL, STEP_OUT_ID, STEP_OUT_LABEL, STEP_OVER_ID, STEP_OVER_LABEL, STOP_ID, STOP_LABEL } from 'vs/workbench/contrib/debug/browser/debugCommands';
 import * as icons from 'vs/workbench/contrib/debug/browser/debugIcons';
 import { CONTEXT_DEBUG_STATE, CONTEXT_FOCUSED_SESSION_IS_ATTACH, CONTEXT_IN_DEBUG_MODE, CONTEXT_MULTI_SESSION_DEBUG, CONTEXT_STEP_BACK_SUPPORTED, CONTEXT_SUSPEND_DEBUGGEE_SUPPORTED, CONTEXT_TERMINATE_DEBUGGEE_SUPPORTED, IDebugConfiguration, IDebugService, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
-import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { EditorTabsMode, IWorkbenchLayoutService, LayoutSettings, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { Codicon } from 'vs/base/common/codicons';
 
 const DEBUG_TOOLBAR_POSITION_KEY = 'debug.actionswidgetposition';
@@ -73,6 +73,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${layoutService.mainContainerOffset.top}px`;
+		this.setHeight();
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 
@@ -132,6 +133,11 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			if (e.affectsConfiguration('debug.toolBarLocation')) {
 				this.updateScheduler.schedule();
 			}
+			if (e.affectsConfiguration(LayoutSettings.EDITOR_TABS_MODE) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
+				this._yRange = undefined;
+				this.setHeight();
+				this.setYCoordinate();
+			}
 		}));
 		this._register(this.debugToolBarMenu.onDidChange(() => this.updateScheduler.schedule()));
 		this._register(this.actionBar.actionRunner.onDidRun((e: IRunEvent) => {
@@ -163,7 +169,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - (this.layoutService.mainContainerOffset.top));
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy);
 			});
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(window, (e: MouseEvent) => {
@@ -208,12 +214,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 	}
 
-	private setYCoordinate(y = this.yCoordinate): void {
-		const titlebarOffset = this.layoutService.mainContainerOffset.top;
-		this.$el.style.top = `${titlebarOffset + y}px`;
-		this.yCoordinate = y;
-	}
-
 	private setCoordinates(x?: number, y?: number): void {
 		if (!this.isVisible) {
 			return;
@@ -230,12 +230,43 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		if (y === undefined) {
 			y = this.storageService.getNumber(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE, 0);
 		}
-		const titleAreaHeight = 35;
-		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
-			const moveToTop = y < titleAreaHeight;
-			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
-			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.PROFILE, StorageTarget.MACHINE);
+
+		this.setYCoordinate(y);
+	}
+
+	private setYCoordinate(y = this.yCoordinate): void {
+		const [yMin, yMax] = this.yRange;
+		y = Math.max(yMin, Math.min(y, yMax));
+		this.$el.style.top = `${y}px`;
+		this.yCoordinate = y;
+		this.storageService.store(DEBUG_TOOLBAR_Y_KEY, y, StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	private _yRange: [number, number] | undefined;
+	private get yRange(): [number, number] {
+		if (!this._yRange) {
+			const isTitleBarVisible = this.layoutService.isVisible(Parts.TITLEBAR_PART);
+			const yMin = isTitleBarVisible ? 0 : this.layoutService.mainContainerOffset.top;
+			let yMax = 0;
+
+			if (isTitleBarVisible) {
+				if (this.configurationService.getValue(LayoutSettings.COMMAND_CENTER) === true) {
+					yMax += 35;
+				} else {
+					yMax += 28;
+				}
+			}
+
+			if (this.configurationService.getValue(LayoutSettings.EDITOR_TABS_MODE) !== EditorTabsMode.NONE) {
+				yMax += 35;
+			}
+			this._yRange = [yMin, yMax];
 		}
+		return this._yRange;
+	}
+
+	private setHeight(): void {
+		this.$el.style.height = `${this.configurationService.getValue(LayoutSettings.EDITOR_TABS_MODE) === EditorTabsMode.NONE && this.configurationService.getValue(LayoutSettings.COMMAND_CENTER) !== true ? 26 : 32}px`;
 	}
 
 	private show(): void {
