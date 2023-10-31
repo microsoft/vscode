@@ -138,6 +138,10 @@
 	padding-top: 4px;
 }
 
+.review-widget .body .review-comment .review-comment-contents .comment-body-max-height {
+	max-height: 20em;
+}
+
 .review-widget .body .review-comment .review-comment-contents .comment-reactions {
 	margin-top: 8px;
 	min-height: 25px;
@@ -346,6 +350,12 @@
 }
 
 .review-widget .body .comment-form .monaco-editor,
+.review-widget .body .comment-form .monaco-editor .monaco-editor-background,
+.review-widget .body .edit-container .monaco-editor .monaco-editor-background {
+	background-color: var(--vscode-peekViewTitle-background);
+}
+
+.review-widget .body .comment-form .monaco-editor,
 .review-widget .body .edit-container .monaco-editor {
 	width: 100%;
 	min-height: 90px;
@@ -372,7 +382,6 @@
 }
 
 .review-widget .body .edit-textarea {
-	height: 90px;
 	margin: 5px 0 10px 0;
 	margin-right: 12px;
 }
@@ -477,21 +486,12 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	background: var(--vscode-editorGutter-commentRangeForeground);
 }
 
-.monaco-editor .comment-thread-range,
-.monaco-editor .comment-thread-range-current {
-	border-width: 1px;
-	border-style: solid;
-	box-sizing: border-box;
-}
-
 .monaco-editor .comment-thread-range {
 	background-color: var(--vscode-editorCommentsWidget-rangeBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeBorder);
 }
 
 .monaco-editor .comment-thread-range-current {
 	background-color: var(--vscode-editorCommentsWidget-rangeActiveBackground);
-	border-color: var(--vscode-editorCommentsWidget-rangeActiveBorder);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.line-hover,
@@ -509,12 +509,16 @@ div.preview.inline .monaco-editor .comment-range-glyph {
 	width: 9px;
 	left: -6px;
 	z-index: 10;
-	color: var(--vscode-editorGutter-commentGlyphForground);
+	color: var(--vscode-editorGutter-commentGlyphForeground);
 	text-align: center;
 	display: flex;
 	flex-direction: row;
 	align-items: center;
 	justify-content: center;
+}
+
+.monaco-editor .comment-range-glyph.comment-thread-unresolved:before {
+	color: var(--vscode-editorGutter-commentUnresolvedGlyphForeground);
 }
 
 .monaco-editor .margin-view-overlays .comment-range-glyph.multiline-add {

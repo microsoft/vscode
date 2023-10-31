@@ -12,7 +12,6 @@ import { ResourceMap } from 'vs/base/common/map';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { isWeb } from 'vs/base/common/platform';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -269,7 +268,7 @@ export async function extractFileListData(accessor: ServicesAccessor, files: Fil
 
 			reader.onload = async event => {
 				const name = file.name;
-				const loadResult = withNullAsUndefined(event.target?.result);
+				const loadResult = event.target?.result ?? undefined;
 				if (typeof name !== 'string' || typeof loadResult === 'undefined') {
 					result.complete(undefined);
 					return;
@@ -356,5 +355,54 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.DragAndDropContribution, new DragAndDropContributionRegistry());
+
+//#endregion
+
+//#region DND Utilities
+
+/**
+ * A singleton to store transfer data during drag & drop operations that are only valid within the application.
+ */
+export class LocalSelectionTransfer<T> {
+
+	private static readonly INSTANCE = new LocalSelectionTransfer();
+
+	private data?: T[];
+	private proto?: T;
+
+	private constructor() {
+		// protect against external instantiation
+	}
+
+	static getInstance<T>(): LocalSelectionTransfer<T> {
+		return LocalSelectionTransfer.INSTANCE as LocalSelectionTransfer<T>;
+	}
+
+	hasData(proto: T): boolean {
+		return proto && proto === this.proto;
+	}
+
+	clearData(proto: T): void {
+		if (this.hasData(proto)) {
+			this.proto = undefined;
+			this.data = undefined;
+		}
+	}
+
+	getData(proto: T): T[] | undefined {
+		if (this.hasData(proto)) {
+			return this.data;
+		}
+
+		return undefined;
+	}
+
+	setData(data: T[], proto: T): void {
+		if (proto) {
+			this.data = data;
+			this.proto = proto;
+		}
+	}
+}
 
 //#endregion

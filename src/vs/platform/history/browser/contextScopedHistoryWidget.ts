@@ -13,6 +13,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { localize } from 'vs/nls';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 export const historyNavigationVisible = new RawContextKey<boolean>('suggestWidgetVisible', false, localize('suggestWidgetVisible', "Whether suggestion are visible"));
 
@@ -52,7 +53,7 @@ export function registerAndCreateHistoryNavigationContext(scopedContextKeyServic
 	};
 
 	// Check for currently being focused
-	if (widget.element === document.activeElement) {
+	if (isActiveElement(widget.element)) {
 		onDidFocus();
 	}
 
@@ -113,6 +114,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetFocusContext),
 		ContextKeyExpr.equals(HistoryNavigationBackwardsEnablementContext, true),
+		ContextKeyExpr.not('isComposing'),
 		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.UpArrow,
@@ -128,6 +130,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has(HistoryNavigationWidgetFocusContext),
 		ContextKeyExpr.equals(HistoryNavigationForwardsEnablementContext, true),
+		ContextKeyExpr.not('isComposing'),
 		historyNavigationVisible.isEqualTo(false),
 	),
 	primary: KeyCode.DownArrow,

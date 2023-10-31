@@ -72,7 +72,7 @@ export class QuickFixAction extends EditorAction {
 			alias: 'Quick Fix...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyCode.Period,
 				weight: KeybindingWeight.EditorContrib
 			}
@@ -90,7 +90,7 @@ export class CodeActionCommand extends EditorCommand {
 		super({
 			id: codeActionCommandId,
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
-			description: {
+			metadata: {
 				description: 'Trigger a code action',
 				args: [{ name: 'args', schema: argsSchema, }]
 			}
@@ -129,7 +129,7 @@ export class RefactorAction extends EditorAction {
 			alias: 'Refactor...',
 			precondition: ContextKeyExpr.and(EditorContextKeys.writable, EditorContextKeys.hasCodeActionsProvider),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyR,
 				mac: {
 					primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyR
@@ -143,7 +143,7 @@ export class RefactorAction extends EditorAction {
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Refactor)),
 			},
-			description: {
+			metadata: {
 				description: 'Refactor...',
 				args: [{ name: 'args', schema: argsSchema }]
 			}
@@ -186,7 +186,7 @@ export class SourceAction extends EditorAction {
 					EditorContextKeys.writable,
 					contextKeyForSupportedActions(CodeActionKind.Source)),
 			},
-			description: {
+			metadata: {
 				description: 'Source Action...',
 				args: [{ name: 'args', schema: argsSchema }]
 			}
@@ -226,7 +226,7 @@ export class OrganizeImportsAction extends EditorAction {
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.SourceOrganizeImports)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KeyO,
 				weight: KeybindingWeight.EditorContrib
 			},
@@ -273,7 +273,7 @@ export class AutoFixAction extends EditorAction {
 				EditorContextKeys.writable,
 				contextKeyForSupportedActions(CodeActionKind.QuickFix)),
 			kbOpts: {
-				kbExpr: EditorContextKeys.editorTextFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.Period,
 				mac: {
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Period

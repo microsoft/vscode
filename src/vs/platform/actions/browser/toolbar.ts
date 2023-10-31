@@ -4,10 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addDisposableListener } from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IToolBarOptions, ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IAction, Separator, SubmenuAction, toAction, WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
 import { coalesceInPlace } from 'vs/base/common/arrays';
+import { intersection } from 'vs/base/common/collections';
 import { BugIndicatingError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
+import { Iterable } from 'vs/base/common/iterator';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -61,9 +65,11 @@ export type IWorkbenchToolBarOptions = IToolBarOptions & {
 	allowContextMenu?: never;
 
 	/**
-	 * Maximun number of items that can shown. Extra items will be shown in the overflow menu.
+	 * Controls the overflow behavior of the primary group of toolbar. This isthe maximum number of items and id of
+	 * items that should never overflow
+	 *
 	 */
-	maxNumberOfItems?: number;
+	overflowBehavior?: { maxItems: number; exempted?: string[] };
 };
 
 /**
@@ -94,13 +100,15 @@ export class WorkbenchToolBar extends ToolBar {
 			..._options,
 			// mandatory (overide options)
 			allowContextMenu: true,
+			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
 
 		// telemetry logic
-		if (_options?.telemetrySource) {
+		const telemetrySource = _options?.telemetrySource;
+		if (telemetrySource) {
 			this._store.add(this.actionBar.onDidRun(e => telemetryService.publicLog2<WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification>(
 				'workbenchActionExecuted',
-				{ id: e.action.id, from: _options!.telemetrySource! })
+				{ id: e.action.id, from: telemetrySource })
 			));
 		}
 	}
@@ -108,12 +116,12 @@ export class WorkbenchToolBar extends ToolBar {
 	override setActions(_primary: readonly IAction[], _secondary: readonly IAction[] = [], menuIds?: readonly MenuId[]): void {
 
 		this._sessionDisposables.clear();
-		const primary = _primary.slice();
+		const primary: Array<IAction | undefined> = _primary.slice(); // for hiding and overflow we set some items to undefined
 		const secondary = _secondary.slice();
 		const toggleActions: IAction[] = [];
 		let toggleActionsCheckedCount: number = 0;
 
-		const extraSecondary: IAction[] = [];
+		const extraSecondary: Array<IAction | undefined> = [];
 
 		let someAreHidden = false;
 		// unless disabled, move all hidden items to secondary group or ignore them
@@ -137,7 +145,7 @@ export class WorkbenchToolBar extends ToolBar {
 				// hidden items move into overflow or ignore
 				if (action.hideActions.isHidden) {
 					someAreHidden = true;
-					primary[i] = undefined!;
+					primary[i] = undefined;
 					if (this._options?.hiddenItemStrategy !== HiddenItemStrategy.Ignore) {
 						extraSecondary[i] = action;
 					}
@@ -146,20 +154,29 @@ export class WorkbenchToolBar extends ToolBar {
 		}
 
 		// count for max
-		if (this._options?.maxNumberOfItems !== undefined) {
+		if (this._options?.overflowBehavior !== undefined) {
+
+			const exemptedIds = intersection(new Set(this._options.overflowBehavior.exempted), Iterable.map(primary, a => a?.id));
+			const maxItems = this._options.overflowBehavior.maxItems - exemptedIds.size;
+
 			let count = 0;
 			for (let i = 0; i < primary.length; i++) {
 				const action = primary[i];
 				if (!action) {
 					continue;
 				}
-				if (++count >= this._options.maxNumberOfItems) {
-					primary[i] = undefined!;
+				count++;
+				if (exemptedIds.has(action.id)) {
+					continue;
+				}
+				if (count >= maxItems) {
+					primary[i] = undefined;
 					extraSecondary[i] = action;
 				}
 			}
 		}
 
+		// coalesce turns Array<IAction|undefined> into IAction[]
 		coalesceInPlace(primary);
 		coalesceInPlace(extraSecondary);
 		super.setActions(primary, Separator.join(extraSecondary, secondary));
@@ -167,13 +184,14 @@ export class WorkbenchToolBar extends ToolBar {
 		// add context menu for toggle actions
 		if (toggleActions.length > 0) {
 			this._sessionDisposables.add(addDisposableListener(this.getElement(), 'contextmenu', e => {
+				const event = new StandardMouseEvent(e);
 
-				const action = this.getItemAction(<HTMLElement>e.target);
+				const action = this.getItemAction(event.target);
 				if (!(action)) {
 					return;
 				}
-				e.preventDefault();
-				e.stopPropagation();
+				event.preventDefault();
+				event.stopPropagation();
 
 				let noHide = false;
 
@@ -229,11 +247,12 @@ export class WorkbenchToolBar extends ToolBar {
 				}
 
 				this._contextMenuService.showContextMenu({
-					getAnchor: () => e,
+					getAnchor: () => event,
 					getActions: () => actions,
 					// add context menu actions (iff appicable)
 					menuId: this._options?.contextMenu,
 					menuActionOptions: { renderShortTitle: true, ...this._options?.menuOptions },
+					skipTelemetry: typeof this._options?.telemetrySource === 'string',
 					contextKeyService: this._contextKeyService,
 				});
 			}));
@@ -283,6 +302,9 @@ export interface IMenuWorkbenchToolBarOptions extends IWorkbenchToolBarOptions {
  */
 export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 
+	private readonly _onDidChangeMenuItems = this._store.add(new Emitter<this>());
+	readonly onDidChangeMenuItems: Event<this> = this._onDidChangeMenuItems.event;
+
 	constructor(
 		container: HTMLElement,
 		menuId: MenuId,
@@ -306,10 +328,14 @@ export class MenuWorkbenchToolBar extends WorkbenchToolBar {
 				{ primary, secondary },
 				options?.toolbarOptions?.primaryGroup, options?.toolbarOptions?.shouldInlineSubmenu, options?.toolbarOptions?.useSeparatorsInPrimaryActions
 			);
+			container.classList.toggle('has-no-actions', primary.length === 0 && secondary.length === 0);
 			super.setActions(primary, secondary);
 		};
 
-		this._store.add(menu.onDidChange(updateToolbar));
+		this._store.add(menu.onDidChange(() => {
+			updateToolbar();
+			this._onDidChangeMenuItems.fire(this);
+		}));
 		updateToolbar();
 	}
 

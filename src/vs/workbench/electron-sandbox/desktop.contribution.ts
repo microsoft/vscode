@@ -9,8 +9,8 @@ import { MenuRegistry, MenuId, registerAction2 } from 'vs/platform/actions/commo
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
-import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ToggleSharedProcessAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
-import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler } from 'vs/workbench/electron-sandbox/actions/windowActions';
+import { ConfigureRuntimeArgumentsAction, ToggleDevToolsAction, ReloadWindowWithExtensionsDisabledAction, OpenUserDataFolderAction } from 'vs/workbench/electron-sandbox/actions/developerActions';
+import { ZoomResetAction, ZoomOutAction, ZoomInAction, CloseWindowAction, SwitchWindowAction, QuickSwitchWindowAction, NewWindowTabHandler, ShowPreviousWindowTabHandler, ShowNextWindowTabHandler, MoveWindowTabToNewWindowHandler, MergeWindowTabsHandlerHandler, ToggleWindowTabsBarHandler, ExperimentalSplitWindowAction } from 'vs/workbench/electron-sandbox/actions/windowActions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry, KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -26,8 +26,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ShutdownReason } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { ModifierKeyEmitter } from 'vs/base/browser/dom';
+import { applicationConfigurationNodeBase, securityConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import product from 'vs/platform/product/common/product';
-import { applicationConfigurationNodeBase } from 'vs/workbench/common/configuration';
 
 // Actions
 (function registerActions(): void {
@@ -41,6 +41,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	registerAction2(SwitchWindowAction);
 	registerAction2(QuickSwitchWindowAction);
 	registerAction2(CloseWindowAction);
+	if (product.quality !== 'stable') {
+		// TODO@bpasero revisit
+		registerAction2(ExperimentalSplitWindowAction);
+	}
 
 	if (isMacintosh) {
 		// macOS: behave like other native apps that have documents
@@ -106,7 +110,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 	// Actions: Developer
 	registerAction2(ReloadWindowWithExtensionsDisabledAction);
 	registerAction2(ConfigureRuntimeArgumentsAction);
-	registerAction2(ToggleSharedProcessAction);
 	registerAction2(ToggleDevToolsAction);
 	registerAction2(OpenUserDataFolderAction);
 })();
@@ -222,14 +225,7 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'enum': ['native', 'custom'],
 				'default': isLinux ? 'native' : 'custom',
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
-			},
-			'window.experimental.windowControlsOverlay.enabled': {
-				'type': 'boolean',
-				'default': true,
-				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('windowControlsOverlay', "Use window controls provided by the platform instead of our HTML-based window controls. Changes require a full restart to apply."),
-				'included': isWindows
+				'description': localize('titleBarStyle', "Adjust the appearance of the window title bar to be native by the OS or custom. On Linux and Windows, this setting also affects the application and context menu appearances. Changes require a full restart to apply.")
 			},
 			'window.dialogStyle': {
 				'type': 'string',
@@ -258,21 +254,6 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'scope': ConfigurationScope.APPLICATION,
 				'description': localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 				'included': isMacintosh
-			},
-			'window.experimental.useSandbox': { // TODO@bpasero remove me once sandbox is final
-				type: 'boolean',
-				description: localize('experimentalUseSandbox', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
-				tags: product.quality === 'stable' ? ['experimental'] : undefined,
-				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
-			},
-			'window.experimental.sharedProcessUseUtilityProcess': { // TODO@bpasero remove me once sandbox is final
-				type: 'boolean',
-				description: localize('experimentalUseSharedProcessUseUtilityProcess', "Experimental: When enabled, the window will have sandbox mode enabled via Electron API."),
-				default: typeof product.quality === 'string' && product.quality !== 'stable', // disabled by default in stable for now
-				'scope': ConfigurationScope.APPLICATION,
-				ignoreSync: true
 			}
 		}
 	});
@@ -315,6 +296,25 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 				'default': [],
 				'markdownDescription': localize('touchbar.ignored', 'A set of identifiers for entries in the touchbar that should not show up (for example `workbench.action.navigateBack`).'),
 				'included': isMacintosh
+			}
+		}
+	});
+
+	// Security
+	registry.registerConfiguration({
+		...securityConfigurationNodeBase,
+		'properties': {
+			'security.promptForLocalFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForLocalFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a local file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
+			},
+			'security.promptForRemoteFileProtocolHandling': {
+				'type': 'boolean',
+				'default': true,
+				'markdownDescription': localize('security.promptForRemoteFileProtocolHandling', 'If enabled, a dialog will ask for confirmation whenever a remote file or workspace is about to open through a protocol handler.'),
+				'scope': ConfigurationScope.MACHINE
 			}
 		}
 	});
@@ -362,6 +362,14 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 			'log-level': {
 				type: ['string', 'array'],
 				description: localize('argv.logLevel', "Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.")
+			},
+			'disable-chromium-sandbox': {
+				type: 'boolean',
+				description: localize('argv.disableChromiumSandbox', "Disables the Chromium sandbox. This is useful when running VS Code as elevated on Linux and running under Applocker on Windows.")
+			},
+			'use-inmemory-secretstorage': {
+				type: 'boolean',
+				description: localize('argv.useInMemorySecretStorage', "Ensures that an in-memory store will be used for secret storage instead of using the OS's credential store. This is often used when running VS Code extension tests or when you're experiencing difficulties with the credential store.")
 			}
 		}
 	};
@@ -369,6 +377,10 @@ import { applicationConfigurationNodeBase } from 'vs/workbench/common/configurat
 		schema.properties!['force-renderer-accessibility'] = {
 			type: 'boolean',
 			description: localize('argv.force-renderer-accessibility', 'Forces the renderer to be accessible. ONLY change this if you are using a screen reader on Linux. On other platforms the renderer will automatically be accessible. This flag is automatically set if you have editor.accessibilitySupport: on.'),
+		};
+		schema.properties!['password-store'] = {
+			type: 'string',
+			description: localize('argv.passwordStore', "Configures the backend used to store secrets on Linux. This argument is ignored on Windows & macOS.")
 		};
 	}
 

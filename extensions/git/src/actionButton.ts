@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Command, Disposable, Event, EventEmitter, SourceControlActionButton, Uri, workspace, l10n } from 'vscode';
-import { Branch, Status } from './api/git';
+import { Branch, RefType, Status } from './api/git';
 import { OperationKind } from './operation';
 import { CommitCommandsCenter } from './postCommitCommands';
 import { Repository } from './repository';
@@ -12,6 +12,7 @@ import { dispose } from './util';
 
 interface ActionButtonState {
 	readonly HEAD: Branch | undefined;
+	readonly isCheckoutInProgress: boolean;
 	readonly isCommitInProgress: boolean;
 	readonly isMergeInProgress: boolean;
 	readonly isRebaseInProgress: boolean;
@@ -19,26 +20,27 @@ interface ActionButtonState {
 	readonly repositoryHasChangesToCommit: boolean;
 }
 
-export class ActionButtonCommand {
-	private _onDidChange = new EventEmitter<void>();
+abstract class AbstractActionButton {
+	protected _onDidChange = new EventEmitter<void>();
 	get onDidChange(): Event<void> { return this._onDidChange.event; }
 
 	private _state: ActionButtonState;
-	private get state() { return this._state; }
-	private set state(state: ActionButtonState) {
+	protected get state() { return this._state; }
+	protected set state(state: ActionButtonState) {
 		if (JSON.stringify(this._state) !== JSON.stringify(state)) {
 			this._state = state;
 			this._onDidChange.fire();
 		}
 	}
 
-	private disposables: Disposable[] = [];
+	abstract get button(): SourceControlActionButton | undefined;
 
-	constructor(
-		readonly repository: Repository,
-		readonly postCommitCommandCenter: CommitCommandsCenter) {
+	protected disposables: Disposable[] = [];
+
+	constructor(readonly repository: Repository) {
 		this._state = {
 			HEAD: undefined,
+			isCheckoutInProgress: false,
 			isCommitInProgress: false,
 			isMergeInProgress: false,
 			isRebaseInProgress: false,
@@ -48,28 +50,109 @@ export class ActionButtonCommand {
 
 		repository.onDidRunGitStatus(this.onDidRunGitStatus, this, this.disposables);
 		repository.onDidChangeOperations(this.onDidChangeOperations, this, this.disposables);
-
-		this.disposables.push(postCommitCommandCenter.onDidChange(() => this._onDidChange.fire()));
-
-		const root = Uri.file(repository.root);
-		this.disposables.push(workspace.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('git.enableSmartCommit', root) ||
-				e.affectsConfiguration('git.smartCommitChanges', root) ||
-				e.affectsConfiguration('git.suggestSmartCommit', root)) {
-				this.onDidChangeSmartCommitSettings();
-			}
-
-			if (e.affectsConfiguration('git.branchProtection', root) ||
-				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
-				e.affectsConfiguration('git.postCommitCommand', root) ||
-				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
-				e.affectsConfiguration('git.showActionButton', root)) {
-				this._onDidChange.fire();
-			}
-		}));
 	}
 
-	get button(): SourceControlActionButton | undefined {
+	protected getPublishBranchActionButton(): SourceControlActionButton | undefined {
+		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
+
+		return {
+			command: {
+				command: 'git.publish',
+				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
+				tooltip: this.state.isSyncInProgress ?
+					(this.state.HEAD?.name ?
+						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
+					(this.repository.HEAD?.name ?
+						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
+						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
+				arguments: [this.repository.sourceControl],
+			},
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress && !this.state.isCommitInProgress && !this.state.isMergeInProgress && !this.state.isRebaseInProgress
+		};
+	}
+
+	protected getSyncChangesActionButton(): SourceControlActionButton | undefined {
+		const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
+
+		const ahead = this.state.HEAD?.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
+		const behind = this.state.HEAD?.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
+		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(sync)';
+
+		return {
+			command: {
+				command: 'git.sync',
+				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
+				tooltip: this.state.isSyncInProgress ?
+					l10n.t('Synchronizing Changes...')
+					: this.repository.syncTooltip,
+				arguments: [this.repository.sourceControl],
+			},
+			description: `${icon}${behind}${ahead}`,
+			enabled: !this.state.isCheckoutInProgress && !this.state.isSyncInProgress && !this.state.isCommitInProgress && !this.state.isMergeInProgress && !this.state.isRebaseInProgress && branchIsAheadOrBehind
+		};
+	}
+
+	private onDidChangeOperations(): void {
+		const isCheckoutInProgress
+			= this.repository.operations.isRunning(OperationKind.Checkout) ||
+			this.repository.operations.isRunning(OperationKind.CheckoutTracking);
+
+		const isCommitInProgress =
+			this.repository.operations.isRunning(OperationKind.Commit) ||
+			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
+			this.repository.operations.isRunning(OperationKind.RebaseContinue);
+
+		const isSyncInProgress =
+			this.repository.operations.isRunning(OperationKind.Sync) ||
+			this.repository.operations.isRunning(OperationKind.Push) ||
+			this.repository.operations.isRunning(OperationKind.Pull);
+
+		this.state = { ...this.state, isCheckoutInProgress, isCommitInProgress, isSyncInProgress };
+	}
+
+	private onDidRunGitStatus(): void {
+		this.state = {
+			...this.state,
+			HEAD: this.repository.HEAD,
+			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
+			isRebaseInProgress: !!this.repository.rebaseCommit,
+			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
+		};
+	}
+
+	protected repositoryHasChangesToCommit(): boolean {
+		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
+		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
+		const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
+		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges', 'all');
+
+		const resources = [...this.repository.indexGroup.resourceStates];
+
+		if (
+			// Smart commit enabled (all)
+			(enableSmartCommit && smartCommitChanges === 'all') ||
+			// Smart commit disabled, smart suggestion enabled
+			(!enableSmartCommit && suggestSmartCommit)
+		) {
+			resources.push(...this.repository.workingTreeGroup.resourceStates);
+		}
+
+		// Smart commit enabled (tracked only)
+		if (enableSmartCommit && smartCommitChanges === 'tracked') {
+			resources.push(...this.repository.workingTreeGroup.resourceStates.filter(r => r.type !== Status.UNTRACKED));
+		}
+
+		return resources.length !== 0;
+	}
+
+	dispose(): void {
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class CommitActionButton extends AbstractActionButton {
+	override get button(): SourceControlActionButton | undefined {
 		if (!this.state.HEAD) { return undefined; }
 
 		let actionButton: SourceControlActionButton | undefined;
@@ -81,6 +164,32 @@ export class ActionButtonCommand {
 
 		// Commit Changes (enabled) -> Publish Branch -> Sync Changes -> Commit Changes (disabled)
 		return actionButton ?? this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton() ?? this.getCommitActionButton();
+	}
+
+	constructor(
+		repository: Repository,
+		readonly postCommitCommandCenter: CommitCommandsCenter) {
+		super(repository);
+
+		this.disposables.push(repository.onDidChangeBranchProtection(() => this._onDidChange.fire()));
+		this.disposables.push(postCommitCommandCenter.onDidChange(() => this._onDidChange.fire()));
+
+		const root = Uri.file(repository.root);
+		this.disposables.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('git.enableSmartCommit', root) ||
+				e.affectsConfiguration('git.smartCommitChanges', root) ||
+				e.affectsConfiguration('git.suggestSmartCommit', root)) {
+				this.onDidChangeSmartCommitSettings();
+			}
+
+			if (e.affectsConfiguration('scm.experimental.showSyncView') ||
+				e.affectsConfiguration('git.branchProtectionPrompt', root) ||
+				e.affectsConfiguration('git.postCommitCommand', root) ||
+				e.affectsConfiguration('git.rememberPostCommitCommand', root) ||
+				e.affectsConfiguration('git.showActionButton', root)) {
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
 	private getCommitActionButton(): SourceControlActionButton | undefined {
@@ -124,41 +233,34 @@ export class ActionButtonCommand {
 		const commandGroups: Command[][] = [];
 		for (const commands of this.postCommitCommandCenter.getSecondaryCommands()) {
 			commandGroups.push(commands.map(c => {
-				return { command: 'git.commit', title: c.title, tooltip: c.tooltip, arguments: c.arguments };
+				return { command: c.command, title: c.title, tooltip: c.tooltip, arguments: c.arguments };
 			}));
 		}
 
 		return commandGroups;
 	}
 
-	private getPublishBranchActionButton(): SourceControlActionButton | undefined {
+	protected override getPublishBranchActionButton(): SourceControlActionButton | undefined {
+		const scmConfig = workspace.getConfiguration('scm');
+		if (scmConfig.get<boolean>('experimental.showSyncView', false)) {
+			return undefined;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ publish: boolean }>('showActionButton', { publish: true });
 
 		// Not a branch (tag, detached), branch does have an upstream, commit/merge/rebase is in progress, or the button is disabled
-		if (!this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
+		if (this.state.HEAD?.type === RefType.Tag || !this.state.HEAD?.name || this.state.HEAD?.upstream || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.publish) { return undefined; }
 
-		// Button icon
-		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(cloud-upload)';
-
-		return {
-			command: {
-				command: 'git.publish',
-				title: l10n.t({ message: '{0} Publish Branch', args: [icon], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }),
-				tooltip: this.state.isSyncInProgress ?
-					(this.state.HEAD?.name ?
-						l10n.t({ message: 'Publishing Branch "{0}"...', args: [this.state.HEAD.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publishing Branch...', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })) :
-					(this.repository.HEAD?.name ?
-						l10n.t({ message: 'Publish Branch "{0}"', args: [this.state.HEAD?.name], comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] }) :
-						l10n.t({ message: 'Publish Branch', comment: ['{Locked="Branch"}', 'Do not translate "Branch" as it is a git term'] })),
-				arguments: [this.repository.sourceControl],
-			},
-			enabled: !this.state.isSyncInProgress
-		};
+		return super.getPublishBranchActionButton();
 	}
 
-	private getSyncChangesActionButton(): SourceControlActionButton | undefined {
+	protected override getSyncChangesActionButton(): SourceControlActionButton | undefined {
+		const scmConfig = workspace.getConfiguration('scm');
+		if (scmConfig.get<boolean>('experimental.showSyncView', false)) {
+			return undefined;
+		}
+
 		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
 		const showActionButton = config.get<{ sync: boolean }>('showActionButton', { sync: true });
 		const branchIsAheadOrBehind = (this.state.HEAD?.behind ?? 0) > 0 || (this.state.HEAD?.ahead ?? 0) > 0;
@@ -166,36 +268,7 @@ export class ActionButtonCommand {
 		// Branch does not have an upstream, branch is not ahead/behind the remote branch, commit/merge/rebase is in progress, or the button is disabled
 		if (!this.state.HEAD?.upstream || !branchIsAheadOrBehind || this.state.isCommitInProgress || this.state.isMergeInProgress || this.state.isRebaseInProgress || !showActionButton.sync) { return undefined; }
 
-		const ahead = this.state.HEAD.ahead ? ` ${this.state.HEAD.ahead}$(arrow-up)` : '';
-		const behind = this.state.HEAD.behind ? ` ${this.state.HEAD.behind}$(arrow-down)` : '';
-		const icon = this.state.isSyncInProgress ? '$(sync~spin)' : '$(sync)';
-
-		return {
-			command: {
-				command: 'git.sync',
-				title: l10n.t('{0} Sync Changes{1}{2}', icon, behind, ahead),
-				tooltip: this.state.isSyncInProgress ?
-					l10n.t('Synchronizing Changes...')
-					: this.repository.syncTooltip,
-				arguments: [this.repository.sourceControl],
-			},
-			description: `${icon}${behind}${ahead}`,
-			enabled: !this.state.isSyncInProgress
-		};
-	}
-
-	private onDidChangeOperations(): void {
-		const isCommitInProgress =
-			this.repository.operations.isRunning(OperationKind.Commit) ||
-			this.repository.operations.isRunning(OperationKind.PostCommitCommand) ||
-			this.repository.operations.isRunning(OperationKind.RebaseContinue);
-
-		const isSyncInProgress =
-			this.repository.operations.isRunning(OperationKind.Sync) ||
-			this.repository.operations.isRunning(OperationKind.Push) ||
-			this.repository.operations.isRunning(OperationKind.Pull);
-
-		this.state = { ...this.state, isCommitInProgress, isSyncInProgress };
+		return super.getSyncChangesActionButton();
 	}
 
 	private onDidChangeSmartCommitSettings(): void {
@@ -204,43 +277,30 @@ export class ActionButtonCommand {
 			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
 		};
 	}
+}
 
-	private onDidRunGitStatus(): void {
-		this.state = {
-			...this.state,
-			HEAD: this.repository.HEAD,
-			isMergeInProgress: this.repository.mergeGroup.resourceStates.length !== 0,
-			isRebaseInProgress: !!this.repository.rebaseCommit,
-			repositoryHasChangesToCommit: this.repositoryHasChangesToCommit()
-		};
+export class SyncActionButton extends AbstractActionButton {
+	override get button(): SourceControlActionButton | undefined {
+		if (!this.state.HEAD) { return undefined; }
+
+		// Publish Branch -> Sync Changes
+		return this.getPublishBranchActionButton() ?? this.getSyncChangesActionButton();
 	}
 
-	private repositoryHasChangesToCommit(): boolean {
-		const config = workspace.getConfiguration('git', Uri.file(this.repository.root));
-		const enableSmartCommit = config.get<boolean>('enableSmartCommit') === true;
-		const suggestSmartCommit = config.get<boolean>('suggestSmartCommit') === true;
-		const smartCommitChanges = config.get<'all' | 'tracked'>('smartCommitChanges', 'all');
+	constructor(repository: Repository) {
+		super(repository);
 
-		const resources = [...this.repository.indexGroup.resourceStates];
-
-		if (
-			// Smart commit enabled (all)
-			(enableSmartCommit && smartCommitChanges === 'all') ||
-			// Smart commit disabled, smart suggestion enabled
-			(!enableSmartCommit && suggestSmartCommit)
-		) {
-			resources.push(...this.repository.workingTreeGroup.resourceStates);
-		}
-
-		// Smart commit enabled (tracked only)
-		if (enableSmartCommit && smartCommitChanges === 'tracked') {
-			resources.push(...this.repository.workingTreeGroup.resourceStates.filter(r => r.type !== Status.UNTRACKED));
-		}
-
-		return resources.length !== 0;
+		this.disposables.push(workspace.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('scm.experimental.showSyncView')) {
+				this._onDidChange.fire();
+			}
+		}));
 	}
 
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
+	protected override getPublishBranchActionButton(): SourceControlActionButton | undefined {
+		// Not a branch (tag, detached), branch does have an upstream
+		if (this.state.HEAD?.type === RefType.Tag || this.state.HEAD?.upstream) { return undefined; }
+
+		return super.getPublishBranchActionButton();
 	}
 }

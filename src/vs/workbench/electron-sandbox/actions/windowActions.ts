@@ -12,7 +12,7 @@ import { getZoomLevel } from 'vs/base/browser/browser';
 import { FileKind } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IQuickInputService, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickInputButton, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -25,6 +25,13 @@ import { Action2, IAction2Options, MenuId } from 'vs/platform/actions/common/act
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
 
 export class CloseWindowAction extends Action2 {
 
@@ -55,6 +62,11 @@ export class CloseWindowAction extends Action2 {
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
+
+		const window = getActiveWindow();
+		if (isAuxiliaryWindow(window)) {
+			return nativeHostService.closeWindowById(window.vscodeWindowId);
+		}
 
 		return nativeHostService.closeWindow();
 	}
@@ -205,23 +217,70 @@ abstract class BaseSwitchWindow extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const currentWindowId = nativeHostService.windowId;
+		let currentWindowId: number;
+		const activeWindow = getActiveWindow();
+		if (isAuxiliaryWindow(activeWindow)) {
+			currentWindowId = activeWindow.vscodeWindowId;
+		} else {
+			currentWindowId = nativeHostService.windowId;
+		}
 
-		const windows = await nativeHostService.getWindows();
-		const placeHolder = localize('switchWindowPlaceHolder', "Select a window to switch to");
-		const picks = windows.map(window => {
+		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: true });
+
+		const mainWindows = new Set<IOpenedMainWindow>();
+		const mapMainWindowToAuxiliaryWindows = new Map<number, Set<IOpenedAuxiliaryWindow>>();
+		for (const window of windows) {
+			if (isOpenedAuxiliaryWindow(window)) {
+				let auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.parentId);
+				if (!auxiliaryWindows) {
+					auxiliaryWindows = new Set<IOpenedAuxiliaryWindow>();
+					mapMainWindowToAuxiliaryWindows.set(window.parentId, auxiliaryWindows);
+				}
+				auxiliaryWindows.add(window);
+			} else {
+				mainWindows.add(window);
+			}
+		}
+
+		interface IWindowPickItem extends IQuickPickItem {
+			readonly windowId: number;
+		}
+
+		const picks: Array<IWindowPickItem> = [];
+		for (const window of mainWindows) {
+			const auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.id);
+			if (mapMainWindowToAuxiliaryWindows.size > 0) {
+				picks.push({ type: 'separator', payload: -1, label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined } as unknown as IWindowPickItem);
+			}
+
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
 			const fileKind = window.filename ? FileKind.FILE : isSingleFolderWorkspaceIdentifier(window.workspace) ? FileKind.FOLDER : isWorkspaceIdentifier(window.workspace) ? FileKind.ROOT_FOLDER : FileKind.FILE;
-			return {
-				payload: window.id,
+			const pick: IWindowPickItem = {
+				windowId: window.id,
 				label: window.title,
 				ariaLabel: window.dirty ? localize('windowDirtyAriaLabel', "{0}, window with unsaved changes", window.title) : window.title,
 				iconClasses: getIconClasses(modelService, languageService, resource, fileKind),
 				description: (currentWindowId === window.id) ? localize('current', "Current Window") : undefined,
 				buttons: currentWindowId !== window.id ? window.dirty ? [this.closeDirtyWindowAction] : [this.closeWindowAction] : undefined
 			};
-		});
-		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.payload === currentWindowId)[0]) + 1) % picks.length;
+			picks.push(pick);
+
+			if (auxiliaryWindows) {
+				for (const auxiliaryWindow of auxiliaryWindows) {
+					const pick: IWindowPickItem = {
+						windowId: auxiliaryWindow.id,
+						label: auxiliaryWindow.title,
+						iconClasses: getIconClasses(modelService, languageService, auxiliaryWindow.filename ? URI.file(auxiliaryWindow.filename) : undefined, FileKind.FILE),
+						description: (currentWindowId === auxiliaryWindow.id) ? localize('current', "Current Window") : undefined,
+						buttons: [this.closeWindowAction]
+					};
+					picks.push(pick);
+				}
+			}
+		}
+
+		const placeHolder = localize('switchWindowPlaceHolder', "Select a window to switch to");
+		const autoFocusIndex = (picks.indexOf(picks.filter(pick => pick.windowId === currentWindowId)[0]) + 1) % picks.length;
 
 		const pick = await quickInputService.pick(picks, {
 			contextKey: 'inWindowsPicker',
@@ -230,13 +289,13 @@ abstract class BaseSwitchWindow extends Action2 {
 			quickNavigate: this.isQuickNavigate() ? { keybindings: keybindingService.lookupKeybindings(this.desc.id) } : undefined,
 			hideInput: this.isQuickNavigate(),
 			onDidTriggerItemButton: async context => {
-				await nativeHostService.closeWindowById(context.item.payload);
+				await nativeHostService.closeWindowById(context.item.windowId);
 				context.removeItem();
 			}
 		});
 
 		if (pick) {
-			nativeHostService.focusWindow({ windowId: pick.payload });
+			nativeHostService.focusWindow({ targetWindowId: pick.windowId });
 		}
 	}
 }
@@ -276,26 +335,115 @@ export class QuickSwitchWindowAction extends BaseSwitchWindow {
 	}
 }
 
+function canRunNativeTabsHandler(accessor: ServicesAccessor): boolean {
+	if (!isMacintosh) {
+		return false;
+	}
+
+	const configurationService = accessor.get(IConfigurationService);
+	return configurationService.getValue<unknown>('window.nativeTabs') === true;
+}
+
 export const NewWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).newWindowTab();
 };
 
 export const ShowPreviousWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showPreviousWindowTab();
 };
 
 export const ShowNextWindowTabHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).showNextWindowTab();
 };
 
 export const MoveWindowTabToNewWindowHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).moveWindowTabToNewWindow();
 };
 
 export const MergeWindowTabsHandlerHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).mergeAllWindowTabs();
 };
 
 export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: ServicesAccessor) {
+	if (!canRunNativeTabsHandler(accessor)) {
+		return;
+	}
+
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };
+
+export class ExperimentalSplitWindowAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.experimentalSplitWindowAction',
+			title: {
+				value: localize('splitWindow', "Split Window (Experimental)"),
+				mnemonicTitle: localize({ key: 'miSplitWindow', comment: ['&& denotes a mnemonic'] }, "&&Split Window (Experimental)"),
+				original: 'Split Window (Experimental)'
+			},
+			category: Categories.View,
+			f1: true
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const nativeHostService = accessor.get(INativeHostService);
+		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
+
+		let activeWindowId: number;
+		const activeWindow = getActiveWindow();
+		if (isAuxiliaryWindow(activeWindow)) {
+			activeWindowId = activeWindow.vscodeWindowId;
+		} else {
+			activeWindowId = environmentService.window.id;
+		}
+
+		// First position the active window which may involve
+		// leaving fullscreen mode and then split it.
+		await nativeHostService.positionWindow({
+			x: 0,
+			y: 0,
+			width: activeWindow.screen.availWidth / 2,
+			height: activeWindow.screen.availHeight
+		}, { targetWindowId: activeWindowId });
+
+		// Then create a new window next to the active window
+		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({
+			position: {
+				x: activeWindow.screen.availWidth / 2,
+				y: 0,
+				width: activeWindow.screen.availWidth / 2,
+				height: activeWindow.screen.availHeight
+			}
+		});
+
+		// Finally copy over the active editor if any
+		const activeEditorPane = editorService.activeEditorPane;
+		if (activeEditorPane) {
+			activeEditorPane.group.copyEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
+		}
+	}
+}

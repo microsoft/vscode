@@ -69,7 +69,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 		this._dispoables.add(this._editorGroupsService.onDidRemoveGroup(() => this._createTabsModel()));
 
 		// Once everything is read go ahead and initialize the model
-		this._editorGroupsService.whenReady.then(() => this._createTabsModel());
+		this._editorGroupsService.mainPart.whenReady.then(() => this._createTabsModel());
 	}
 
 	dispose(): void {
@@ -575,7 +575,7 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 			if (viewColumn === SIDE_GROUP) {
 				direction = preferredSideBySideGroupDirection(this._configurationService);
 			}
-			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction, undefined);
+			targetGroup = this._editorGroupsService.addGroup(this._editorGroupsService.groups[this._editorGroupsService.groups.length - 1], direction);
 		} else {
 			targetGroup = this._editorGroupsService.getGroup(groupId);
 		}

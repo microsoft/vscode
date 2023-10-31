@@ -36,7 +36,7 @@ export class WebviewProtocolProvider extends Disposable {
 				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
 				const url = FileAccess.asFileUri(relativeResourcePath);
 				return callback({
-					path: decodeURIComponent(url.fsPath),
+					path: url.fsPath,
 					headers: {
 						...COI.getHeadersFromQuery(request.url),
 						'Cross-Origin-Resource-Policy': 'cross-origin'

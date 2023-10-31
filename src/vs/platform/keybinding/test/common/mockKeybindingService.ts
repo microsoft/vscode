@@ -8,7 +8,7 @@ import { ResolvedKeybinding, KeyCodeChord, Keybinding } from 'vs/base/common/key
 import { OS } from 'vs/base/common/platform';
 import { ContextKeyExpression, ContextKeyValue, IContextKey, IContextKeyChangeEvent, IContextKeyService, IContextKeyServiceTarget, IScopedContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
-import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
+import { NoMatchingKb, ResolutionResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 
@@ -79,7 +79,7 @@ export class MockScopableContextKeyService extends MockContextKeyService {
 	 * Don't implement this for all tests since we rarely depend on this behavior and it isn't implemented fully
 	 */
 	public override createScoped(domNote: HTMLElement): IScopedContextKeyService {
-		return new MockContextKeyService();
+		return new MockScopableContextKeyService();
 	}
 }
 
@@ -135,8 +135,8 @@ export class MockKeybindingService implements IKeybindingService {
 		return 0;
 	}
 
-	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): IResolveResult | null {
-		return null;
+	public softDispatch(keybinding: IKeyboardEvent, target: IContextKeyServiceTarget): ResolutionResult {
+		return NoMatchingKb;
 	}
 
 	public dispatchByUserSettingsLabel(userSettingsLabel: string, target: IContextKeyServiceTarget): void {

@@ -5,9 +5,11 @@
 
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import * as DOM from 'vs/base/browser/dom';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
 import { Range } from 'vs/base/common/range';
+import { OmitOptional } from 'vs/base/common/types';
 import 'vs/css!./contextview';
 
 export const enum ContextViewDOMPosition {
@@ -23,6 +25,12 @@ export interface IAnchor {
 	height?: number;
 }
 
+export function isAnchor(obj: unknown): obj is IAnchor | OmitOptional<IAnchor> {
+	const anchor = obj as IAnchor | OmitOptional<IAnchor> | undefined;
+
+	return !!anchor && typeof anchor.x === 'number' && typeof anchor.y === 'number';
+}
+
 export const enum AnchorAlignment {
 	LEFT, RIGHT
 }
@@ -36,7 +44,13 @@ export const enum AnchorAxisAlignment {
 }
 
 export interface IDelegate {
-	getAnchor(): HTMLElement | IAnchor;
+	/**
+	 * The anchor where to position the context view.
+	 * Use a `HTMLElement` to position the view at the element,
+	 * a `StandardMouseEvent` to position it at the mouse position
+	 * or an `IAnchor` to position it at a specific location.
+	 */
+	getAnchor(): HTMLElement | StandardMouseEvent | IAnchor;
 	render(container: HTMLElement): IDisposable | null;
 	focus?(): void;
 	layout?(): void;
@@ -181,13 +195,13 @@ export class ContextView extends Disposable {
 			const toDisposeOnSetContainer = new DisposableStore();
 
 			ContextView.BUBBLE_UP_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, e => {
 					this.onDOMEvent(e, false);
 				}));
 			});
 
 			ContextView.BUBBLE_DOWN_EVENTS.forEach(event => {
-				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, (e: Event) => {
+				toDisposeOnSetContainer.add(DOM.addStandardDisposableListener(this.container!, event, e => {
 					this.onDOMEvent(e, true);
 				}, true));
 			});
@@ -257,7 +271,7 @@ export class ContextView extends Disposable {
 		let around: IView;
 
 		// Get the element's position and size (to anchor the view)
-		if (DOM.isHTMLElement(anchor)) {
+		if (anchor instanceof HTMLElement) {
 			const elementPosition = DOM.getDomNodePagePosition(anchor);
 
 			// In areas where zoom is applied to the element or its ancestors, we need to adjust the size of the element
@@ -271,12 +285,23 @@ export class ContextView extends Disposable {
 				width: elementPosition.width * zoom,
 				height: elementPosition.height * zoom
 			};
-		} else {
+		} else if (isAnchor(anchor)) {
 			around = {
 				top: anchor.y,
 				left: anchor.x,
 				width: anchor.width || 1,
 				height: anchor.height || 2
+			};
+		} else {
+			around = {
+				top: anchor.posy,
+				left: anchor.posx,
+				// We are about to position the context view where the mouse
+				// cursor is. To prevent the view being exactly under the mouse
+				// when showing and thus potentially triggering an action within,
+				// we treat the mouse location like a small sized block element.
+				width: 2,
+				height: 2
 			};
 		}
 
@@ -290,30 +315,31 @@ export class ContextView extends Disposable {
 		let top: number;
 		let left: number;
 
+		const activeWindow = DOM.getActiveWindow();
 		if (anchorAxisAlignment === AnchorAxisAlignment.VERTICAL) {
-			const verticalAnchor: ILayoutAnchor = { offset: around.top - window.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
+			const verticalAnchor: ILayoutAnchor = { offset: around.top - activeWindow.pageYOffset, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
 
 			// if view intersects vertically with anchor,  we must avoid the anchor
 			if (Range.intersects({ start: top, end: top + viewSizeHeight }, { start: verticalAnchor.offset, end: verticalAnchor.offset + verticalAnchor.size })) {
 				horizontalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
 		} else {
 			const horizontalAnchor: ILayoutAnchor = { offset: around.left, size: around.width, position: anchorAlignment === AnchorAlignment.LEFT ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After };
 			const verticalAnchor: ILayoutAnchor = { offset: around.top, size: around.height, position: anchorPosition === AnchorPosition.BELOW ? LayoutAnchorPosition.Before : LayoutAnchorPosition.After, mode: LayoutAnchorMode.ALIGN };
 
-			left = layout(window.innerWidth, viewSizeWidth, horizontalAnchor);
+			left = layout(activeWindow.innerWidth, viewSizeWidth, horizontalAnchor);
 
 			// if view intersects horizontally with anchor, we must avoid the anchor
 			if (Range.intersects({ start: left, end: left + viewSizeWidth }, { start: horizontalAnchor.offset, end: horizontalAnchor.offset + horizontalAnchor.size })) {
 				verticalAnchor.mode = LayoutAnchorMode.AVOID;
 			}
 
-			top = layout(window.innerHeight, viewSizeHeight, verticalAnchor) + window.pageYOffset;
+			top = layout(activeWindow.innerHeight, viewSizeHeight, verticalAnchor) + activeWindow.pageYOffset;
 		}
 
 		this.view.classList.remove('top', 'bottom', 'left', 'right');
@@ -344,10 +370,10 @@ export class ContextView extends Disposable {
 		return !!this.delegate;
 	}
 
-	private onDOMEvent(e: Event, onCapture: boolean): void {
+	private onDOMEvent(e: UIEvent, onCapture: boolean): void {
 		if (this.delegate) {
 			if (this.delegate.onDOMEvent) {
-				this.delegate.onDOMEvent(e, <HTMLElement>document.activeElement);
+				this.delegate.onDOMEvent(e, <HTMLElement>DOM.getWindow(e).document.activeElement);
 			} else if (onCapture && !DOM.isAncestor(<HTMLElement>e.target, this.container)) {
 				this.hide();
 			}

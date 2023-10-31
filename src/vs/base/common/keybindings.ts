@@ -28,19 +28,27 @@ const enum BinaryKeybindingsMask {
 	KeyCode = 0x000000FF
 }
 
-export function decodeKeybinding(keybinding: number, OS: OperatingSystem): Keybinding | null {
-	if (keybinding === 0) {
-		return null;
+export function decodeKeybinding(keybinding: number | number[], OS: OperatingSystem): Keybinding | null {
+	if (typeof keybinding === 'number') {
+		if (keybinding === 0) {
+			return null;
+		}
+		const firstChord = (keybinding & 0x0000FFFF) >>> 0;
+		const secondChord = (keybinding & 0xFFFF0000) >>> 16;
+		if (secondChord !== 0) {
+			return new Keybinding([
+				createSimpleKeybinding(firstChord, OS),
+				createSimpleKeybinding(secondChord, OS)
+			]);
+		}
+		return new Keybinding([createSimpleKeybinding(firstChord, OS)]);
+	} else {
+		const chords = [];
+		for (let i = 0; i < keybinding.length; i++) {
+			chords.push(createSimpleKeybinding(keybinding[i], OS));
+		}
+		return new Keybinding(chords);
 	}
-	const firstChord = (keybinding & 0x0000FFFF) >>> 0;
-	const secondChord = (keybinding & 0xFFFF0000) >>> 16;
-	if (secondChord !== 0) {
-		return new Keybinding([
-			createSimpleKeybinding(firstChord, OS),
-			createSimpleKeybinding(secondChord, OS)
-		]);
-	}
-	return new Keybinding([createSimpleKeybinding(firstChord, OS)]);
 }
 
 export function createSimpleKeybinding(keybinding: number, OS: OperatingSystem): KeyCodeChord {

@@ -18,6 +18,8 @@ import { localize } from 'vs/nls';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { isWeb } from 'vs/base/common/platform';
 import { Schemas } from 'vs/base/common/network';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { Lazy } from 'vs/base/common/lazy';
 
 //#region file service & providers
 
@@ -236,10 +238,27 @@ export interface IFileService {
 	/**
 	 * Allows to start a watcher that reports file/folder change events on the provided resource.
 	 *
-	 * Note: recursive file watching is not supported from this method. Only events from files
-	 * that are direct children of the provided resource will be reported.
+	 * The watcher runs correlated and thus, file events will be reported on the returned
+	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
 	 */
-	watch(resource: URI, options?: IWatchOptions): IDisposable;
+	createWatcher(resource: URI, options: IWatchOptionsWithoutCorrelation): IFileSystemWatcher;
+
+	/**
+	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 *
+	 * The watcher runs correlated and thus, file events will be reported on the returned
+	 * `IFileSystemWatcher` and not on the generic `IFileService.onDidFilesChange` event.
+	 */
+	watch(resource: URI, options: IWatchOptionsWithCorrelation): IFileSystemWatcher;
+
+	/**
+	 * Allows to start a watcher that reports file/folder change events on the provided resource.
+	 *
+	 * The watcher runs uncorrelated and thus will report all events from `IFileService.onDidFilesChange`.
+	 * This means, most listeners in the application will receive your events. It is encouraged to
+	 * use correlated watchers (via `IWatchOptionsWithCorrelation`) to limit events to your listener.
+	*/
+	watch(resource: URI, options?: IWatchOptionsWithoutCorrelation): IDisposable;
 
 	/**
 	 * Frees up any resources occupied by this service.
@@ -283,7 +302,44 @@ export interface IFileAtomicReadOptions {
 	 * to from a different process. If you need such atomic
 	 * operations, you better use a real database as storage.
 	 */
-	readonly atomic: true;
+	readonly atomic: boolean;
+}
+
+export interface IFileAtomicOptions {
+
+	/**
+	 * The postfix is used to create a temporary file based
+	 * on the original resource. The resulting temporary
+	 * file will be in the same folder as the resource and
+	 * have `postfix` appended to the resource name.
+	 *
+	 * Example: given a file resource `file:///some/path/foo.txt`
+	 * and a postfix `.vsctmp`, the temporary file will be
+	 * created as `file:///some/path/foo.txt.vsctmp`.
+	 */
+	readonly postfix: string;
+}
+
+export interface IFileAtomicWriteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
+}
+
+export interface IFileAtomicDeleteOptions {
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export interface IFileReadLimits {
@@ -293,12 +349,6 @@ export interface IFileReadLimits {
 	 * `FILE_TOO_LARGE` will be thrown.
 	 */
 	size?: number;
-
-	/**
-	 * If the file exceeds the given size, an error of kind
-	 * `FILE_EXCEEDS_MEMORY_LIMIT` will be thrown.
-	 */
-	memory?: number;
 }
 
 export interface IFileReadStreamOptions {
@@ -322,7 +372,7 @@ export interface IFileReadStreamOptions {
 	readonly limits?: IFileReadLimits;
 }
 
-export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions {
+export interface IFileWriteOptions extends IFileOverwriteOptions, IFileUnlockOptions, IFileAtomicWriteOptions {
 
 	/**
 	 * Set to `true` to create a file when it does not exist. Will
@@ -364,10 +414,21 @@ export interface IFileDeleteOptions {
 
 	/**
 	 * Set to `true` to attempt to move the file to trash
-	 * instead of deleting it permanently from disk. This
-	 * option maybe not be supported on all providers.
+	 * instead of deleting it permanently from disk.
+	 *
+	 * This option maybe not be supported on all providers.
 	 */
 	readonly useTrash: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `delete` method deletes the target atomically by
+	 * first renaming it to a temporary resource in the same
+	 * folder and then deleting it.
+	 *
+	 * This option maybe not be supported on all providers.
+	 */
+	readonly atomic: IFileAtomicOptions | false;
 }
 
 export enum FileType {
@@ -400,9 +461,17 @@ export enum FileType {
 export enum FilePermission {
 
 	/**
-	 * File is readonly.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
-	Readonly = 1
+	Readonly = 1,
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	Locked = 2
 }
 
 export interface IStat {
@@ -433,13 +502,13 @@ export interface IStat {
 	readonly permissions?: FilePermission;
 }
 
-export interface IWatchOptions {
+export interface IWatchOptionsWithoutCorrelation {
 
 	/**
 	 * Set to `true` to watch for changes recursively in a folder
 	 * and all of its children.
 	 */
-	readonly recursive: boolean;
+	recursive: boolean;
 
 	/**
 	 * A set of glob patterns or paths to exclude from watching.
@@ -458,6 +527,36 @@ export interface IWatchOptions {
 	 * always matched relative to the watched folder.
 	 */
 	includes?: Array<string | IRelativePattern>;
+}
+
+export interface IWatchOptions extends IWatchOptionsWithoutCorrelation {
+
+	/**
+	 * If provided, file change events from the watcher that
+	 * are a result of this watch request will carry the same
+	 * id.
+	 */
+	readonly correlationId?: number;
+}
+
+export interface IWatchOptionsWithCorrelation extends IWatchOptions {
+	readonly correlationId: number;
+}
+
+export interface IFileSystemWatcher extends IDisposable {
+
+	/**
+	 * An event which fires on file/folder change only for changes
+	 * that correlate to the watch request with matching correlation
+	 * identifier.
+	 */
+	readonly onDidChange: Event<FileChangesEvent>;
+}
+
+export function isFileSystemWatcher(thing: unknown): thing is IFileSystemWatcher {
+	const candidate = thing as IFileSystemWatcher | undefined;
+
+	return !!candidate && typeof candidate.onDidChange === 'function';
 }
 
 export const enum FileSystemProviderCapabilities {
@@ -514,9 +613,20 @@ export const enum FileSystemProviderCapabilities {
 	FileAtomicRead = 1 << 14,
 
 	/**
+	 * Provider support to write files atomically. This implies the
+	 * provider provides the `FileReadWrite` capability too.
+	 */
+	FileAtomicWrite = 1 << 15,
+
+	/**
+	 * Provider support to delete atomically.
+	 */
+	FileAtomicDelete = 1 << 16,
+
+	/**
 	 * Provider support to clone files atomically.
 	 */
-	FileClone = 1 << 15
+	FileClone = 1 << 17
 }
 
 export interface IFileSystemProvider {
@@ -595,6 +705,7 @@ export function hasFileReadStreamCapability(provider: IFileSystemProvider): prov
 
 export interface IFileSystemProviderWithFileAtomicReadCapability extends IFileSystemProvider {
 	readFile(resource: URI, opts?: IFileAtomicReadOptions): Promise<Uint8Array>;
+	enforceAtomicReadFile?(resource: URI): boolean;
 }
 
 export function hasFileAtomicReadCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicReadCapability {
@@ -605,12 +716,48 @@ export function hasFileAtomicReadCapability(provider: IFileSystemProvider): prov
 	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicRead);
 }
 
+export interface IFileSystemProviderWithFileAtomicWriteCapability extends IFileSystemProvider {
+	writeFile(resource: URI, contents: Uint8Array, opts?: IFileAtomicWriteOptions): Promise<void>;
+	enforceAtomicWriteFile?(resource: URI): IFileAtomicOptions | false;
+}
+
+export function hasFileAtomicWriteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicWriteCapability {
+	if (!hasReadWriteCapability(provider)) {
+		return false; // we require the `FileReadWrite` capability too
+	}
+
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicWrite);
+}
+
+export interface IFileSystemProviderWithFileAtomicDeleteCapability extends IFileSystemProvider {
+	delete(resource: URI, opts: IFileAtomicDeleteOptions): Promise<void>;
+	enforceAtomicDelete?(resource: URI): IFileAtomicOptions | false;
+}
+
+export function hasFileAtomicDeleteCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithFileAtomicDeleteCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.FileAtomicDelete);
+}
+
+export interface IFileSystemProviderWithReadonlyCapability extends IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities.Readonly & FileSystemProviderCapabilities;
+
+	/**
+	 * An optional message to show in the UI to explain why the file system is readonly.
+	 */
+	readonly readOnlyMessage?: IMarkdownString;
+}
+
+export function hasReadonlyCapability(provider: IFileSystemProvider): provider is IFileSystemProviderWithReadonlyCapability {
+	return !!(provider.capabilities & FileSystemProviderCapabilities.Readonly);
+}
+
 export enum FileSystemProviderErrorCode {
 	FileExists = 'EntryExists',
 	FileNotFound = 'EntryNotFound',
 	FileNotADirectory = 'EntryNotADirectory',
 	FileIsADirectory = 'EntryIsADirectory',
-	FileExceedsMemoryLimit = 'EntryExceedsMemoryLimit',
+	FileExceedsStorageQuota = 'EntryExceedsStorageQuota',
 	FileTooLarge = 'EntryTooLarge',
 	FileWriteLocked = 'EntryWriteLocked',
 	NoPermissions = 'NoPermissions',
@@ -679,7 +826,6 @@ export function toFileSystemProviderErrorCode(error: Error | undefined | null): 
 		case FileSystemProviderErrorCode.FileIsADirectory: return FileSystemProviderErrorCode.FileIsADirectory;
 		case FileSystemProviderErrorCode.FileNotADirectory: return FileSystemProviderErrorCode.FileNotADirectory;
 		case FileSystemProviderErrorCode.FileNotFound: return FileSystemProviderErrorCode.FileNotFound;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit: return FileSystemProviderErrorCode.FileExceedsMemoryLimit;
 		case FileSystemProviderErrorCode.FileTooLarge: return FileSystemProviderErrorCode.FileTooLarge;
 		case FileSystemProviderErrorCode.FileWriteLocked: return FileSystemProviderErrorCode.FileWriteLocked;
 		case FileSystemProviderErrorCode.NoPermissions: return FileSystemProviderErrorCode.NoPermissions;
@@ -710,8 +856,6 @@ export function toFileOperationResult(error: Error): FileOperationResult {
 			return FileOperationResult.FILE_PERMISSION_DENIED;
 		case FileSystemProviderErrorCode.FileExists:
 			return FileOperationResult.FILE_MOVE_CONFLICT;
-		case FileSystemProviderErrorCode.FileExceedsMemoryLimit:
-			return FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT;
 		case FileSystemProviderErrorCode.FileTooLarge:
 			return FileOperationResult.FILE_TOO_LARGE;
 		default:
@@ -786,32 +930,32 @@ export interface IFileChange {
 	/**
 	 * The type of change that occurred to the file.
 	 */
-	readonly type: FileChangeType;
+	type: FileChangeType;
 
 	/**
 	 * The unified resource identifier of the file that changed.
 	 */
 	readonly resource: URI;
+
+	/**
+	 * If provided when starting the file watcher, the correlation
+	 * identifier will match the original file watching request as
+	 * a way to identify the original component that is interested
+	 * in the change.
+	 */
+	readonly cId?: number;
 }
 
 export class FileChangesEvent {
 
-	private readonly added: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly updated: TernarySearchTree<URI, IFileChange> | undefined = undefined;
-	private readonly deleted: TernarySearchTree<URI, IFileChange> | undefined = undefined;
+	private static readonly MIXED_CORRELATION = null;
 
-	constructor(changes: readonly IFileChange[], ignorePathCasing: boolean) {
+	private readonly correlationId: number | undefined | typeof FileChangesEvent.MIXED_CORRELATION = undefined;
 
-		const entriesByType = new Map<FileChangeType, [URI, IFileChange][]>();
-
+	constructor(changes: readonly IFileChange[], private readonly ignorePathCasing: boolean) {
 		for (const change of changes) {
-			const array = entriesByType.get(change.type);
-			if (array) {
-				array.push([change.resource, change]);
-			} else {
-				entriesByType.set(change.type, [[change.resource, change]]);
-			}
 
+			// Split by type
 			switch (change.type) {
 				case FileChangeType.ADDED:
 					this.rawAdded.push(change.resource);
@@ -823,25 +967,44 @@ export class FileChangesEvent {
 					this.rawDeleted.push(change.resource);
 					break;
 			}
-		}
 
-		for (const [key, value] of entriesByType) {
-			switch (key) {
-				case FileChangeType.ADDED:
-					this.added = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					this.added.fill(value);
-					break;
-				case FileChangeType.UPDATED:
-					this.updated = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					this.updated.fill(value);
-					break;
-				case FileChangeType.DELETED:
-					this.deleted = TernarySearchTree.forUris<IFileChange>(() => ignorePathCasing);
-					this.deleted.fill(value);
-					break;
+			// Figure out events correlation
+			if (this.correlationId !== FileChangesEvent.MIXED_CORRELATION) {
+				if (typeof change.cId === 'number') {
+					if (this.correlationId === undefined) {
+						this.correlationId = change.cId; 							// correlation not yet set, just take it
+					} else if (this.correlationId !== change.cId) {
+						this.correlationId = FileChangesEvent.MIXED_CORRELATION;	// correlation mismatch, we have mixed correlation
+					}
+				} else {
+					if (this.correlationId !== undefined) {
+						this.correlationId = FileChangesEvent.MIXED_CORRELATION;	// correlation mismatch, we have mixed correlation
+					}
+				}
 			}
 		}
 	}
+
+	private readonly added = new Lazy(() => {
+		const added = TernarySearchTree.forUris<boolean>(() => this.ignorePathCasing);
+		added.fill(this.rawAdded.map(resource => [resource, true]));
+
+		return added;
+	});
+
+	private readonly updated = new Lazy(() => {
+		const updated = TernarySearchTree.forUris<boolean>(() => this.ignorePathCasing);
+		updated.fill(this.rawUpdated.map(resource => [resource, true]));
+
+		return updated;
+	});
+
+	private readonly deleted = new Lazy(() => {
+		const deleted = TernarySearchTree.forUris<boolean>(() => this.ignorePathCasing);
+		deleted.fill(this.rawDeleted.map(resource => [resource, true]));
+
+		return deleted;
+	});
 
 	/**
 	 * Find out if the file change events match the provided resource.
@@ -870,33 +1033,33 @@ export class FileChangesEvent {
 
 		// Added
 		if (!hasTypesFilter || types.includes(FileChangeType.ADDED)) {
-			if (this.added?.get(resource)) {
+			if (this.added.value.get(resource)) {
 				return true;
 			}
 
-			if (options.includeChildren && this.added?.findSuperstr(resource)) {
+			if (options.includeChildren && this.added.value.findSuperstr(resource)) {
 				return true;
 			}
 		}
 
 		// Updated
 		if (!hasTypesFilter || types.includes(FileChangeType.UPDATED)) {
-			if (this.updated?.get(resource)) {
+			if (this.updated.value.get(resource)) {
 				return true;
 			}
 
-			if (options.includeChildren && this.updated?.findSuperstr(resource)) {
+			if (options.includeChildren && this.updated.value.findSuperstr(resource)) {
 				return true;
 			}
 		}
 
 		// Deleted
 		if (!hasTypesFilter || types.includes(FileChangeType.DELETED)) {
-			if (this.deleted?.findSubstr(resource) /* deleted also considers parent folders */) {
+			if (this.deleted.value.findSubstr(resource) /* deleted also considers parent folders */) {
 				return true;
 			}
 
-			if (options.includeChildren && this.deleted?.findSuperstr(resource)) {
+			if (options.includeChildren && this.deleted.value.findSuperstr(resource)) {
 				return true;
 			}
 		}
@@ -908,21 +1071,47 @@ export class FileChangesEvent {
 	 * Returns if this event contains added files.
 	 */
 	gotAdded(): boolean {
-		return !!this.added;
+		return this.rawAdded.length > 0;
 	}
 
 	/**
 	 * Returns if this event contains deleted files.
 	 */
 	gotDeleted(): boolean {
-		return !!this.deleted;
+		return this.rawDeleted.length > 0;
 	}
 
 	/**
 	 * Returns if this event contains updated files.
 	 */
 	gotUpdated(): boolean {
-		return !!this.updated;
+		return this.rawUpdated.length > 0;
+	}
+
+	/**
+	 * Returns if this event contains changes that correlate to the
+	 * provided `correlationId`.
+	 *
+	 * File change event correlation is an advanced watch feature that
+	 * allows to  identify from which watch request the events originate
+	 * from. This correlation allows to route events specifically
+	 * only to the requestor and not emit them to all listeners.
+	 */
+	correlates(correlationId: number): boolean {
+		return this.correlationId === correlationId;
+	}
+
+	/**
+	 * Figure out if the event contains changes that correlate to one
+	 * correlation identifier.
+	 *
+	 * File change event correlation is an advanced watch feature that
+	 * allows to  identify from which watch request the events originate
+	 * from. This correlation allows to route events specifically
+	 * only to the requestor and not emit them to all listeners.
+	 */
+	hasCorrelation(): boolean {
+		return typeof this.correlationId === 'number';
 	}
 
 	/**
@@ -970,7 +1159,7 @@ export function isParent(path: string, candidate: string, ignoreCase?: boolean):
 	return path.indexOf(candidate) === 0;
 }
 
-interface IBaseFileStat {
+export interface IBaseFileStat {
 
 	/**
 	 * The unified resource identifier of this file or folder.
@@ -1017,9 +1206,17 @@ interface IBaseFileStat {
 	readonly etag?: string;
 
 	/**
-	 * The file is read-only.
+	 * File is readonly. Components like editors should not
+	 * offer to edit the contents.
 	 */
 	readonly readonly?: boolean;
+
+	/**
+	 * File is locked. Components like editors should offer
+	 * to edit the contents and ask the user upon saving to
+	 * remove the lock.
+	 */
+	readonly locked?: boolean;
 }
 
 export interface IBaseFileStatWithMetadata extends Required<IBaseFileStat> { }
@@ -1059,6 +1256,7 @@ export interface IFileStatWithMetadata extends IFileStat, IBaseFileStatWithMetad
 	readonly etag: string;
 	readonly size: number;
 	readonly readonly: boolean;
+	readonly locked: boolean;
 	readonly children: IFileStatWithMetadata[] | undefined;
 }
 
@@ -1138,6 +1336,14 @@ export interface IWriteFileOptions {
 	 * Whether to attempt to unlock a file before writing.
 	 */
 	readonly unlock?: boolean;
+
+	/**
+	 * The optional `atomic` flag can be used to make sure
+	 * the `writeFile` method updates the target file atomically
+	 * by first writing to a temporary file in the same folder
+	 * and then renaming it over the target.
+	 */
+	readonly atomic?: IFileAtomicOptions | false;
 }
 
 export interface IResolveFileOptions {
@@ -1177,7 +1383,7 @@ export class FileOperationError extends Error {
 	constructor(
 		message: string,
 		readonly fileOperationResult: FileOperationResult,
-		readonly options?: IReadFileOptions & IWriteFileOptions & ICreateFileOptions
+		readonly options?: IReadFileOptions | IWriteFileOptions | ICreateFileOptions
 	) {
 		super(message);
 	}
@@ -1186,7 +1392,7 @@ export class FileOperationError extends Error {
 export class TooLargeFileOperationError extends FileOperationError {
 	constructor(
 		message: string,
-		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE | FileOperationResult.FILE_EXCEEDS_MEMORY_LIMIT,
+		override readonly fileOperationResult: FileOperationResult.FILE_TOO_LARGE,
 		readonly size: number,
 		options?: IReadFileOptions
 	) {
@@ -1215,7 +1421,6 @@ export const enum FileOperationResult {
 	FILE_PERMISSION_DENIED,
 	FILE_TOO_LARGE,
 	FILE_INVALID_PATH,
-	FILE_EXCEEDS_MEMORY_LIMIT,
 	FILE_NOT_DIRECTORY,
 	FILE_OTHER_ERROR
 }
@@ -1239,12 +1444,19 @@ export const HotExitConfiguration = {
 
 export const FILES_ASSOCIATIONS_CONFIG = 'files.associations';
 export const FILES_EXCLUDE_CONFIG = 'files.exclude';
+export const FILES_READONLY_INCLUDE_CONFIG = 'files.readonlyInclude';
+export const FILES_READONLY_EXCLUDE_CONFIG = 'files.readonlyExclude';
+export const FILES_READONLY_FROM_PERMISSIONS_CONFIG = 'files.readonlyFromPermissions';
+
+export interface IGlobPatterns {
+	[filepattern: string]: boolean;
+}
 
 export interface IFilesConfiguration {
 	files: {
 		associations: { [filepattern: string]: string };
 		exclude: IExpression;
-		watcherExclude: { [filepattern: string]: boolean };
+		watcherExclude: IGlobPatterns;
 		watcherInclude: string[];
 		encoding: string;
 		autoGuessEncoding: boolean;
@@ -1256,6 +1468,9 @@ export interface IFilesConfiguration {
 		enableTrash: boolean;
 		hotExit: string;
 		saveConflictResolution: 'askUser' | 'overwriteFileOnDisk';
+		readonlyInclude: IGlobPatterns;
+		readonlyExclude: IGlobPatterns;
+		readonlyFromPermissions: boolean;
 	};
 }
 
@@ -1300,12 +1515,6 @@ export async function whenProviderRegistered(file: URI, fileService: IFileServic
 }
 
 /**
- * Native only: limits for memory sizes
- */
-export const MIN_MAX_MEMORY_SIZE_MB = 2048;
-export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;
-
-/**
  * Helper to format a raw byte size into a human readable label.
  */
 export class ByteSize {
@@ -1341,23 +1550,6 @@ export class ByteSize {
 }
 
 // File limits
-
-export interface IFileLimits {
-	readonly maxFileSize: number;
-	readonly maxHeapSize: number;
-}
-
-export const enum Arch {
-	IA32,
-	OTHER
-}
-
-export function getPlatformFileLimits(arch: Arch): IFileLimits {
-	return {
-		maxFileSize: arch === Arch.IA32 ? 300 * ByteSize.MB : 16 * ByteSize.GB,  // https://github.com/microsoft/vscode/issues/30180
-		maxHeapSize: arch === Arch.IA32 ? 700 * ByteSize.MB : 2 * 700 * ByteSize.MB, // https://github.com/v8/v8/blob/5918a23a3d571b9625e5cce246bdd5b46ff7cd8b/src/heap/heap.cc#L149
-	};
-}
 
 export function getLargeFileConfirmationLimit(remoteAuthority?: string): number;
 export function getLargeFileConfirmationLimit(uri?: URI): number;

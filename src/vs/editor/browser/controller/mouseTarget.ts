@@ -29,7 +29,7 @@ const enum HitTestResultType {
 class UnknownHitTestResult {
 	readonly type = HitTestResultType.Unknown;
 	constructor(
-		readonly hitTarget: Element | null = null
+		readonly hitTarget: HTMLElement | null = null
 	) { }
 }
 
@@ -72,31 +72,31 @@ export class MouseTarget {
 		}
 		return range ?? null;
 	}
-	public static createUnknown(element: Element | null, mouseColumn: number, position: Position | null): IMouseTargetUnknown {
+	public static createUnknown(element: HTMLElement | null, mouseColumn: number, position: Position | null): IMouseTargetUnknown {
 		return { type: MouseTargetType.UNKNOWN, element, mouseColumn, position, range: this._deduceRage(position) };
 	}
-	public static createTextarea(element: Element | null, mouseColumn: number): IMouseTargetTextarea {
+	public static createTextarea(element: HTMLElement | null, mouseColumn: number): IMouseTargetTextarea {
 		return { type: MouseTargetType.TEXTAREA, element, mouseColumn, position: null, range: null };
 	}
-	public static createMargin(type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS, element: Element | null, mouseColumn: number, position: Position, range: EditorRange, detail: IMouseTargetMarginData): IMouseTargetMargin {
+	public static createMargin(type: MouseTargetType.GUTTER_GLYPH_MARGIN | MouseTargetType.GUTTER_LINE_NUMBERS | MouseTargetType.GUTTER_LINE_DECORATIONS, element: HTMLElement | null, mouseColumn: number, position: Position, range: EditorRange, detail: IMouseTargetMarginData): IMouseTargetMargin {
 		return { type, element, mouseColumn, position, range, detail };
 	}
-	public static createViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, element: Element | null, mouseColumn: number, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
+	public static createViewZone(type: MouseTargetType.GUTTER_VIEW_ZONE | MouseTargetType.CONTENT_VIEW_ZONE, element: HTMLElement | null, mouseColumn: number, position: Position, detail: IMouseTargetViewZoneData): IMouseTargetViewZone {
 		return { type, element, mouseColumn, position, range: this._deduceRage(position), detail };
 	}
-	public static createContentText(element: Element | null, mouseColumn: number, position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
+	public static createContentText(element: HTMLElement | null, mouseColumn: number, position: Position, range: EditorRange | null, detail: IMouseTargetContentTextData): IMouseTargetContentText {
 		return { type: MouseTargetType.CONTENT_TEXT, element, mouseColumn, position, range: this._deduceRage(position, range), detail };
 	}
-	public static createContentEmpty(element: Element | null, mouseColumn: number, position: Position, detail: IMouseTargetContentEmptyData): IMouseTargetContentEmpty {
+	public static createContentEmpty(element: HTMLElement | null, mouseColumn: number, position: Position, detail: IMouseTargetContentEmptyData): IMouseTargetContentEmpty {
 		return { type: MouseTargetType.CONTENT_EMPTY, element, mouseColumn, position, range: this._deduceRage(position), detail };
 	}
-	public static createContentWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetContentWidget {
+	public static createContentWidget(element: HTMLElement | null, mouseColumn: number, detail: string): IMouseTargetContentWidget {
 		return { type: MouseTargetType.CONTENT_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
-	public static createScrollbar(element: Element | null, mouseColumn: number, position: Position): IMouseTargetScrollbar {
+	public static createScrollbar(element: HTMLElement | null, mouseColumn: number, position: Position): IMouseTargetScrollbar {
 		return { type: MouseTargetType.SCROLLBAR, element, mouseColumn, position, range: this._deduceRage(position) };
 	}
-	public static createOverlayWidget(element: Element | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
+	public static createOverlayWidget(element: HTMLElement | null, mouseColumn: number, detail: string): IMouseTargetOverlayWidget {
 		return { type: MouseTargetType.OVERLAY_WIDGET, element, mouseColumn, position: null, range: null, detail };
 	}
 	public static createOutsideEditor(mouseColumn: number, position: Position, outsidePosition: 'above' | 'below' | 'left' | 'right', outsideDistance: number): IMouseTargetOutsideEditor {
@@ -195,6 +195,13 @@ class ElementPath {
 			path.length >= 4
 			&& path[0] === PartFingerprint.OverflowGuard
 			&& path[3] === PartFingerprint.ContentWidgets
+		);
+	}
+
+	public static isChildOfOverflowGuard(path: Uint8Array): boolean {
+		return (
+			path.length >= 1
+			&& path[0] === PartFingerprint.OverflowGuard
 		);
 	}
 
@@ -329,7 +336,7 @@ export class HitTestContext {
 	}
 
 	private static _findAttribute(element: Element, attr: string, stopAt: Element): string | null {
-		while (element && element !== document.body) {
+		while (element && element !== element.ownerDocument.body) {
 			if (element.hasAttribute && element.hasAttribute(attr)) {
 				return element.getAttribute(attr);
 			}
@@ -389,10 +396,10 @@ abstract class BareHitTestRequest {
 
 class HitTestRequest extends BareHitTestRequest {
 	private readonly _ctx: HitTestContext;
-	public readonly target: Element | null;
+	public readonly target: HTMLElement | null;
 	public readonly targetPath: Uint8Array;
 
-	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: Element | null) {
+	constructor(ctx: HitTestContext, editorPos: EditorPagePosition, pos: PageCoordinates, relativePos: CoordinatesRelativeToEditor, target: HTMLElement | null) {
 		super(ctx, editorPos, pos, relativePos);
 		this._ctx = ctx;
 
@@ -445,13 +452,13 @@ class HitTestRequest extends BareHitTestRequest {
 		return MouseTarget.createOverlayWidget(this.target, this._getMouseColumn(), detail);
 	}
 
-	public withTarget(target: Element | null): HitTestRequest {
+	public withTarget(target: HTMLElement | null): HitTestRequest {
 		return new HitTestRequest(this._ctx, this.editorPos, this.pos, this.relativePos, target);
 	}
 }
 
 interface ResolvedHitTestRequest extends HitTestRequest {
-	readonly target: Element;
+	readonly target: HTMLElement;
 }
 
 const EMPTY_CONTENT_AFTER_LINES: IMouseTargetContentEmptyData = { isAfterLines: true };
@@ -537,6 +544,11 @@ export class MouseTargetFactory {
 		const resolvedRequest = <ResolvedHitTestRequest>request;
 
 		let result: IMouseTarget | null = null;
+
+		if (!ElementPath.isChildOfOverflowGuard(request.targetPath) && !ElementPath.isChildOfOverflowingContentWidgets(request.targetPath)) {
+			// We only render dom nodes inside the overflow guard or in the overflowing content widgets
+			result = result || request.fulfillUnknown();
+		}
 
 		result = result || MouseTargetFactory._hitTestContentWidget(ctx, resolvedRequest);
 		result = result || MouseTargetFactory._hitTestOverlayWidget(ctx, resolvedRequest);
@@ -905,7 +917,7 @@ export class MouseTargetFactory {
 				range = (<any>shadowRoot).caretRangeFromPoint(coords.clientX, coords.clientY);
 			}
 		} else {
-			range = (<any>document).caretRangeFromPoint(coords.clientX, coords.clientY);
+			range = (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint(coords.clientX, coords.clientY);
 		}
 
 		if (!range || !range.startContainer) {
@@ -947,7 +959,7 @@ export class MouseTargetFactory {
 	 * Most probably Gecko
 	 */
 	private static _doHitTestWithCaretPositionFromPoint(ctx: HitTestContext, coords: ClientCoordinates): HitTestResult {
-		const hitResult: { offsetNode: Node; offset: number } = (<any>document).caretPositionFromPoint(coords.clientX, coords.clientY);
+		const hitResult: { offsetNode: Node; offset: number } = (<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint(coords.clientX, coords.clientY);
 
 		if (hitResult.offsetNode.nodeType === hitResult.offsetNode.TEXT_NODE) {
 			// offsetNode is expected to be the token text
@@ -999,9 +1011,9 @@ export class MouseTargetFactory {
 	private static _doHitTest(ctx: HitTestContext, request: BareHitTestRequest): HitTestResult {
 
 		let result: HitTestResult = new UnknownHitTestResult();
-		if (typeof (<any>document).caretRangeFromPoint === 'function') {
+		if (typeof (<any>ctx.viewDomNode.ownerDocument).caretRangeFromPoint === 'function') {
 			result = this._doHitTestWithCaretRangeFromPoint(ctx, request);
-		} else if ((<any>document).caretPositionFromPoint) {
+		} else if ((<any>ctx.viewDomNode.ownerDocument).caretPositionFromPoint) {
 			result = this._doHitTestWithCaretPositionFromPoint(ctx, request.pos.toClientCoordinates());
 		}
 		if (result.type === HitTestResultType.Content) {
@@ -1033,8 +1045,14 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		// Grab its rect
 		const rect = el.getBoundingClientRect();
 
-		// And its font
-		const font = window.getComputedStyle(el, null).getPropertyValue('font');
+		// And its font (the computed shorthand font property might be empty, see #3217)
+		const fontStyle = window.getComputedStyle(el, null).getPropertyValue('font-style');
+		const fontVariant = window.getComputedStyle(el, null).getPropertyValue('font-variant');
+		const fontWeight = window.getComputedStyle(el, null).getPropertyValue('font-weight');
+		const fontSize = window.getComputedStyle(el, null).getPropertyValue('font-size');
+		const lineHeight = window.getComputedStyle(el, null).getPropertyValue('line-height');
+		const fontFamily = window.getComputedStyle(el, null).getPropertyValue('font-family');
+		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content
 		const text = (el as any).innerText;

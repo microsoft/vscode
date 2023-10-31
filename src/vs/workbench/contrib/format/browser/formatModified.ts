@@ -42,7 +42,8 @@ registerEditorAction(class FormatModifiedAction extends EditorAction {
 		if (isNonEmptyArray(ranges)) {
 			return instaService.invokeFunction(
 				formatDocumentRangesWithSelectedProvider, editor, ranges,
-				FormattingMode.Explicit, Progress.None, CancellationToken.None
+				FormattingMode.Explicit, Progress.None, CancellationToken.None,
+				true
 			);
 		}
 	}

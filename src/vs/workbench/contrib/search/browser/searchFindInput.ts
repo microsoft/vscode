@@ -60,18 +60,15 @@ export class SearchFindInput extends ContextScopedFindInput {
 	}
 
 	updateStyles() {
-		this._filterChecked = this.filters.markupPreview || this.filters.codeOutput;
-		if (this.regex) {
-			if (this._filterChecked && this._visible) {
-				this.regex.disable();
-				this.regex.domNode.tabIndex = -1;
-				this.regex.domNode.classList.toggle('disabled', true);
-			} else {
-				this.regex.enable();
-				this.regex.domNode.tabIndex = 0;
-				this.regex.domNode.classList.toggle('disabled', false);
-			}
-		}
+		// filter is checked if it's in a non-default state
+		this._filterChecked =
+			!this.filters.markupInput ||
+			!this.filters.markupPreview ||
+			!this.filters.codeInput ||
+			!this.filters.codeOutput;
+
+		// TODO: find a way to express that searching notebook output and markdown preview don't support regex.
+
 		this._findFilter.applyStyles(this._filterChecked);
 	}
 }

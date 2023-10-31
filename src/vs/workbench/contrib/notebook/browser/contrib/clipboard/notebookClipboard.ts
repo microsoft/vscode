@@ -27,9 +27,10 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { RedoCommand, UndoCommand } from 'vs/editor/browser/editorExtensions';
 import { IWebview } from 'vs/workbench/contrib/webview/browser/webview';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IOutputService } from 'vs/workbench/services/output/common/output';
-import { rendererLogId } from 'vs/workbench/common/logConstants';
 import { ILogService } from 'vs/platform/log/common/log';
+import { ICommandService } from 'vs/platform/commands/common/commands';
+import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
+import { getActiveElement, getWindow } from 'vs/base/browser/dom';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -308,7 +309,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
-		const windowSelection = window.getSelection();
+		const windowSelection = getWindow(editor.getDomNode()).getSelection();
 
 		if (windowSelection?.rangeCount !== 1) {
 			return false;
@@ -342,7 +343,7 @@ export class NotebookClipboardContribution extends Disposable {
 	runCopyAction(accessor: ServicesAccessor) {
 		const loggerService = accessor.get(ILogService);
 
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
@@ -364,7 +365,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runPasteAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}
@@ -385,7 +386,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runCutAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}
@@ -558,8 +559,8 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		toggleLogging();
 		if (_logging) {
-			const outputService = accessor.get(IOutputService);
-			outputService.showChannel(rendererLogId);
+			const commandService = accessor.get(ICommandService);
+			commandService.executeCommand(showWindowLogActionId);
 		}
 	}
 });

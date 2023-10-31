@@ -83,14 +83,17 @@ export class NotificationsListDelegate implements IListVirtualDelegate<INotifica
 	private computePreferredHeight(notification: INotificationViewItem): number {
 
 		// Prepare offset helper depending on toolbar actions count
-		let actions = 1; // close
+		let actions = 0;
+		if (!notification.hasProgress) {
+			actions++; // close
+		}
 		if (notification.canCollapse) {
 			actions++; // expand/collapse
 		}
 		if (isNonEmptyArray(notification.actions && notification.actions.secondary)) {
 			actions++; // secondary actions
 		}
-		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 26 /* severity icon */ + (actions * (24 + 8)) /* 24px (+8px padding) per action */ - 4 /* 4px less padding for last action */)}px`;
+		this.offsetHelper.style.width = `${450 /* notifications container width */ - (10 /* padding */ + 30 /* severity icon */ + (actions * 30) /* actions */ - (Math.max(actions - 1, 0) * 4) /* less padding for actions > 1 */)}px`;
 
 		// Render message into offset helper
 		const renderedMessage = NotificationMessageRenderer.render(notification.message);
@@ -132,8 +135,9 @@ export interface INotificationTemplateData {
 }
 
 interface IMessageActionHandler {
+	readonly toDispose: DisposableStore;
+
 	callback: (href: string) => void;
-	toDispose: DisposableStore;
 }
 
 class NotificationMessageRenderer {
@@ -167,11 +171,11 @@ class NotificationMessageRenderer {
 					const onClick = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.CLICK)).event;
 
 					const onKeydown = actionHandler.toDispose.add(new DomEmitter(anchor, EventType.KEY_DOWN)).event;
-					const onSpaceOrEnter = actionHandler.toDispose.add(Event.chain(onKeydown)).filter(e => {
+					const onSpaceOrEnter = Event.chain(onKeydown, $ => $.filter(e => {
 						const event = new StandardKeyboardEvent(e);
 
 						return event.equals(KeyCode.Space) || event.equals(KeyCode.Enter);
-					}).event;
+					}));
 
 					actionHandler.toDispose.add(Gesture.addTarget(anchor));
 					const onTap = actionHandler.toDispose.add(new DomEmitter(anchor, GestureEventType.Tap)).event;

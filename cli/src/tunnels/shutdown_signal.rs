@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 use futures::{stream::FuturesUnordered, StreamExt};
-use std::fmt;
+use std::{fmt, path::PathBuf};
 use sysinfo::Pid;
 
 use crate::util::{
-	machine::wait_until_process_exits,
+	machine::{wait_until_exe_deleted, wait_until_process_exits},
 	sync::{new_barrier, Barrier, Receivable},
 };
 
@@ -17,6 +17,7 @@ use crate::util::{
 pub enum ShutdownSignal {
 	CtrlC,
 	ParentProcessKilled(Pid),
+	ExeUninstalled,
 	ServiceStopped,
 	RpcShutdownRequested,
 	RpcRestartRequested,
@@ -28,6 +29,9 @@ impl fmt::Display for ShutdownSignal {
 			ShutdownSignal::CtrlC => write!(f, "Ctrl-C received"),
 			ShutdownSignal::ParentProcessKilled(p) => {
 				write!(f, "Parent process {} no longer exists", p)
+			}
+			ShutdownSignal::ExeUninstalled => {
+				write!(f, "Executable no longer exists")
 			}
 			ShutdownSignal::ServiceStopped => write!(f, "Service stopped"),
 			ShutdownSignal::RpcShutdownRequested => write!(f, "RPC client requested shutdown"),
@@ -41,6 +45,7 @@ impl fmt::Display for ShutdownSignal {
 pub enum ShutdownRequest {
 	CtrlC,
 	ParentProcessKilled(Pid),
+	ExeUninstalled(PathBuf),
 	Derived(Box<dyn Receivable<ShutdownSignal> + Send>),
 }
 
@@ -55,6 +60,10 @@ impl ShutdownRequest {
 			ShutdownRequest::ParentProcessKilled(pid) => {
 				wait_until_process_exits(pid, 2000).await;
 				Some(ShutdownSignal::ParentProcessKilled(pid))
+			}
+			ShutdownRequest::ExeUninstalled(exe_path) => {
+				wait_until_exe_deleted(&exe_path, 2000).await;
+				Some(ShutdownSignal::ExeUninstalled)
 			}
 			ShutdownRequest::Derived(mut rx) => rx.recv_msg().await,
 		}

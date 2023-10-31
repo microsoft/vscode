@@ -276,7 +276,7 @@ export class ExtensionEditor extends EditorPane {
 		const header = append(root, $('.header'));
 
 		const iconContainer = append(header, $('.icon-container'));
-		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false }));
+		const icon = append(iconContainer, $<HTMLImageElement>('img.icon', { draggable: false, alt: '' }));
 		const remoteBadge = this.instantiationService.createInstance(RemoteBadgeWidget, iconContainer, true);
 
 		const details = append(header, $('.details'));
@@ -398,10 +398,12 @@ export class ExtensionEditor extends EditorPane {
 			this._register(disposable);
 		}
 
-		this._register(Event.chain(extensionActionBar.onDidRun)
-			.map(({ error }) => error)
-			.filter(error => !!error)
-			.on(this.onError, this));
+		const onError = Event.chain(extensionActionBar.onDidRun, $ =>
+			$.map(({ error }) => error)
+				.filter(error => !!error)
+		);
+
+		this._register(onError(this.onError, this));
 
 		const body = append(root, $('.body'));
 		const navbar = new NavBar(body);
@@ -621,6 +623,7 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.activeElement?.focus();
 	}
 
@@ -683,6 +686,7 @@ export class ExtensionEditor extends EditorPane {
 				options: {
 					enableFindWidget: true,
 					tryRestoreScrollPosition: true,
+					disableServiceWorker: true,
 				},
 				contentOptions: {},
 				extension: undefined,
@@ -766,13 +770,18 @@ export class ExtensionEditor extends EditorPane {
 				<style nonce="${nonce}">
 					${DEFAULT_MARKDOWN_STYLES}
 
+					/* prevent scroll-to-top button from blocking the body text */
+					body {
+						padding-bottom: 75px;
+					}
+
 					#scroll-to-top {
 						position: fixed;
-						width: 40px;
-						height: 40px;
+						width: 32px;
+						height: 32px;
 						right: 25px;
 						bottom: 25px;
-						background-color: var(--vscode-button-background);
+						background-color: var(--vscode-button-secondaryBackground);
 						border-color: var(--vscode-button-border);
 						border-radius: 50%;
 						cursor: pointer;
@@ -784,7 +793,7 @@ export class ExtensionEditor extends EditorPane {
 					}
 
 					#scroll-to-top:hover {
-						background-color: var(--vscode-button-hoverBackground);
+						background-color: var(--vscode-button-secondaryHoverBackground);
 						box-shadow: 2px 2px 2px rgba(0,0,0,.25);
 					}
 
@@ -797,7 +806,7 @@ export class ExtensionEditor extends EditorPane {
 					#scroll-to-top span.icon::before {
 						content: "";
 						display: block;
-						background: var(--vscode-button-foreground);
+						background: var(--vscode-button-secondaryForeground);
 						/* Chevron up icon */
 						webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
 						-webkit-mask-image: url('data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0idXRmLTgiPz4KPCEtLSBHZW5lcmF0b3I6IEFkb2JlIElsbHVzdHJhdG9yIDE5LjIuMCwgU1ZHIEV4cG9ydCBQbHVnLUluIC4gU1ZHIFZlcnNpb246IDYuMDAgQnVpbGQgMCkgIC0tPgo8c3ZnIHZlcnNpb249IjEuMSIgaWQ9IkxheWVyXzEiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgeG1sbnM6eGxpbms9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGxpbmsiIHg9IjBweCIgeT0iMHB4IgoJIHZpZXdCb3g9IjAgMCAxNiAxNiIgc3R5bGU9ImVuYWJsZS1iYWNrZ3JvdW5kOm5ldyAwIDAgMTYgMTY7IiB4bWw6c3BhY2U9InByZXNlcnZlIj4KPHN0eWxlIHR5cGU9InRleHQvY3NzIj4KCS5zdDB7ZmlsbDojRkZGRkZGO30KCS5zdDF7ZmlsbDpub25lO30KPC9zdHlsZT4KPHRpdGxlPnVwY2hldnJvbjwvdGl0bGU+CjxwYXRoIGNsYXNzPSJzdDAiIGQ9Ik04LDUuMWwtNy4zLDcuM0wwLDExLjZsOC04bDgsOGwtMC43LDAuN0w4LDUuMXoiLz4KPHJlY3QgY2xhc3M9InN0MSIgd2lkdGg9IjE2IiBoZWlnaHQ9IjE2Ii8+Cjwvc3ZnPgo=');
@@ -938,15 +947,16 @@ export class ExtensionEditor extends EditorPane {
 		const moreInfoContainer = append(container, $('.more-info-container.additional-details-element'));
 		append(moreInfoContainer, $('.additional-details-title', undefined, localize('Marketplace Info', "More Info")));
 		const moreInfo = append(moreInfoContainer, $('.more-info'));
+		const toDateString = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}, ${date.toLocaleTimeString(language, { hourCycle: 'h23' })}`;
 		if (gallery) {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('published', "Published")),
-					$('div', undefined, new Date(gallery.releaseDate).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.releaseDate)))
 				),
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last released', "Last released")),
-					$('div', undefined, new Date(gallery.lastUpdated).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(gallery.lastUpdated)))
 				)
 			);
 		}
@@ -954,7 +964,7 @@ export class ExtensionEditor extends EditorPane {
 			append(moreInfo,
 				$('.more-info-entry', undefined,
 					$('div', undefined, localize('last updated', "Last updated")),
-					$('div', undefined, new Date(extension.local.installedTimestamp).toLocaleString(language, { hourCycle: 'h23' }))
+					$('div', undefined, toDateString(new Date(extension.local.installedTimestamp)))
 				)
 			);
 		}
@@ -1214,18 +1224,20 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('description', "Description")),
 					$('th', undefined, localize('default', "Default"))
 				),
-				...contrib.map(key => {
-					let description: (Node | string) = properties[key].description || '';
-					if (properties[key].markdownDescription) {
-						const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
-						description = element;
-						this.contentDisposables.add(toDisposable(dispose));
-					}
-					return $('tr', undefined,
-						$('td', undefined, $('code', undefined, key)),
-						$('td', undefined, description),
-						$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
-				})
+				...contrib
+					.sort((a, b) => a.localeCompare(b))
+					.map(key => {
+						let description: (Node | string) = properties[key].description || '';
+						if (properties[key].markdownDescription) {
+							const { element, dispose } = renderMarkdown({ value: properties[key].markdownDescription }, { actionHandler: { callback: (content) => this.openerService.open(content).catch(onUnexpectedError), disposables: this.contentDisposables } });
+							description = element;
+							this.contentDisposables.add(toDisposable(dispose));
+						}
+						return $('tr', undefined,
+							$('td', undefined, $('code', undefined, key)),
+							$('td', undefined, description),
+							$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`)));
+					})
 			)
 		);
 
@@ -1246,9 +1258,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('debugger name', "Name")),
 					$('th', undefined, localize('debugger type', "Type")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.label!),
-					$('td', undefined, d.type)))
+				...contrib
+					.sort((a, b) => a.label!.localeCompare(b.label!))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.label!),
+						$('td', undefined, d.type)))
 			)
 		);
 
@@ -1273,7 +1287,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view container id', "ID")), $('th', undefined, localize('view container title', "Title")), $('th', undefined, localize('view container location', "Where"))),
-				...viewContainers.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
+				...viewContainers
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(viewContainer => $('tr', undefined, $('td', undefined, viewContainer.id), $('td', undefined, viewContainer.title), $('td', undefined, viewContainer.location)))
 			)
 		);
 
@@ -1298,7 +1314,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('views', "Views ({0})", views.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('view id', "ID")), $('th', undefined, localize('view name', "Name")), $('th', undefined, localize('view location', "Where"))),
-				...views.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
+				...views
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(view => $('tr', undefined, $('td', undefined, view.id), $('td', undefined, view.name), $('td', undefined, view.location)))
 			)
 		);
 
@@ -1316,7 +1334,9 @@ export class ExtensionEditor extends EditorPane {
 			$('summary', { tabindex: '0' }, localize('localizations', "Localizations ({0})", localizations.length)),
 			$('table', undefined,
 				$('tr', undefined, $('th', undefined, localize('localizations language id', "Language ID")), $('th', undefined, localize('localizations language name', "Language Name")), $('th', undefined, localize('localizations localized language name', "Language Name (Localized)"))),
-				...localizations.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
+				...localizations
+					.sort((a, b) => a.languageId.localeCompare(b.languageId))
+					.map(localization => $('tr', undefined, $('td', undefined, localization.languageId), $('td', undefined, localization.languageName || ''), $('td', undefined, localization.localizedLanguageName || '')))
 			)
 		);
 
@@ -1329,15 +1349,15 @@ export class ExtensionEditor extends EditorPane {
 		if (!webviewEditors.length) {
 			return false;
 		}
-
+		const renderEditors = Array.from(webviewEditors).sort((a, b) => a.viewType.localeCompare(b.viewType));
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
-			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", webviewEditors.length)),
+			$('summary', { tabindex: '0' }, localize('customEditors', "Custom Editors ({0})", renderEditors.length)),
 			$('table', undefined,
 				$('tr', undefined,
 					$('th', undefined, localize('customEditors view type', "View Type")),
 					$('th', undefined, localize('customEditors priority', "Priority")),
 					$('th', undefined, localize('customEditors filenamePattern', "Filename Pattern"))),
-				...webviewEditors.map(webviewEditor =>
+				...renderEditors.map(webviewEditor =>
 					$('tr', undefined,
 						$('td', undefined, webviewEditor.viewType),
 						$('td', undefined, webviewEditor.priority),
@@ -1367,12 +1387,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('codeActions.kind', "Kind")),
 					$('th', undefined, localize('codeActions.description', "Description")),
 					$('th', undefined, localize('codeActions.languages', "Languages"))),
-				...flatActions.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.title),
-						$('td', undefined, $('code', undefined, action.kind)),
-						$('td', undefined, action.description ?? ''),
-						$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
+				...flatActions
+					.sort((a, b) => a.title.localeCompare(b.title))
+					.map(action =>
+						$('tr', undefined,
+							$('td', undefined, action.title),
+							$('td', undefined, $('code', undefined, action.kind)),
+							$('td', undefined, action.description ?? ''),
+							$('td', undefined, ...action.languages.map(language => $('code', undefined, language)))))
 			)
 		);
 
@@ -1393,12 +1415,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('authentication.label', "Label")),
 					$('th', undefined, localize('authentication.id', "ID"))
 				),
-				...authentication.map(action =>
-					$('tr', undefined,
-						$('td', undefined, action.label),
-						$('td', undefined, action.id)
+				...authentication
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(action =>
+						$('tr', undefined,
+							$('td', undefined, action.label),
+							$('td', undefined, action.id)
+						)
 					)
-				)
 			)
 		);
 
@@ -1414,7 +1438,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('colorThemes', "Color Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1429,7 +1456,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('iconThemes', "File Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1444,7 +1474,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('productThemes', "Product Icon Themes ({0})", contrib.length)),
-			$('ul', undefined, ...contrib.map(theme => $('li', undefined, theme.label)))
+			$('ul', undefined,
+				...contrib
+					.sort((a, b) => a.label.localeCompare(b.label))
+					.map(theme => $('li', undefined, theme.label)))
 		);
 
 		append(container, details);
@@ -1479,13 +1512,15 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('defaultLight', "Light Default")),
 					$('th', undefined, localize('defaultHC', "High Contrast Default"))
 				),
-				...colors.map(color => $('tr', undefined,
-					$('td', undefined, $('code', undefined, color.id)),
-					$('td', undefined, color.description),
-					$('td', undefined, ...colorPreview(color.defaults.dark)),
-					$('td', undefined, ...colorPreview(color.defaults.light)),
-					$('td', undefined, ...colorPreview(color.defaults.highContrast))
-				))
+				...colors
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(color => $('tr', undefined,
+						$('td', undefined, $('code', undefined, color.id)),
+						$('td', undefined, color.description),
+						$('td', undefined, ...colorPreview(color.defaults.dark)),
+						$('td', undefined, ...colorPreview(color.defaults.light)),
+						$('td', undefined, ...colorPreview(color.defaults.highContrast))
+					))
 			)
 		);
 
@@ -1584,12 +1619,14 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('keyboard shortcuts', "Keyboard Shortcuts")),
 					$('th', undefined, localize('menuContexts', "Menu Contexts"))
 				),
-				...commands.map(c => $('tr', undefined,
-					$('td', undefined, $('code', undefined, c.id)),
-					$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
-					$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
-					$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
-				))
+				...commands
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(c => $('tr', undefined,
+						$('td', undefined, $('code', undefined, c.id)),
+						$('td', undefined, typeof c.title === 'string' ? c.title : c.title.value),
+						$('td', undefined, ...c.keybindings.map(keybinding => renderKeybinding(keybinding))),
+						$('td', undefined, ...c.menus.map(context => $('code', undefined, context)))
+					))
 			)
 		);
 
@@ -1650,13 +1687,15 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('grammar', "Grammar")),
 					$('th', undefined, localize('snippets', "Snippets"))
 				),
-				...languages.map(l => $('tr', undefined,
-					$('td', undefined, l.id),
-					$('td', undefined, l.name),
-					$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
-					$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
-					$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
-				))
+				...languages
+					.sort((a, b) => a.id.localeCompare(b.id))
+					.map(l => $('tr', undefined,
+						$('td', undefined, l.id),
+						$('td', undefined, l.name),
+						$('td', undefined, ...join(l.extensions.map(ext => $('code', undefined, ext)), ' ')),
+						$('td', undefined, document.createTextNode(l.hasGrammar ? '✔︎' : '\u2014')),
+						$('td', undefined, document.createTextNode(l.hasSnippets ? '✔︎' : '\u2014'))
+					))
 			)
 		);
 
@@ -1672,7 +1711,10 @@ export class ExtensionEditor extends EditorPane {
 
 		const details = $('details', { open: true, ontoggle: onDetailsToggle },
 			$('summary', { tabindex: '0' }, localize('activation events', "Activation Events ({0})", activationEvents.length)),
-			$('ul', undefined, ...activationEvents.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
+			$('ul', undefined,
+				...activationEvents
+					.sort((a, b) => a.localeCompare(b))
+					.map(activationEvent => $('li', undefined, $('code', undefined, activationEvent))))
 		);
 
 		append(container, details);
@@ -1693,9 +1735,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('Notebook id', "ID")),
 					$('th', undefined, localize('Notebook name', "Name")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.type),
-					$('td', undefined, d.displayName)))
+				...contrib
+					.sort((a, b) => a.type.localeCompare(b.type))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.type),
+						$('td', undefined, d.displayName)))
 			)
 		);
 
@@ -1717,9 +1761,11 @@ export class ExtensionEditor extends EditorPane {
 					$('th', undefined, localize('Notebook renderer name', "Name")),
 					$('th', undefined, localize('Notebook mimetypes', "Mimetypes")),
 				),
-				...contrib.map(d => $('tr', undefined,
-					$('td', undefined, d.displayName),
-					$('td', undefined, d.mimeTypes.join(','))))
+				...contrib
+					.sort((a, b) => a.displayName.localeCompare(b.displayName))
+					.map(d => $('tr', undefined,
+						$('td', undefined, d.displayName),
+						$('td', undefined, d.mimeTypes.join(','))))
 			)
 		);
 

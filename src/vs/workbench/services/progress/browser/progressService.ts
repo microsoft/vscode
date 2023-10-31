@@ -25,6 +25,7 @@ import { IViewsService, IViewDescriptorService, ViewContainerLocation } from 'vs
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export class ProgressService extends Disposable implements IProgressService {
 
@@ -451,7 +452,7 @@ export class ProgressService extends Disposable implements IProgressService {
 		let activityProgress: IDisposable;
 		let delayHandle: any = setTimeout(() => {
 			delayHandle = undefined;
-			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), clazz: 'progress-badge', priority: 100 });
+			const handle = this.activityService.showViewContainerActivity(viewletId, { badge: new ProgressBadge(() => ''), priority: 100 });
 			const startTimeVisible = Date.now();
 			const minTimeVisible = 300;
 			activityProgress = {
@@ -545,7 +546,7 @@ export class ProgressService extends Disposable implements IProgressService {
 			}
 
 			dialog = new Dialog(
-				this.layoutService.container,
+				this.layoutService.activeContainer,
 				message,
 				buttons,
 				{
@@ -555,8 +556,8 @@ export class ProgressService extends Disposable implements IProgressService {
 					disableCloseAction: options.sticky,
 					disableDefaultAction: options.sticky,
 					keyEventProcessor: (event: StandardKeyboardEvent) => {
-						const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-						if (resolved?.commandId) {
+						const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
+						if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 							if (!allowableCommands.includes(resolved.commandId)) {
 								EventHelper.stop(event, true);
 							}

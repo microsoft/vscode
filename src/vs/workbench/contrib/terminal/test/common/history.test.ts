@@ -10,6 +10,7 @@ import { join } from 'vs/base/common/path';
 import { isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { env } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -40,6 +41,8 @@ const expectedCommands = [
 ];
 
 suite('Terminal history', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('TerminalPersistedHistory', () => {
 		let history: ITerminalPersistedHistory<number>;
 		let instantiationService: TestInstantiationService;
@@ -48,12 +51,16 @@ suite('Terminal history', () => {
 
 		setup(() => {
 			configurationService = new TestConfigurationService(getConfig(5));
-			storageService = new TestStorageService();
-			instantiationService = new TestInstantiationService();
+			storageService = store.add(new TestStorageService());
+			instantiationService = store.add(new TestInstantiationService());
 			instantiationService.set(IConfigurationService, configurationService);
 			instantiationService.set(IStorageService, storageService);
 
-			history = instantiationService.createInstance(TerminalPersistedHistory<number>, 'test');
+			history = store.add(instantiationService.createInstance(TerminalPersistedHistory<number>, 'test'));
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		test('should support adding items to the cache and respect LRU', () => {
@@ -112,7 +119,7 @@ suite('Terminal history', () => {
 			history.add('2', 2);
 			history.add('3', 3);
 			strictEqual(Array.from(history.entries).length, 3);
-			const history2 = instantiationService.createInstance(TerminalPersistedHistory, 'test');
+			const history2 = store.add(instantiationService.createInstance(TerminalPersistedHistory, 'test'));
 			strictEqual(Array.from(history2.entries).length, 3);
 		});
 	});
@@ -151,8 +158,12 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
 		if (!isWindows) {
-			suite('local', async () => {
+			suite('local', () => {
 				let originalEnvValues: { HOME: string | undefined };
 				setup(() => {
 					originalEnvValues = { HOME: env['HOME'] };
@@ -237,6 +248,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		if (!isWindows) {
@@ -328,7 +343,11 @@ suite('Terminal history', () => {
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
 		});
 
-		suite('local', async () => {
+		teardown(() => {
+			instantiationService.dispose();
+		});
+
+		suite('local', () => {
 			let originalEnvValues: { HOME: string | undefined; APPDATA: string | undefined };
 			setup(() => {
 				originalEnvValues = { HOME: env['HOME'], APPDATA: env['APPDATA'] };
@@ -431,6 +450,10 @@ suite('Terminal history', () => {
 				async getEnvironment() { return remoteEnvironment; },
 				getConnection() { return remoteConnection; }
 			} as Pick<IRemoteAgentService, 'getConnection' | 'getEnvironment'>);
+		});
+
+		teardown(() => {
+			instantiationService.dispose();
 		});
 
 		if (!isWindows) {

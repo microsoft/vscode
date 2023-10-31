@@ -22,7 +22,7 @@ import { IRecent, isRecentFolder, isRecentWorkspace, IWorkspacesService } from '
 import { URI } from 'vs/base/common/uri';
 import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { FileKind } from 'vs/platform/files/common/files';
-import { splitName } from 'vs/base/common/labels';
+import { splitRecentLabel } from 'vs/base/common/labels';
 import { isMacintosh, isWeb, isWindows } from 'vs/base/common/platform';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { inQuickPickContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
@@ -30,11 +30,11 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ResourceMap } from 'vs/base/common/map';
 import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { isHTMLElement } from 'vs/base/browser/dom';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isFolderBackupInfo, isWorkspaceBackupInfo } from 'vs/platform/backup/common/backup';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 export const inRecentFilesPickerContextKey = 'inRecentFilesPicker';
 
@@ -214,7 +214,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			fullLabel = recent.label || labelService.getUriLabel(resource);
 		}
 
-		const { name, parentPath } = splitName(fullLabel);
+		const { name, parentPath } = splitRecentLabel(fullLabel);
 
 		return {
 			iconClasses,
@@ -407,10 +407,9 @@ class BlurAction extends Action2 {
 	}
 
 	run(): void {
-		const el = document.activeElement;
-
-		if (isHTMLElement(el)) {
-			el.blur();
+		const activeElement = getActiveElement();
+		if (activeElement instanceof HTMLElement) {
+			activeElement.blur();
 		}
 	}
 }

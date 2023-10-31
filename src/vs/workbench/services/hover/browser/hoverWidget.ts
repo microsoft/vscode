@@ -11,13 +11,17 @@ import { IHoverTarget, IHoverOptions } from 'vs/workbench/services/hover/browser
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EDITOR_FONT_DEFAULTS, IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget } from 'vs/base/browser/ui/hover/hoverWidget';
+import { HoverAction, HoverPosition, HoverWidget as BaseHoverWidget, getHoverAccessibleViewHint } from 'vs/base/browser/ui/hover/hoverWidget';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { AnchorPosition } from 'vs/base/browser/ui/contextview/contextview';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { isMarkdownString } from 'vs/base/common/htmlContent';
+import { localize } from 'vs/nls';
+import { isMacintosh } from 'vs/base/common/platform';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { status } from 'vs/base/browser/ui/aria/aria';
 
 const $ = dom.$;
 type TargetRect = {
@@ -87,6 +91,7 @@ export class HoverWidget extends Widget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		super();
 
@@ -191,19 +196,32 @@ export class HoverWidget extends Widget {
 		}
 		this._hoverContainer.appendChild(this._hover.containerDomNode);
 
+		// Determine whether to hide on hover
 		let hideOnHover: boolean;
 		if (options.actions && options.actions.length > 0) {
 			// If there are actions, require hover so they can be accessed
 			hideOnHover = false;
 		} else {
 			if (options.hideOnHover === undefined) {
-				// Defaults to true when string, false when markdown as it may contain links
-				hideOnHover = typeof options.content === 'string';
+				// When unset, will default to true when it's a string or when it's markdown that
+				// appears to have a link using a naive check for '](' and '</a>'
+				hideOnHover = typeof options.content === 'string' ||
+					isMarkdownString(options.content) && !options.content.value.includes('](') && !options.content.value.includes('</a>');
 			} else {
 				// It's set explicitly
 				hideOnHover = options.hideOnHover;
 			}
 		}
+
+		// Show the hover hint if needed
+		if (hideOnHover && options.showHoverHint) {
+			const statusBarElement = $('div.hover-row.status-bar');
+			const infoElement = $('div.info');
+			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');
+			statusBarElement.appendChild(infoElement);
+			this._hover.containerDomNode.appendChild(statusBarElement);
+		}
+
 		const mouseTrackerTargets = [...this._target.targetElements];
 		if (!hideOnHover) {
 			mouseTrackerTargets.push(this._hoverContainer);
@@ -277,7 +295,11 @@ export class HoverWidget extends Widget {
 
 	public render(container: HTMLElement): void {
 		container.appendChild(this._hoverContainer);
+		const accessibleViewHint = getHoverAccessibleViewHint(this._configurationService.getValue('accessibility.verbosity.hover') === true && this._accessibilityService.isScreenReaderOptimized(), this._keybindingService.lookupKeybinding('editor.action.accessibleView')?.getAriaLabel());
+		if (accessibleViewHint) {
 
+			status(accessibleViewHint);
+		}
 		this.layout();
 		this.addFocusTrap();
 	}
@@ -453,14 +475,36 @@ export class HoverWidget extends Widget {
 
 		// Position hover on right to target
 		if (this._hoverPosition === HoverPosition.RIGHT) {
+			const roomOnRight = document.documentElement.clientWidth - target.right;
 			// Hover on the right is going beyond window.
-			if (target.right + this._hover.containerDomNode.clientWidth >= document.documentElement.clientWidth) {
-				this._hoverPosition = HoverPosition.LEFT;
+			if (roomOnRight < this._hover.containerDomNode.clientWidth) {
+				const roomOnLeft = target.left;
+				// There's enough room on the left, flip the hover position
+				if (roomOnLeft >= this._hover.containerDomNode.clientWidth) {
+					this._hoverPosition = HoverPosition.LEFT;
+				}
+				// Hover on the left would go beyond window too
+				else {
+					this._hoverPosition = HoverPosition.BELOW;
+				}
 			}
 		}
-
 		// Position hover on left to target
-		if (this._hoverPosition === HoverPosition.LEFT) {
+		else if (this._hoverPosition === HoverPosition.LEFT) {
+
+			const roomOnLeft = target.left;
+			// Hover on the left is going beyond window.
+			if (roomOnLeft < this._hover.containerDomNode.clientWidth) {
+				const roomOnRight = document.documentElement.clientWidth - target.right;
+				// There's enough room on the right, flip the hover position
+				if (roomOnRight >= this._hover.containerDomNode.clientWidth) {
+					this._hoverPosition = HoverPosition.RIGHT;
+				}
+				// Hover on the right would go beyond window too
+				else {
+					this._hoverPosition = HoverPosition.BELOW;
+				}
+			}
 			// Hover on the left is going beyond window.
 			if (target.left - this._hover.containerDomNode.clientWidth <= document.documentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;

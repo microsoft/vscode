@@ -6,7 +6,7 @@
 import * as cp from 'child_process';
 import * as os from 'os';
 import * as treekill from 'tree-kill';
-import { IElement, ILocaleInfo, ILocalizedStrings } from './driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile } from './driver';
 import { Logger, measureAndLog } from './logger';
 import { launch as launchPlaywrightBrowser } from './playwrightBrowser';
 import { PlaywrightDriver } from './playwrightDriver';
@@ -185,7 +185,7 @@ export class Code {
 
 					try {
 						process.kill(pid, 0); // throws an exception if the process doesn't exist anymore.
-						await new Promise(resolve => setTimeout(resolve, 500));
+						await this.wait(500);
 					} catch (error) {
 						done = true;
 						resolve();
@@ -242,12 +242,30 @@ export class Code {
 		await this.poll(() => this.driver.writeInTerminal(selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
-	async getLocaleInfo(): Promise<ILocaleInfo> {
+	async whenWorkbenchRestored(): Promise<void> {
+		try {
+			await this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
+		} catch (error) {
+			// TODO: @sandy081 Remove this when 1.84.0 is out
+			// whenWorkbenchRestored was not implemented in the driver before 1.84.0
+			this.logger.log('whenWorkbenchRestored() timed out');
+		}
+	}
+
+	getLocaleInfo(): Promise<ILocaleInfo> {
 		return this.driver.getLocaleInfo();
 	}
 
-	async getLocalizedStrings(): Promise<ILocalizedStrings> {
+	getLocalizedStrings(): Promise<ILocalizedStrings> {
 		return this.driver.getLocalizedStrings();
+	}
+
+	getLogs(): Promise<ILogFile[]> {
+		return this.driver.getLogs();
+	}
+
+	wait(millis: number): Promise<void> {
+		return this.driver.wait(millis);
 	}
 
 	private async poll<T>(
@@ -281,7 +299,7 @@ export class Code {
 				lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 			}
 
-			await new Promise(resolve => setTimeout(resolve, retryInterval));
+			await this.wait(retryInterval);
 			trial++;
 		}
 	}

@@ -127,7 +127,7 @@ export abstract class EditorPane extends Composite implements IEditorPane {
 	 * in a group.
 	 *
 	 * To monitor the lifecycle of editor inputs, you should not rely on this
-	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupService`.
+	 * method, rather refer to the listeners on `IEditorGroup` via `IEditorGroupsService`.
 	 */
 	clearInput(): void {
 		this._input = undefined;
@@ -220,11 +220,11 @@ export class EditorMemento<T> extends Disposable implements IEditorMemento<T> {
 
 	constructor(
 		readonly id: string,
-		private key: string,
-		private memento: MementoObject,
-		private limit: number,
-		private editorGroupService: IEditorGroupsService,
-		private configurationService: ITextResourceConfigurationService
+		private readonly key: string,
+		private readonly memento: MementoObject,
+		private readonly limit: number,
+		private readonly editorGroupService: IEditorGroupsService,
+		private readonly configurationService: ITextResourceConfigurationService
 	) {
 		super();
 

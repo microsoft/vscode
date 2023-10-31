@@ -41,6 +41,7 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 	}
 
 	override create(parent: HTMLElement): void {
+		super.create(parent);
 		this.viewPaneContainer = this._register(this.createViewPaneContainer(parent));
 		this._register(this.viewPaneContainer.onTitleAreaUpdate(() => this.updateTitleArea()));
 		this.viewPaneContainer.create(parent);
@@ -147,11 +148,8 @@ export abstract class PaneComposite extends Composite implements IPaneComposite 
 		return this.viewPaneContainer?.getTitle() ?? '';
 	}
 
-	override saveState(): void {
-		super.saveState();
-	}
-
 	override focus(): void {
+		super.focus();
 		this.viewPaneContainer?.focus();
 	}
 

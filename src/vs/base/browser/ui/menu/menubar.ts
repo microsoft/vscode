@@ -20,7 +20,6 @@ import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./menubar';
 import * as nls from 'vs/nls';
 
@@ -146,6 +145,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
+		const window = DOM.getWindow(this.container);
 		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
 			// This mouse event is outside the menubar so it counts as a focus out
 			if (this.isFocused) {
@@ -506,7 +506,7 @@ export class MenuBar extends Disposable {
 
 
 		// If below minimium menu threshold, show the overflow menu only as hamburger menu
-		if (this.numMenusShown - 1 <= showableMenus.length / 2) {
+		if (this.numMenusShown - 1 <= showableMenus.length / 4) {
 			for (const menuBarMenu of showableMenus) {
 				menuBarMenu.buttonElement.style.visibility = 'hidden';
 			}
@@ -1020,7 +1020,7 @@ export class MenuBar extends Disposable {
 			getKeyBinding: this.options.getKeybinding,
 			actionRunner: this.actionRunner,
 			enableMnemonics: this.options.alwaysOnMnemonics || (this.mnemonicsInUse && this.options.enableMnemonics),
-			ariaLabel: withNullAsUndefined(customMenu.buttonElement.getAttribute('aria-label')),
+			ariaLabel: customMenu.buttonElement.getAttribute('aria-label') ?? undefined,
 			expandDirection: this.isCompact ? this.options.compactMode : Direction.Right,
 			useEventAsContext: true
 		};

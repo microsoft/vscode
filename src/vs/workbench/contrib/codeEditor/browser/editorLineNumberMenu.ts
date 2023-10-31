@@ -9,7 +9,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { registerEditorContribution, EditorContributionInstantiation } from 'vs/editor/browser/editorExtensions';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, MenuItemAction, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { TextEditorSelectionSource } from 'vs/platform/editor/common/editor';
@@ -17,7 +17,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { Registry } from 'vs/platform/registry/common/platform';
 
 export interface IGutterActionsGenerator {
-	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction): void }): void;
+	(context: { lineNumber: number; editor: ICodeEditor; accessor: ServicesAccessor }, result: { push(action: IAction, group?: string): void }): void;
 }
 
 export class GutterActionsRegistryImpl {
@@ -77,45 +77,52 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			return;
 		}
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
 		const lineNumber = e.target.position.lineNumber;
 
 		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
 		const menu = this.menuService.createMenu(MenuId.EditorLineNumberContext, contextKeyService);
 
-		const actions: IAction[][] = [];
+		const allActions: [string, (IAction | MenuItemAction | SubmenuItemAction)[]][] = [];
 
 		this.instantiationService.invokeFunction(accessor => {
 			for (const generator of GutterActionsRegistry.getGutterActionsGenerators()) {
-				const collectedActions: IAction[] = [];
-				generator({ lineNumber, editor: this.editor, accessor }, { push: (action: IAction) => collectedActions.push(action) });
-				actions.push(collectedActions);
+				const collectedActions = new Map<string, IAction[]>();
+				generator({ lineNumber, editor: this.editor, accessor }, {
+					push: (action: IAction, group: string = 'navigation') => {
+						const actions = (collectedActions.get(group) ?? []);
+						actions.push(action);
+						collectedActions.set(group, actions);
+					}
+				});
+				for (const [group, actions] of collectedActions.entries()) {
+					allActions.push([group, actions]);
+				}
 			}
 
+			allActions.sort((a, b) => a[0].localeCompare(b[0]));
+
 			const menuActions = menu.getActions({ arg: { lineNumber, uri: model.uri }, shouldForwardArgs: true });
-			actions.push(...menuActions.map(a => a[1]));
+			allActions.push(...menuActions);
 
 			// if the current editor selections do not contain the target line number,
 			// set the selection to the clicked line number
 			if (e.target.type === MouseTargetType.GUTTER_LINE_NUMBERS) {
 				const currentSelections = this.editor.getSelections();
-				const containsSelection = currentSelections?.some(selection => selection.containsPosition({ lineNumber, column: 1 }));
+				const lineRange = {
+					startLineNumber: lineNumber,
+					endLineNumber: lineNumber,
+					startColumn: 1,
+					endColumn: model.getLineLength(lineNumber) + 1
+				};
+				const containsSelection = currentSelections?.some(selection => !selection.isEmpty() && selection.intersectRanges(lineRange) !== null);
 				if (!containsSelection) {
-					const selection = {
-						startLineNumber: lineNumber,
-						endLineNumber: lineNumber,
-						startColumn: 1,
-						endColumn: model.getLineLength(lineNumber) + 1
-					};
-					this.editor.setSelection(selection, TextEditorSelectionSource.PROGRAMMATIC);
+					this.editor.setSelection(lineRange, TextEditorSelectionSource.PROGRAMMATIC);
 				}
 			}
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
-				getActions: () => Separator.join(...actions),
-				menuActionOptions: { shouldForwardArgs: true },
-				getActionsContext: () => ({ lineNumber, uri: model.uri }),
+				getAnchor: () => e.event,
+				getActions: () => Separator.join(...allActions.map((a) => a[1])),
 				onHide: () => menu.dispose(),
 			});
 		});

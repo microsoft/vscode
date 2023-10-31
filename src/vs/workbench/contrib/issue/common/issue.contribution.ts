@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
-import { CommandsRegistry, ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
+import { CommandsRegistry, ICommandMetadata } from 'vs/platform/commands/common/commands';
 import { IssueReporterData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -16,7 +16,7 @@ import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue
 const OpenIssueReporterActionId = 'workbench.action.openIssueReporter';
 const OpenIssueReporterApiId = 'vscode.openIssueReporter';
 
-const OpenIssueReporterCommandDescription: ICommandHandlerDescription = {
+const OpenIssueReporterCommandMetadata: ICommandMetadata = {
 	description: 'Open the issue reporter and optionally prefill part of the form.',
 	args: [
 		{
@@ -54,6 +54,7 @@ interface OpenIssueReporterArgs {
 	readonly extensionId?: string;
 	readonly issueTitle?: string;
 	readonly issueBody?: string;
+	readonly extensionData?: string;
 }
 
 export class BaseIssueContribution implements IWorkbenchContribution {
@@ -76,7 +77,7 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
-			description: OpenIssueReporterCommandDescription
+			metadata: OpenIssueReporterCommandMetadata
 		});
 
 		CommandsRegistry.registerCommand({
@@ -91,7 +92,7 @@ export class BaseIssueContribution implements IWorkbenchContribution {
 
 				return accessor.get(IWorkbenchIssueService).openReporter(data);
 			},
-			description: OpenIssueReporterCommandDescription
+			metadata: OpenIssueReporterCommandMetadata
 		});
 
 		const reportIssue: ICommandAction = {

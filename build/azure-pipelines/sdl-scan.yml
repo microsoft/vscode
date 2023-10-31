@@ -32,11 +32,15 @@ variables:
     value: x64
   - name: Codeql.enabled
     value: true
+  - name: Codeql.TSAEnabled
+    value: true
+  - name: Codeql.TSAOptionsPath
+    value: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
 
 stages:
   - stage: Windows
     condition: eq(variables.SCAN_WINDOWS, 'true')
-    pool: vscode-1es-windows
+    pool: 1es-windows-2019-x64
     jobs:
       - job: WindowsJob
         timeoutInMinutes: 0
@@ -46,9 +50,14 @@ stages:
             inputs:
               scanFolder: "$(Build.SourcesDirectory)"
               outputFormat: "pre"
+
           - task: NodeTool@0
             inputs:
-              versionSpec: "16.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+          - template: ./distro/download-distro.yml
 
           - task: AzureKeyVault@1
             displayName: "Azure Key Vault: Get Secrets"
@@ -60,32 +69,11 @@ stages:
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
-              "machine github.com`nlogin vscode`npassword $(github-distro-mixin-password)" | Out-File "$env:USERPROFILE\_netrc" -Encoding ASCII
-
-              exec { git config user.email "vscode@microsoft.com" }
-              exec { git config user.name "VSCode" }
-            displayName: Prepare tooling
-
-          # - powershell: |
-          #     . build/azure-pipelines/win32/exec.ps1
-          #     $ErrorActionPreference = "Stop"
-
-          #     exec { git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $(VSCODE_DISTRO_REF) }
-          #     exec { git checkout FETCH_HEAD }
-          #   condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-          #   displayName: Checkout override commit
-
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
-              exec { git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro") }
-            displayName: Merge distro
-
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
               exec { npm config set registry "$env:NPM_REGISTRY" --location=project }
-              exec { npm config set always-auth=true --location=project }
+              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+              # following is a workaround for yarn to send authorization header
+              # for GET requests to the registry.
+              exec { Add-Content -Path .npmrc -Value "always-auth=true" }
               exec { yarn config set registry "$env:NPM_REGISTRY" }
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM & Yarn
@@ -108,44 +96,68 @@ stages:
             condition: eq(variables['Codeql.enabled'], 'True')
 
           - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              . build/azure-pipelines/win32/retry.ps1
+              mkdir -Force .build/node-gyp
+            displayName: Create custom node-gyp directory
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
+
+          - powershell: |
+              . ../../build/azure-pipelines/win32/exec.ps1
               $ErrorActionPreference = "Stop"
-              retry { exec { yarn --frozen-lockfile --check-files } }
-            env:
-              npm_config_arch: "$(NPM_ARCH)"
-              PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
-              GITHUB_TOKEN: "$(github-distro-mixin-password)"
-              CHILD_CONCURRENCY: 1
-            displayName: Install dependencies
+              # TODO: Should be replaced with upstream URL once https://github.com/nodejs/node-gyp/pull/2825
+              # gets merged.
+              exec { git clone https://github.com/rzhao271/node-gyp.git . } "Cloning rzhao271/node-gyp failed"
+              exec { git checkout 102b347da0c92c29f9c67df22e864e70249cf086 } "Checking out 102b347 failed"
+              exec { npm install } "Building rzhao271/node-gyp failed"
+              exec { python3 -m pip install setuptools } "Installing setuptools failed"
+            displayName: Install custom node-gyp
+            workingDirectory: .build/node-gyp
+            condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
           - powershell: |
               . build/azure-pipelines/win32/exec.ps1
               . build/azure-pipelines/win32/retry.ps1
               $ErrorActionPreference = "Stop"
-              retry { exec { yarn compile } }
+              $env:npm_config_node_gyp = "$(Join-Path $pwd.Path '.build/node-gyp/bin/node-gyp.js')"
+              $env:npm_config_arch = "$(NPM_ARCH)"
+              retry { exec { yarn --frozen-lockfile --check-files } }
             env:
-              npm_config_arch: "$(NPM_ARCH)"
               PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
               CHILD_CONCURRENCY: 1
+            displayName: Install dependencies
+
+          - script: node build/azure-pipelines/distro/mixin-npm
+            displayName: Mixin distro node modules
+
+          - script: node build/azure-pipelines/distro/mixin-quality
+            displayName: Mixin distro quality
+            env:
+              VSCODE_QUALITY: stable
+
+          - powershell: yarn compile
             displayName: Compile
 
           - task: CodeQL3000Finalize@0
             displayName: CodeQL Finalize
             condition: eq(variables['Codeql.enabled'], 'True')
 
-          - powershell: |
-              . build/azure-pipelines/win32/exec.ps1
-              $ErrorActionPreference = "Stop"
-              exec { yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)" }
+          - powershell: yarn gulp "vscode-symbols-win32-$(VSCODE_ARCH)"
+            env:
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Download Symbols
+
+          - task: PSScriptAnalyzer@1
+            inputs:
+              Path: '$(Build.SourcesDirectory)'
+              Settings: required
+              Recurse: true
 
           - task: BinSkim@4
             inputs:
               InputType: "Basic"
               Function: "analyze"
               TargetPattern: "guardianGlob"
+              AnalyzeIgnorePdbLoadError: true
               AnalyzeTargetGlob: '$(agent.builddirectory)\scanbin\**.dll;$(agent.builddirectory)\scanbin\**.exe;$(agent.builddirectory)\scanbin\**.node'
               AnalyzeLocalSymbolDirectories: '$(agent.builddirectory)\scanbin\VSCode-win32-$(VSCODE_ARCH)\pdb'
 
@@ -160,10 +172,17 @@ stages:
               SignatureFreshness: 'OneDay'
               TreatStaleSignatureAs: 'Error'
 
+          - task: PublishSecurityAnalysisLogs@3
+            inputs:
+              ArtifactName: CodeAnalysisLogs
+              ArtifactType: Container
+              PublishProcessedResults: false
+              AllTools: true
+
           - task: TSAUpload@2
             inputs:
               GdnPublishTsaOnboard: true
-              GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\.gdntsa'
+              GdnPublishTsaConfigFile: '$(Build.SourcesDirectory)\build\azure-pipelines\config\tsaoptions.json'
 
   - stage: Linux
     dependsOn: []
@@ -178,7 +197,11 @@ stages:
               toolMajorVersion: "V2"
           - task: NodeTool@0
             inputs:
-              versionSpec: "16.x"
+              versionSource: fromFile
+              versionFilePath: .nvmrc
+              nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+
+          - template: ./distro/download-distro.yml
 
           - task: AzureKeyVault@1
             displayName: "Azure Key Vault: Get Secrets"
@@ -189,33 +212,11 @@ stages:
 
           - script: |
               set -e
-              cat << EOF > ~/.netrc
-              machine github.com
-              login vscode
-              password $(github-distro-mixin-password)
-              EOF
-
-              git config user.email "vscode@microsoft.com"
-              git config user.name "VSCode"
-            displayName: Prepare tooling
-
-          # - script: |
-          #     set -e
-          #     git fetch https://github.com/$(VSCODE_MIXIN_REPO).git $VSCODE_DISTRO_REF
-          #     echo "##vso[task.setvariable variable=VSCODE_DISTRO_COMMIT;]$(git rev-parse FETCH_HEAD)"
-          #     git checkout FETCH_HEAD
-          #   condition: and(succeeded(), ne(variables.VSCODE_DISTRO_REF, ' '))
-          #   displayName: Checkout override commit
-
-          - script: |
-              set -e
-              git pull --no-rebase https://github.com/$(VSCODE_MIXIN_REPO).git $(node -p "require('./package.json').distro")
-            displayName: Merge distro
-
-          - script: |
-              set -e
               npm config set registry "$NPM_REGISTRY" --location=project
-              npm config set always-auth=true --location=project
+              # npm >v7 deprecated the `always-auth` config option, refs npm/cli@72a7eeb
+              # following is a workaround for yarn to send authorization header
+              # for GET requests to the registry.
+              echo "always-auth=true" >> .npmrc
               yarn config set registry "$NPM_REGISTRY"
             condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), ne(variables['NPM_REGISTRY'], 'none'))
             displayName: Setup NPM & Yarn
@@ -259,7 +260,7 @@ stages:
                 # Set compiler toolchain
                 export CC=$PWD/.build/CR_Clang/bin/clang
                 export CXX=$PWD/.build/CR_Clang/bin/clang++
-                export CXXFLAGS="-nostdinc++ -D__NO_INLINE__ -isystem$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit"
+                export CXXFLAGS="-std=c++17 -nostdinc++ -D__NO_INLINE__ -I$PWD/.build/libcxx_headers -isystem$PWD/.build/libcxx_headers/include -isystem$PWD/.build/libcxxabi_headers/include -fPIC -flto=thin -fsplit-lto-unit -D_LIBCPP_ABI_NAMESPACE=Cr"
                 export LDFLAGS="-stdlib=libc++ -fuse-ld=lld -flto=thin -fsplit-lto-unit -L$PWD/.build/libcxx-objects -lc++abi"
                 export VSCODE_REMOTE_CC=$(which gcc)
                 export VSCODE_REMOTE_CXX=$(which g++)
@@ -278,9 +279,23 @@ stages:
               GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Install dependencies
 
-          - script: |
-              set -e
-              yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
+          - script: yarn --frozen-lockfile --check-files
+            workingDirectory: .build/distro/npm
+            env:
+              npm_config_arch: $(NPM_ARCH)
+            displayName: Install distro node modules
+
+          - script: node build/azure-pipelines/distro/mixin-npm
+            displayName: Mixin distro node modules
+
+          - script: node build/azure-pipelines/distro/mixin-quality
+            displayName: Mixin distro quality
+            env:
+              VSCODE_QUALITY: stable
+
+          - script: yarn gulp vscode-symbols-linux-$(VSCODE_ARCH)
+            env:
+              GITHUB_TOKEN: "$(github-distro-mixin-password)"
             displayName: Build
 
           - task: BinSkim@3
@@ -291,4 +306,4 @@ stages:
 
           - task: TSAUpload@2
             inputs:
-              GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\.gdntsa'
+              GdnPublishTsaConfigFile: '$(Build.SourceDirectory)\build\azure-pipelines\config\tsaoptions.json'

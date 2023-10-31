@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/7aef15d9203f0dfeaf075f0673ab3ab382dfb0b1",
+	"version": "https://github.com/jeff-hykin/better-cpp-syntax/commit/f1d127a8af2b184db570345f0bb179503c47fdf6",
 	"name": "C++",
 	"scopeName": "source.cpp.embedded.macro",
 	"patterns": [
@@ -126,6 +126,9 @@
 						},
 						{
 							"include": "#string_context"
+						},
+						{
+							"include": "#ever_present_context"
 						}
 					]
 				},
@@ -158,6 +161,9 @@
 				},
 				{
 					"include": "source.cpp#number_literal"
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},
@@ -1723,6 +1729,9 @@
 						},
 						{
 							"include": "#string_context"
+						},
+						{
+							"include": "#ever_present_context"
 						}
 					]
 				},
@@ -1755,6 +1764,9 @@
 				},
 				{
 					"include": "source.cpp#number_literal"
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},
@@ -4243,6 +4255,9 @@
 						},
 						{
 							"include": "#string_context"
+						},
+						{
+							"include": "#ever_present_context"
 						}
 					]
 				},
@@ -4275,6 +4290,9 @@
 				},
 				{
 					"include": "source.cpp#number_literal"
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},
@@ -4894,6 +4912,9 @@
 						},
 						{
 							"include": "#string_context"
+						},
+						{
+							"include": "#ever_present_context"
 						}
 					]
 				},
@@ -4926,6 +4947,9 @@
 				},
 				{
 					"include": "source.cpp#number_literal"
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},
@@ -6216,6 +6240,9 @@
 							"name": "comment.block.cpp punctuation.definition.comment.end.cpp"
 						}
 					}
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},
@@ -6517,6 +6544,9 @@
 				},
 				{
 					"include": "#evaluation_context"
+				},
+				{
+					"include": "#ever_present_context"
 				}
 			]
 		},

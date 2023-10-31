@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
+import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -12,11 +14,28 @@ export interface ITOCEntry<T> {
 	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
-};
+const defaultCommonlyUsedSettings: string[] = [
+	'files.autoSave',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'editor.renderWhitespace',
+	'editor.cursorStyle',
+	'editor.multiCursorModifier',
+	'editor.insertSpaces',
+	'editor.wordWrap',
+	'files.exclude',
+	'files.associations',
+	'workbench.editor.enablePreview'
+];
+
+export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
+	return {
+		id: 'commonlyUsed',
+		label: localize('commonlyUsed', "Commonly Used"),
+		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
+	};
+}
 
 export const tocData: ITOCEntry<string> = {
 	id: 'root',
@@ -123,6 +142,11 @@ export const tocData: ITOCEntry<string> = {
 			label: localize('features', "Features"),
 			children: [
 				{
+					id: 'features/accessibility',
+					label: localize('accessibility', "Accessibility"),
+					settings: ['accessibility.*']
+				},
+				{
 					id: 'features/explorer',
 					label: localize('fileExplorer', "Explorer"),
 					settings: ['explorer.*', 'outline.*']
@@ -131,8 +155,7 @@ export const tocData: ITOCEntry<string> = {
 					id: 'features/search',
 					label: localize('search', "Search"),
 					settings: ['search.*']
-				}
-				,
+				},
 				{
 					id: 'features/debug',
 					label: localize('debug', "Debug"),
@@ -204,10 +227,10 @@ export const tocData: ITOCEntry<string> = {
 					settings: ['mergeEditor.*']
 				},
 				{
-					id: 'features/interactiveSession',
-					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['interactiveSession.*']
-				},
+					id: 'features/chat',
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
+				}
 			]
 		},
 		{
@@ -254,6 +277,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

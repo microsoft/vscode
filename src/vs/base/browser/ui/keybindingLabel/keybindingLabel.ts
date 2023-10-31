@@ -93,13 +93,13 @@ export class KeybindingLabel {
 		this.clear();
 
 		if (this.keybinding) {
-			const [firstChord, secondChord] = this.keybinding.getChords();// TODO@chords
-			if (firstChord) {
-				this.renderChord(this.domNode, firstChord, this.matches ? this.matches.firstPart : null);
+			const chords = this.keybinding.getChords();
+			if (chords[0]) {
+				this.renderChord(this.domNode, chords[0], this.matches ? this.matches.firstPart : null);
 			}
-			if (secondChord) {
+			for (let i = 1; i < chords.length; i++) {
 				dom.append(this.domNode, $('span.monaco-keybinding-key-chord-separator', undefined, ' '));
-				this.renderChord(this.domNode, secondChord, this.matches ? this.matches.chordPart : null);
+				this.renderChord(this.domNode, chords[i], this.matches ? this.matches.chordPart : null);
 			}
 			const title = (this.options.disableTitle ?? false) ? undefined : this.keybinding.getAriaLabel() || undefined;
 			if (title !== undefined) {

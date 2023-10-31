@@ -11,7 +11,7 @@ import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle'
 import { normalize } from 'vs/base/common/path';
 import { URI } from 'vs/base/common/uri';
 import { IFileChange, IFileSystemProvider, IWatchOptions } from 'vs/platform/files/common/files';
-import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, IDiskFileChange, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, toFileChanges } from 'vs/platform/files/common/watcher';
+import { AbstractNonRecursiveWatcherClient, AbstractUniversalWatcherClient, ILogMessage, INonRecursiveWatchRequest, IRecursiveWatcherOptions, isRecursiveWatchRequest, IUniversalWatchRequest, reviveFileChanges } from 'vs/platform/files/common/watcher';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 
 export interface IDiskFileSystemProviderOptions {
@@ -72,7 +72,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchUniversal(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch universally
-		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive };
+		const pathToWatch: IUniversalWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: opts.recursive, correlationId: opts.correlationId };
 		const remove = insert(this.universalPathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -102,7 +102,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		// Create watcher if this is the first time
 		if (!this.universalWatcher) {
 			this.universalWatcher = this._register(this.createUniversalWatcher(
-				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				changes => this._onDidChangeFile.fire(reviveFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
 			));
@@ -136,7 +136,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	protected abstract createUniversalWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractUniversalWatcherClient;
@@ -153,7 +153,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	private watchNonRecursive(resource: URI, opts: IWatchOptions): IDisposable {
 
 		// Add to list of paths to watch non-recursively
-		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false };
+		const pathToWatch: INonRecursiveWatchRequest = { path: this.toFilePath(resource), excludes: opts.excludes, includes: opts.includes, recursive: false, correlationId: opts.correlationId };
 		const remove = insert(this.nonRecursivePathsToWatch, pathToWatch);
 
 		// Trigger update
@@ -183,7 +183,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 		// Create watcher if this is the first time
 		if (!this.nonRecursiveWatcher) {
 			this.nonRecursiveWatcher = this._register(this.createNonRecursiveWatcher(
-				changes => this._onDidChangeFile.fire(toFileChanges(changes)),
+				changes => this._onDidChangeFile.fire(reviveFileChanges(changes)),
 				msg => this.onWatcherLogMessage(msg),
 				this.logService.getLevel() === LogLevel.Trace
 			));
@@ -199,7 +199,7 @@ export abstract class AbstractDiskFileSystemProvider extends Disposable implemen
 	}
 
 	protected abstract createNonRecursiveWatcher(
-		onChange: (changes: IDiskFileChange[]) => void,
+		onChange: (changes: IFileChange[]) => void,
 		onLogMessage: (msg: ILogMessage) => void,
 		verboseLogging: boolean
 	): AbstractNonRecursiveWatcherClient;

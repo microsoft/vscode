@@ -5,12 +5,9 @@
 
 import * as assert from 'assert';
 import { Keybinding } from 'vs/base/common/keybindings';
-import { isWindows, OS } from 'vs/base/common/platform';
+import { OS } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { IModelService } from 'vs/editor/common/services/model';
-import { ModelService } from 'vs/editor/common/services/modelService';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -18,13 +15,9 @@ import { IFileMatch, QueryType } from 'vs/workbench/services/search/common/searc
 import { getElementToFocusAfterRemoved, getLastNodeFromSameType } from 'vs/workbench/contrib/search/browser/searchActionsRemoveReplace';
 import { FileMatch, FileMatchOrMatch, FolderMatch, Match, SearchModel } from 'vs/workbench/contrib/search/browser/searchModel';
 import { MockObjectTree } from 'vs/workbench/contrib/search/test/browser/mockSearchTree';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
-import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { TestEditorGroupsService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { createFileUriFromPathFromRoot, stubModelService, stubNotebookEditorService } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
 
 suite('Search Actions', () => {
 
@@ -41,6 +34,10 @@ suite('Search Actions', () => {
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		instantiationService.stub(IKeybindingService, 'lookupKeybinding', (id: string) => null);
 		counter = 0;
+	});
+
+	teardown(() => {
+		instantiationService.dispose();
 	});
 
 	test('get next element to focus after removing a match when it has next sibling file', function () {
@@ -120,31 +117,10 @@ suite('Search Actions', () => {
 			type: QueryType.Text, folderQueries: [{ folder: createFileUriFromPathFromRoot() }], contentPattern: {
 				pattern: ''
 			}
-		}, searchModel.searchResult, searchModel, null);
+		}, searchModel.searchResult, searchModel.searchResult, null);
 		return instantiationService.createInstance(FileMatch, {
 			pattern: ''
-		}, undefined, undefined, folderMatch, rawMatch, null);
-	}
-
-	function createFileUriFromPathFromRoot(path?: string): URI {
-		const rootName = getRootName();
-		if (path) {
-			return URI.file(`${rootName}${path}`);
-		} else {
-			if (isWindows) {
-				return URI.file(`${rootName}/`);
-			} else {
-				return URI.file(rootName);
-			}
-		}
-	}
-
-	function getRootName(): string {
-		if (isWindows) {
-			return 'c:';
-		} else {
-			return '';
-		}
+		}, undefined, undefined, folderMatch, rawMatch, null, '');
 	}
 
 	function aMatch(fileMatch: FileMatch): Match {
@@ -171,18 +147,5 @@ suite('Search Actions', () => {
 
 	function aTree(elements: FileMatchOrMatch[]): any {
 		return new MockObjectTree(elements);
-	}
-
-	function stubModelService(instantiationService: TestInstantiationService): IModelService {
-		instantiationService.stub(IThemeService, new TestThemeService());
-		const config = new TestConfigurationService();
-		config.setUserConfiguration('search', { searchOnType: true, experimental: { notebookSearch: false } });
-		instantiationService.stub(IConfigurationService, config);
-		return instantiationService.createInstance(ModelService);
-	}
-
-	function stubNotebookEditorService(instantiationService: TestInstantiationService): INotebookEditorService {
-		instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
-		return instantiationService.createInstance(NotebookEditorWidgetService);
 	}
 });

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestor } from 'vs/base/browser/dom';
+import { $, addDisposableListener, addStandardDisposableListener, append, clearNode, Dimension, EventHelper, EventType, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ButtonBar } from 'vs/base/browser/ui/button/button';
 import { IMessage, InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -15,7 +15,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { parseLinkedText } from 'vs/base/common/linkedText';
 import { Schemas } from 'vs/base/common/network';
@@ -58,6 +58,7 @@ import { defaultButtonStyles, defaultInputBoxStyles } from 'vs/platform/theme/br
 import { isMacintosh } from 'vs/base/common/platform';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
+import { basename, dirname } from 'vs/base/common/resources';
 
 export const shieldIcon = registerIcon('workspace-trust-banner', Codicon.shield, localize('shieldIcon', 'Icon for workspace trust ion the banner.'));
 
@@ -715,7 +716,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 			if (event.equals(KeyCode.UpArrow) || event.equals(KeyCode.DownArrow)) {
 				const navOrder = [this.headerContainer, this.trustedContainer, this.untrustedContainer, this.configurationContainer];
 				const currentIndex = navOrder.findIndex(element => {
-					return isAncestor(document.activeElement, element);
+					return isAncestorOfActiveElement(element);
 				});
 
 				let newIndex = currentIndex;
@@ -745,6 +746,8 @@ export class WorkspaceTrustEditor extends EditorPane {
 	}
 
 	override focus() {
+		super.focus();
+
 		this.rootElement.focus();
 	}
 
@@ -1041,7 +1044,7 @@ export class WorkspaceTrustEditor extends EditorPane {
 
 		if (this.workspaceTrustManagementService.canSetParentFolderTrust()) {
 			const workspaceIdentifier = toWorkspaceIdentifier(this.workspaceService.getWorkspace()) as ISingleFolderWorkspaceIdentifier;
-			const { name } = splitName(splitName(workspaceIdentifier.uri.fsPath).parentPath);
+			const name = basename(dirname(workspaceIdentifier.uri));
 
 			const trustMessageElement = append(parent, $('.trust-message-box'));
 			trustMessageElement.innerText = localize('trustMessage', "Trust the authors of all files in the current folder or its parent '{0}'.", name);

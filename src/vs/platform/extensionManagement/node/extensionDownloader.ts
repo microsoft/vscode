@@ -7,7 +7,6 @@ import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean } from 'vs/base/common/types';
@@ -56,34 +55,20 @@ export class ExtensionsDownloader extends Disposable {
 			throw new ExtensionManagementError(error.message, ExtensionManagementErrorCode.Download);
 		}
 
-		let verificationStatus: ExtensionVerificationStatus = ExtensionVerificationStatus.Unverified;
+		let verificationStatus: ExtensionVerificationStatus = false;
 
 		if (verifySignature && this.shouldVerifySignature(extension)) {
 			const signatureArchiveLocation = await this.downloadSignatureArchive(extension);
 			try {
-				const verified = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService.getLevel() === LogLevel.Trace);
-				if (verified) {
-					verificationStatus = ExtensionVerificationStatus.Verified;
-				}
-				this.logService.info(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
+				verificationStatus = await this.extensionSignatureVerificationService.verify(location.fsPath, signatureArchiveLocation.fsPath, this.logService.getLevel() === LogLevel.Trace);
 			} catch (error) {
 				const sigError = error as ExtensionSignatureVerificationError;
-				const code: string = sigError.code;
+				verificationStatus = sigError.code;
 				if (sigError.output) {
 					this.logService.trace(`Extension signature verification details for ${extension.identifier.id} ${extension.version}:\n${sigError.output}`);
 				}
-
-				if (code === ExtensionSignaturetErrorCode.UnknownError) {
-					verificationStatus = ExtensionVerificationStatus.UnknownError;
-					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus}.`);
-				} else if (code === ExtensionSignaturetErrorCode.PackageIsInvalidZip || code === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
+				if (verificationStatus === ExtensionSignaturetErrorCode.PackageIsInvalidZip || verificationStatus === ExtensionSignaturetErrorCode.SignatureArchiveIsInvalidZip) {
 					throw new ExtensionManagementError(CorruptZipMessage, ExtensionManagementErrorCode.CorruptZip);
-				} else if (!sigError.didExecute) {
-					this.logService.warn(`Extension signature verification: ${extension.identifier.id}. Verification status: ${verificationStatus} (${code})`);
-				} else {
-					await this.delete(location);
-
-					throw new ExtensionManagementError(code, ExtensionManagementErrorCode.Signature);
 				}
 			} finally {
 				try {
@@ -93,6 +78,14 @@ export class ExtensionsDownloader extends Disposable {
 					this.logService.error(error);
 				}
 			}
+		}
+
+		if (verificationStatus === true) {
+			this.logService.info(`Extension signature is verified: ${extension.identifier.id}`);
+		} else if (verificationStatus === false) {
+			this.logService.info(`Extension signature verification is not done: ${extension.identifier.id}`);
+		} else {
+			this.logService.warn(`Extension signature verification failed with error '${verificationStatus}': ${extension.identifier.id}`);
 		}
 
 		return { location, verificationStatus };
@@ -135,7 +128,7 @@ export class ExtensionsDownloader extends Disposable {
 
 		try {
 			// Rename temp location to original
-			await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await FSPromises.rename(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
 			try {
 				await this.fileService.del(tempLocation);
@@ -152,18 +145,6 @@ export class ExtensionsDownloader extends Disposable {
 	async delete(location: URI): Promise<void> {
 		await this.cleanUpPromise;
 		await this.fileService.del(location);
-	}
-
-	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
-		try {
-			await FSPromises.rename(from.fsPath, to.fsPath);
-		} catch (error) {
-			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);
-				return this.rename(from, to, retryUntil);
-			}
-			throw error;
-		}
 	}
 
 	private async cleanUp(): Promise<void> {

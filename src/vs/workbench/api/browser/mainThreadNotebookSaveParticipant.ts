@@ -35,14 +35,11 @@ class ExtHostNotebookDocumentSaveParticipant implements IStoredFileWorkingCopySa
 		const p = new Promise<any>((resolve, reject) => {
 
 			_warningTimeout = setTimeout(
-				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveTextDocument-event after 1750ms"))),
+				() => reject(new Error(localize('timeout.onWillSave', "Aborted onWillSaveNotebookDocument-event after 1750ms"))),
 				1750
 			);
-			this._proxy.$participateInSave(workingCopy.resource, env.reason).then(values => {
+			this._proxy.$participateInSave(workingCopy.resource, env.reason, token).then(_ => {
 				clearTimeout(_warningTimeout);
-				if (!values.every(success => success)) {
-					return Promise.reject(new Error('listener failed'));
-				}
 				return undefined;
 			}).then(resolve, reject);
 		});

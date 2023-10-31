@@ -36,7 +36,10 @@ async function launchElectron(configuration: IElectronConfiguration, options: La
 		timeout: 0
 	}), 'playwright-electron#launch', logger);
 
-	const window = await measureAndLog(() => electron.firstWindow(), 'playwright-electron#firstWindow', logger);
+	let window = electron.windows()[0];
+	if (!window) {
+		window = await measureAndLog(() => electron.waitForEvent('window', { timeout: 0 }), 'playwright-electron#firstWindow', logger);
+	}
 
 	const context = window.context();
 
