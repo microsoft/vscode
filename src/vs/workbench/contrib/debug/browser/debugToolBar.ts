@@ -169,7 +169,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604
-				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy);
+				this.setCoordinates(mouseMoveEvent.posx - 14, mouseMoveEvent.posy - 14);
 			});
 
 			const mouseUpListener = dom.addDisposableGenericMouseUpListener(window, (e: MouseEvent) => {
