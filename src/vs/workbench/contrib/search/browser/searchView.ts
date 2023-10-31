@@ -1280,13 +1280,6 @@ export class SearchView extends ViewPane {
 		}
 
 		editor = editor ?? this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			if (editor.getOriginalEditor().hasTextFocus()) {
-				editor = editor.getOriginalEditor();
-			} else {
-				editor = editor.getModifiedEditor();
-			}
-		}
 
 		if (!editor) {
 			return null;
@@ -2146,7 +2139,17 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 	return undefined;
 }
 
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
+
+	let editor = activeEditor;
+
+	if (isDiffEditor(editor)) {
+		if (editor.getOriginalEditor().hasTextFocus()) {
+			editor = editor.getOriginalEditor();
+		} else {
+			editor = editor.getModifiedEditor();
+		}
+	}
 
 	if (!isCodeEditor(editor) || !editor.hasModel()) {
 		return null;
