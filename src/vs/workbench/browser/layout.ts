@@ -52,7 +52,7 @@ import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/service
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
-	activeContainer: 'main' | number /* window ID */;
+	activeContainerId: 'main' | number /* window ID */;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -170,7 +170,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
 	get containers(): Iterable<HTMLElement> {
 		const containers: HTMLElement[] = [];
-		for (const window of getWindows()) {
+		for (const { window } of getWindows()) {
 			containers.push(this.getContainerFromDocument(window.document));
 		}
 
@@ -453,8 +453,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (hasFocus) {
 			const activeContainerId = this.getActiveContainerId();
-			if (this.state.runtime.activeContainer !== activeContainerId) {
-				this.state.runtime.activeContainer = activeContainerId;
+			if (this.state.runtime.activeContainerId !== activeContainerId) {
+				this.state.runtime.activeContainerId = activeContainerId;
 				this._onDidChangeActiveContainer.fire();
 			}
 		}
@@ -615,7 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout Runtime State
 		const layoutRuntimeState: ILayoutRuntimeState = {
-			activeContainer: this.getActiveContainerId(),
+			activeContainerId: this.getActiveContainerId(),
 			fullscreen: isFullscreen(),
 			hasFocus: this.hostService.hasFocus,
 			maximized: false,
@@ -1125,12 +1125,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	getContainer(part: Parts): HTMLElement | undefined {
-		if (!this.parts.get(part)) {
-			return undefined;
+	getContainer(window: Window): HTMLElement;
+	getContainer(part: Parts): HTMLElement | undefined;
+	getContainer(windowOrPart: Window | Parts): HTMLElement | undefined {
+		if (typeof windowOrPart === 'string') {
+			const part = windowOrPart;
+			if (!this.parts.get(part)) {
+				return undefined;
+			}
+
+			return this.getPart(part).getContainer();
 		}
 
-		return this.getPart(part).getContainer();
+		return this.getContainerFromDocument(windowOrPart.document);
 	}
 
 	isVisible(part: Parts): boolean {

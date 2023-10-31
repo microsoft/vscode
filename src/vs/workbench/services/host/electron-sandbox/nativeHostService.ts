@@ -59,6 +59,14 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
 			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
 			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
+
+			// Workaround: the window does not immediately seem to have focus when
+			// opening, so we schedule a check for focus on the next animation frame
+			window.requestAnimationFrame(() => {
+				if (window.document.hasFocus()) {
+					emitter.fire(true);
+				}
+			});
 		}));
 
 		return emitter.event;
