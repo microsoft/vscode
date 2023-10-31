@@ -34,14 +34,13 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'win32':
 			switch (product) {
 				case 'client': {
-					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
 					switch (type) {
 						case 'archive':
-							return `${asset}-archive`;
+							return `win32-${arch}-archive`;
 						case 'setup':
-							return asset;
+							return `win32-${arch}`;
 						case 'user-setup':
-							return `${asset}-user`;
+							return `win32-${arch}-user`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -50,12 +49,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
+					return `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+					return `server-win32-${arch}-web`;
 				case 'cli':
 					return `cli-win32-${arch}`;
 				default:
@@ -163,7 +162,7 @@ async function main(): Promise<void> {
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const quality = getEnv('VSCODE_QUALITY');
-	const commit = process.env['VSCODE_DISTRO_COMMIT'] || getEnv('BUILD_SOURCEVERSION');
+	const commit = getEnv('BUILD_SOURCEVERSION');
 
 	console.log('Creating asset...');
 
@@ -196,14 +195,20 @@ async function main(): Promise<void> {
 	};
 
 	const uploadPromises: Promise<void>[] = [];
-	if (await blobClient.exists()) {
-		console.log(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
-	} else {
-		uploadPromises.push(retry(async () => {
-			await blobClient.uploadFile(filePath, blobOptions);
-			console.log('Blob successfully uploaded to Azure storage.');
-		}));
-	}
+
+	uploadPromises.push((async () => {
+		console.log(`Checking for blob in Azure...`);
+
+		if (await retry(() => blobClient.exists())) {
+			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		} else {
+			await retry(async (attempt) => {
+				console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
+				await blobClient.uploadFile(filePath, blobOptions);
+				console.log('Blob successfully uploaded to Azure storage.');
+			});
+		}
+	})());
 
 	const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
 
@@ -213,27 +218,33 @@ async function main(): Promise<void> {
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
-		if (await mooncakeBlobClient.exists()) {
-			console.log(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
-		} else {
-			uploadPromises.push(retry(async () => {
-				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-				console.log('Blob successfully uploaded to Mooncake Azure storage.');
-			}));
-		}
+		uploadPromises.push((async () => {
+			console.log(`Checking for blob in Mooncake Azure...`);
 
-		if (uploadPromises.length) {
-			console.log('Uploading blobs to Azure storage and Mooncake Azure storage...');
-		}
-	} else {
-		if (uploadPromises.length) {
-			console.log('Uploading blobs to Azure storage...');
-		}
+			if (await retry(() => mooncakeBlobClient.exists())) {
+				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
+			} else {
+				await retry(async (attempt) => {
+					console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
+					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+					console.log('Blob successfully uploaded to Mooncake Azure storage.');
+				});
+			}
+		})());
 	}
 
-	await Promise.all(uploadPromises);
+	const promiseResults = await Promise.allSettled(uploadPromises);
+	const rejectedPromiseResults = promiseResults.filter(result => result.status === 'rejected') as PromiseRejectedResult[];
 
-	console.log(uploadPromises.length ? 'All blobs successfully uploaded.' : 'No blobs to upload.');
+	if (rejectedPromiseResults.length === 0) {
+		console.log('All blobs successfully uploaded.');
+	} else if (rejectedPromiseResults[0]?.reason?.message?.includes('already exists')) {
+		console.warn(rejectedPromiseResults[0].reason.message);
+		console.log('Some blobs successfully uploaded.');
+	} else {
+		// eslint-disable-next-line no-throw-literal
+		throw rejectedPromiseResults[0]?.reason;
+	}
 
 	const assetUrl = `${process.env['AZURE_CDN_URL']}/${quality}/${blobName}`;
 	const blobPath = new URL(assetUrl).pathname;

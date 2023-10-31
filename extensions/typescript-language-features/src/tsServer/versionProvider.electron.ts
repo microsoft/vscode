@@ -6,9 +6,9 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import API from '../utils/api';
-import { TypeScriptServiceConfiguration } from '../utils/configuration';
+import { TypeScriptServiceConfiguration } from '../configuration/configuration';
 import { RelativeWorkspacePathResolver } from '../utils/relativePathResolver';
+import { API } from './api';
 import { ITypeScriptVersionProvider, TypeScriptVersion, TypeScriptVersionSource } from './versionProvider';
 
 
@@ -189,7 +189,7 @@ export class DiskTypeScriptVersionProvider implements ITypeScriptVersionProvider
 		} catch (err) {
 			return undefined;
 		}
-		if (!desc || !desc.version) {
+		if (!desc?.version) {
 			return undefined;
 		}
 		return desc.version ? API.fromVersionString(desc.version) : undefined;

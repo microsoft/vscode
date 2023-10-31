@@ -166,9 +166,9 @@ export class InputBox extends Widget {
 			// from ScrollableElement to DOM
 			this._register(this.scrollableElement.onScroll(e => this.input.scrollTop = e.scrollTop));
 
-			const onSelectionChange = this._register(new DomEmitter(document, 'selectionchange'));
+			const onSelectionChange = this._register(new DomEmitter(container.ownerDocument, 'selectionchange'));
 			const onAnchoredSelectionChange = Event.filter(onSelectionChange.event, () => {
-				const selection = document.getSelection();
+				const selection = container.ownerDocument.getSelection();
 				return selection?.anchorNode === wrapper;
 			});
 
@@ -287,7 +287,7 @@ export class InputBox extends Widget {
 	}
 
 	public hasFocus(): boolean {
-		return document.activeElement === this.input;
+		return dom.isActiveElement(this.input);
 	}
 
 	public select(range: IRange | null = null): void {
@@ -628,7 +628,7 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			if (options.showHistoryHint && options.showHistoryHint() && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX) && !this.placeholder.endsWith(NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS) && this.history.getHistory().length) {
 				const suffix = this.placeholder.endsWith(')') ? NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX : NLS_PLACEHOLDER_HISTORY_HINT_SUFFIX_IN_PARENS;
 				const suffixedPlaceholder = this.placeholder + suffix;
-				if (options.showPlaceholderOnFocus && document.activeElement !== this.input) {
+				if (options.showPlaceholderOnFocus && !dom.isActiveElement(this.input)) {
 					this.placeholder = suffixedPlaceholder;
 				}
 				else {
@@ -685,6 +685,19 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		}
 	}
 
+	public prependHistory(restoredHistory: string[]): void {
+		const newHistory = this.getHistory();
+		this.clearHistory();
+
+		restoredHistory.forEach((item) => {
+			this.history.add(item);
+		});
+
+		newHistory.forEach(item => {
+			this.history.add(item);
+		});
+	}
+
 	public getHistory(): string[] {
 		return this.history.getHistory();
 	}
@@ -711,10 +724,8 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 			next = next === this.value ? this.getNextValue() : next;
 		}
 
-		if (next) {
-			this.value = next;
-			aria.status(this.value);
-		}
+		this.value = next ?? '';
+		aria.status(this.value ? this.value : nls.localize('clearedInput', "Cleared Input"));
 	}
 
 	public showPreviousValue(): void {
@@ -761,6 +772,6 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	private getNextValue(): string | null {
-		return this.history.next() || this.history.last();
+		return this.history.next();
 	}
 }

@@ -208,12 +208,13 @@ registerEditorAction(ShrinkSelectionAction);
 
 export interface SelectionRangesOptions {
 	selectLeadingAndTrailingWhitespace: boolean;
+	selectSubwords: boolean;
 }
 
 export async function provideSelectionRanges(registry: LanguageFeatureRegistry<languages.SelectionRangeProvider>, model: ITextModel, positions: Position[], options: SelectionRangesOptions, token: CancellationToken): Promise<Range[][]> {
 
 	const providers = registry.all(model)
-		.concat(new WordSelectionRangeProvider()); // ALWAYS have word based selection range
+		.concat(new WordSelectionRangeProvider(options.selectSubwords)); // ALWAYS have word based selection range
 
 	if (providers.length === 1) {
 		// add word selection and bracket selection when no provider exists
@@ -313,7 +314,7 @@ CommandsRegistry.registerCommand('_executeSelectionRangeProvider', async functio
 	const reference = await accessor.get(ITextModelService).createModelReference(resource);
 
 	try {
-		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true }, CancellationToken.None);
+		return provideSelectionRanges(registry, reference.object.textEditorModel, positions, { selectLeadingAndTrailingWhitespace: true, selectSubwords: true }, CancellationToken.None);
 	} finally {
 		reference.dispose();
 	}

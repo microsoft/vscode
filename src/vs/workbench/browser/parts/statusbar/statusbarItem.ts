@@ -8,7 +8,7 @@ import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { SimpleIconLabel } from 'vs/base/browser/ui/iconLabel/simpleIconLabel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IStatusbarEntry, ShowTooltipCommand } from 'vs/workbench/services/statusbar/browser/statusbar';
+import { IStatusbarEntry, ShowTooltipCommand, StatusbarEntryKinds } from 'vs/workbench/services/statusbar/browser/statusbar';
 import { WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from 'vs/base/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeColor } from 'vs/base/common/themables';
@@ -156,6 +156,21 @@ export class StatusbarEntryItem extends Disposable {
 			}
 		}
 
+		const hasBackgroundColor = !!entry.backgroundColor || (entry.kind && entry.kind !== 'standard');
+
+		// Update: Kind
+		if (!this.entry || entry.kind !== this.entry.kind) {
+			for (const kind of StatusbarEntryKinds) {
+				this.container.classList.remove(`${kind}-kind`);
+			}
+
+			if (entry.kind && entry.kind !== 'standard') {
+				this.container.classList.add(`${entry.kind}-kind`);
+			}
+
+			this.container.classList.toggle('has-background-color', hasBackgroundColor);
+		}
+
 		// Update: Foreground
 		if (!this.entry || entry.color !== this.entry.color) {
 			this.applyColor(this.labelContainer, entry.color);
@@ -163,7 +178,7 @@ export class StatusbarEntryItem extends Disposable {
 
 		// Update: Background
 		if (!this.entry || entry.backgroundColor !== this.entry.backgroundColor) {
-			this.container.classList.toggle('has-background-color', !!entry.backgroundColor);
+			this.container.classList.toggle('has-background-color', hasBackgroundColor);
 			this.applyColor(this.container, entry.backgroundColor, true);
 		}
 

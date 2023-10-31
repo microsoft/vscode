@@ -23,6 +23,8 @@ import { localize } from 'vs/nls';
 import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import { getInstanceHoverInfo } from 'vs/workbench/contrib/terminal/browser/terminalTooltip';
+import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -41,7 +43,6 @@ export class TerminalTabbedView extends Disposable {
 
 	private _terminalContainer: HTMLElement;
 	private _tabListElement: HTMLElement;
-	private _parentElement: HTMLElement;
 	private _tabContainer: HTMLElement;
 
 	private _tabList: TerminalTabList;
@@ -77,10 +78,9 @@ export class TerminalTabbedView extends Disposable {
 		@IMenuService menuService: IMenuService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IHoverService private readonly _hoverService: IHoverService,
 	) {
 		super();
-
-		this._parentElement = parentElement;
 
 		this._tabContainer = $('.tabs-container');
 		const tabListContainer = $('.tabs-list-container');
@@ -354,7 +354,7 @@ export class TerminalTabbedView extends Disposable {
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, terminal, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -386,8 +386,9 @@ export class TerminalTabbedView extends Disposable {
 			if (rightClickBehavior === 'nothing' && !event.shiftKey) {
 				this._cancelContextMenu = true;
 			}
+			terminalContainer.focus();
 			if (!this._cancelContextMenu) {
-				openContextMenu(event, this._parentElement, this._instanceMenu, this._contextMenuService);
+				openContextMenu(event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -400,16 +401,28 @@ export class TerminalTabbedView extends Disposable {
 			}
 			if (!this._cancelContextMenu) {
 				const emptyList = this._tabList.getFocus().length === 0;
-				openContextMenu(event, this._parentElement, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
+				if (!emptyList) {
+					this._terminalGroupService.lastAccessedMenu = 'tab-list';
+				}
+
+				// Put the focused item first as it's used as the first positional argument
+				const selectedInstances = this._tabList.getSelectedElements();
+				const focusedInstance = this._tabList.getFocusedElements()?.[0];
+				if (focusedInstance) {
+					selectedInstances.splice(selectedInstances.findIndex(e => e.instanceId === focusedInstance.instanceId), 1);
+					selectedInstances.unshift(focusedInstance);
+				}
+
+				openContextMenu(event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
 			this._cancelContextMenu = false;
 		}));
-		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(terminalContainer.ownerDocument, 'keydown', (event: KeyboardEvent) => {
 			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
-		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(terminalContainer.ownerDocument, 'keyup', (event: KeyboardEvent) => {
 			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
@@ -462,21 +475,40 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._focus();
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
 			}));
+		}
+	}
 
+	focusHover() {
+		if (this._shouldShowTabs()) {
+			this._tabList.focusHover();
 			return;
 		}
-		this._focus();
+		const instance = this._terminalGroupService.activeInstance;
+		if (!instance) {
+			return;
+		}
+		this._hoverService.showHover({
+			...getInstanceHoverInfo(instance),
+			target: this._terminalContainer,
+			trapFocus: true
+		}, true);
 	}
 
 	private _focus() {

@@ -24,16 +24,18 @@ import { ExtHostNotebookDocuments } from 'vs/workbench/api/common/extHostNoteboo
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
+import { ExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileSystemConsumer';
+import { ExtHostFileSystemInfo } from 'vs/workbench/api/common/extHostFileSystemInfo';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('NotebookCell#Document', function () {
-
-
 	let rpcProtocol: TestRPCProtocol;
 	let notebook: ExtHostNotebookDocument;
 	let extHostDocumentsAndEditors: ExtHostDocumentsAndEditors;
 	let extHostDocuments: ExtHostDocuments;
 	let extHostNotebooks: ExtHostNotebookController;
 	let extHostNotebookDocuments: ExtHostNotebookDocuments;
+	let extHostConsumerFileSystem: ExtHostConsumerFileSystem;
 
 	const notebookUri = URI.parse('test:///notebook.file');
 	const disposables = new DisposableStore();
@@ -41,6 +43,8 @@ suite('NotebookCell#Document', function () {
 	teardown(function () {
 		disposables.clear();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(async function () {
 		rpcProtocol = new TestRPCProtocol();
@@ -53,11 +57,12 @@ suite('NotebookCell#Document', function () {
 		});
 		extHostDocumentsAndEditors = new ExtHostDocumentsAndEditors(rpcProtocol, new NullLogService());
 		extHostDocuments = new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors);
+		extHostConsumerFileSystem = new ExtHostConsumerFileSystem(rpcProtocol, new ExtHostFileSystemInfo());
 		extHostNotebooks = new ExtHostNotebookController(rpcProtocol, new ExtHostCommands(rpcProtocol, new NullLogService(), new class extends mock<IExtHostTelemetry>() {
 			override onExtensionError(): boolean {
 				return true;
 			}
-		}), extHostDocumentsAndEditors, extHostDocuments);
+		}), extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem);
 		extHostNotebookDocuments = new ExtHostNotebookDocuments(extHostNotebooks);
 
 		const reg = extHostNotebooks.registerNotebookSerializer(nullExtensionDescription, 'test', new class extends mock<vscode.NotebookSerializer>() { });
@@ -141,7 +146,7 @@ suite('NotebookCell#Document', function () {
 
 		const p = new Promise<void>((resolve, reject) => {
 
-			extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
+			disposables.add(extHostNotebookDocuments.onDidChangeNotebookDocument(e => {
 				try {
 					assert.strictEqual(e.contentChanges.length, 1);
 					assert.strictEqual(e.contentChanges[0].addedCells.length, 2);
@@ -161,7 +166,7 @@ suite('NotebookCell#Document', function () {
 				} catch (err) {
 					reject(err);
 				}
-			});
+			}));
 
 		});
 
@@ -353,7 +358,7 @@ suite('NotebookCell#Document', function () {
 
 	test('Opening a notebook results in VS Code firing the event onDidChangeActiveNotebookEditor twice #118470', function () {
 		let count = 0;
-		extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1);
+		disposables.add(extHostNotebooks.onDidChangeActiveNotebookEditor(() => count += 1));
 
 		extHostNotebooks.$acceptDocumentAndEditorsDelta(new SerializableObjectWithBuffers({
 			addedEditors: [{

@@ -32,12 +32,14 @@ export enum SettingValueType {
 	Boolean = 'boolean',
 	Array = 'array',
 	Exclude = 'exclude',
+	Include = 'include',
 	Complex = 'complex',
 	NullableInteger = 'nullable-integer',
 	NullableNumber = 'nullable-number',
 	Object = 'object',
 	BooleanObject = 'boolean-object',
-	LanguageTag = 'language-tag'
+	LanguageTag = 'language-tag',
+	ExtensionToggle = 'extension-toggle'
 }
 
 export interface ISettingsGroup {
@@ -91,8 +93,15 @@ export interface ISetting {
 	editPresentation?: EditPresentationTypes;
 	nonLanguageSpecificDefaultValueSource?: string | IExtensionInfo;
 	isLanguageTagSetting?: boolean;
-	categoryOrder?: number;
 	categoryLabel?: string;
+
+	// Internal properties
+	displayExtensionId?: string;
+	stableExtensionId?: string;
+	prereleaseExtensionId?: string;
+	title?: string;
+	extensionGroupTitle?: string;
+	internalOrder?: number;
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -125,12 +134,13 @@ export interface IFilterResult {
 /**
  * The ways a setting could match a query,
  * sorted in increasing order of relevance.
- * For now, ignore description and value matches.
  */
 export enum SettingMatchType {
 	None = 0,
-	WholeWordMatch = 1 << 0,
-	KeyMatch = 1 << 1
+	LanguageTagSettingMatch = 1 << 0,
+	RemoteMatch = 1 << 1,
+	DescriptionOrValueMatch = 1 << 2,
+	KeyMatch = 1 << 3
 }
 
 export interface ISettingMatch {

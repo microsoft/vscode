@@ -73,7 +73,7 @@ export class CompletionItem {
 	readonly extensionId?: ExtensionIdentifier;
 
 	// resolving
-	private _isResolved?: boolean;
+	private _resolveDuration?: number;
 	private _resolveCache?: Promise<void>;
 
 	constructor(
@@ -122,33 +122,39 @@ export class CompletionItem {
 		// create the suggestion resolver
 		if (typeof provider.resolveCompletionItem !== 'function') {
 			this._resolveCache = Promise.resolve();
-			this._isResolved = true;
+			this._resolveDuration = 0;
 		}
 	}
 
 	// ---- resolving
 
 	get isResolved(): boolean {
-		return !!this._isResolved;
+		return this._resolveDuration !== undefined;
+	}
+
+	get resolveDuration(): number {
+		return this._resolveDuration !== undefined ? this._resolveDuration : -1;
 	}
 
 	async resolve(token: CancellationToken) {
 		if (!this._resolveCache) {
 			const sub = token.onCancellationRequested(() => {
 				this._resolveCache = undefined;
-				this._isResolved = false;
+				this._resolveDuration = undefined;
 			});
+			const sw = new StopWatch(true);
 			this._resolveCache = Promise.resolve(this.provider.resolveCompletionItem!(this.completion, token)).then(value => {
 				Object.assign(this.completion, value);
-				this._isResolved = true;
-				sub.dispose();
+				this._resolveDuration = sw.elapsed();
 			}, err => {
 				if (isCancellationError(err)) {
 					// the IPC queue will reject the request with the
 					// cancellation error -> reset cached
 					this._resolveCache = undefined;
-					this._isResolved = false;
+					this._resolveDuration = undefined;
 				}
+			}).finally(() => {
+				sub.dispose();
 			});
 		}
 		return this._resolveCache;
@@ -213,7 +219,7 @@ export async function provideSuggestionItems(
 	token: CancellationToken = CancellationToken.None
 ): Promise<CompletionItemModel> {
 
-	const sw = new StopWatch(true);
+	const sw = new StopWatch();
 	position = position.clone();
 
 	const word = model.getWordAtPosition(position);
@@ -275,7 +281,7 @@ export async function provideSuggestionItems(
 		if (options.providerFilter.size > 0 && !options.providerFilter.has(_snippetSuggestSupport)) {
 			return;
 		}
-		const sw = new StopWatch(true);
+		const sw = new StopWatch();
 		const list = await _snippetSuggestSupport.provideCompletionItems(model, position, context, token);
 		onCompletionList(_snippetSuggestSupport, list, sw);
 	})();
@@ -300,7 +306,7 @@ export async function provideSuggestionItems(
 				return;
 			}
 			try {
-				const sw = new StopWatch(true);
+				const sw = new StopWatch();
 				const list = await provider.provideCompletionItems(model, position, context, token);
 				didAddResult = onCompletionList(provider, list, sw) || didAddResult;
 			} catch (err) {

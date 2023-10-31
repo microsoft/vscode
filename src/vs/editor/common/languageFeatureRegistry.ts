@@ -186,7 +186,16 @@ export class LanguageFeatureRegistry<T> {
 			return 1;
 		} else if (a._score > b._score) {
 			return -1;
-		} else if (a._time < b._time) {
+		}
+
+		// De-prioritize built-in providers
+		if (isBuiltinSelector(a.selector) && !isBuiltinSelector(b.selector)) {
+			return 1;
+		} else if (!isBuiltinSelector(a.selector) && isBuiltinSelector(b.selector)) {
+			return -1;
+		}
+
+		if (a._time < b._time) {
 			return 1;
 		} else if (a._time > b._time) {
 			return -1;
@@ -195,3 +204,16 @@ export class LanguageFeatureRegistry<T> {
 		}
 	}
 }
+
+function isBuiltinSelector(selector: LanguageSelector): boolean {
+	if (typeof selector === 'string') {
+		return false;
+	}
+
+	if (Array.isArray(selector)) {
+		return selector.some(isBuiltinSelector);
+	}
+
+	return Boolean((selector as LanguageFilter).isBuiltin);
+}
+

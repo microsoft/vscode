@@ -8,7 +8,7 @@ import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/enviro
 import { LoggerChannelClient } from 'vs/platform/log/common/logIpc';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { rendererLogId } from 'vs/workbench/common/logConstants';
+import { windowLogId } from 'vs/workbench/services/log/common/logConstants';
 import { LogService } from 'vs/platform/log/common/logService';
 
 export class NativeLogService extends LogService {
@@ -17,7 +17,7 @@ export class NativeLogService extends LogService {
 
 		const disposables = new DisposableStore();
 
-		const fileLogger = disposables.add(loggerService.createLogger(environmentService.logFile, { id: rendererLogId, name: localize('rendererLog', "Window") }));
+		const fileLogger = disposables.add(loggerService.createLogger(environmentService.logFile, { id: windowLogId, name: localize('rendererLog', "Window") }));
 
 		let consoleLogger: ILogger;
 		if (environmentService.isExtensionDevelopment && !!environmentService.extensionTestsLocationURI) {

@@ -6,7 +6,7 @@
 import { ILogService, ILoggerService, LogLevel, LogLevelToString, getLogLevel, parseLogLevel } from 'vs/platform/log/common/log';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IFileService } from 'vs/platform/files/common/files';
+import { FileOperationResult, IFileService, toFileOperationResult } from 'vs/platform/files/common/files';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { isString, isUndefined } from 'vs/base/common/types';
 import { EXTENSION_IDENTIFIER_WITH_LOG_REGEX } from 'vs/platform/environment/common/environmentService';
@@ -124,7 +124,9 @@ class DefaultLogLevelsService implements IDefaultLogLevelsService {
 				}
 			}
 		} catch (error) {
-			this.logService.error(error);
+			if (toFileOperationResult(error) !== FileOperationResult.FILE_NOT_FOUND) {
+				this.logService.error(error);
+			}
 		}
 		return !isUndefined(result.default) || result.extensions?.length ? result : undefined;
 	}

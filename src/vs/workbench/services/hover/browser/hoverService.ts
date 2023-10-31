@@ -13,15 +13,18 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
 
 	private _currentHoverOptions: IHoverOptions | undefined;
 	private _currentHover: HoverWidget | undefined;
+	private _lastHoverOptions: IHoverOptions | undefined;
 
 	private _lastFocusedElementBeforeOpen: HTMLElement | undefined;
 
@@ -29,22 +32,28 @@ export class HoverService implements IHoverService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
-	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined {
+	showHover(options: Readonly<IHoverOptions>, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
-		if (options.trapFocus && document.activeElement) {
-			this._lastFocusedElementBeforeOpen = document.activeElement as HTMLElement;
-		} else {
-			this._lastFocusedElementBeforeOpen = undefined;
+		this._lastHoverOptions = options;
+		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
+		const activeElement = getActiveElement();
+		// HACK, remove this check when #189076 is fixed
+		if (!skipLastFocusedUpdate) {
+			if (trapFocus && activeElement) {
+				this._lastFocusedElementBeforeOpen = activeElement as HTMLElement;
+			} else {
+				this._lastFocusedElementBeforeOpen = undefined;
+			}
 		}
-
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		hover.onDispose(() => {
@@ -71,7 +80,7 @@ export class HoverService implements IHoverService {
 		} else {
 			hoverDisposables.add(addDisposableListener(options.target, EventType.CLICK, () => this.hideHover()));
 		}
-		const focusedElement = <HTMLElement | null>document.activeElement;
+		const focusedElement = getActiveElement();
 		if (focusedElement) {
 			hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));
 			hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));
@@ -107,6 +116,13 @@ export class HoverService implements IHoverService {
 		}
 	}
 
+	showAndFocusLastHover(): void {
+		if (!this._lastHoverOptions) {
+			return;
+		}
+		this.showHover(this._lastHoverOptions, true, true);
+	}
+
 	private _keyDown(e: KeyboardEvent, hover: HoverWidget, hideOnKeyDown: boolean) {
 		if (e.key === 'Alt') {
 			hover.isLocked = true;
@@ -114,7 +130,7 @@ export class HoverService implements IHoverService {
 		}
 		const event = new StandardKeyboardEvent(e);
 		const keybinding = this._keybindingService.resolveKeyboardEvent(event);
-		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target)) {
+		if (keybinding.getSingleModifierDispatchChords().some(value => !!value) || this._keybindingService.softDispatch(event, event.target).kind !== ResultKind.NoMatchingKb) {
 			return;
 		}
 		if (hideOnKeyDown && (!this._currentHoverOptions?.trapFocus || e.key !== 'Tab')) {

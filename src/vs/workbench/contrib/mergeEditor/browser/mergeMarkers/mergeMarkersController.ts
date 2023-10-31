@@ -87,7 +87,8 @@ export class MergeMarkersController extends Disposable {
 				updateWidth();
 
 
-				this.disposableStore.add(autorun('update classname', reader => {
+				this.disposableStore.add(autorun(reader => {
+					/** @description update classname */
 					const vm = this.mergeEditorViewModel.read(reader);
 					if (!vm) {
 						return;

@@ -23,19 +23,22 @@ function extractKeyCode(e: KeyboardEvent): KeyCode {
 	if (keyCode === 3) {
 		return KeyCode.PauseBreak;
 	} else if (browser.isFirefox) {
-		if (keyCode === 59) {
-			return KeyCode.Semicolon;
-		} else if (keyCode === 107) {
-			return KeyCode.Equal;
-		} else if (keyCode === 109) {
-			return KeyCode.Minus;
-		} else if (platform.isMacintosh && keyCode === 224) {
-			return KeyCode.Meta;
+		switch (keyCode) {
+			case 59: return KeyCode.Semicolon;
+			case 60:
+				if (platform.isLinux) { return KeyCode.IntlBackslash; }
+				break;
+			case 61: return KeyCode.Equal;
+			// based on: https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/keyCode#numpad_keys
+			case 107: return KeyCode.NumpadAdd;
+			case 109: return KeyCode.NumpadSubtract;
+			case 173: return KeyCode.Minus;
+			case 224:
+				if (platform.isMacintosh) { return KeyCode.Meta; }
+				break;
 		}
 	} else if (browser.isWebKit) {
-		if (keyCode === 91) {
-			return KeyCode.Meta;
-		} else if (platform.isMacintosh && keyCode === 93) {
+		if (platform.isMacintosh && keyCode === 93) {
 			// the two meta keys in the Mac have different key codes (91 and 93)
 			return KeyCode.Meta;
 		} else if (!platform.isMacintosh && keyCode === 92) {

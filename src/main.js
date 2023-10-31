@@ -22,6 +22,7 @@ const bootstrap = require('./bootstrap');
 const bootstrapNode = require('./bootstrap-node');
 const { getUserDataPath } = require('./vs/platform/environment/node/userDataPath');
 const { stripComments } = require('./vs/base/common/stripComments');
+const { getUNCHost, addUNCHostToAllowlist } = require('./vs/base/node/unc');
 /** @type {Partial<IProductConfiguration>} */
 const product = require('../product.json');
 const { app, protocol, crashReporter, Menu } = require('electron');
@@ -32,16 +33,38 @@ const portable = bootstrapNode.configurePortable(product);
 // Enable ASAR support
 bootstrap.enableASARSupport();
 
-// Set userData path before app 'ready' event
 const args = parseCLIArgs();
+// Configure static command line arguments
+const argvConfig = configureCommandlineSwitchesSync(args);
+// Enable sandbox globally unless
+// 1) disabled via command line using either
+//    `--no-sandbox` or `--disable-chromium-sandbox` argument.
+// 2) argv.json contains `disable-chromium-sandbox: true`.
+if (args['sandbox'] &&
+	!args['disable-chromium-sandbox'] &&
+	!argvConfig['disable-chromium-sandbox']) {
+	app.enableSandbox();
+} else if (app.commandLine.hasSwitch('no-sandbox') &&
+	!app.commandLine.hasSwitch('disable-gpu-sandbox')) {
+	// Disable GPU sandbox whenever --no-sandbox is used.
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+} else {
+	app.commandLine.appendSwitch('no-sandbox');
+	app.commandLine.appendSwitch('disable-gpu-sandbox');
+}
+
+// Set userData path before app 'ready' event
 const userDataPath = getUserDataPath(args, product.nameShort ?? 'code-oss-dev');
+if (process.platform === 'win32') {
+	const userDataUNCHost = getUNCHost(userDataPath);
+	if (userDataUNCHost) {
+		addUNCHostToAllowlist(userDataUNCHost); // enables to use UNC paths in userDataPath
+	}
+}
 app.setPath('userData', userDataPath);
 
 // Resolve code cache path
 const codeCachePath = getCodeCachePath();
-
-// Configure static command line arguments
-const argvConfig = configureCommandlineSwitchesSync(args);
 
 // Disable default menu (https://github.com/electron/electron/issues/35512)
 Menu.setApplicationMenu(null);
@@ -95,20 +118,12 @@ let nlsConfigurationPromise = undefined;
 /**
  * @type {String}
  **/
-let osLocale = 'en';
-// This if statement can be simplified once
-// VS Code moves to Electron 22.
-// Ref https://github.com/microsoft/vscode/issues/159813
-// and https://github.com/electron/electron/pull/36035
-if ('getPreferredSystemLanguages' in app
-	&& typeof app.getPreferredSystemLanguages === 'function') {
-	// Use the most preferred OS language for language recommendation.
-	// The API might return an empty array on Linux, such as when
-	// the 'C' locale is the user's only configured locale.
-	// No matter the OS, if the array is empty, default back to 'en'.
-	const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
-	osLocale = processZhLocale(resolved.toLowerCase());
-}
+// Use the most preferred OS language for language recommendation.
+// The API might return an empty array on Linux, such as when
+// the 'C' locale is the user's only configured locale.
+// No matter the OS, if the array is empty, default back to 'en'.
+const resolved = app.getPreferredSystemLanguages()?.[0] ?? 'en';
+const osLocale = processZhLocale(resolved.toLowerCase());
 const metaDataFile = path.join(__dirname, 'nls.metadata.json');
 const locale = getUserDefinedLocale(argvConfig);
 if (locale) {
@@ -190,9 +205,11 @@ function configureCommandlineSwitchesSync(cliArgs) {
 	];
 
 	if (process.platform === 'linux') {
-
 		// Force enable screen readers on Linux via this flag
 		SUPPORTED_ELECTRON_SWITCHES.push('force-renderer-accessibility');
+
+		// override which password-store is used on Linux
+		SUPPORTED_ELECTRON_SWITCHES.push('password-store');
 	}
 
 	const SUPPORTED_MAIN_PROCESS_SWITCHES = [
@@ -201,7 +218,10 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		'enable-proposed-api',
 
 		// Log level to use. Default is 'info'. Allowed values are 'error', 'warn', 'info', 'debug', 'trace', 'off'.
-		'log-level'
+		'log-level',
+
+		// Use an in-memory storage for secrets
+		'use-inmemory-secretstorage'
 	];
 
 	// Read argv config
@@ -213,8 +233,12 @@ function configureCommandlineSwitchesSync(cliArgs) {
 		// Append Electron flags to Electron
 		if (SUPPORTED_ELECTRON_SWITCHES.indexOf(argvKey) !== -1) {
 
-			// Color profile
-			if (argvKey === 'force-color-profile') {
+			if (
+				// Color profile
+				argvKey === 'force-color-profile' ||
+				// Password store
+				argvKey === 'password-store'
+			) {
 				if (argvValue) {
 					app.commandLine.appendSwitch(argvKey, argvValue);
 				}
@@ -250,15 +274,21 @@ function configureCommandlineSwitchesSync(cliArgs) {
 						}
 					}
 					break;
+
+				case 'use-inmemory-secretstorage':
+					if (argvValue) {
+						process.argv.push('--use-inmemory-secretstorage');
+					}
+					break;
 			}
 		}
 	});
 
-	/* Following features are disabled from the runtime.
-	 * `CalculateNativeWinOcclusion` - Disable native window occlusion tracker,
-	 *	Refs https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ
-	 */
-	app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+	// Following features are disabled from the runtime:
+	// `CalculateNativeWinOcclusion` - Disable native window occlusion tracker (https://groups.google.com/a/chromium.org/g/embedder-dev/c/ZF3uHHyWLKw/m/VDN2hDXMAAAJ)
+	const featuresToDisable =
+		`CalculateNativeWinOcclusion,${app.commandLine.getSwitchValue('disable-features')}`;
+	app.commandLine.appendSwitch('disable-features', featuresToDisable);
 
 	// Support JS Flags
 	const jsFlags = getJSFlags(cliArgs);
@@ -381,9 +411,6 @@ function configureCrashReporter() {
 			if (uuidPattern.test(crashReporterId)) {
 				if (isWindows) {
 					switch (process.arch) {
-						case 'ia32':
-							submitURL = appCenter['win32-ia32'];
-							break;
 						case 'x64':
 							submitURL = appCenter['win32-x64'];
 							break;
@@ -449,11 +476,6 @@ function getJSFlags(cliArgs) {
 		jsFlags.push(cliArgs['js-flags']);
 	}
 
-	// Support max-memory flag
-	if (cliArgs['max-memory'] && !/max_old_space_size=(\d+)/g.exec(cliArgs['js-flags'] ?? '')) {
-		jsFlags.push(`--max_old_space_size=${cliArgs['max-memory']}`);
-	}
-
 	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
@@ -468,9 +490,17 @@ function parseCLIArgs() {
 			'user-data-dir',
 			'locale',
 			'js-flags',
-			'max-memory',
 			'crash-reporter-directory'
-		]
+		],
+		boolean: [
+			'disable-chromium-sandbox',
+		],
+		default: {
+			'sandbox': true
+		},
+		alias: {
+			'no-sandbox': 'sandbox'
+		}
 	});
 }
 
