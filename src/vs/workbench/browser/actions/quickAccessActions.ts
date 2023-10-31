@@ -11,7 +11,7 @@ import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/commo
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler, getFileSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
+import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler, getSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Codicon } from 'vs/base/common/codicons';
@@ -174,7 +174,7 @@ function getFileSearchText(accessor: ServicesAccessor): string | null {
 		return null;
 	}
 
-	return getFileSelectionTextFromEditor(seedStringFromSelection, activeEditor);
+	return getSelectionTextFromEditor(seedStringFromSelection, activeEditor);
 }
 
 registerAction2(class QuickAccessAction extends Action2 {

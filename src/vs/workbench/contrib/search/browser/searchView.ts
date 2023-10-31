@@ -21,7 +21,7 @@ import * as strings from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import 'vs/css!./media/searchview';
-import { getCodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -80,6 +80,7 @@ import { TextSearchCompleteMessage } from 'vs/workbench/services/search/common/s
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { INotebookService } from 'vs/workbench/contrib/notebook/common/notebookService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { getSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 
 const $ = dom.$;
 
@@ -1280,13 +1281,6 @@ export class SearchView extends ViewPane {
 		}
 
 		editor = editor ?? this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			if (editor.getOriginalEditor().hasTextFocus()) {
-				editor = editor.getOriginalEditor();
-			} else {
-				editor = editor.getModifiedEditor();
-			}
-		}
 
 		if (!editor) {
 			return null;
@@ -2144,45 +2138,4 @@ export function getEditorSelectionFromMatch(element: FileMatchOrMatch, viewModel
 		return range;
 	}
 	return undefined;
-}
-
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, editor: IEditor): string | null {
-
-	if (!isCodeEditor(editor) || !editor.hasModel()) {
-		return null;
-	}
-
-	const range = editor.getSelection();
-	if (!range) {
-		return null;
-	}
-
-	if (range.isEmpty()) {
-		if (allowUnselectedWord) {
-			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			return wordAtPosition?.word ?? null;
-		} else {
-			return null;
-		}
-	}
-
-	let searchText = '';
-	for (let i = range.startLineNumber; i <= range.endLineNumber; i++) {
-		let lineText = editor.getModel().getLineContent(i);
-		if (i === range.endLineNumber) {
-			lineText = lineText.substring(0, range.endColumn - 1);
-		}
-
-		if (i === range.startLineNumber) {
-			lineText = lineText.substring(range.startColumn - 1);
-		}
-
-		if (i !== range.startLineNumber) {
-			lineText = '\n' + lineText;
-		}
-
-		searchText += lineText;
-	}
-
-	return searchText;
 }
