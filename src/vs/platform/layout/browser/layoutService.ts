@@ -82,6 +82,11 @@ export interface ILayoutService {
 	readonly containers: Iterable<HTMLElement>;
 
 	/**
+	 * Get the container for the given window.
+	 */
+	getContainer(window: Window): HTMLElement;
+
+	/**
 	 * An offset to use for positioning elements inside the main container.
 	 */
 	readonly mainContainerOffset: ILayoutOffsetInfo;

@@ -250,7 +250,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		for (const window of mainWindows) {
 			const auxiliaryWindows = mapMainWindowToAuxiliaryWindows.get(window.id);
 			if (mapMainWindowToAuxiliaryWindows.size > 0) {
-				picks.push({ type: 'separator', payload: -1, label: auxiliaryWindows ? localize('windowGroup', "Window Group") : undefined } as unknown as IWindowPickItem);
+				picks.push({ type: 'separator', payload: -1, label: auxiliaryWindows ? localize('windowGroup', "window group") : undefined } as unknown as IWindowPickItem);
 			}
 
 			const resource = window.filename ? URI.file(window.filename) : isSingleFolderWorkspaceIdentifier(window.workspace) ? window.workspace.uri : isWorkspaceIdentifier(window.workspace) ? window.workspace.configPath : undefined;
