@@ -1933,16 +1933,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
-			this.groupActiveEditorPinnedContext.set(activeEditor ? this.isPinned(activeEditor) : false);
-			this.groupActiveEditorFirstContext.set(activeEditor ? this.isFirst(activeEditor) : false);
-			this.groupActiveEditorLastContext.set(activeEditor ? this.isLast(activeEditor) : false);
-			this.groupActiveEditorStickyContext.set(activeEditor ? this.isSticky(activeEditor) : false);
 			applyAvailableEditorIds(this.groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
 
 			this.groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
 			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
-
-			this.groupLockedContext.set(this.isLocked);
 		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
