@@ -24,7 +24,7 @@ import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menuba
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
+import { Parts, IWorkbenchLayoutService, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -42,8 +42,6 @@ import { SimpleAccountActivityActionViewItem, SimpleGlobalActivityActionViewItem
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 
 export class TitlebarPart extends Part implements ITitleService {
-
-	private static readonly configCommandCenter = 'window.commandCenter';
 
 	declare readonly _serviceBrand: undefined;
 
@@ -134,7 +132,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	get isCommandCenterVisible() {
-		return this.configurationService.getValue<boolean>(TitlebarPart.configCommandCenter);
+		return this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER);
 	}
 
 	private registerListeners(): void {
@@ -169,7 +167,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			this._onDidChange.fire(undefined);
 		}
 
-		if (event.affectsConfiguration(TitlebarPart.configCommandCenter)) {
+		if (event.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 			this.updateTitle();
 			this._onDidChangeCommandCenterVisibility.fire();
 			this._onDidChange.fire(undefined);
@@ -475,7 +473,7 @@ class ToogleConfigAction extends Action2 {
 
 registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
 	constructor() {
-		super('window.commandCenter', localize('toggle.commandCenter', 'Command Center'), 1);
+		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1);
 	}
 });
 
