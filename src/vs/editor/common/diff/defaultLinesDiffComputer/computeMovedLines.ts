@@ -33,12 +33,23 @@ export function computeMovedLines(
 	moves = joinCloseConsecutiveMoves(moves);
 	// Ignore too short moves
 	moves = moves.filter(current => {
-		const originalText = current.original.toOffsetRange().slice(originalLines).map(l => l.trim()).join('\n');
-		return originalText.length >= 10;
+		const lines = current.original.toOffsetRange().slice(originalLines).map(l => l.trim());
+		const originalText = lines.join('\n');
+		return originalText.length >= 15 && countWhere(lines, l => l.length >= 2) >= 2;
 	});
 	moves = removeMovesInSameDiff(changes, moves);
 
 	return moves;
+}
+
+function countWhere<T>(arr: T[], predicate: (t: T) => boolean): number {
+	let count = 0;
+	for (const t of arr) {
+		if (predicate(t)) {
+			count++;
+		}
+	}
+	return count;
 }
 
 function computeMovesFromSimpleDeletionsToSimpleInsertions(
@@ -307,9 +318,9 @@ function joinCloseConsecutiveMoves(moves: LineRangeMapping[]): LineRangeMapping[
 function removeMovesInSameDiff(changes: DetailedLineRangeMapping[], moves: LineRangeMapping[]) {
 	const changesMonotonous = new MonotonousArray(changes);
 	moves = moves.filter(m => {
-		const diffBeforeEndOfMoveOriginal = changesMonotonous.findLastMonotonous(c => c.original.endLineNumberExclusive < m.original.endLineNumberExclusive)
+		const diffBeforeEndOfMoveOriginal = changesMonotonous.findLastMonotonous(c => c.original.startLineNumber < m.original.endLineNumberExclusive)
 			|| new LineRangeMapping(new LineRange(1, 1), new LineRange(1, 1));
-		const diffBeforeEndOfMoveModified = findLastMonotonous(changes, c => c.modified.endLineNumberExclusive < m.modified.endLineNumberExclusive);
+		const diffBeforeEndOfMoveModified = findLastMonotonous(changes, c => c.modified.startLineNumber < m.modified.endLineNumberExclusive);
 
 		const differentDiffs = diffBeforeEndOfMoveOriginal !== diffBeforeEndOfMoveModified;
 		return differentDiffs;

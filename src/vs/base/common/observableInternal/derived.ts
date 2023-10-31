@@ -74,7 +74,7 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 	);
 }
 
-_setDerivedOpts(derived);
+_setDerivedOpts(derivedOpts);
 
 const enum DerivedState {
 	/** Initial state, no previous value, recomputation needed */
@@ -107,7 +107,7 @@ export class Derived<T, TChangeSummary = any> extends BaseObservable<T, void> im
 	private changeSummary: TChangeSummary | undefined = undefined;
 
 	public override get debugName(): string {
-		return getDebugName(this._debugName, this._computeFn, this._owner, this) ?? '(anonymous)';
+		return getDebugName(this, this._debugName, this._computeFn, this._owner, this) ?? '(anonymous)';
 	}
 
 	constructor(

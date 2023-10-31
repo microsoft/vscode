@@ -47,9 +47,9 @@ import { Event } from 'vs/base/common/event';
 import { IHoverDelegate, IHoverDelegateOptions } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { InstanceContext, TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 export class TerminalViewPane extends ViewPane {
-	private _fontStyleElement: HTMLElement | undefined;
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
@@ -178,14 +178,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 		this._parentDomElement = container;
 		this._parentDomElement.classList.add('integrated-terminal');
-		this._fontStyleElement = document.createElement('style');
+		dom.createStyleSheet(this._parentDomElement);
 		this._instantiationService.createInstance(TerminalThemeIconStyle, this._parentDomElement);
 
 		if (!this.shouldShowWelcome()) {
 			this._createTabsView();
 		}
-
-		this._parentDomElement.appendChild(this._fontStyleElement);
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.FontFamily) || e.affectsConfiguration('editor.fontFamily')) {
@@ -263,7 +261,7 @@ export class TerminalViewPane extends ViewPane {
 			case TerminalCommandId.Focus: {
 				if (action instanceof MenuItemAction) {
 					const actions: IAction[] = [];
-					createAndFillInContextMenuActions(this._singleTabMenu, undefined, actions);
+					createAndFillInContextMenuActions(this._singleTabMenu, { shouldForwardArgs: true }, actions);
 					return this._instantiationService.createInstance(SingleTerminalTabActionViewItem, action, actions);
 				}
 			}
@@ -300,21 +298,25 @@ export class TerminalViewPane extends ViewPane {
 	}
 
 	override focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		super.focus();
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._terminalGroupService.showPanel(true);
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this.element.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (previousActiveElement && dom.isActiveElement(previousActiveElement)) {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
-
-			return;
 		}
-		this._terminalGroupService.showPanel(true);
 	}
 
 	override shouldShowWelcome(): boolean {
@@ -335,11 +337,11 @@ class SwitchTerminalActionViewItem extends SelectActionViewItem {
 		this._register(_terminalService.onDidChangeInstances(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveGroup(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeActiveInstance(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstanceTitle(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstanceTitleChange(() => this._updateItems(), this));
 		this._register(_terminalGroupService.onDidChangeGroups(() => this._updateItems(), this));
 		this._register(_terminalService.onDidChangeConnectionState(() => this._updateItems(), this));
 		this._register(terminalProfileService.onDidChangeAvailableProfiles(() => this._updateItems(), this));
-		this._register(_terminalService.onDidChangeInstancePrimaryStatus(() => this._updateItems(), this));
+		this._register(_terminalService.onAnyInstancePrimaryStatusChange(() => this._updateItems(), this));
 	}
 
 	override render(container: HTMLElement): void {
@@ -395,11 +397,10 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 		// Register listeners to update the tab
 		this._register(Event.debounce<ITerminalInstance | undefined, Set<ITerminalInstance>>(Event.any(
-			this._terminalService.onDidChangeInstancePrimaryStatus,
+			this._terminalService.onAnyInstancePrimaryStatusChange,
 			this._terminalGroupService.onDidChangeActiveInstance,
-			Event.map(this._terminalService.onDidChangeInstanceIcon, e => e.instance),
-			Event.map(this._terminalService.onDidChangeInstanceColor, e => e.instance),
-			this._terminalService.onDidChangeInstanceTitle,
+			Event.map(this._terminalService.onAnyInstanceIconChange, e => e.instance),
+			this._terminalService.onAnyInstanceTitleChange,
 			this._terminalService.onDidChangeInstanceCapability,
 		), (last, e) => {
 			if (!last) {
@@ -515,9 +516,14 @@ class SingleTerminalTabActionViewItem extends MenuEntryActionViewItem {
 
 	private _openContextMenu() {
 		this._contextMenuService.showContextMenu({
+			actionRunner: new TerminalContextActionRunner(),
 			getAnchor: () => this.element!,
 			getActions: () => this._actions,
-			getActionsContext: () => this.label
+			// The context is always the active instance in the terminal view
+			getActionsContext: () => {
+				const instance = this._terminalGroupService.activeInstance;
+				return instance ? [new InstanceContext(instance)] : [];
+			}
 		});
 	}
 }
@@ -555,15 +561,13 @@ class TerminalThemeIconStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}
 
 	private _registerListeners(): void {
-		this._register(this._terminalService.onDidChangeInstanceIcon(() => this.updateStyles()));
-		this._register(this._terminalService.onDidChangeInstanceColor(() => this.updateStyles()));
+		this._register(this._terminalService.onAnyInstanceIconChange(() => this.updateStyles()));
 		this._register(this._terminalService.onDidChangeInstances(() => this.updateStyles()));
 		this._register(this._terminalGroupService.onDidChangeGroups(() => this.updateStyles()));
 	}

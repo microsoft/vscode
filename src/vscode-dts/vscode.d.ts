@@ -1552,7 +1552,7 @@ declare module 'vscode' {
 		 */
 		with(change: {
 			/**
-			 * The new scheme, defauls to this Uri's scheme.
+			 * The new scheme, defaults to this Uri's scheme.
 			 */
 			scheme?: string;
 			/**
@@ -11320,7 +11320,7 @@ declare module 'vscode' {
 		 * tree objects in a data transfer. See the documentation for `DataTransferItem` for how best to take advantage of this.
 		 *
 		 * To add a data transfer item that can be dragged into the editor, use the application specific mime type "text/uri-list".
-		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by newlines. To specify a cursor position in the file,
+		 * The data for "text/uri-list" should be a string with `toString()`ed Uris separated by `\r\n`. To specify a cursor position in the file,
 		 * set the Uri's fragment to `L3,5`, where 3 is the line number and 5 is the column number.
 		 *
 		 * @param source The source items for the drag and drop operation.
@@ -17609,6 +17609,37 @@ declare module 'vscode' {
 		 * Associated file location.
 		 */
 		location?: Location;
+
+		/**
+		 * Context value of the test item. This can be used to contribute message-
+		 * specific actions to the test peek view. The value set here can be found
+		 * in the `testMessage` property of the following `menus` contribution points:
+		 *
+		 * - `testing/message/context` - context menu for the message in the results tree
+		 * - `testing/message/content` - a prominent button overlaying editor content where
+		 *    the message is displayed.
+		 *
+		 * For example:
+		 *
+		 * ```json
+		 * "contributes": {
+		 *   "menus": {
+		 *     "testing/message/content": [
+		 *       {
+		 *         "command": "extension.deleteCommentThread",
+		 *         "when": "testMessage == canApplyRichDiff"
+		 *       }
+		 *     ]
+		 *   }
+		 * }
+		 * ```
+		 *
+		 * The command will be called with an object containing:
+		 * - `test`: the {@link TestItem} the message is associated with, *if* it
+		 *    is still present in the {@link TestController.items} collection.
+		 * - `message`: the {@link TestMessage} instance.
+		 */
+		contextValue?: string;
 
 		/**
 		 * Creates a new TestMessage that will present as a diff in the editor.

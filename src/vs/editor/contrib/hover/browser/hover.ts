@@ -83,14 +83,13 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 				this._hookEvents();
 			}
 		}));
-		this._register(this._editor.onMouseLeave(() => {
-			this._mouseMoveEvent = undefined;
-			this._reactToEditorMouseMoveRunner.cancel();
-		}));
 	}
 
 	private _hookEvents(): void {
-		const hideWidgetsEventHandler = () => this._hideWidgets();
+		const hideWidgetsCancelSchedulerEventHandler = () => {
+			this._cancelScheduler();
+			this._hideWidgets();
+		};
 
 		const hoverOpts = this._editor.getOption(EditorOption.hover);
 		this._isHoverEnabled = hoverOpts.enabled;
@@ -107,8 +106,14 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 		}
 
 		this._toUnhook.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
-		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsCancelSchedulerEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModelContent(hideWidgetsCancelSchedulerEventHandler));
 		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
+	}
+
+	private _cancelScheduler() {
+		this._mouseMoveEvent = undefined;
+		this._reactToEditorMouseMoveRunner.cancel();
 	}
 
 	private _unhookEvents(): void {
@@ -150,6 +155,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	}
 
 	private _onEditorMouseLeave(mouseEvent: IPartialEditorMouseEvent): void {
+		this._cancelScheduler();
 		const targetEm = (mouseEvent.event.browserEvent.relatedTarget) as HTMLElement;
 		if (this._contentWidget?.widget.isResizing || this._contentWidget?.containsNode(targetEm)) {
 			// When the content widget is resizing
@@ -380,7 +386,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 					'If the hover is already visible, it will take focus.'
 				]
 			}, "Show or Focus Hover"),
-			description: {
+			metadata: {
 				description: `Show or Focus Hover`,
 				args: [{
 					name: 'args',

@@ -10,6 +10,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions, IAccessibleViewSymbol } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ITerminalInstance, ITerminalService } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -17,26 +18,37 @@ import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/acces
 
 export class TerminalAccessibleBufferProvider extends DisposableStore implements IAccessibleContentProvider {
 	id = AccessibleViewProviderId.Terminal;
-	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', positionBottom: true, id: AccessibleViewProviderId.Terminal };
+	options: IAccessibleViewOptions = { type: AccessibleViewType.View, language: 'terminal', id: AccessibleViewProviderId.Terminal };
 	verbositySettingKey = AccessibilityVerbositySettingId.Terminal;
 	private readonly _onDidRequestClearProvider = new Emitter<AccessibleViewProviderId>();
 	readonly onDidRequestClearLastProvider = this._onDidRequestClearProvider.event;
+	private _focusedInstance: ITerminalInstance | undefined;
 	constructor(
 		private readonly _instance: Pick<ITerminalInstance, 'onDidRunText' | 'focus' | 'shellType' | 'capabilities' | 'onDidRequestFocus' | 'resource' | 'onDisposed'>,
 		private _bufferTracker: BufferContentTracker,
 		customHelp: () => string,
 		@IModelService _modelService: IModelService,
-		@IConfigurationService _configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService _contextKeyService: IContextKeyService,
 		@ITerminalService _terminalService: ITerminalService
 	) {
 		super();
 		this.options.customHelp = customHelp;
-		this.add(this._instance.onDidRequestFocus(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
 		this.add(this._instance.onDisposed(() => this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal)));
+		this.add(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewPreserveCursorPosition)) {
+				this.options.position = configurationService.getValue(TerminalSettingId.AccessibleViewPreserveCursorPosition) ? 'initial-bottom' : 'bottom';
+			}
+		}));
+		this._focusedInstance = _terminalService.activeInstance;
+		this.add(_terminalService.onDidChangeActiveInstance(() => {
+			if (_terminalService.activeInstance && this._focusedInstance?.instanceId !== _terminalService.activeInstance?.instanceId) {
+				this._onDidRequestClearProvider.fire(AccessibleViewProviderId.Terminal);
+				this._focusedInstance = _terminalService.activeInstance;
+			}
+		}));
 	}
-
-
 
 	onClose() {
 		this._instance.focus();
@@ -103,3 +115,4 @@ export class TerminalAccessibleBufferProvider extends DisposableStore implements
 	}
 }
 export interface ICommandWithEditorLine { command: ITerminalCommand | ICurrentPartialCommand; lineNumber: number }
+

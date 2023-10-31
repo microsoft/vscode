@@ -35,7 +35,7 @@ import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowCon
 import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -82,7 +82,64 @@ const enum ReadyState {
 	READY
 }
 
-export class CodeWindow extends Disposable implements ICodeWindow {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	protected abstract getWin(): BrowserWindow | null;
+
+	private representedFilename: string | undefined;
+	private documentEdited: boolean | undefined;
+
+	setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.getWin()?.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	getRepresentedFilename(): string | undefined {
+		if (isMacintosh) {
+			return this.getWin()?.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this.getWin()?.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return Boolean(this.getWin()?.isDocumentEdited());
+		}
+
+		return !!this.documentEdited;
+	}
+
+	focus(options?: { force: boolean }): void {
+		if (isMacintosh && options?.force) {
+			app.focus({ steal: true });
+		}
+
+		const win = this.getWin();
+		if (!win) {
+			return;
+		}
+
+		if (win.isMinimized()) {
+			win.restore();
+		}
+
+		win.focus();
+	}
+}
+
+export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
@@ -113,6 +170,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 	private _win: BrowserWindow;
 	get win(): BrowserWindow | null { return this._win; }
+
+	protected getWin(): BrowserWindow | null {
+		return this._win;
+	}
 
 	private _lastFocusTime = -1;
 	get lastFocusTime(): number { return this._lastFocusTime; }
@@ -155,9 +216,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	// transitioning into and out of native full screen.
 	private transientIsNativeFullScreen: boolean | undefined = undefined;
 	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
-
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
 
 	private readonly hasWindowControlOverlay: boolean = false;
 
@@ -374,61 +432,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
-			this._win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
-		}
-	}
-
-	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
-			return this._win.getRepresentedFilename();
-		}
-
-		return this.representedFilename;
-	}
-
-	setDocumentEdited(edited: boolean): void {
-		if (isMacintosh) {
-			this._win.setDocumentEdited(edited);
-		}
-
-		this.documentEdited = edited;
-	}
-
-	isDocumentEdited(): boolean {
-		if (isMacintosh) {
-			return this._win.isDocumentEdited();
-		}
-
-		return !!this.documentEdited;
-	}
-
-	focus(options?: { force: boolean }): void {
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground.
-		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
-		}
-
-		if (!this._win) {
-			return;
-		}
-
-		if (this._win.isMinimized()) {
-			this._win.restore();
-		}
-
-		this._win.focus();
 	}
 
 	private readyState = ReadyState.NONE;
@@ -1277,7 +1280,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			return this.transientIsNativeFullScreen;
 		}
 
-		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
+		const isFullScreen = this._win.isFullScreen();
+		const isSimpleFullScreen = this._win.isSimpleFullScreen();
+
+		return isFullScreen || isSimpleFullScreen;
 	}
 
 	private setNativeFullScreen(fullscreen: boolean): void {
@@ -1294,8 +1300,16 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
 			Promise.race([
 				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
-			]).finally(() => this.transientIsNativeFullScreen = undefined);
+				// still timeout after some time in case the transition is unusually slow
+				// this can easily happen for an OS update where macOS tries to reopen
+				// previous applications and that can take multiple seconds, probably due
+				// to security checks. its worth noting that if this takes more than
+				// 10 seconds, users would see a window that is not-fullscreen but without
+				// custom titlebar...
+				timeout(10000)
+			]).finally(() => {
+				this.transientIsNativeFullScreen = undefined;
+			});
 		}
 
 		this._win.setFullScreen(fullscreen);

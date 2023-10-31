@@ -213,7 +213,7 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		this._commentThreadDisposables = [];
 		this._bindCommentThreadListeners();
 
-		this._body.updateCommentThread(commentThread);
+		this._body.updateCommentThread(commentThread, this._commentReply?.isCommentEditorFocused() ?? false);
 		this._threadIsEmpty.set(!this._body.length);
 		this._header.updateCommentThread(commentThread);
 		this._commentReply?.updateCommentThread(commentThread);
@@ -330,6 +330,11 @@ export class CommentThreadWidget<T extends IRange | ICellRange = IRange> extends
 		}
 
 		return undefined;
+	}
+
+	setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this._commentReply?.setPendingComment(comment);
 	}
 
 	getDimensions() {

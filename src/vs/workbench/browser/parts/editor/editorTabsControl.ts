@@ -176,7 +176,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			telemetrySource: 'editorPart',
 			resetMenu: MenuId.EditorTitle,
 			overflowBehavior: { maxItems: 9, exempted: EDITOR_CORE_NAVIGATION_COMMANDS },
-			highlightToggledItems: true,
+			highlightToggledItems: true
 		}));
 
 		// Context
@@ -290,7 +290,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 			// Drag all tabs of the group if tabs are enabled
 			let hasDataTransfer = false;
-			if (this.groupsView.partOptions.showTabs) {
+			if (this.groupsView.partOptions.showTabs === 'multiple') {
 				hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
 			}
 
@@ -309,7 +309,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			// Drag Image
 			if (this.groupView.activeEditor) {
 				let label = this.groupView.activeEditor.getName();
-				if (this.groupsView.partOptions.showTabs && this.groupView.count > 1) {
+				if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
 					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
 				}
 

@@ -12,6 +12,9 @@ import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffCo
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
 	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
+	// Sometimes, calling this function twice improves the result.
+	// Uncomment the second invocation and run the tests to see the difference.
+	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
 	result = shiftSequenceDiffs(sequence1, sequence2, result);
 	return result;
 }

@@ -22,10 +22,12 @@ import { getIconClasses } from 'vs/editor/common/services/getIconClasses';
 import { Disposable, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
+import { IRange } from 'vs/editor/common/core/range';
 
 export interface IResourceLabelProps {
 	resource?: URI | { primary?: URI; secondary?: URI };
 	name?: string | string[];
+	range?: IRange;
 	description?: string;
 }
 
@@ -62,6 +64,7 @@ export interface IResourceLabelOptions extends IIconLabelValueOptions {
 export interface IFileLabelOptions extends IResourceLabelOptions {
 	hideLabel?: boolean;
 	hidePath?: boolean;
+	range?: IRange;
 }
 
 export interface IResourceLabel extends IDisposable {
@@ -413,7 +416,7 @@ class ResourceLabelWidget extends IconLabel {
 			description = this.labelService.getUriLabel(dirname(resource), { relative: true });
 		}
 
-		this.setResource({ resource, name, description }, options);
+		this.setResource({ resource, name, description, range: options?.range }, options);
 	}
 
 	setResource(label: IResourceLabelProps, options: IResourceLabelOptions = Object.create(null)): void {
@@ -546,7 +549,6 @@ class ResourceLabelWidget extends IconLabel {
 		};
 
 		const resource = toResource(this.label);
-		const label = this.label.name;
 
 		if (this.options?.title !== undefined) {
 			iconLabelOptions.title = this.options.title;
@@ -612,7 +614,13 @@ class ResourceLabelWidget extends IconLabel {
 			}
 		}
 
-		this.setLabel(label || '', this.label.description, iconLabelOptions);
+		if (this.label.range) {
+			iconLabelOptions.suffix = this.label.range.startLineNumber !== this.label.range.endLineNumber ?
+				`:${this.label.range.startLineNumber}-${this.label.range.endLineNumber}` :
+				`:${this.label.range.startLineNumber}`;
+		}
+
+		this.setLabel(this.label.name ?? '', this.label.description, iconLabelOptions);
 
 		this._onDidRender.fire();
 

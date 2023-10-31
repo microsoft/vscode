@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { IOffsetRange, OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IRange } from 'vs/editor/common/core/range';
-import { IChatAgentData, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { IChatAgent, IChatAgentCommand } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
 
 // These are in a separate file to avoid circular dependencies with the dependencies of the parser
@@ -21,15 +21,23 @@ export interface IParsedChatRequestPart {
 	readonly range: IOffsetRange;
 	readonly editorRange: IRange;
 	readonly text: string;
+	readonly promptText: string;
 }
 
 export class ChatRequestTextPart implements IParsedChatRequestPart {
 	static readonly Kind = 'text';
 	readonly kind = ChatRequestTextPart.Kind;
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly text: string) { }
+
+	get promptText(): string {
+		return this.text;
+	}
 }
 
-export const chatVariableLeader = '#'; // warning, this also shows up in a regex in the parser
+// warning, these also show up in a regex in the parser
+export const chatVariableLeader = '#';
+export const chatAgentLeader = '@';
+export const chatSubcommandLeader = '/';
 
 /**
  * An invocation of a static variable that can be resolved by the variable service
@@ -43,6 +51,10 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 		const argPart = this.variableArg ? `:${this.variableArg}` : '';
 		return `${chatVariableLeader}${this.variableName}${argPart}`;
 	}
+
+	get promptText(): string {
+		return this.text;
+	}
 }
 
 /**
@@ -51,10 +63,14 @@ export class ChatRequestVariablePart implements IParsedChatRequestPart {
 export class ChatRequestAgentPart implements IParsedChatRequestPart {
 	static readonly Kind = 'agent';
 	readonly kind = ChatRequestAgentPart.Kind;
-	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgentData) { }
+	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly agent: IChatAgent) { }
 
 	get text(): string {
-		return `@${this.agent.id}`;
+		return `${chatAgentLeader}${this.agent.id}`;
+	}
+
+	get promptText(): string {
+		return '';
 	}
 }
 
@@ -67,7 +83,11 @@ export class ChatRequestAgentSubcommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly command: IChatAgentCommand) { }
 
 	get text(): string {
-		return `/${this.command.name}`;
+		return `${chatSubcommandLeader}${this.command.name}`;
+	}
+
+	get promptText(): string {
+		return '';
 	}
 }
 
@@ -80,12 +100,16 @@ export class ChatRequestSlashCommandPart implements IParsedChatRequestPart {
 	constructor(readonly range: OffsetRange, readonly editorRange: IRange, readonly slashCommand: ISlashCommand) { }
 
 	get text(): string {
-		return `/${this.slashCommand.command}`;
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
+	}
+
+	get promptText(): string {
+		return `${chatSubcommandLeader}${this.slashCommand.command}`;
 	}
 }
 
 /**
- * An invocation of a dynamic reference like '$file:'
+ * An invocation of a dynamic reference like '#file:'
  */
 export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	static readonly Kind = 'dynamic';
@@ -97,7 +121,11 @@ export class ChatRequestDynamicReferencePart implements IParsedChatRequestPart {
 	}
 
 	get text(): string {
-		return `$${this.referenceText}`;
+		return `${chatVariableLeader}${this.referenceText}`;
+	}
+
+	get promptText(): string {
+		return `[${this.text}](values:${this.referenceText})`;
 	}
 }
 

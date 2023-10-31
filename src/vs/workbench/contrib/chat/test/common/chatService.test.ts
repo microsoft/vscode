@@ -230,7 +230,8 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession('testProvider', CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		const response = await testService.sendRequestToProvider(model.sessionId, { message: 'test request' });
+		await response?.responseCompletePromise;
 		assert.strictEqual(model.getRequests().length, 1);
 	});
 
@@ -257,7 +258,7 @@ suite('Chat', () => {
 		const model = testDisposables.add(testService.startSession(providerId, CancellationToken.None));
 		assert.strictEqual(model.getRequests().length, 0);
 
-		assertSnapshot(model.toExport());
+		await assertSnapshot(model.toExport());
 
 		const response = await testService.sendRequest(model.sessionId, 'test request');
 		assert(response);
@@ -266,7 +267,7 @@ suite('Chat', () => {
 
 		assert.strictEqual(model.getRequests().length, 1);
 
-		assertSnapshot(model.toExport());
+		await assertSnapshot(model.toExport());
 	});
 
 	test('can deserialize', async () => {
@@ -306,6 +307,6 @@ suite('Chat', () => {
 			dispose: () => testService2.clearSession(serializedChatData.sessionId)
 		});
 
-		assertSnapshot(chatModel2.toExport());
+		await assertSnapshot(chatModel2.toExport());
 	});
 });

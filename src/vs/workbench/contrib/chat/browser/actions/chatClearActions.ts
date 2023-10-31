@@ -7,6 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { localize } from 'vs/nls';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -18,8 +19,6 @@ import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { alert } from 'vs/base/browser/ui/aria/aria';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 
 export const ACTION_ID_CLEAR_CHAT = `workbench.action.chat.clear`;
 
@@ -35,6 +34,7 @@ export function registerClearActions() {
 				},
 				icon: Codicon.clearAll,
 				f1: false,
+				precondition: CONTEXT_PROVIDER_EXISTS,
 				menu: [{
 					id: MenuId.EditorTitle,
 					group: 'navigation',
@@ -100,6 +100,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 		group: 'navigation',
 		order: 0
 	},
+	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,
 	icon: Codicon.clearAll,
 	f1: false
@@ -119,7 +120,5 @@ export function getClearAction(viewId: string, providerId: string) {
 }
 
 function announceChatCleared(accessor: ServicesAccessor): void {
-	if (accessor.get(IAccessibilityService).isScreenReaderOptimized()) {
-		alert(localize('chatCleared', "Cleared"));
-	}
+	accessor.get(IAccessibleNotificationService).notify(AccessibleNotificationEvent.Clear);
 }

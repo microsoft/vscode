@@ -49,6 +49,7 @@ import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const $ = DOM.$;
 
@@ -112,9 +113,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
-			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
+			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
+			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
 			this._themeService.onDidColorThemeChange(() => this.refresh()),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
@@ -275,6 +276,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
+			actionRunner: new TerminalContextActionRunner(),
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
@@ -749,7 +751,7 @@ class TabDecorationsProvider extends Disposable implements IDecorationsProvider 
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
-		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource])));
+		this._register(this._terminalService.onAnyInstancePrimaryStatusChange(e => this._onDidChange.fire([e.resource])));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {

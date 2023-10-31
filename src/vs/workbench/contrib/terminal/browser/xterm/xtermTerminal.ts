@@ -43,7 +43,8 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { alert } from 'vs/base/browser/ui/aria/aria';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 const enum RenderConstants {
 	/**
@@ -178,7 +179,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	public get isFocused() {
-		return !!this.raw.element?.contains(document.activeElement);
+		if (!this.raw.element) {
+			return false;
+		}
+		return dom.isAncestorOfActiveElement(this.raw.element);
 	}
 
 	/**
@@ -203,7 +207,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@IThemeService private readonly _themeService: IThemeService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -214,6 +220,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols,
 			rows,
+			documentOverride: layoutService.container.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -589,7 +596,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
-		alert(localize('terminalCleared', "Cleared"));
+		this._accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 	}
 
 	hasSelection(): boolean {
@@ -839,10 +846,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	private async _measureRenderTime(): Promise<void> {
 		const frameTimes: number[] = [];
-		if (!this._core._renderService?._renderer._renderLayers) {
+		if (!this._core._renderService?._renderer.value?._renderLayers) {
 			return;
 		}
-		const textRenderLayer = this._core._renderService._renderer._renderLayers[0];
+		const textRenderLayer = this._core._renderService._renderer.value._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer?.onGridChanged;
 		const evaluateCanvasRenderer = () => {
 			// Discard first frame time as it's normal to take longer

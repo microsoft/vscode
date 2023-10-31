@@ -621,11 +621,12 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 				while (true) {
 					await timeout(0);
 
-					if (!document.hasFocus()) {
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
 						break;
-					} if (document.activeElement === inputBox.inputElement) {
+					} if (DOM.isActiveElement(inputBox.inputElement)) {
 						return;
-					} else if (document.activeElement instanceof HTMLElement && DOM.hasParentWithClass(document.activeElement, 'context-view')) {
+					} else if (ownerDocument.activeElement instanceof HTMLElement && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
 						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
 					} else {
 						break;
@@ -1259,7 +1260,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Use local file import when supported
 				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, window);
 				}
 				// Otherwise fallback to browser based file upload
 				else {

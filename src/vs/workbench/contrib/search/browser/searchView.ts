@@ -30,7 +30,7 @@ import { IEditor } from 'vs/editor/common/editorCommon';
 import { CommonFindController } from 'vs/editor/contrib/find/browser/findController';
 import { MultiCursorSelectionController } from 'vs/editor/contrib/multicursor/browser/multicursor';
 import * as nls from 'vs/nls';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibilityService, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -189,6 +189,7 @@ export class SearchView extends ViewPane {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@ILogService private readonly logService: ILogService,
+		@IAccessibleNotificationService private readonly accessibleNotificationService: IAccessibleNotificationService
 	) {
 
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -904,7 +905,7 @@ export class SearchView extends ViewPane {
 
 			let editable = false;
 			if (focus instanceof Match) {
-				editable = (focus instanceof MatchInNotebook) ? !focus.isWebviewMatch() : true;
+				editable = (focus instanceof MatchInNotebook) ? !focus.isReadonly() : true;
 			} else if (focus instanceof FileMatch) {
 				editable = !focus.hasOnlyReadOnlyMatches();
 			} else if (focus instanceof FolderMatch) {
@@ -1072,7 +1073,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private updateTextFromFindWidget(controller: CommonFindController, { allowSearchOnType = true }): boolean {
-		if (!this.searchConfig.seedWithNearestWord && (window.getSelection()?.toString() ?? '') === '') {
+		if (!this.searchConfig.seedWithNearestWord && (dom.getActiveWindow().getSelection()?.toString() ?? '') === '') {
 			return false;
 		}
 
@@ -1245,7 +1246,7 @@ export class SearchView extends ViewPane {
 		this.viewModel.cancelSearch();
 		this.tree.ariaLabel = nls.localize('emptySearch', "Empty Search");
 
-		aria.status(nls.localize('ariaSearchResultsClearStatus', "The search results have been cleared"));
+		this.accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 		this.reLayout();
 	}
 
@@ -1275,7 +1276,7 @@ export class SearchView extends ViewPane {
 	}
 
 	private getSearchTextFromEditor(allowUnselectedWord: boolean, editor?: IEditor): string | null {
-		if (dom.isAncestor(document.activeElement, this.getContainer())) {
+		if (dom.isAncestorOfActiveElement(this.getContainer())) {
 			return null;
 		}
 

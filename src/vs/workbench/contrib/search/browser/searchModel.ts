@@ -42,7 +42,7 @@ import { INotebookSearchService } from 'vs/workbench/contrib/search/common/noteb
 import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class Match {
 
@@ -197,6 +197,10 @@ export class CellMatch {
 		this._context = new Map<number, string>();
 	}
 
+	public hasCellViewModel() {
+		return !(this._cell instanceof CellSearchModel);
+	}
+
 	get context(): Map<number, string> {
 		return new Map(this._context);
 	}
@@ -242,7 +246,7 @@ export class CellMatch {
 			return;
 		}
 		this.cell.resolveTextModel().then((textModel) => {
-			const textResultsWithContext = addContextToEditorMatches(textSearchMatches, textModel, this.parent.parent().query!);
+			const textResultsWithContext = getTextSearchMatchWithModelContext(textSearchMatches, textModel, this.parent.parent().query!);
 			const contexts = textResultsWithContext.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext));
 			contexts.map(context => ({ ...context, lineNumber: context.lineNumber + 1 }))
 				.forEach((context) => { this._context.set(context.lineNumber, context.text); });
@@ -303,6 +307,10 @@ export class MatchInNotebook extends Match {
 
 	public isWebviewMatch() {
 		return this._webviewIndex !== undefined;
+	}
+
+	public isReadonly() {
+		return (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -449,8 +457,8 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._closestRoot;
 	}
 
-	hasWebviewMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isWebviewMatch());
+	hasReadonlyMatches(): boolean {
+		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
 	}
 
 	createMatches(): void {
@@ -560,10 +568,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		this.addContext(
-			addContextToEditorMatches(textSearchResults, model, this.parent().parent().query!)
-				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+		this.addContext(getTextSearchMatchWithModelContext(textSearchResults, model, this.parent().parent().query!));
 
 		this._onChange.fire({ forceUpdateModel: modelChange });
 		this.updateHighlights();
@@ -728,7 +733,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => (match instanceof MatchInNotebook && match.isWebviewMatch()));
+		return this.matches().every(match => (match instanceof MatchInNotebook && match.isReadonly()));
 	}
 
 	// #region strictly notebook methods
@@ -1169,7 +1174,9 @@ export class FolderMatch extends Disposable {
 
 				updated.push(existingFileMatch);
 
-				existingFileMatch.addContext(rawFileMatch.results);
+				if (rawFileMatch.results && rawFileMatch.results.length > 0) {
+					existingFileMatch.addContext(rawFileMatch.results);
+				}
 			} else {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch, searchInstanceID);
@@ -1270,7 +1277,7 @@ export class FolderMatch extends Disposable {
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
 			if (this._fileMatches.get(match.resource)) {
-				if (keepReadonly && match.hasWebviewMatches()) {
+				if (keepReadonly && match.hasReadonlyMatches()) {
 					continue;
 				}
 				this._fileMatches.delete(match.resource);

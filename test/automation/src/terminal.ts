@@ -80,7 +80,7 @@ export class Terminal {
 
 	async runCommand(commandId: TerminalCommandId, expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		const keepOpen = commandId === TerminalCommandId.Join;
-		await this.quickaccess.runCommand(commandId, keepOpen);
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		if (keepOpen) {
 			await this.code.dispatchKeybinding('enter');
 			await this.quickinput.waitForQuickInputClosed();
@@ -106,8 +106,8 @@ export class Terminal {
 	}
 
 	async runCommandWithValue(commandId: TerminalCommandIdWithValue, value?: string, altKey?: boolean): Promise<void> {
-		const shouldKeepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
-		await this.quickaccess.runCommand(commandId, shouldKeepOpen);
+		const keepOpen = !!value || commandId === TerminalCommandIdWithValue.NewWithProfile || commandId === TerminalCommandIdWithValue.Rename || (commandId === TerminalCommandIdWithValue.SelectDefaultProfile && value !== 'PowerShell');
+		await this.quickaccess.runCommand(commandId, { keepOpen });
 		// Running the command should hide the quick input in the following frame, this next wait
 		// ensures that the quick input is opened again before proceeding to avoid a race condition
 		// where the enter keybinding below would close the quick input if it's triggered before the
