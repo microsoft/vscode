@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-let err = false;
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 const majorNodeVersion = parseInt(nodeVersion[1]);
@@ -12,7 +11,7 @@ const patchNodeVersion = parseInt(nodeVersion[3]);
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
 		console.error('\x1b[1;31m*** Please use node.js versions >=18.15.x and <19.\x1b[0;0m');
-		err = true;
+		throw new Error();
 	}
 	if (majorNodeVersion >= 19) {
 		console.warn('\x1b[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\x1b[0;0m')
@@ -26,16 +25,10 @@ const cp = require('child_process');
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
 		console.error('\x1b[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\x1b[0;0m');
-		err = true;
+		throw new Error();
 	}
-	if (!err) {
-		installHeaders();
-	}
-}
 
-if (err) {
-	console.error('');
-	process.exit(1);
+	installHeaders();
 }
 
 function hasSupportedVisualStudioVersion() {
@@ -77,17 +70,10 @@ function hasSupportedVisualStudioVersion() {
 }
 
 function installHeaders() {
-	const command = process.env['npm_command'] || 'install';
-	const npmResult = cp.spawnSync('npm', [command], {
-		env: process.env,
+	cp.execSync(`npm.cmd ${process.env['npm_command'] || 'install'}`, {
 		cwd: path.join(__dirname, 'gyp'),
 		stdio: 'inherit'
 	});
-	if (npmResult.error || npmResult.status !== 0) {
-		console.error(`Installing node-gyp failed`);
-		err = true;
-		return;
-	}
 
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is save to construct the path

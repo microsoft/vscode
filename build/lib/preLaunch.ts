@@ -9,6 +9,7 @@ import * as path from 'path';
 import { spawn } from 'child_process';
 import { promises as fs } from 'fs';
 
+const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
 const rootDir = path.resolve(__dirname, '..', '..');
 
 function runProcess(command: string, args: ReadonlyArray<string> = []) {
@@ -30,17 +31,17 @@ async function exists(subdir: string) {
 
 async function ensureNodeModules() {
 	if (!(await exists('node_modules'))) {
-		await runProcess('npm', ['ci']);
+		await runProcess(npm, ['ci']);
 	}
 }
 
 async function getElectron() {
-	await runProcess('npm', ['run', 'electron']);
+	await runProcess(npm, ['run', 'electron']);
 }
 
 async function ensureCompiled() {
 	if (!(await exists('out'))) {
-		await runProcess('npm', ['run', 'compile']);
+		await runProcess(npm, ['run', 'compile']);
 	}
 }
 
