@@ -111,6 +111,16 @@
 	display: none;
 }
 
+.test-explorer .monaco-list-row .error {
+	outline: 1px solid var(--vscode-inputValidation-errorBorder);
+	background: var(--vscode-inputValidation-errorBackground);
+	padding: 2px 4px;
+	border-radius: 2px;
+	margin: 3px 12px 3px 3px;
+	line-height: 17px;
+	font-size: 12px;
+}
+
 .test-explorer .monaco-list-row .error p {
 	margin: 0;
 }

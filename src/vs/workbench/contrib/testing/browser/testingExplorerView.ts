@@ -1280,8 +1280,8 @@ class TreeKeyboardNavigationLabelProvider implements IKeyboardNavigationLabelPro
 }
 
 class ListDelegate implements IListVirtualDelegate<TestExplorerTreeElement> {
-	getHeight(_element: TestExplorerTreeElement) {
-		return 22;
+	getHeight(element: TestExplorerTreeElement) {
+		return element instanceof TestTreeErrorMessage ? 17 + 10 : 22;
 	}
 
 	getTemplateId(element: TestExplorerTreeElement) {
