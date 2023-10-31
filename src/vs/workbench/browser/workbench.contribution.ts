@@ -143,11 +143,21 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 					}
 				}
 			},
-			'workbench.editor.tabCloseButton': {
-				'type': 'string',
-				'enum': ['left', 'right', 'off'],
-				'default': 'right',
-				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorTabCloseButton' }, "Controls the position of the editor's tabs close buttons, or disables them when set to 'off'. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+			'workbench.editor.tabActionLocation': {
+				type: 'string',
+				enum: ['left', 'right'],
+				default: 'right',
+				markdownDescription: localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'tabActionLocation' }, "Controls the position of the editor's tabs action buttons (close, unpin). This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`.")
+			},
+			'workbench.editor.tabActionCloseVisibility': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionCloseVisibility', "Controls the visibility of the tab close action button.")
+			},
+			'workbench.editor.tabActionUnpinVisibility': {
+				type: 'boolean',
+				default: true,
+				description: localize('workbench.editor.tabActionUnpinVisibility', "Controls the visibility of the tab unpin action button.")
 			},
 			'workbench.editor.tabSizing': {
 				'type': 'string',
@@ -801,6 +811,16 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 				value = value ? 'multiple' : 'single';
 			}
 			return [['workbench.editor.showTabs', { value: value }]];
+		}
+	}, {
+		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'left' || value === 'right') {
+				result.push(['workbench.editor.tabActionLocation', { value }]);
+			} else if (value === 'off') {
+				result.push(['workbench.editor.tabActionCloseVisibility', { value: false }]);
+			}
+			return result;
 		}
 	}, {
 		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
