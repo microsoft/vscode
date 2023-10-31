@@ -120,6 +120,9 @@ export class Application {
 		await measureAndLog(() => code.didFinishLoad(), 'Application#checkWindowReady: wait for navigation to be committed', this.logger);
 		await measureAndLog(() => code.waitForElement('.monaco-workbench'), 'Application#checkWindowReady: wait for .monaco-workbench element', this.logger);
 
+		// Wait for workbench to be restored
+		await this.code.whenWorkbenchRestored();
+
 		// Remote but not web: wait for a remote connection state change
 		if (this.remote) {
 			await measureAndLog(() => code.waitForTextContent('.monaco-workbench .statusbar-item[id="status.host"]', undefined, statusHostLabel => {
