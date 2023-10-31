@@ -1048,7 +1048,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public configureIntermediateMatch(folderMatch: FolderMatchWithResource) {
-		const disposable = this._register(folderMatch.onChange((event) => this.onFolderChange(folderMatch, event)));
+		const disposable = folderMatch.onChange((event) => this.onFolderChange(folderMatch, event));
 		this._register(folderMatch.onDispose(() => disposable.dispose()));
 	}
 
@@ -1378,7 +1378,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 				searchInstanceID
 			);
 		parent.doAddFile(fileMatch);
-		const disposable = this._register(fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove)));
+		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
@@ -1440,7 +1440,7 @@ export class FolderMatchNoRoot extends FolderMatch {
 			null,
 			searchInstanceID));
 		this.doAddFile(fileMatch);
-		const disposable = this._register(fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove)));
+		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
 		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
@@ -1741,7 +1741,7 @@ export class SearchResult extends Disposable {
 		} else {
 			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this));
 		}
-		const disposable = this._register(folderMatch.onChange((event) => this._onChange.fire(event)));
+		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
 		this._register(folderMatch.onDispose(() => disposable.dispose()));
 		return folderMatch;
 	}
@@ -2100,14 +2100,21 @@ export class SearchModel extends Disposable {
 		}
 
 		const start = Date.now();
+		let event: IDisposable | undefined;
 
-		Promise.race([asyncResults, new Promise(resolve => this._register(Event.once(progressEmitter.event)(resolve)))]).finally(() => {
+		const progressEmitterPromise = new Promise(resolve => {
+			event = Event.once(progressEmitter.event)(resolve);
+			return event;
+		});
+
+		Promise.race([asyncResults, progressEmitterPromise]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
 					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
+			event?.dispose();
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
