@@ -204,7 +204,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				if (this.hasWelcomeScreen()) {
+				if (this._hasWelcomeScreen()) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
 				this._initializeTerminal(false);
@@ -323,12 +323,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 	}
 
-	private hasWelcomeScreen(): boolean {
+	private _hasWelcomeScreen(): boolean {
 		return !this._terminalService.isProcessSupportRegistered;
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.hasWelcomeScreen() && this._terminalService.instances.length === 0;
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
 
