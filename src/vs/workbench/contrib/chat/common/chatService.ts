@@ -86,6 +86,7 @@ export function isIUsedContext(obj: unknown): obj is IUsedContext {
 
 export interface IChatContentReference {
 	reference: URI | Location;
+	title?: string;
 }
 
 export interface IChatContentInlineReference {

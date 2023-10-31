@@ -569,3 +569,15 @@
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
 	margin: 0 0 0 4px;
 }
+
+/* Override bad codicon styles, need better fix */
+.monaco-icon-label.codicon {
+	font: inherit !important;
+	-webkit-font-smoothing: unset !important;
+	text-align: unset !important;
+}
+
+.monaco-icon-label.codicon::before {
+	font: normal normal normal 16px/1 codicon;
+	-webkit-font-smoothing: antialiased;
+}

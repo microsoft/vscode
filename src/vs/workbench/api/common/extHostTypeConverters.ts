@@ -2332,7 +2332,8 @@ export namespace ChatResponseProgress {
 					{
 						uri: progress.reference.uri,
 						range: Range.from(progress.reference.range)
-					} : progress.reference
+					} : progress.reference,
+				title: 'title' in progress ? progress.title : undefined,
 			};
 		} else if ('inlineReference' in progress) {
 			return {

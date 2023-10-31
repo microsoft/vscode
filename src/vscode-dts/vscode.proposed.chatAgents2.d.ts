@@ -184,6 +184,7 @@ declare module 'vscode' {
 		 * The resource that was referenced.
 		 */
 		reference: Uri | Location;
+		title?: string;
 	}
 
 	/**

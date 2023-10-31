@@ -27,6 +27,7 @@ import { marked } from 'vs/base/common/marked/marked';
 import { FileAccess } from 'vs/base/common/network';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IMarkdownRenderResult, MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { localize } from 'vs/nls';
 import { IMenuEntryActionViewItemOptions, MenuEntryActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
@@ -728,15 +729,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		listDisposables.add(list.onDidOpen((e) => {
 			if (e.element) {
-				this.editorService.openEditor({
-					resource: 'uri' in e.element.reference ? e.element.reference.uri : e.element.reference,
-					options: {
-						...e.editorOptions,
-						...{
-							selection: 'range' in e.element.reference ? e.element.reference.range : undefined
-						}
-					}
-				});
+				const uri = 'uri' in e.element.reference ? e.element.reference.uri : e.element.reference;
+				this.openerService.open(uri);
 			}
 		}));
 		listDisposables.add(list.onContextMenu((e) => {
@@ -1117,7 +1111,7 @@ class ContentReferencesListPool extends Disposable {
 			'ChatListRenderer',
 			container,
 			new ContentReferencesListDelegate(),
-			[new ContentReferencesListRenderer(resourceLabels)],
+			[this.instantiationService.createInstance(ContentReferencesListRenderer, resourceLabels)],
 			{
 				alwaysConsumeMouseWheel: false,
 			});
@@ -1158,7 +1152,10 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 	static TEMPLATE_ID = 'contentReferencesListRenderer';
 	readonly templateId: string = ContentReferencesListRenderer.TEMPLATE_ID;
 
-	constructor(private labels: ResourceLabels) { }
+	constructor(
+		private labels: ResourceLabels,
+		@ITextModelService private readonly textModelService: ITextModelService,
+	) { }
 
 	renderTemplate(container: HTMLElement): IChatContentReferenceListTemplate {
 		const templateDisposables = new DisposableStore();
@@ -1167,13 +1164,22 @@ class ContentReferencesListRenderer implements IListRenderer<IChatContentReferen
 	}
 
 	renderElement(element: IChatContentReference, index: number, templateData: IChatContentReferenceListTemplate, height: number | undefined): void {
+		const uri = 'uri' in element.reference ? element.reference.uri : element.reference;
 		templateData.label.element.style.display = 'flex';
-		templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
-			fileKind: FileKind.FILE,
-			// Should not have this live-updating data on a historical reference
-			fileDecorations: { badges: false, colors: false },
-			range: 'range' in element.reference ? element.reference.range : undefined
-		});
+		if (this.textModelService.canHandleResource(uri)) {
+			templateData.label.setFile('uri' in element.reference ? element.reference.uri : element.reference, {
+				fileKind: FileKind.FILE,
+				// Should not have this live-updating data on a historical reference
+				fileDecorations: { badges: false, colors: false },
+				range: 'range' in element.reference ? element.reference.range : undefined
+			});
+		} else {
+			templateData.label.setLabel(element.title, undefined, {
+				extraClasses: ThemeIcon.asClassNameArray(Codicon.book),
+				title: uri.toString(),
+				// extraClasses: getIconClassesForLanguageId('markdown')
+			});
+		}
 	}
 
 	disposeTemplate(templateData: IChatContentReferenceListTemplate): void {
