@@ -18,23 +18,38 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
+type WindowGlobal = Window & typeof globalThis;
+
+interface IWindow {
+	readonly window: WindowGlobal;
+	readonly disposables: DisposableStore;
+}
+
 export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-	const windows = new Set([window]);
-	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
-	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
-	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+	const windows = new Map<WindowGlobal, IWindow>();
+	windows.set(window, { window, disposables: new DisposableStore() });
+
+	const onDidRegisterWindow = new event.Emitter<IWindow>();
+	const onDidUnregisterWindow = new event.Emitter<WindowGlobal>();
+	const onWillUnregisterWindow = new event.Emitter<WindowGlobal>();
+
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
 		onWillUnregisterWindow: onWillUnregisterWindow.event,
 		onDidUnregisterWindow: onDidUnregisterWindow.event,
-		registerWindow(window: Window & typeof globalThis): IDisposable {
+		registerWindow(window: WindowGlobal): IDisposable {
 			if (windows.has(window)) {
 				return Disposable.None;
 			}
 
-			windows.add(window);
-
 			const disposables = new DisposableStore();
+
+			const registeredWindow = {
+				window,
+				disposables: disposables.add(new DisposableStore())
+			};
+			windows.set(window, registeredWindow);
+
 			disposables.add(toDisposable(() => {
 				windows.delete(window);
 				onDidUnregisterWindow.fire(window);
@@ -44,14 +59,12 @@ export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow,
 				onWillUnregisterWindow.fire(window);
 			}));
 
-			const eventDisposables = new DisposableStore();
-			disposables.add(eventDisposables);
-			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+			onDidRegisterWindow.fire(registeredWindow);
 
 			return disposables;
 		},
-		getWindows(): Iterable<Window & typeof globalThis> {
-			return windows;
+		getWindows(): Iterable<IWindow> {
+			return windows.values();
 		},
 		getWindowsCount(): number {
 			return windows.size;
@@ -758,19 +771,19 @@ export function getActiveDocument(): Document {
 		return document;
 	}
 
-	const documents = Array.from(getWindows()).map(window => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	const documents = Array.from(getWindows()).map(({ window }) => window.document);
+	return documents.find(document => document.hasFocus()) ?? document;
 }
 
-export function getActiveWindow(): Window & typeof globalThis {
+export function getActiveWindow(): WindowGlobal {
 	const document = getActiveDocument();
 	return document.defaultView?.window ?? window;
 }
 
-export function getWindow(element: Node): Window & typeof globalThis;
-export function getWindow(event: UIEvent): Window & typeof globalThis;
-export function getWindow(obj: unknown): Window & typeof globalThis;
-export function getWindow(e: unknown): Window & typeof globalThis {
+export function getWindow(element: Node): WindowGlobal;
+export function getWindow(event: UIEvent): WindowGlobal;
+export function getWindow(obj: unknown): WindowGlobal;
+export function getWindow(e: unknown): WindowGlobal {
 	const candidateNode = e as Node | undefined;
 	if (candidateNode?.ownerDocument?.defaultView) {
 		return candidateNode.ownerDocument.defaultView.window;
@@ -805,19 +818,13 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
 	if (container === document.head) {
-		for (const targetWindow of getWindows()) {
+		for (const { window: targetWindow, disposables } of getWindows()) {
 			if (targetWindow === window) {
 				continue; // main window is already tracked
 			}
 
-			const cloneDisposable = cloneGlobalStyleSheet(style, targetWindow);
+			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, targetWindow));
 			disposableStore?.add(cloneDisposable);
-
-			disposableStore?.add(event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
-				if (unregisteredWindow === targetWindow) {
-					cloneDisposable.dispose();
-				}
-			}));
 		}
 
 	}
