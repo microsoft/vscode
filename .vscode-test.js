@@ -84,4 +84,4 @@ module.exports = defineConfig(extensions.map(extension => {
 	}
 
 	return config;
-}));
+})
