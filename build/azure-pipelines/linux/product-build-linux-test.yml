@@ -148,7 +148,7 @@ steps:
       - script: cd test/smoke && npm run compile
         displayName: Compile smoke tests
 
-      - script: npm exec compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
+      - script: npm exec gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
 
       - script: npm run smoketest-no-compile -- --tracing
@@ -176,7 +176,7 @@ steps:
 
       - script: |
           set -e
-          npm exec compile-extension:vscode-test-resolver
+          npm exec gulp compile-extension:vscode-test-resolver
           APP_PATH=$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)
           VSCODE_REMOTE_SERVER_PATH="$(agent.builddirectory)/vscode-server-linux-$(VSCODE_ARCH)" \
           npm run smoketest-no-compile -- --tracing --remote --build "$APP_PATH"
