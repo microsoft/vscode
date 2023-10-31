@@ -1582,3 +1582,8 @@ export function createEditorOpenError(messageOrError: string | Error, actions: I
 
 	return error;
 }
+
+export interface IToolbarActions {
+	readonly primary: IAction[];
+	readonly secondary: IAction[];
+}

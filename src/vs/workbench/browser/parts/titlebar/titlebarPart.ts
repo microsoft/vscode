@@ -50,7 +50,7 @@ import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/editor/editorTabsControl';
-import { IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/editor';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -94,6 +94,7 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private actionToolBar!: WorkbenchToolBar;
 	private editorChangeDisposable: IDisposable | undefined;
+	private editorActionsChangeDisposable: IDisposable | undefined;
 	private actionToolBarElement!: HTMLElement;
 
 	private layoutToolbarMenu: IMenu | undefined;
@@ -416,13 +417,19 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		const updateToolBarActions = () => {
-			const actions: { primary: IAction[]; secondary: IAction[] } = { primary: [], secondary: [] };
+			const actions: IToolbarActions = { primary: [], secondary: [] };
 
 			// --- Editor Actions
 			if (this.editorActionsEnabled) {
-				const { primary, secondary } = this.editorGroupService.activeGroup?.getEditorActions(() => updateToolBarActions()) ?? { primary: [], secondary: [] };
-				actions.primary.push(...primary);
-				actions.secondary.push(...secondary);
+				// activeGroup can be undefined on startup
+				const editorActions = this.editorGroupService.activeGroup?.getEditorActions();
+				if (editorActions) {
+					actions.primary.push(...editorActions.actions.primary);
+					actions.secondary.push(...editorActions.actions.secondary);
+
+					this.editorActionsChangeDisposable?.dispose();
+					this.editorActionsChangeDisposable = editorActions.onDidChange(() => updateToolBarActions());
+				}
 			}
 
 			// --- Layout Actions

@@ -25,7 +25,7 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -40,11 +40,6 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-
-export interface IToolbarActions {
-	readonly primary: IAction[];
-	readonly secondary: IAction[];
-}
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -102,6 +97,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	};
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
+	private editorActionsChangeDisposable: IDisposable | undefined;
 
 	private resourceContext: ResourceContextKey;
 
@@ -206,7 +202,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const { primary, secondary } = this.prepareEditorActions(this.groupView.getEditorActions(() => this.updateEditorActionsToolbar()));
+		const editorActions = this.groupView.getEditorActions();
+		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
+
+		this.editorActionsChangeDisposable?.dispose();
+		this.editorActionsChangeDisposable = editorActions.onDidChange(() => this.updateEditorActionsToolbar());
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
