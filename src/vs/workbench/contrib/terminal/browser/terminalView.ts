@@ -53,7 +53,6 @@ export class TerminalViewPane extends ViewPane {
 	private _parentDomElement: HTMLElement | undefined;
 	private _terminalTabbedView?: TerminalTabbedView;
 	get terminalTabbedView(): TerminalTabbedView | undefined { return this._terminalTabbedView; }
-	private _isWelcomeShowing: boolean = false;
 	private _isInitialized: boolean = false;
 	private _newDropdown: DropdownWithPrimaryActionViewItem | undefined;
 	private readonly _dropdownMenu: IMenu;
@@ -87,16 +86,32 @@ export class TerminalViewPane extends ViewPane {
 		}));
 
 		this._register(this._terminalService.onDidChangeInstances(() => {
-			if (!this._isWelcomeShowing) {
-				return;
+			// If the first terminal is opened, hide the welcome view
+			// and if the last one is closed, show it again
+			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+				this._onDidChangeViewWelcomeState.fire();
 			}
-			this._isWelcomeShowing = true;
-			this._onDidChangeViewWelcomeState.fire();
-			if (!this._terminalTabbedView && this._parentDomElement) {
-				this._createTabsView();
-				this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
-			}
-		}));
+			if (!this._parentDomElement) { return; }
+			// If we do not have the tab view yet, create it now.
+			if (!this._terminalTabbedView) {
+				// If the first terminal is opened, hide the welcome view
+				// and if the last one is closed, show it again
+				if (this.hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+					this._onDidChangeViewWelcomeState.fire();
+				}
+				if (!this._parentDomElement) { return; }
+				// If we do not have the tab view yet, create it now.
+				if (!this._terminalTabbedView) {
+					this._createTabsView();
+				}
+				// If we just opened our first terminal, layout
+				if (this._terminalService.instances.length === 1) {
+				}
+				// If we just opened our first terminal, layout
+				if (this._terminalService.instances.length === 1) {
+					this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
+				}
+			}));
 		this._dropdownMenu = this._register(this._menuService.createMenu(MenuId.TerminalNewDropdownContext, this._contextKeyService));
 		this._singleTabMenu = this._register(this._menuService.createMenu(MenuId.TerminalTabContext, this._contextKeyService));
 		this._register(this._terminalProfileService.onDidChangeAvailableProfiles(profiles => this._updateTabActionBar(profiles)));
@@ -200,7 +215,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				if (!this._terminalService.isProcessSupportRegistered) {
+				if (this.hasWelcomeScreen()) {
 					this._onDidChangeViewWelcomeState.fire();
 				}
 				this._initializeTerminal(false);
@@ -316,12 +331,22 @@ export class TerminalViewPane extends ViewPane {
 					this._terminalGroupService.showPanel(true);
 				}
 			}));
+
+			return;
 		}
 	}
 
+	private _hasWelcomeScreen(): boolean {
+		return !this._terminalService.isProcessSupportRegistered;
+	}
+
 	override shouldShowWelcome(): boolean {
-		this._isWelcomeShowing = !this._terminalService.isProcessSupportRegistered && this._terminalService.instances.length === 0;
-		return this._isWelcomeShowing;
+<<<<<<< HEAD
+		return this.hasWelcomeScreen() && this._terminalService.instances.length === 0;
+		return this.hasWelcomeScreen() && this._terminalService.instances.length === 0;
+=======
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
+>>>>>>> 5f7ea174d6d (Add _ prefix)
 	}
 }
 
