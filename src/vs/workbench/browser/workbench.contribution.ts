@@ -11,7 +11,7 @@ import { ConfigurationMigrationWorkbenchContribution, DynamicWorkbenchConfigurat
 import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import { ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import { ActivityBarPosition, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -38,9 +38,9 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				description: localize('tabScrollbarHeight', "Controls the height of the scrollbars used for tabs and breadcrumbs in the editor title area."),
 				default: 'default',
 			},
-			'workbench.editor.showTabs': {
+			[LayoutSettings.EDITOR_TABS_MODE]: {
 				'type': 'string',
-				'enum': ['multiple', 'single', 'none'],
+				'enum': [EditorTabsMode.MULTIPLE, EditorTabsMode.SINGLE, EditorTabsMode.NONE],
 				'enumDescriptions': [
 					localize('workbench.editor.showTabs.multiple', "Each editor is displayed as a tab in the editor title area."),
 					localize('workbench.editor.showTabs.single', "The active editor is displayed as a single large tab in the editor title area."),
@@ -632,7 +632,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': isMacintosh ? ' \u2014 ' : ' - ',
 				'markdownDescription': localize("window.titleSeparator", "Separator used by {0}.", '`#window.title#`')
 			},
-			'window.commandCenter': {
+			[LayoutSettings.COMMAND_CENTER]: {
 				type: 'boolean',
 				default: true,
 				markdownDescription: isWeb ?
@@ -806,11 +806,11 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: value }]];
 		}
 	}, {
-		key: 'workbench.editor.showTabs', migrateFn: (value: any) => {
+		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: any) => {
 			if (typeof value === 'boolean') {
-				value = value ? 'multiple' : 'single';
+				value = value ? EditorTabsMode.MULTIPLE : EditorTabsMode.SINGLE;
 			}
-			return [['workbench.editor.showTabs', { value: value }]];
+			return [[LayoutSettings.EDITOR_TABS_MODE, { value }]];
 		}
 	}, {
 		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {

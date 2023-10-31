@@ -1192,7 +1192,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 			return true;
 		}
 
