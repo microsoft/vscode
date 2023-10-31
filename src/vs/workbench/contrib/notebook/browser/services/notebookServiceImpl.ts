@@ -189,7 +189,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					// resource is a notebook cell
 					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
 					preferredResource = data.notebook;
-					cellOptions = { resource: notebookUri, options };
+					cellOptions = { resource, options };
 				} else {
 					notebookUri = this.uriIdentService.asCanonicalUri(resource);
 				}
@@ -199,7 +199,7 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 
 				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-				const editor = NotebookEditorInput.create(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
 				return { editor, options: notebookOptions };
 			};
 
@@ -212,7 +212,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					ref!.dispose();
 				});
 
-				return { editor: NotebookEditorInput.create(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
+				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
 			};
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };

@@ -43,13 +43,13 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	private static EditorCache: Record<string, NotebookEditorInput> = {};
 
-	static create(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
+	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
 		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
 		let editor = NotebookEditorInput.EditorCache[cacheId];
 
 		if (!editor) {
 			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
-			NotebookEditorInput.EditorCache[resource.toString()] = editor;
+			NotebookEditorInput.EditorCache[cacheId] = editor;
 
 			editor.onWillDispose(() => {
 				delete NotebookEditorInput.EditorCache[cacheId];
@@ -66,9 +66,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	private _editorModelReference: IReference<IResolvedNotebookEditorModel> | null = null;
 	private _sideLoadedListener: IDisposable;
 	private _defaultDirtyState: boolean = false;
-
-	static counter = 1;
-	private debugId = NotebookEditorInput.counter++;
 
 	constructor(
 		resource: URI,
@@ -87,7 +84,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 		super(resource, preferredResource, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
 
-		console.log(`Creating notebookEditorInput ${this.debugId}`);
 		// Automatically resolve this input when the "wanted" model comes to life via
 		// some other way. This happens only once per input and resolve disposes
 		// this listener
@@ -116,7 +112,6 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	}
 
 	override dispose() {
-		console.log(`Disposing notebokEditorInput ${this.debugId}`);
 		this._sideLoadedListener.dispose();
 		this._editorModelReference?.dispose();
 		this._editorModelReference = null;
