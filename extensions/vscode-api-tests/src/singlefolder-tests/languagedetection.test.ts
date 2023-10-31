@@ -36,7 +36,6 @@ suite('vscode - automatic language detection', () => {
 		"outDir": "../out/vs",
 		"target": "es2020",
 		"types": [
-			"keytar",
 			"mocha",
 			"semver",
 			"sinon",

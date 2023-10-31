@@ -9,9 +9,10 @@ import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResour
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupsContainer, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -43,6 +44,19 @@ export interface ISaveEditorsOptions extends ISaveOptions {
 	readonly saveAs?: boolean;
 }
 
+export interface ISaveEditorsResult {
+
+	/**
+	 * Whether the save operation was successful.
+	 */
+	readonly success: boolean;
+
+	/**
+	 * Resulting editors after the save operation.
+	 */
+	readonly editors: Array<EditorInput | IUntypedEditorInput>;
+}
+
 export interface IUntypedEditorReplacement {
 
 	/**
@@ -67,7 +81,15 @@ export interface IBaseSaveRevertAllEditorOptions {
 	/**
 	 * Whether to include untitled editors as well.
 	 */
-	readonly includeUntitled?: boolean;
+	readonly includeUntitled?: {
+
+		/**
+		 * Whether to include scratchpad editors.
+		 * Scratchpads are not included if not specified.
+		 */
+		readonly includeScratchpad: boolean;
+
+	} | boolean;
 
 	/**
 	 * Whether to exclude sticky editors.
@@ -226,7 +248,7 @@ export interface IEditorService {
 	 * ```
 	 *
 	 * If you already have an `EditorInput` in hand and must use it for opening, use `group.openEditor`
-	 * instead, via `IEditorGroupService`.
+	 * instead, via `IEditorGroupsService`.
 	 */
 	openEditor(editor: EditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): Promise<IEditorPane | undefined>;
 
@@ -293,17 +315,13 @@ export interface IEditorService {
 
 	/**
 	 * Save the provided list of editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<boolean>;
+	save(editors: IEditorIdentifier | IEditorIdentifier[], options?: ISaveEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Save all editors.
-	 *
-	 * @returns `true` if all editors saved and `false` otherwise.
 	 */
-	saveAll(options?: ISaveAllEditorsOptions): Promise<boolean>;
+	saveAll(options?: ISaveAllEditorsOptions): Promise<ISaveEditorsResult>;
 
 	/**
 	 * Reverts the provided list of editors.
@@ -318,4 +336,11 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Create a scoped editor service that only operates on the provided
+	 * editor group container. Use `main` to create a scoped editor service
+	 * to the main editor group container of the main window.
+	 */
+	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService;
 }

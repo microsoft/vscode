@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { ActivationFunction, OutputItem, RendererContext } from 'vscode-notebook-renderer';
-import { createOutputContent, scrollableClass } from './textHelper';
-import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, RenderOptions } from './rendererTypes';
+import { createOutputContent, appendOutput, scrollableClass } from './textHelper';
+import { HtmlRenderingHook, IDisposable, IRichRenderContext, JavaScriptRenderingHook, OutputWithAppend, RenderOptions } from './rendererTypes';
 import { ttPolicy } from './htmlHelper';
+import { formatStackTrace } from './stackTraceHelper';
 
 function clearContainer(container: HTMLElement) {
 	while (container.firstChild) {
@@ -33,6 +34,11 @@ function renderImage(outputInfo: OutputItem, element: HTMLElement): IDisposable 
 
 	const image = document.createElement('img');
 	image.src = src;
+	const alt = getAltText(outputInfo);
+	if (alt) {
+		image.alt = alt;
+	}
+	image.setAttribute('data-vscode-context', JSON.stringify({ webviewSection: 'image', outputId: outputInfo.id, 'preventDefaultContextMenuItems': true }));
 	const display = document.createElement('div');
 	display.classList.add('display');
 	display.appendChild(image);
@@ -64,12 +70,33 @@ const domEval = (container: Element) => {
 	}
 };
 
+function getAltText(outputInfo: OutputItem) {
+	const metadata = outputInfo.metadata;
+	if (typeof metadata === 'object' && metadata && 'vscode_altText' in metadata && typeof metadata.vscode_altText === 'string') {
+		return metadata.vscode_altText;
+	}
+	return undefined;
+}
+
+function injectTitleForSvg(outputInfo: OutputItem, element: HTMLElement) {
+	if (outputInfo.mime.indexOf('svg') > -1) {
+		const svgElement = element.querySelector('svg');
+		const altText = getAltText(outputInfo);
+		if (svgElement && altText) {
+			const title = document.createElement('title');
+			title.innerText = altText;
+			svgElement.prepend(title);
+		}
+	}
+}
+
 async function renderHTML(outputInfo: OutputItem, container: HTMLElement, signal: AbortSignal, hooks: Iterable<HtmlRenderingHook>): Promise<void> {
 	clearContainer(container);
 	let element: HTMLElement = document.createElement('div');
 	const htmlContent = outputInfo.text();
 	const trustedHtml = ttPolicy?.createHTML(htmlContent) ?? htmlContent;
 	element.innerHTML = trustedHtml as string;
+	injectTitleForSvg(outputInfo, element);
 
 	for (const hook of hooks) {
 		element = (await hook.postRender(outputInfo, element, signal)) ?? element;
@@ -126,7 +153,8 @@ type DisposableStore = ReturnType<typeof createDisposableStore>;
 function renderError(
 	outputInfo: OutputItem,
 	outputElement: HTMLElement,
-	ctx: IRichRenderContext
+	ctx: IRichRenderContext,
+	trustHtml: boolean
 ): IDisposable {
 	const disposableStore = createDisposableStore();
 
@@ -145,16 +173,20 @@ function renderError(
 	if (err.stack) {
 		outputElement.classList.add('traceback');
 
-		const outputScrolling = ctx.settings.outputScrolling;
-		const content = createOutputContent(outputInfo.id, [err.stack ?? ''], ctx.settings.lineLimit, outputScrolling, true);
-		content.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
+		const stackTrace = formatStackTrace(err.stack);
+
+		const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
+		const content = createOutputContent(outputInfo.id, stackTrace ?? '', { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml });
+		const contentParent = document.createElement('div');
+		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			content.classList.toggle('word-wrap', e.outputWordWrap);
+			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
-		content.classList.toggle('scrollable', outputScrolling);
-		outputElement.classList.toggle('remove-padding', outputScrolling);
-		outputElement.appendChild(content);
-		initializeScroll(content, disposableStore);
+		contentParent.classList.toggle('scrollable', outputScrolling);
+
+		contentParent.appendChild(content);
+		outputElement.appendChild(contentParent);
+		initializeScroll(contentParent, disposableStore);
 	} else {
 		const header = document.createElement('div');
 		const headerMessage = err.name && err.message ? `${err.name}: ${err.message}` : err.name || err.message;
@@ -195,18 +227,36 @@ function onScrollHandler(e: globalThis.Event) {
 	}
 }
 
+function onKeypressHandler(e: KeyboardEvent) {
+	if (e.ctrlKey || e.shiftKey) {
+		return;
+	}
+	if (e.code === 'ArrowDown' || e.code === 'ArrowUp' ||
+		e.code === 'End' || e.code === 'Home' ||
+		e.code === 'PageUp' || e.code === 'PageDown') {
+		// These should change the scroll position, not adjust the selected cell in the notebook
+		e.stopPropagation();
+	}
+}
+
 // if there is a scrollable output, it will be scrolled to the given value if provided or the bottom of the element
 function initializeScroll(scrollableElement: HTMLElement, disposables: DisposableStore, scrollTop?: number) {
 	if (scrollableElement.classList.contains(scrollableClass)) {
-		scrollableElement.classList.toggle('scrollbar-visible', scrollableElement.scrollHeight > scrollableElement.clientHeight);
+		const scrollbarVisible = scrollableElement.scrollHeight > scrollableElement.clientHeight;
+		scrollableElement.classList.toggle('scrollbar-visible', scrollbarVisible);
 		scrollableElement.scrollTop = scrollTop !== undefined ? scrollTop : scrollableElement.scrollHeight;
-		scrollableElement.addEventListener('scroll', onScrollHandler);
-		disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+		if (scrollbarVisible) {
+			scrollableElement.addEventListener('scroll', onScrollHandler);
+			disposables.push({ dispose: () => scrollableElement.removeEventListener('scroll', onScrollHandler) });
+			scrollableElement.addEventListener('keydown', onKeypressHandler);
+			disposables.push({ dispose: () => scrollableElement.removeEventListener('keydown', onKeypressHandler) });
+		}
 	}
 }
 
 // Find the scrollTop of the existing scrollable output, return undefined if at the bottom or element doesn't exist
-function findScrolledHeight(scrollableElement: HTMLElement): number | undefined {
+function findScrolledHeight(container: HTMLElement): number | undefined {
+	const scrollableElement = container.querySelector('.' + scrollableClass);
 	if (scrollableElement && scrollableElement.scrollHeight - scrollableElement.scrollTop - scrollableElement.clientHeight > 2) {
 		// not scrolled to the bottom
 		return scrollableElement.scrollTop;
@@ -214,48 +264,60 @@ function findScrolledHeight(scrollableElement: HTMLElement): number | undefined 
 	return undefined;
 }
 
-function renderStream(outputInfo: OutputItem, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
+function scrollingEnabled(output: OutputItem, options: RenderOptions) {
+	const metadata = output.metadata;
+	return (typeof metadata === 'object' && metadata
+		&& 'scrollable' in metadata && typeof metadata.scrollable === 'boolean') ?
+		metadata.scrollable : options.outputScrolling;
+}
+
+//  div.cell_container
+//    div.output_container
+//      div.output.output-stream		<-- outputElement parameter
+//        div.scrollable? tabindex="0" 	<-- contentParent
+//          div output-item-id="{guid}"	<-- content from outputItem parameter
+function renderStream(outputInfo: OutputWithAppend, outputElement: HTMLElement, error: boolean, ctx: IRichRenderContext): IDisposable {
 	const disposableStore = createDisposableStore();
-	const outputScrolling = ctx.settings.outputScrolling;
+	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
+	const outputOptions = { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false, error };
 
 	outputElement.classList.add('output-stream');
-	outputElement.classList.toggle('remove-padding', outputScrolling);
-
-	const text = outputInfo.text();
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, outputScrolling, false);
-	content.setAttribute('output-item-id', outputInfo.id);
-	if (error) {
-		content.classList.add('error');
-	}
 
 	const scrollTop = outputScrolling ? findScrolledHeight(outputElement) : undefined;
 
+	const previousOutputParent = getPreviousMatchingContentGroup(outputElement);
 	// If the previous output item for the same cell was also a stream, append this output to the previous
-	const existingContentParent = getPreviousMatchingContentGroup(outputElement);
-	if (existingContentParent) {
-		const existing = existingContentParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
-		if (existing) {
-			existing.replaceWith(content);
+	if (previousOutputParent) {
+		const existingContent = previousOutputParent.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+		if (existingContent) {
+			appendOutput(outputInfo, existingContent, outputOptions);
 		} else {
-			existingContentParent.appendChild(content);
+			const newContent = createOutputContent(outputInfo.id, outputInfo.text(), outputOptions);
+			previousOutputParent.appendChild(newContent);
 		}
-		existingContentParent.classList.toggle('scrollbar-visible', existingContentParent.scrollHeight > existingContentParent.clientHeight);
-		existingContentParent.scrollTop = scrollTop !== undefined ? scrollTop : existingContentParent.scrollHeight;
+		previousOutputParent.classList.toggle('scrollbar-visible', previousOutputParent.scrollHeight > previousOutputParent.clientHeight);
+		previousOutputParent.scrollTop = scrollTop !== undefined ? scrollTop : previousOutputParent.scrollHeight;
 	} else {
-		const contentParent = document.createElement('div');
-		contentParent.appendChild(content);
-		contentParent.classList.toggle('scrollable', outputScrolling);
+		const existingContent = outputElement.querySelector(`[output-item-id="${outputInfo.id}"]`) as HTMLElement | null;
+		let contentParent = existingContent?.parentElement;
+		if (existingContent && contentParent) {
+			appendOutput(outputInfo, existingContent, outputOptions);
+		} else {
+			const newContent = createOutputContent(outputInfo.id, outputInfo.text(), outputOptions);
+			contentParent = document.createElement('div');
+			contentParent.appendChild(newContent);
+			while (outputElement.firstChild) {
+				outputElement.removeChild(outputElement.firstChild);
+			}
+			outputElement.appendChild(contentParent);
+		}
 
+		contentParent.classList.toggle('scrollable', outputScrolling);
 		contentParent.classList.toggle('word-wrap', ctx.settings.outputWordWrap);
 		disposableStore.push(ctx.onDidChangeSettings(e => {
-			contentParent.classList.toggle('word-wrap', e.outputWordWrap);
+			contentParent!.classList.toggle('word-wrap', e.outputWordWrap);
 		}));
 
-
-		while (outputElement.firstChild) {
-			outputElement.removeChild(outputElement.firstChild);
-		}
-		outputElement.appendChild(contentParent);
 		initializeScroll(contentParent, disposableStore, scrollTop);
 	}
 
@@ -267,15 +329,14 @@ function renderText(outputInfo: OutputItem, outputElement: HTMLElement, ctx: IRi
 	clearContainer(outputElement);
 
 	const text = outputInfo.text();
-	const content = createOutputContent(outputInfo.id, [text], ctx.settings.lineLimit, ctx.settings.outputScrolling, false);
+	const outputScrolling = scrollingEnabled(outputInfo, ctx.settings);
+	const content = createOutputContent(outputInfo.id, text, { linesLimit: ctx.settings.lineLimit, scrollable: outputScrolling, trustHtml: false });
 	content.classList.add('output-plaintext');
 	if (ctx.settings.outputWordWrap) {
 		content.classList.add('word-wrap');
 	}
 
-	const outputScrolling = ctx.settings.outputScrolling;
 	content.classList.toggle('scrollable', outputScrolling);
-	outputElement.classList.toggle('remove-padding', outputScrolling);
 	outputElement.appendChild(content);
 	initializeScroll(content, disposableStore);
 
@@ -315,25 +376,41 @@ export const activate: ActivationFunction<void> = (ctx) => {
 	#container div.output_container .word-wrap span {
 		white-space: pre-wrap;
 	}
-	#container div.output .scrollable {
+	#container div.output>div {
 		padding-left: var(--notebook-output-node-left-padding);
 		padding-right: var(--notebook-output-node-padding);
-		overflow-y: scroll;
-		max-height: var(--notebook-cell-output-max-height);
-		border-style: solid;
 		box-sizing: border-box;
 		border-width: 1px;
+		border-style: solid;
 		border-color: transparent;
+	}
+	#container div.output>div:focus {
+		outline: 0;
+		border-color: var(--theme-input-focus-border-color);
+	}
+	#container div.output .scrollable {
+		overflow-y: scroll;
+		max-height: var(--notebook-cell-output-max-height);
+	}
+	#container div.output .scrollable.scrollbar-visible {
+		border-color: var(--vscode-editorWidget-border);
+	}
+	#container div.output .scrollable.scrollbar-visible:focus {
+		border-color: var(--theme-input-focus-border-color);
+	}
+	#container div.truncation-message {
+		font-style: italic;
+		font-family: var(--theme-font-family);
+		padding-top: 4px;
+	}
+	#container div.output .scrollable div {
 		cursor: text;
 	}
-	#container div.output .scrollable a {
+	#container div.output .scrollable div a {
 		cursor: pointer;
 	}
 	#container div.output .scrollable.more-above {
 		box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset
-	}
-	#container div.output .scrollable.scrollbar-visible {
-		border-color: var(--vscode-editorWidget-border);
 	}
 	.output-plaintext .code-bold,
 	.output-stream .code-bold,
@@ -360,6 +437,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 
 	return {
 		renderOutputItem: async (outputInfo, element, signal?: AbortSignal) => {
+			element.classList.add('remove-padding');
 			switch (outputInfo.mime) {
 				case 'text/html':
 				case 'image/svg+xml': {
@@ -391,7 +469,7 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				case 'application/vnd.code.notebook.error':
 					{
 						disposables.get(outputInfo.id)?.dispose();
-						const disposable = renderError(outputInfo, element, latestContext);
+						const disposable = renderError(outputInfo, element, latestContext, ctx.workspace.isTrusted);
 						disposables.set(outputInfo.id, disposable);
 					}
 					break;
@@ -422,6 +500,10 @@ export const activate: ActivationFunction<void> = (ctx) => {
 				default:
 					break;
 			}
+			if (element.querySelector('div')) {
+				element.querySelector('div')!.tabIndex = 0;
+			}
+
 		},
 		disposeOutputItem: (id: string | undefined) => {
 			if (id) {

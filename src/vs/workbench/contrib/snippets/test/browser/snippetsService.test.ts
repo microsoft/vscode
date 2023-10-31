@@ -16,6 +16,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { generateUuid } from 'vs/base/common/uuid';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class SimpleSnippetService implements ISnippetsService {
 	declare readonly _serviceBrand: undefined;
@@ -83,9 +84,11 @@ suite('SnippetsService', function () {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('snippet completions - simple', function () {
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = disposables.add(instantiateTextModel(instantiationService, '', 'fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
@@ -96,7 +99,7 @@ suite('SnippetsService', function () {
 
 	test('snippet completions - simple 2', async function () {
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = disposables.add(instantiateTextModel(instantiationService, 'hello ', 'fooLang'));
 
 		await provider.provideCompletionItems(model, new Position(1, 6) /* hello| */, context)!.then(result => {
@@ -112,7 +115,7 @@ suite('SnippetsService', function () {
 
 	test('snippet completions - with prefix', function () {
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = disposables.add(instantiateTextModel(instantiationService, 'bar', 'fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 4), context)!.then(result => {
@@ -150,7 +153,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = disposables.add(instantiateTextModel(instantiationService, 'bar-bar', 'fooLang'));
 
 		await provider.provideCompletionItems(model, new Position(1, 3), context)!.then(result => {
@@ -222,7 +225,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		let model = instantiateTextModel(instantiationService, '\t<?php', 'fooLang');
 		return provider.provideCompletionItems(model, new Position(1, 7), context)!.then(result => {
@@ -259,7 +262,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, '<head>\n\t\n>/head>', 'fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
@@ -293,7 +296,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, '', 'fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1), context)!.then(result => {
@@ -322,7 +325,7 @@ suite('SnippetsService', function () {
 			SnippetSource.User,
 			generateUuid()
 		)]);
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'p-', 'fooLang'));
 
@@ -349,7 +352,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b', 'fooLang'));
 		const result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
@@ -370,7 +373,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, ':', 'fooLang'));
 		const result = await provider.provideCompletionItems(model, new Position(1, 2), context)!;
@@ -391,7 +394,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'template', 'fooLang'));
 		const result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
@@ -416,7 +419,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea Thisisaverylonglinegoingwithmore100bcharactersandthismakesintellisensebecomea b text_after_b', 'fooLang'));
 		const result = await provider.provideCompletionItems(model, new Position(1, 158), context)!;
@@ -425,7 +428,7 @@ suite('SnippetsService', function () {
 	});
 
 	test('issue #61296: VS code freezes when editing CSS file with emoji', async function () {
-		const languageConfigurationService = new TestLanguageConfigurationService();
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 		disposables.add(languageConfigurationService.register('fooLang', {
 			wordPattern: /(#?-?\d*\.\d\w*%?)|(::?[\w-]*(?=[^,{;]*[,{]))|(([@#.!])?[\w-?]+%?|[@#!.])/g
 		}));
@@ -463,7 +466,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = disposables.add(instantiateTextModel(instantiationService, 'a ', 'fooLang'));
 		const result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
@@ -494,7 +497,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		let model = instantiateTextModel(instantiationService, ' <', 'fooLang');
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
@@ -526,7 +529,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		let model = instantiateTextModel(instantiationService, 'not wordFoo bar', 'fooLang');
 		let result = await provider.provideCompletionItems(model, new Position(1, 3), context)!;
@@ -570,7 +573,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = instantiateTextModel(instantiationService, 'filler e KEEP ng filler', 'fooLang');
 		const result = await provider.provideCompletionItems(model, new Position(1, 9), context)!;
@@ -583,7 +586,7 @@ suite('SnippetsService', function () {
 	});
 
 	test('Snippet will replace auto-closing pair if specified in prefix', async function () {
-		const languageConfigurationService = new TestLanguageConfigurationService();
+		const languageConfigurationService = disposables.add(new TestLanguageConfigurationService());
 		disposables.add(languageConfigurationService.register('fooLang', {
 			brackets: [
 				['{', '}'],
@@ -631,7 +634,7 @@ suite('SnippetsService', function () {
 			generateUuid()
 		)]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = instantiateTextModel(instantiationService, ' ci', 'fooLang');
 		const result = await provider.provideCompletionItems(model, new Position(1, 4), context)!;
@@ -652,7 +655,7 @@ suite('SnippetsService', function () {
 			// new Snippet(['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User, generateUuid())
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = instantiateTextModel(instantiationService, '\'\'', 'fooLang');
 		const result = await provider.provideCompletionItems(
@@ -674,7 +677,7 @@ suite('SnippetsService', function () {
 			new Snippet(false, ['fooLang'], '\'ccc', '\'ccc', '', 'value', '', SnippetSource.User, generateUuid())
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 
 		const model = instantiateTextModel(instantiationService, '\'\'', 'fooLang');
 
@@ -695,7 +698,7 @@ suite('SnippetsService', function () {
 			new Snippet(false, ['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = instantiateTextModel(instantiationService, '\'hellot\'', 'fooLang');
 
 		const result = await provider.provideCompletionItems(
@@ -716,7 +719,7 @@ suite('SnippetsService', function () {
 			new Snippet(false, ['fooLang'], '^y', '^y', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = instantiateTextModel(instantiationService, ')*&^', 'fooLang');
 
 		const result = await provider.provideCompletionItems(
@@ -736,7 +739,7 @@ suite('SnippetsService', function () {
 			new Snippet(false, ['fooLang'], 'foobarrrrrr', 'foobarrrrrr', '', 'value', '', SnippetSource.User, generateUuid()),
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = instantiateTextModel(instantiationService, 'foobar', 'fooLang');
 
 		const result = await provider.provideCompletionItems(
@@ -756,7 +759,7 @@ suite('SnippetsService', function () {
 		]);
 
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = instantiateTextModel(instantiationService, 'function abc(w)', 'fooLang');
 		const result = await provider.provideCompletionItems(
 			model,
@@ -775,7 +778,7 @@ suite('SnippetsService', function () {
 			new Snippet(false, ['fooLang'], 'div#', 'div#', '', 'div#', '', SnippetSource.User, generateUuid()),
 		]);
 
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const model = instantiateTextModel(instantiationService, 'di', 'fooLang');
 		const result = await provider.provideCompletionItems(
 			model,
@@ -804,8 +807,8 @@ suite('SnippetsService', function () {
 		snippetService = new SimpleSnippetService([
 			new Snippet(false, ['fooLang'], 'foo', 'Foo- Bar', '', 'Foo', '', SnippetSource.User, generateUuid()),
 		]);
-		const model = instantiateTextModel(instantiationService, '    bar', 'fooLang');
-		const provider = new SnippetCompletionProvider(languageService, snippetService, new TestLanguageConfigurationService());
+		const model = disposables.add(instantiateTextModel(instantiationService, '    bar', 'fooLang'));
+		const provider = new SnippetCompletionProvider(languageService, snippetService, disposables.add(new TestLanguageConfigurationService()));
 		const result = await provider.provideCompletionItems(
 			model,
 			new Position(1, 8),

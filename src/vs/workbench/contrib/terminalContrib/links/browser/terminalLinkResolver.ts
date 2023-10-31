@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ITerminalLinkResolver, ResolvedLink } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
-import { removeLinkSuffix, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
+import { removeLinkSuffix, removeLinkQueryString, winDrivePrefix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 import { URI } from 'vs/base/common/uri';
-import { ITerminalBackend, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPath, posix, win32 } from 'vs/base/common/path';
+import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
 	declare _serviceBrand: undefined;
@@ -52,9 +53,14 @@ export class TerminalLinkResolver implements ITerminalLinkResolver {
 			}
 		}
 
-		// Remove any line/col suffix before processing the path
+		// Remove any line/col suffix
 		let linkUrl = removeLinkSuffix(link);
-		if (!linkUrl) {
+
+		// Remove any query string
+		linkUrl = removeLinkQueryString(linkUrl);
+
+		// Exit early if the link is determines as not valid already
+		if (linkUrl.length === 0) {
 			cache.set(link, null);
 			return null;
 		}

@@ -33,7 +33,7 @@
 				"git": {
 					"name": "microsoft/vscode-markdown-tm-grammar",
 					"repositoryUrl": "https://github.com/microsoft/vscode-markdown-tm-grammar",
-					"commitHash": "ca2caf2157d0674be3d641f71499b84d514e4e5e"
+					"commitHash": "0a4b23580308fdcfb4ab7b526e3e13ba17d436fb"
 				}
 			},
 			"license": "MIT",

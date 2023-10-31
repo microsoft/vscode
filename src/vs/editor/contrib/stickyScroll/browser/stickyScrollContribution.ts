@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { ToggleStickyScroll, FocusStickyScroll, SelectPreviousStickyScrollLine, SelectNextStickyScrollLine, GoToStickyScrollLine } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollActions';
+import { ToggleStickyScroll, FocusStickyScroll, SelectEditor, SelectPreviousStickyScrollLine, SelectNextStickyScrollLine, GoToStickyScrollLine } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollActions';
 import { StickyScrollController } from 'vs/editor/contrib/stickyScroll/browser/stickyScrollController';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 
@@ -14,3 +14,4 @@ registerAction2(FocusStickyScroll);
 registerAction2(SelectPreviousStickyScrollLine);
 registerAction2(SelectNextStickyScrollLine);
 registerAction2(GoToStickyScrollLine);
+registerAction2(SelectEditor);

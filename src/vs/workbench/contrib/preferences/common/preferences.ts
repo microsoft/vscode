@@ -3,10 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { IExtensionRecommendations } from 'vs/base/common/product';
+import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IProductService } from 'vs/platform/product/common/productService';
+import { ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 
 export interface IWorkbenchSettingsConfiguration {
 	workbench: {
@@ -40,6 +45,10 @@ export interface ISearchProvider {
 	searchModel(preferencesModel: ISettingsEditorModel, token?: CancellationToken): Promise<ISearchResult | null>;
 }
 
+export interface IRemoteSearchProvider extends ISearchProvider {
+	setFilter(filter: string): void;
+}
+
 export const SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'settings.action.clearSearchResults';
 export const SETTINGS_EDITOR_COMMAND_SHOW_CONTEXT_MENU = 'settings.action.showContextMenu';
 export const SETTINGS_EDITOR_COMMAND_SUGGEST_FILTERS = 'settings.action.suggestFilters';
@@ -53,7 +62,6 @@ export const CONTEXT_KEYBINDINGS_EDITOR = new RawContextKey<boolean>('inKeybindi
 export const CONTEXT_KEYBINDINGS_SEARCH_FOCUS = new RawContextKey<boolean>('inKeybindingsSearch', false);
 export const CONTEXT_KEYBINDING_FOCUS = new RawContextKey<boolean>('keybindingFocus', false);
 export const CONTEXT_WHEN_FOCUS = new RawContextKey<boolean>('whenFocus', false);
-export const CONTEXT_SETTINGS_EDITOR_IN_USER_TAB = new RawContextKey<boolean>('inSettingsEditorUserTab', false);
 
 export const KEYBINDINGS_EDITOR_COMMAND_SEARCH = 'keybindings.editor.searchKeybindings';
 export const KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS = 'keybindings.editor.clearSearchResults';
@@ -88,3 +96,76 @@ export const REQUIRE_TRUSTED_WORKSPACE_SETTING_TAG = 'requireTrustedWorkspace';
 export const KEYBOARD_LAYOUT_OPEN_PICKER = 'workbench.action.openKeyboardLayoutPicker';
 
 export const ENABLE_LANGUAGE_FILTER = true;
+
+export const ENABLE_EXTENSION_TOGGLE_SETTINGS = true;
+
+export type ExtensionToggleData = {
+	settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations>;
+	recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension>;
+	commonlyUsed: string[];
+};
+
+let cachedExtensionToggleData: ExtensionToggleData | undefined;
+
+export async function getExperimentalExtensionToggleData(extensionGalleryService: IExtensionGalleryService, environmentService: IEnvironmentService, productService: IProductService): Promise<ExtensionToggleData | undefined> {
+	if (!ENABLE_EXTENSION_TOGGLE_SETTINGS) {
+		return undefined;
+	}
+
+	if (!extensionGalleryService.isEnabled()) {
+		return undefined;
+	}
+
+	if (cachedExtensionToggleData) {
+		return cachedExtensionToggleData;
+	}
+
+	if (!environmentService.isBuilt && productService.extensionRecommendations && productService.commonlyUsedSettings) {
+		const settingsEditorRecommendedExtensions: IStringDictionary<IExtensionRecommendations> = {};
+		Object.keys(productService.extensionRecommendations).forEach(extensionId => {
+			const extensionInfo = productService.extensionRecommendations![extensionId];
+			if (extensionInfo.onSettingsEditorOpen) {
+				settingsEditorRecommendedExtensions[extensionId] = extensionInfo;
+			}
+		});
+
+		const recommendedExtensionsGalleryInfo: IStringDictionary<IGalleryExtension> = {};
+		for (const key in settingsEditorRecommendedExtensions) {
+			const extensionId = key;
+			// Recommend prerelease if not on Stable.
+			const isStable = productService.quality === 'stable';
+			try {
+				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
+				if (extension) {
+					recommendedExtensionsGalleryInfo[key] = extension;
+				}
+			} catch (e) {
+				// Network connection fail. Return nothing rather than partial data.
+				return undefined;
+			}
+		}
+
+		cachedExtensionToggleData = {
+			settingsEditorRecommendedExtensions,
+			recommendedExtensionsGalleryInfo,
+			commonlyUsed: productService.commonlyUsedSettings
+		};
+		return cachedExtensionToggleData;
+	}
+	return undefined;
+}
+
+/**
+ * Compares two nullable numbers such that null values always come after defined ones.
+ */
+export function compareTwoNullableNumbers(a: number | undefined, b: number | undefined): number {
+	const aOrMax = a ?? Number.MAX_SAFE_INTEGER;
+	const bOrMax = b ?? Number.MAX_SAFE_INTEGER;
+	if (aOrMax < bOrMax) {
+		return -1;
+	} else if (aOrMax > bOrMax) {
+		return 1;
+	} else {
+		return 0;
+	}
+}

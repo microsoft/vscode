@@ -5,9 +5,8 @@
 
 import * as nls from 'vs/nls';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { IRemoteAuthorityResolverService, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
+import { IRemoteAuthorityResolverService, RemoteConnectionType, RemoteAuthorityResolverError } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { BrowserSocketFactory } from 'vs/platform/remote/browser/browserSocketFactory';
 import { AbstractRemoteAgentService } from 'vs/workbench/services/remote/common/abstractRemoteAgentService';
 import { ISignService } from 'vs/platform/sign/common/sign';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -21,9 +20,11 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { URI } from 'vs/base/common/uri';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { IRemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 
 export class RemoteAgentService extends AbstractRemoteAgentService implements IRemoteAgentService {
 	constructor(
+		@IRemoteSocketFactoryService remoteSocketFactoryService: IRemoteSocketFactoryService,
 		@IUserDataProfileService userDataProfileService: IUserDataProfileService,
 		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 		@IProductService productService: IProductService,
@@ -31,7 +32,7 @@ export class RemoteAgentService extends AbstractRemoteAgentService implements IR
 		@ISignService signService: ISignService,
 		@ILogService logService: ILogService,
 	) {
-		super(new BrowserSocketFactory(null), userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
+		super(remoteSocketFactoryService, userDataProfileService, environmentService, productService, remoteAuthorityResolverService, signService, logService);
 	}
 }
 
@@ -79,12 +80,12 @@ class RemoteConnectionFailureNotificationContribution implements IWorkbenchContr
 			return null;
 		}
 		const connectionData = this._remoteAuthorityResolverService.getConnectionData(remoteAgentConnection.remoteAuthority);
-		if (!connectionData) {
+		if (!connectionData || connectionData.connectTo.type !== RemoteConnectionType.WebSocket) {
 			return null;
 		}
 		return URI.from({
 			scheme: 'http',
-			authority: `${connectionData.host}:${connectionData.port}`,
+			authority: `${connectionData.connectTo.host}:${connectionData.connectTo.port}`,
 			path: `/version`
 		});
 	}

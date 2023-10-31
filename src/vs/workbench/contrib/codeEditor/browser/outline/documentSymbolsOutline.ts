@@ -112,7 +112,7 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	readonly onDidChange: Event<OutlineChangeEvent> = this._onDidChange.event;
 
 	private _outlineModel?: OutlineModel;
-	private _outlineDisposables = new DisposableStore();
+	private readonly _outlineDisposables = new DisposableStore();
 
 	private readonly _breadcrumbsDataSource: DocumentSymbolBreadcrumbsSource;
 

@@ -5,6 +5,7 @@
 
 import 'vs/css!./media/scm';
 import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 import { ViewPane, IViewPaneOptions } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $ } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
@@ -24,6 +25,7 @@ import { RepositoryRenderer } from 'vs/workbench/contrib/scm/browser/scmReposito
 import { collectContextMenuActions, getActionViewItemProvider } from 'vs/workbench/contrib/scm/browser/util';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { Iterable } from 'vs/base/common/iterator';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 
@@ -39,6 +41,7 @@ class ListDelegate implements IListVirtualDelegate<ISCMRepository> {
 export class SCMRepositoriesViewPane extends ViewPane {
 
 	private list!: WorkbenchList<ISCMRepository>;
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
@@ -60,6 +63,14 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		super.renderBody(container);
 
 		const listContainer = append(container, $('.scm-view.scm-repositories-view'));
+
+		const updateProviderCountVisibility = () => {
+			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
+			listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			listContainer.classList.toggle('auto-provider-counts', value === 'auto');
+		};
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
+		updateProviderCountVisibility();
 
 		const delegate = new ListDelegate();
 		const renderer = this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService));
@@ -106,6 +117,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	}
 
 	override focus(): void {
+		super.focus();
 		this.list.domFocus();
 	}
 
@@ -178,5 +190,10 @@ export class SCMRepositoriesViewPane extends ViewPane {
 			this.list.setAnchor(selection[0]);
 			this.list.setFocus([selection[0]]);
 		}
+	}
+
+	override dispose(): void {
+		this.disposables.dispose();
+		super.dispose();
 	}
 }

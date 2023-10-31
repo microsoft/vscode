@@ -43,7 +43,8 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 	private readonly _colorDecoratorIds = this._editor.createDecorationsCollection();
 
-	private _isEnabled: boolean;
+	private _isColorDecoratorsEnabled: boolean;
+	private _isDefaultColorDecoratorsEnabled: boolean;
 
 	private readonly _ruleFactory = new DynamicCssRules(this._editor);
 
@@ -58,19 +59,22 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super();
 		this._debounceInformation = languageFeatureDebounceService.for(_languageFeaturesService.colorProvider, 'Document Colors', { min: ColorDetector.RECOMPUTE_TIME });
 		this._register(_editor.onDidChangeModel(() => {
-			this._isEnabled = this.isEnabled();
-			this.onModelChanged();
+			this._isColorDecoratorsEnabled = this.isEnabled();
+			this.updateColors();
 		}));
-		this._register(_editor.onDidChangeModelLanguage(() => this.onModelChanged()));
-		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.onModelChanged()));
+		this._register(_editor.onDidChangeModelLanguage(() => this.updateColors()));
+		this._register(_languageFeaturesService.colorProvider.onDidChange(() => this.updateColors()));
 		this._register(_editor.onDidChangeConfiguration((e) => {
-			const prevIsEnabled = this._isEnabled;
-			this._isEnabled = this.isEnabled();
-			const updated = prevIsEnabled !== this._isEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
-			if (updated) {
-				if (this._isEnabled) {
-					this.onModelChanged();
-				} else {
+			const prevIsEnabled = this._isColorDecoratorsEnabled;
+			this._isColorDecoratorsEnabled = this.isEnabled();
+			this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
+			const updatedColorDecoratorsSetting = prevIsEnabled !== this._isColorDecoratorsEnabled || e.hasChanged(EditorOption.colorDecoratorsLimit);
+			const updatedDefaultColorDecoratorsSetting = e.hasChanged(EditorOption.defaultColorDecorators);
+			if (updatedColorDecoratorsSetting || updatedDefaultColorDecoratorsSetting) {
+				if (this._isColorDecoratorsEnabled) {
+					this.updateColors();
+				}
+				else {
 					this.removeAllDecorations();
 				}
 			}
@@ -78,8 +82,9 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 
 		this._timeoutTimer = null;
 		this._computePromise = null;
-		this._isEnabled = this.isEnabled();
-		this.onModelChanged();
+		this._isColorDecoratorsEnabled = this.isEnabled();
+		this._isDefaultColorDecoratorsEnabled = this._editor.getOption(EditorOption.defaultColorDecorators);
+		this.updateColors();
 	}
 
 	isEnabled(): boolean {
@@ -114,10 +119,10 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		super.dispose();
 	}
 
-	private onModelChanged(): void {
+	private updateColors(): void {
 		this.stop();
 
-		if (!this._isEnabled) {
+		if (!this._isColorDecoratorsEnabled) {
 			return;
 		}
 		const model = this._editor.getModel();
@@ -138,22 +143,25 @@ export class ColorDetector extends Disposable implements IEditorContribution {
 		this.beginCompute();
 	}
 
-	private beginCompute(): void {
+	private async beginCompute(): Promise<void> {
 		this._computePromise = createCancelablePromise(async token => {
 			const model = this._editor.getModel();
 			if (!model) {
-				return Promise.resolve([]);
+				return [];
 			}
 			const sw = new StopWatch(false);
-			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token);
+			const colors = await getColors(this._languageFeaturesService.colorProvider, model, token, this._isDefaultColorDecoratorsEnabled);
 			this._debounceInformation.update(model, sw.elapsed());
 			return colors;
 		});
-		this._computePromise.then((colorInfos) => {
-			this.updateDecorations(colorInfos);
-			this.updateColorDecorators(colorInfos);
+		try {
+			const colors = await this._computePromise;
+			this.updateDecorations(colors);
+			this.updateColorDecorators(colors);
 			this._computePromise = null;
-		}, onUnexpectedError);
+		} catch (e) {
+			onUnexpectedError(e);
+		}
 	}
 
 	private stop(): void {

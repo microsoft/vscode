@@ -4,7 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 use crate::{constants::APPLICATION_NAME, util::errors::CodeError};
+use async_trait::async_trait;
 use std::path::{Path, PathBuf};
+use std::pin::Pin;
+use std::task::{Context, Poll};
+use tokio::io::{AsyncRead, AsyncWrite};
+use tokio::net::TcpListener;
 use uuid::Uuid;
 
 // todo: we could probably abstract this into some crate, if one doesn't already exist
@@ -39,9 +44,9 @@ cfg_if::cfg_if! {
 			pipe.into_split()
 		}
 	} else {
-		use tokio::{time::sleep, io::{AsyncRead, AsyncWrite, ReadBuf}};
+		use tokio::{time::sleep, io::ReadBuf};
 		use tokio::net::windows::named_pipe::{ClientOptions, ServerOptions, NamedPipeClient, NamedPipeServer};
-		use std::{time::Duration, pin::Pin, task::{Context, Poll}, io};
+		use std::{time::Duration, io};
 		use pin_project::pin_project;
 
 		#[pin_project(project = AsyncPipeProj)]
@@ -171,6 +176,57 @@ cfg_if::cfg_if! {
 	}
 }
 
+impl AsyncPipeListener {
+	pub fn into_pollable(self) -> PollableAsyncListener {
+		PollableAsyncListener {
+			listener: Some(self),
+			write_fut: tokio_util::sync::ReusableBoxFuture::new(make_accept_fut(None)),
+		}
+	}
+}
+
+pub struct PollableAsyncListener {
+	listener: Option<AsyncPipeListener>,
+	write_fut: tokio_util::sync::ReusableBoxFuture<
+		'static,
+		(AsyncPipeListener, Result<AsyncPipe, CodeError>),
+	>,
+}
+
+async fn make_accept_fut(
+	data: Option<AsyncPipeListener>,
+) -> (AsyncPipeListener, Result<AsyncPipe, CodeError>) {
+	match data {
+		Some(mut l) => {
+			let c = l.accept().await;
+			(l, c)
+		}
+		None => unreachable!("this future should not be pollable in this state"),
+	}
+}
+
+impl hyper::server::accept::Accept for PollableAsyncListener {
+	type Conn = AsyncPipe;
+	type Error = CodeError;
+
+	fn poll_accept(
+		mut self: Pin<&mut Self>,
+		cx: &mut Context<'_>,
+	) -> Poll<Option<Result<Self::Conn, Self::Error>>> {
+		if let Some(l) = self.listener.take() {
+			self.write_fut.set(make_accept_fut(Some(l)))
+		}
+
+		match self.write_fut.poll(cx) {
+			Poll::Ready((l, cnx)) => {
+				self.listener = Some(l);
+				Poll::Ready(Some(cnx))
+			}
+			Poll::Pending => Poll::Pending,
+		}
+	}
+}
+
 /// Gets a random name for a pipe/socket on the paltform
 pub fn get_socket_name() -> PathBuf {
 	cfg_if::cfg_if! {
@@ -179,5 +235,36 @@ pub fn get_socket_name() -> PathBuf {
 		} else {
 			PathBuf::from(format!(r"\\.\pipe\{}-{}", APPLICATION_NAME, Uuid::new_v4()))
 		}
+	}
+}
+
+pub type AcceptedRW = (
+	Box<dyn AsyncRead + Send + Unpin>,
+	Box<dyn AsyncWrite + Send + Unpin>,
+);
+
+#[async_trait]
+pub trait AsyncRWAccepter {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError>;
+}
+
+#[async_trait]
+impl AsyncRWAccepter for AsyncPipeListener {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError> {
+		let pipe = self.accept().await?;
+		let (read, write) = socket_stream_split(pipe);
+		Ok((Box::new(read), Box::new(write)))
+	}
+}
+
+#[async_trait]
+impl AsyncRWAccepter for TcpListener {
+	async fn accept_rw(&mut self) -> Result<AcceptedRW, CodeError> {
+		let (stream, _) = self
+			.accept()
+			.await
+			.map_err(CodeError::AsyncPipeListenerFailed)?;
+		let (read, write) = tokio::io::split(stream);
+		Ok((Box::new(read), Box::new(write)))
 	}
 }

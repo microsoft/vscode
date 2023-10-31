@@ -150,10 +150,12 @@ function hygiene(some, linting = true) {
 	}
 
 	const productJsonFilter = filter('product.json', { restore: true });
+	const snapshotFilter = filter(['**', '!**/*.snap', '!**/*.snap.actual']);
 	const unicodeFilterStream = filter(unicodeFilter, { restore: true });
 
 	const result = input
 		.pipe(filter((f) => !f.stat.isDirectory()))
+		.pipe(snapshotFilter)
 		.pipe(productJsonFilter)
 		.pipe(process.env['BUILD_SOURCEVERSION'] ? es.through() : productJson)
 		.pipe(productJsonFilter.restore)
@@ -187,9 +189,13 @@ function hygiene(some, linting = true) {
 				)
 		);
 		streams.push(
-			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint((error => {
-				console.error(error);
+			result.pipe(filter(stylelintFilter)).pipe(gulpstylelint(((message, isError) => {
+				if (isError) {
+					console.error(message);
 				errorCount++;
+				} else {
+					console.warn(message);
+				}
 			})))
 		);
 	}

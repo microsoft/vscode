@@ -126,17 +126,14 @@ export class TempFileMergeEditorModeFactory implements IMergeEditorInputModelFac
 }
 
 class TempFileMergeEditorInputModel extends EditorModel implements IMergeEditorInputModel {
-	private readonly savedAltVersionId = observableValue('initialAltVersionId', this.model.resultTextModel.getAlternativeVersionId());
+	private readonly savedAltVersionId = observableValue(this, this.model.resultTextModel.getAlternativeVersionId());
 	private readonly altVersionId = observableFromEvent(
 		e => this.model.resultTextModel.onDidChangeContent(e),
 		() =>
 			/** @description getAlternativeVersionId */ this.model.resultTextModel.getAlternativeVersionId()
 	);
 
-	public readonly isDirty = derived(
-		'isDirty',
-		(reader) => this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader)
-	);
+	public readonly isDirty = derived(this, (reader) => this.altVersionId.read(reader) !== this.savedAltVersionId.read(reader));
 
 	private finished = false;
 

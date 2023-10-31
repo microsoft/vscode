@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/explorerviewlet';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
-import { VIEWLET_ID, OpenEditorsVisibleContext, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
+import { VIEWLET_ID, VIEW_ID, IFilesConfiguration, ExplorerViewletVisibleContext } from 'vs/workbench/contrib/files/common/files';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ExplorerView } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { EmptyView } from 'vs/workbench/contrib/files/browser/views/emptyView';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
@@ -37,18 +37,15 @@ import { OpenRecentAction } from 'vs/workbench/browser/actions/windowActions';
 import { isMacintosh, isWeb } from 'vs/base/common/platform';
 import { Codicon } from 'vs/base/common/codicons';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
+import { focusWindow, isMouseEvent } from 'vs/base/browser/dom';
 
 const explorerViewIcon = registerIcon('explorer-view-icon', Codicon.files, localize('explorerViewIcon', 'View icon of the explorer view.'));
 const openEditorsViewIcon = registerIcon('open-editors-view-icon', Codicon.book, localize('openEditorsIcon', 'View icon of the open editors view.'));
 
 export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private openEditorsVisibleContextKey!: IContextKey<boolean>;
-
 	constructor(
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProgressService progressService: IProgressService
 	) {
 		super();
@@ -56,12 +53,8 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 		progressService.withProgress({ location: ProgressLocation.Explorer }, () => workspaceContextService.getCompleteWorkspace()).finally(() => {
 			this.registerViews();
 
-			this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
-			this.updateOpenEditorsVisibility();
-
 			this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
 			this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-			this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		});
 	}
 
@@ -116,7 +109,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 			ctorDescriptor: new SyncDescriptor(OpenEditorsView),
 			containerIcon: openEditorsViewIcon,
 			order: 0,
-			when: OpenEditorsVisibleContext,
 			canToggleVisibility: true,
 			canMoveView: true,
 			collapsed: false,
@@ -145,7 +137,7 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 	private createExplorerViewDescriptor(): IViewDescriptor {
 		return {
 			id: VIEW_ID,
-			name: localize('folders', "Folders"),
+			name: localize2('folders', "Folders"),
 			containerIcon: explorerViewIcon,
 			ctorDescriptor: new SyncDescriptor(ExplorerView),
 			order: 1,
@@ -155,16 +147,6 @@ export class ExplorerViewletViewsContribution extends Disposable implements IWor
 				id: 'workbench.explorer.fileView.focus'
 			}
 		};
-	}
-
-	private onConfigurationUpdated(e: IConfigurationChangeEvent): void {
-		if (e.affectsConfiguration('explorer.openEditors.visible')) {
-			this.updateOpenEditorsVisibility();
-		}
-	}
-
-	private updateOpenEditorsVisibility(): void {
-		this.openEditorsVisibleContextKey.set(this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0);
 	}
 }
 
@@ -202,7 +184,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			return this.instantiationService.createInstance(ExplorerView, {
 				...options, delegate: {
 					willOpenElement: e => {
-						if (!(e instanceof MouseEvent)) {
+						if (!isMouseEvent(e)) {
 							return; // only delay when user clicks
 						}
 
@@ -225,7 +207,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 						}
 					},
 					didOpenElement: e => {
-						if (!(e instanceof MouseEvent)) {
+						if (!isMouseEvent(e)) {
 							return; // only delay when user clicks
 						}
 
@@ -257,6 +239,7 @@ export class ExplorerViewPaneContainer extends ViewPaneContainer {
 			explorerView.setExpanded(true);
 		}
 		if (explorerView?.isExpanded()) {
+			focusWindow(explorerView.element);
 			explorerView.focus();
 		} else {
 			super.focus();
@@ -271,7 +254,7 @@ const viewContainerRegistry = Registry.as<IViewContainersRegistry>(Extensions.Vi
  */
 export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewContainer({
 	id: VIEWLET_ID,
-	title: localize('explore', "Explorer"),
+	title: localize2('explore', "Explorer"),
 	ctorDescriptor: new SyncDescriptor(ExplorerViewPaneContainer),
 	storageId: 'workbench.explorer.views.state',
 	icon: explorerViewIcon,
@@ -280,7 +263,7 @@ export const VIEW_CONTAINER: ViewContainer = viewContainerRegistry.registerViewC
 	order: 0,
 	openCommandActionDescriptor: {
 		id: VIEWLET_ID,
-		title: { value: localize('explore', "Explorer"), original: 'Explorer' },
+		title: localize2('explore', "Explorer"),
 		mnemonicTitle: localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer"),
 		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
 		order: 0

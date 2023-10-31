@@ -8,7 +8,6 @@ import { Disposable, IDisposable, toDisposable, DisposableStore } from 'vs/base/
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
 import { IDiffEditorOptions, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { IModelChangedEvent } from 'vs/editor/common/editorCommon';
@@ -37,6 +36,8 @@ import { PLAINTEXT_LANGUAGE_ID } from 'vs/editor/common/languages/modesRegistry'
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
+import { IAudioCueService } from 'vs/platform/audioCues/browser/audioCueService';
 
 /**
  * Description of an action contribution
@@ -479,7 +480,7 @@ export class StandaloneEditor extends StandaloneCodeEditor implements IStandalon
 	}
 }
 
-export class StandaloneDiffEditor extends DiffEditorWidget implements IStandaloneDiffEditor {
+export class StandaloneDiffEditor2 extends DiffEditorWidget implements IStandaloneDiffEditor {
 
 	private readonly _configurationService: IConfigurationService;
 	private readonly _standaloneThemeService: IStandaloneThemeService;
@@ -495,7 +496,8 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IEditorProgressService editorProgressService: IEditorProgressService,
-		@IClipboardService clipboardService: IClipboardService
+		@IClipboardService clipboardService: IClipboardService,
+		@IAudioCueService audioCueService: IAudioCueService,
 	) {
 		const options = { ..._options };
 		updateConfigurationService(configurationService, options, true);
@@ -507,7 +509,16 @@ export class StandaloneDiffEditor extends DiffEditorWidget implements IStandalon
 			themeService.setAutoDetectHighContrast(Boolean(options.autoDetectHighContrast));
 		}
 
-		super(domElement, options, {}, clipboardService, contextKeyService, instantiationService, codeEditorService, themeService, notificationService, contextMenuService, editorProgressService);
+		super(
+			domElement,
+			options,
+			{},
+			contextKeyService,
+			instantiationService,
+			codeEditorService,
+			audioCueService,
+			editorProgressService,
+		);
 
 		this._configurationService = configurationService;
 		this._standaloneThemeService = themeService;

@@ -1,0 +1,7 @@
+{
+	"displayName": "Local Tunnel Port Forwarding",
+	"description": "Allows forwarding local ports to be accessible over the internet.",
+	"category": "Port Forwarding",
+	"command.showLog": "Show Log",
+	"command.restart": "Restart Forwarding System"
+}

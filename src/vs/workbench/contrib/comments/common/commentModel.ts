@@ -85,6 +85,15 @@ export class CommentsModel {
 		this.updateResourceCommentThreads();
 	}
 
+	public deleteCommentsByOwner(owner?: string): void {
+		if (owner) {
+			this.commentThreadsMap.set(owner, []);
+		} else {
+			this.commentThreadsMap.clear();
+		}
+		this.updateResourceCommentThreads();
+	}
+
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
 		const { owner, removed, changed, added } = event;
 
@@ -97,7 +106,9 @@ export class CommentsModel {
 
 			// Find comment node on resource that is that thread and remove it
 			const index = matchingResourceData?.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId) ?? 0;
-			matchingResourceData?.commentThreads.splice(index, 1);
+			if (index >= 0) {
+				matchingResourceData?.commentThreads.splice(index, 1);
+			}
 
 			// If the comment thread was the last thread for a resource, remove that resource from the list
 			if (matchingResourceData?.commentThreads.length === 0) {
@@ -108,7 +119,10 @@ export class CommentsModel {
 		changed.forEach(thread => {
 			// Find resource that has the comment thread
 			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
-			const matchingResourceData = threadsForOwner[matchingResourceIndex];
+			const matchingResourceData = matchingResourceIndex >= 0 ? threadsForOwner[matchingResourceIndex] : undefined;
+			if (!matchingResourceData) {
+				return;
+			}
 
 			// Find comment node on resource that is that thread and replace it
 			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);

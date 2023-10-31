@@ -7,8 +7,10 @@ import * as assert from 'assert';
 import { Event } from 'vs/base/common/event';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { mock } from 'vs/base/test/common/mock';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
 import { ExtensionKind, IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ExtensionIdentifier, IExtension, IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -19,6 +21,8 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import product from 'vs/platform/product/common/product';
 import { IProductService } from 'vs/platform/product/common/productService';
+import { RemoteAuthorityResolverService } from 'vs/platform/remote/browser/remoteAuthorityResolverService';
+import { IRemoteAuthorityResolverService, ResolverResult } from 'vs/platform/remote/common/remoteAuthorityResolver';
 import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remoteExtensionsScanner';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
@@ -46,6 +50,9 @@ import { TestEnvironmentService, TestFileService, TestLifecycleService, TestRemo
 import { TestContextService } from 'vs/workbench/test/common/workbenchTestServices';
 
 suite('BrowserExtensionService', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('pickRunningLocation', () => {
 		assert.deepStrictEqual(BrowserExtensionHostKindPicker.pickRunningLocation([], false, false, ExtensionRunningPreference.None), null);
 		assert.deepStrictEqual(BrowserExtensionHostKindPicker.pickRunningLocation([], false, true, ExtensionRunningPreference.None), null);
@@ -145,6 +152,7 @@ suite('ExtensionService', () => {
 			@IRemoteAgentService remoteAgentService: IRemoteAgentService,
 			@IRemoteExtensionsScannerService remoteExtensionsScannerService: IRemoteExtensionsScannerService,
 			@ILifecycleService lifecycleService: ILifecycleService,
+			@IRemoteAuthorityResolverService remoteAuthorityResolverService: IRemoteAuthorityResolverService,
 		) {
 			const extensionsProposedApi = instantiationService.createInstance(ExtensionsProposedApi);
 			const extensionHostFactory = new class implements IExtensionHostFactory {
@@ -172,7 +180,9 @@ suite('ExtensionService', () => {
 				logService,
 				remoteAgentService,
 				remoteExtensionsScannerService,
-				lifecycleService
+				lifecycleService,
+				remoteAuthorityResolverService,
+				new TestDialogService()
 			);
 		}
 
@@ -205,6 +215,9 @@ suite('ExtensionService', () => {
 		protected _onExtensionHostExit(code: number): void {
 			throw new Error('Method not implemented.');
 		}
+		protected _resolveAuthority(remoteAuthority: string): Promise<ResolverResult> {
+			throw new Error('Method not implemented.');
+		}
 	}
 
 	let disposables: DisposableStore;
@@ -213,7 +226,8 @@ suite('ExtensionService', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		instantiationService = createServices(disposables, [
+		const testProductService = { _serviceBrand: undefined, ...product };
+		disposables.add(instantiationService = createServices(disposables, [
 			// custom
 			[IExtensionService, MyTestExtensionService],
 			// default
@@ -226,7 +240,7 @@ suite('ExtensionService', () => {
 			[IExtensionManifestPropertiesService, ExtensionManifestPropertiesService],
 			[IConfigurationService, TestConfigurationService],
 			[IWorkspaceContextService, TestContextService],
-			[IProductService, { _serviceBrand: undefined, ...product }],
+			[IProductService, testProductService],
 			[IFileService, TestFileService],
 			[IWorkbenchExtensionEnablementService, TestWorkbenchExtensionEnablementService],
 			[ITelemetryService, NullTelemetryService],
@@ -236,7 +250,8 @@ suite('ExtensionService', () => {
 			[IUserDataProfileService, TestUserDataProfileService],
 			[IUriIdentityService, UriIdentityService],
 			[IRemoteExtensionsScannerService, TestRemoteExtensionsScannerService],
-		]);
+			[IRemoteAuthorityResolverService, new RemoteAuthorityResolverService(false, undefined, undefined, testProductService, new NullLogService())]
+		]));
 		extService = <MyTestExtensionService>instantiationService.get(IExtensionService);
 	});
 
@@ -244,9 +259,38 @@ suite('ExtensionService', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #152204: Remote extension host not disposed after closing vscode client', async () => {
 		await extService.startExtensionHosts();
-		extService.stopExtensionHosts();
+		await extService.stopExtensionHosts('foo');
 		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
+
+	test('Extension host disposed when awaited', async () => {
+		await extService.startExtensionHosts();
+		await extService.stopExtensionHosts('foo');
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3', 'dispose 3', 'dispose 2', 'dispose 1']));
+	});
+
+	test('Extension host not disposed when vetoed (sync)', async () => {
+		await extService.startExtensionHosts();
+
+		disposables.add(extService.onWillStop(e => e.veto(true, 'test 1')));
+		disposables.add(extService.onWillStop(e => e.veto(false, 'test 2')));
+
+		await extService.stopExtensionHosts('foo');
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
+	});
+
+	test('Extension host not disposed when vetoed (async)', async () => {
+		await extService.startExtensionHosts();
+
+		disposables.add(extService.onWillStop(e => e.veto(false, 'test 1')));
+		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(true), 'test 2')));
+		disposables.add(extService.onWillStop(e => e.veto(Promise.resolve(false), 'test 3')));
+
+		await extService.stopExtensionHosts('foo');
+		assert.deepStrictEqual(extService.order, (['create 1', 'create 2', 'create 3']));
 	});
 });

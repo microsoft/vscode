@@ -29,6 +29,7 @@ import { cellRangesToIndexes, ICellRange, reduceCellRanges } from 'vs/workbench/
 import { IWebviewElement } from 'vs/workbench/contrib/webview/browser/webview';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 //#region Shared commands
 export const EXPAND_CELL_INPUT_COMMAND_ID = 'notebook.cell.expandCellInput';
@@ -146,9 +147,17 @@ export interface ICommonCellInfo {
 	readonly executionId?: string;
 }
 
+export enum ScrollToRevealBehavior {
+	fullCell,
+	firstLine
+}
+
 export interface IFocusNotebookCellOptions {
 	readonly skipReveal?: boolean;
 	readonly focusEditorLine?: number;
+	readonly revealBehavior?: ScrollToRevealBehavior | undefined;
+	readonly outputId?: string;
+	readonly altOutputId?: string;
 }
 
 //#endregion
@@ -321,7 +330,8 @@ export const enum CellRevealSyncType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
-	CenterIfOutsideViewport = 4
+	CenterIfOutsideViewport = 4,
+	FirstLineIfOutsideViewport = 5
 }
 
 export enum CellRevealRangeType {
@@ -463,6 +473,8 @@ export interface INotebookEditor {
 	readonly activeKernel: INotebookKernel | undefined;
 	readonly scrollTop: number;
 	readonly scopedContextKeyService: IContextKeyService;
+	readonly activeCodeEditor: ICodeEditor | undefined;
+	readonly codeEditors: [ICellViewModel, ICodeEditor][];
 	//#endregion
 
 	getLength(): number;
@@ -472,7 +484,7 @@ export interface INotebookEditor {
 	setFocus(focus: ICellRange): void;
 	getId(): string;
 
-	_getViewModel(): INotebookViewModel | undefined;
+	getViewModel(): INotebookViewModel | undefined;
 	hasModel(): this is IActiveNotebookEditor;
 	dispose(): void;
 	getDomNode(): HTMLElement;
@@ -545,6 +557,11 @@ export interface INotebookEditor {
 	 */
 	updateOutput(cell: ICellViewModel, output: IInsetRenderOutput, offset: number): Promise<void>;
 
+	/**
+	 * Copy the image in the specific cell output to the clipboard
+	 */
+	copyOutputImage(cellOutput: ICellOutputViewModel): Promise<void>;
+
 	readonly onDidReceiveMessage: Event<INotebookWebviewMessage>;
 
 	/**
@@ -561,6 +578,11 @@ export interface INotebookEditor {
 	 * Remove class name on the notebook editor root DOM node.
 	 */
 	removeClassName(className: string): void;
+
+	/**
+	 * Set scrollTop value of the notebook editor.
+	 */
+	setScrollTop(scrollTop: number): void;
 
 	/**
 	 * The range will be revealed with as little scrolling as possible.
@@ -669,10 +691,10 @@ export interface INotebookEditor {
 	getCellIndex(cell: ICellViewModel): number | undefined;
 	getNextVisibleCellIndex(index: number): number | undefined;
 	getPreviousVisibleCellIndex(index: number): number | undefined;
-	find(query: string, options: INotebookSearchOptions, token: CancellationToken): Promise<CellFindMatchWithIndex[]>;
-	highlightFind(matchIndex: number): Promise<number>;
-	unHighlightFind(matchIndex: number): Promise<void>;
-	findStop(): void;
+	find(query: string, options: INotebookSearchOptions, token: CancellationToken, skipWarmup?: boolean, shouldGetSearchPreviewInfo?: boolean, ownerID?: string): Promise<CellFindMatchWithIndex[]>;
+	findHighlightCurrent(matchIndex: number, ownerID?: string): Promise<number>;
+	findUnHighlightCurrent(matchIndex: number, ownerID?: string): Promise<void>;
+	findStop(ownerID?: string): void;
 	showProgress(): void;
 	hideProgress(): void;
 
@@ -680,7 +702,7 @@ export interface INotebookEditor {
 }
 
 export interface IActiveNotebookEditor extends INotebookEditor {
-	_getViewModel(): INotebookViewModel;
+	getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -726,7 +748,7 @@ export interface INotebookEditorDelegate extends INotebookEditor {
 }
 
 export interface IActiveNotebookEditorDelegate extends INotebookEditorDelegate {
-	_getViewModel(): INotebookViewModel;
+	getViewModel(): INotebookViewModel;
 	textModel: NotebookTextModel;
 	getFocus(): ICellRange;
 	cellAt(index: number): ICellViewModel;
@@ -790,6 +812,13 @@ export enum CursorAtBoundary {
 	Both
 }
 
+export enum CursorAtLineBoundary {
+	None,
+	Start,
+	End,
+	Both
+}
+
 export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INotebookEditor | undefined {
 	if (!editorPane) {
 		return;
@@ -802,7 +831,7 @@ export function getNotebookEditorFromEditorPane(editorPane?: IEditorPane): INote
 	const input = editorPane.input;
 
 	if (input && isCompositeNotebookEditorInput(input)) {
-		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined }).notebookEditor;
+		return (editorPane.getControl() as { notebookEditor: INotebookEditor | undefined } | undefined)?.notebookEditor;
 	}
 
 	return undefined;

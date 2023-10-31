@@ -7,7 +7,7 @@ import { app, JumpListCategory, JumpListItem } from 'electron';
 import { coalesce } from 'vs/base/common/arrays';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { Emitter, Event as CommonEvent } from 'vs/base/common/event';
-import { normalizeDriveLetter, splitName } from 'vs/base/common/labels';
+import { normalizeDriveLetter, splitRecentLabel } from 'vs/base/common/labels';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
@@ -24,6 +24,7 @@ import { IRecent, IRecentFile, IRecentFolder, IRecentlyOpened, IRecentWorkspace,
 import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
 import { ResourceMap } from 'vs/base/common/map';
+import { IDialogMainService } from 'vs/platform/dialogs/electron-main/dialogMainService';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -36,7 +37,7 @@ export interface IWorkspacesHistoryMainService {
 	addRecentlyOpened(recents: IRecent[]): Promise<void>;
 	getRecentlyOpened(): Promise<IRecentlyOpened>;
 	removeRecentlyOpened(paths: URI[]): Promise<void>;
-	clearRecentlyOpened(): Promise<void>;
+	clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void>;
 }
 
 export class WorkspacesHistoryMainService extends Disposable implements IWorkspacesHistoryMainService {
@@ -54,7 +55,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@ILogService private readonly logService: ILogService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
-		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService
+		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
+		@IDialogMainService private readonly dialogMainService: IDialogMainService
 	) {
 		super();
 
@@ -157,7 +159,24 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 	}
 
-	async clearRecentlyOpened(): Promise<void> {
+	async clearRecentlyOpened(options?: { confirm?: boolean }): Promise<void> {
+		if (options?.confirm) {
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'warning',
+				buttons: [
+					localize({ key: 'clearButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Clear"),
+					localize({ key: 'cancel', comment: ['&& denotes a mnemonic'] }, "&&Cancel")
+				],
+				message: localize('confirmClearRecentsMessage', "Do you want to clear all recently opened files and workspaces?"),
+				detail: localize('confirmClearDetail', "This action is irreversible!"),
+				cancelId: 1
+			});
+
+			if (response !== 0) {
+				return;
+			}
+		}
+
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
 		app.clearRecentDocuments();
 
@@ -390,7 +409,7 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 		// Prefer recent label
 		if (recentLabel) {
-			return { title: splitName(recentLabel).name, description: recentLabel };
+			return { title: splitRecentLabel(recentLabel).name, description: recentLabel };
 		}
 
 		// Single Folder

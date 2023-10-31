@@ -26,7 +26,7 @@ import { IExtensionManifestPropertiesService } from 'vs/workbench/services/exten
 
 // this class contains the commands that the CLI server is reying on
 
-CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string) {
+CommandsRegistry.registerCommand('_remoteCLI.openExternal', function (accessor: ServicesAccessor, uri: UriComponents | string): Promise<boolean> {
 	const openerService = accessor.get(IOpenerService);
 	return openerService.open(isString(uri) ? uri : URI.revive(uri), { openExternal: true, allowTunneling: true });
 });
@@ -39,9 +39,9 @@ CommandsRegistry.registerCommand('_remoteCLI.windowOpen', function (accessor: Se
 	return commandService.executeCommand('_files.windowOpen', toOpen, options);
 });
 
-CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor) {
+CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accessor: ServicesAccessor): Promise<string | undefined> {
 	const commandService = accessor.get(ICommandService);
-	return commandService.executeCommand('_issues.getSystemStatus');
+	return commandService.executeCommand<string>('_issues.getSystemStatus');
 });
 
 interface ManageExtensionsArgs {
@@ -51,8 +51,7 @@ interface ManageExtensionsArgs {
 	force?: boolean;
 }
 
-CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (accessor: ServicesAccessor, args: ManageExtensionsArgs) {
-
+CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (accessor: ServicesAccessor, args: ManageExtensionsArgs): Promise<string | undefined> {
 	const instantiationService = accessor.get(IInstantiationService);
 	const extensionManagementServerService = accessor.get(IExtensionManagementServerService);
 	const remoteExtensionManagementService = extensionManagementServerService.remoteExtensionManagementServer?.extensionManagementService;

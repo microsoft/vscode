@@ -6,7 +6,7 @@
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { CancellationError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
@@ -94,18 +94,21 @@ export function raceCancellationError<T>(promise: Promise<T>, token: Cancellatio
 }
 
 /**
- * Returns as soon as one of the promises is resolved and cancels remaining promises
+ * Returns as soon as one of the promises resolves or rejects and cancels remaining promises
  */
 export async function raceCancellablePromises<T>(cancellablePromises: CancelablePromise<T>[]): Promise<T> {
 	let resolvedPromiseIndex = -1;
 	const promises = cancellablePromises.map((promise, index) => promise.then(result => { resolvedPromiseIndex = index; return result; }));
-	const result = await Promise.race(promises);
-	cancellablePromises.forEach((cancellablePromise, index) => {
-		if (index !== resolvedPromiseIndex) {
-			cancellablePromise.cancel();
-		}
-	});
-	return result;
+	try {
+		const result = await Promise.race(promises);
+		return result;
+	} finally {
+		cancellablePromises.forEach((cancellablePromise, index) => {
+			if (index !== resolvedPromiseIndex) {
+				cancellablePromise.cancel();
+			}
+		});
+	}
 }
 
 export function raceTimeout<T>(promise: Promise<T>, timeout: number, onTimeout?: () => void): Promise<T | undefined> {
@@ -163,11 +166,13 @@ export interface ITask<T> {
  * 			throttler.queue(deliver);
  * 		}
  */
-export class Throttler {
+export class Throttler implements IDisposable {
 
 	private activePromise: Promise<any> | null;
 	private queuedPromise: Promise<any> | null;
 	private queuedPromiseFactory: ITask<Promise<any>> | null;
+
+	private isDisposed = false;
 
 	constructor() {
 		this.activePromise = null;
@@ -176,12 +181,20 @@ export class Throttler {
 	}
 
 	queue<T>(promiseFactory: ITask<Promise<T>>): Promise<T> {
+		if (this.isDisposed) {
+			return Promise.reject(new Error('Throttler is disposed'));
+		}
+
 		if (this.activePromise) {
 			this.queuedPromiseFactory = promiseFactory;
 
 			if (!this.queuedPromise) {
 				const onComplete = () => {
 					this.queuedPromise = null;
+
+					if (this.isDisposed) {
+						return;
+					}
 
 					const result = this.queue(this.queuedPromiseFactory!);
 					this.queuedPromiseFactory = null;
@@ -210,6 +223,10 @@ export class Throttler {
 				reject(err);
 			});
 		});
+	}
+
+	dispose(): void {
+		this.isDisposed = true;
 	}
 }
 
@@ -400,6 +417,7 @@ export class ThrottledDelayer<T> {
 
 	dispose(): void {
 		this.delayer.dispose();
+		this.throttler.dispose();
 	}
 }
 
@@ -472,9 +490,36 @@ export function timeout(millis: number, token?: CancellationToken): CancelablePr
 	});
 }
 
-export function disposableTimeout(handler: () => void, timeout = 0): IDisposable {
-	const timer = setTimeout(handler, timeout);
-	return toDisposable(() => clearTimeout(timer));
+/**
+ * Creates a timeout that can be disposed using its returned value.
+ * @param handler The timeout handler.
+ * @param timeout An optional timeout in milliseconds.
+ * @param store An optional {@link DisposableStore} that will have the timeout disposable managed automatically.
+ *
+ * @example
+ * const store = new DisposableStore;
+ * // Call the timeout after 1000ms at which point it will be automatically
+ * // evicted from the store.
+ * const timeoutDisposable = disposableTimeout(() => {}, 1000, store);
+ *
+ * if (foo) {
+ *   // Cancel the timeout and evict it from store.
+ *   timeoutDisposable.dispose();
+ * }
+ */
+export function disposableTimeout(handler: () => void, timeout = 0, store?: DisposableStore): IDisposable {
+	const timer = setTimeout(() => {
+		handler();
+		if (store) {
+			disposable.dispose();
+		}
+	}, timeout);
+	const disposable = toDisposable(() => {
+		clearTimeout(timer);
+		store?.deleteAndLeak(disposable);
+	});
+	store?.add(disposable);
+	return disposable;
 }
 
 /**
@@ -665,6 +710,31 @@ export class Queue<T> extends Limiter<T> {
 }
 
 /**
+ * Same as `Queue`, ensures that only 1 task is executed at the same time. The difference to `Queue` is that
+ * there is only 1 task about to be scheduled next. As such, calling `queue` while a task is executing will
+ * replace the currently queued task until it executes.
+ *
+ * As such, the returned promise may not be from the factory that is passed in but from the next factory that
+ * is running after having called `queue`.
+ */
+export class LimitedQueue {
+
+	private readonly sequentializer = new TaskSequentializer();
+
+	private tasks = 0;
+
+	queue(factory: ITask<Promise<void>>): Promise<void> {
+		if (!this.sequentializer.isRunning()) {
+			return this.sequentializer.run(this.tasks++, factory());
+		}
+
+		return this.sequentializer.queue(() => {
+			return this.sequentializer.run(this.tasks++, factory());
+		});
+	}
+}
+
+/**
  * A helper to organize queues per resource. The ResourceQueue makes sure to manage queues per resource
  * by disposing them once the queue is empty.
  */
@@ -673,6 +743,9 @@ export class ResourceQueue implements IDisposable {
 	private readonly queues = new Map<string, Queue<void>>();
 
 	private readonly drainers = new Set<DeferredPromise<void>>();
+
+	private drainListeners: DisposableMap<number> | undefined = undefined;
+	private drainListenerCount = 0;
 
 	async whenDrained(): Promise<void> {
 		if (this.isDrained()) {
@@ -701,11 +774,24 @@ export class ResourceQueue implements IDisposable {
 		let queue = this.queues.get(key);
 		if (!queue) {
 			queue = new Queue<void>();
-			Event.once(queue.onDrained)(() => {
+			const drainListenerId = this.drainListenerCount++;
+			const drainListener = Event.once(queue.onDrained)(() => {
 				queue?.dispose();
 				this.queues.delete(key);
 				this.onDidQueueDrain();
+
+				this.drainListeners?.deleteAndDispose(drainListenerId);
+
+				if (this.drainListeners?.size === 0) {
+					this.drainListeners.dispose();
+					this.drainListeners = undefined;
+				}
 			});
+
+			if (!this.drainListeners) {
+				this.drainListeners = new DisposableMap();
+			}
+			this.drainListeners.set(drainListenerId, drainListener);
 
 			this.queues.set(key, queue);
 		}
@@ -743,6 +829,8 @@ export class ResourceQueue implements IDisposable {
 		// promises when the resource queue is being
 		// disposed.
 		this.releaseDrainers();
+
+		this.drainListeners?.dispose();
 	}
 }
 
@@ -1249,87 +1337,92 @@ export async function retry<T>(task: ITask<Promise<T>>, delay: number, retries: 
 
 //#region Task Sequentializer
 
-interface IPendingTask {
+interface IRunningTask {
 	readonly taskId: number;
 	readonly cancel: () => void;
 	readonly promise: Promise<void>;
 }
 
-interface INextTask {
+interface IQueuedTask {
 	readonly promise: Promise<void>;
 	readonly promiseResolve: () => void;
 	readonly promiseReject: (error: Error) => void;
-	run: () => Promise<void>;
+	run: ITask<Promise<void>>;
 }
 
-export interface ITaskSequentializerWithPendingTask {
-	readonly pending: Promise<void>;
+export interface ITaskSequentializerWithRunningTask {
+	readonly running: Promise<void>;
 }
 
-export interface ITaskSequentializerWithNextTask {
-	readonly next: INextTask;
+export interface ITaskSequentializerWithQueuedTask {
+	readonly queued: IQueuedTask;
 }
 
+/**
+ * @deprecated use `LimitedQueue` instead for an easier to use API
+ */
 export class TaskSequentializer {
 
-	private _pending?: IPendingTask;
-	private _next?: INextTask;
+	private _running?: IRunningTask;
+	private _queued?: IQueuedTask;
 
-	hasPending(taskId?: number): this is ITaskSequentializerWithPendingTask {
-		if (!this._pending) {
-			return false;
-		}
-
+	isRunning(taskId?: number): this is ITaskSequentializerWithRunningTask {
 		if (typeof taskId === 'number') {
-			return this._pending.taskId === taskId;
+			return this._running?.taskId === taskId;
 		}
 
-		return !!this._pending;
+		return !!this._running;
 	}
 
-	get pending(): Promise<void> | undefined {
-		return this._pending?.promise;
+	get running(): Promise<void> | undefined {
+		return this._running?.promise;
 	}
 
-	cancelPending(): void {
-		this._pending?.cancel();
+	cancelRunning(): void {
+		this._running?.cancel();
 	}
 
-	setPending(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
-		this._pending = { taskId, cancel: () => onCancel?.(), promise };
+	run(taskId: number, promise: Promise<void>, onCancel?: () => void,): Promise<void> {
+		this._running = { taskId, cancel: () => onCancel?.(), promise };
 
-		promise.then(() => this.donePending(taskId), () => this.donePending(taskId));
+		promise.then(() => this.doneRunning(taskId), () => this.doneRunning(taskId));
 
 		return promise;
 	}
 
-	private donePending(taskId: number): void {
-		if (this._pending && taskId === this._pending.taskId) {
+	private doneRunning(taskId: number): void {
+		if (this._running && taskId === this._running.taskId) {
 
-			// only set pending to done if the promise finished that is associated with that taskId
-			this._pending = undefined;
+			// only set running to done if the promise finished that is associated with that taskId
+			this._running = undefined;
 
-			// schedule the next task now that we are free if we have any
-			this.triggerNext();
+			// schedule the queued task now that we are free if we have any
+			this.runQueued();
 		}
 	}
 
-	private triggerNext(): void {
-		if (this._next) {
-			const next = this._next;
-			this._next = undefined;
+	private runQueued(): void {
+		if (this._queued) {
+			const queued = this._queued;
+			this._queued = undefined;
 
-			// Run next task and complete on the associated promise
-			next.run().then(next.promiseResolve, next.promiseReject);
+			// Run queued task and complete on the associated promise
+			queued.run().then(queued.promiseResolve, queued.promiseReject);
 		}
 	}
 
-	setNext(run: () => Promise<void>): Promise<void> {
+	/**
+	 * Note: the promise to schedule as next run MUST itself call `run`.
+	 *       Otherwise, this sequentializer will report `false` for `isRunning`
+	 *       even when this task is running. Missing this detail means that
+	 *       suddenly multiple tasks will run in parallel.
+	 */
+	queue(run: ITask<Promise<void>>): Promise<void> {
 
-		// this is our first next task, so we create associated promise with it
+		// this is our first queued task, so we create associated promise with it
 		// so that we can return a promise that completes when the task has
 		// completed.
-		if (!this._next) {
+		if (!this._queued) {
 			let promiseResolve: () => void;
 			let promiseReject: (error: Error) => void;
 			const promise = new Promise<void>((resolve, reject) => {
@@ -1337,7 +1430,7 @@ export class TaskSequentializer {
 				promiseReject = reject;
 			});
 
-			this._next = {
+			this._queued = {
 				run,
 				promise,
 				promiseResolve: promiseResolve!,
@@ -1345,20 +1438,20 @@ export class TaskSequentializer {
 			};
 		}
 
-		// we have a previous next task, just overwrite it
+		// we have a previous queued task, just overwrite it
 		else {
-			this._next.run = run;
+			this._queued.run = run;
 		}
 
-		return this._next.promise;
+		return this._queued.promise;
 	}
 
-	hasNext(): this is ITaskSequentializerWithNextTask {
-		return !!this._next;
+	hasQueued(): this is ITaskSequentializerWithQueuedTask {
+		return !!this._queued;
 	}
 
 	async join(): Promise<void> {
-		return this._next?.promise ?? this._pending?.promise;
+		return this._queued?.promise ?? this._running?.promise;
 	}
 }
 
@@ -1403,6 +1496,11 @@ export class IntervalCounter {
 
 export type ValueCallback<T = unknown> = (value: T | Promise<T>) => void;
 
+const enum DeferredOutcome {
+	Resolved,
+	Rejected
+}
+
 /**
  * Creates a promise whose resolution or rejection can be controlled imperatively.
  */
@@ -1410,19 +1508,22 @@ export class DeferredPromise<T> {
 
 	private completeCallback!: ValueCallback<T>;
 	private errorCallback!: (err: unknown) => void;
-	private rejected = false;
-	private resolved = false;
+	private outcome?: { outcome: DeferredOutcome.Rejected; value: any } | { outcome: DeferredOutcome.Resolved; value: T };
 
 	public get isRejected() {
-		return this.rejected;
+		return this.outcome?.outcome === DeferredOutcome.Rejected;
 	}
 
 	public get isResolved() {
-		return this.resolved;
+		return this.outcome?.outcome === DeferredOutcome.Resolved;
 	}
 
 	public get isSettled() {
-		return this.rejected || this.resolved;
+		return !!this.outcome;
+	}
+
+	public get value() {
+		return this.outcome?.outcome === DeferredOutcome.Resolved ? this.outcome?.value : undefined;
 	}
 
 	public readonly p: Promise<T>;
@@ -1437,7 +1538,7 @@ export class DeferredPromise<T> {
 	public complete(value: T) {
 		return new Promise<void>(resolve => {
 			this.completeCallback(value);
-			this.resolved = true;
+			this.outcome = { outcome: DeferredOutcome.Resolved, value };
 			resolve();
 		});
 	}
@@ -1445,17 +1546,13 @@ export class DeferredPromise<T> {
 	public error(err: unknown) {
 		return new Promise<void>(resolve => {
 			this.errorCallback(err);
-			this.rejected = true;
+			this.outcome = { outcome: DeferredOutcome.Rejected, value: err };
 			resolve();
 		});
 	}
 
 	public cancel() {
-		new Promise<void>(resolve => {
-			this.errorCallback(new CancellationError());
-			this.rejected = true;
-			resolve();
-		});
+		return this.error(new CancellationError());
 	}
 }
 
@@ -1788,6 +1885,63 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 			emitter.reject(err);
 		}
 	});
+}
+
+export class AsyncIterableSource<T> {
+
+	private readonly _deferred = new DeferredPromise<void>();
+	private readonly _asyncIterable: AsyncIterableObject<T>;
+
+	private _errorFn: (error: Error) => void;
+	private _emitFn: (item: T) => void;
+
+	constructor() {
+		this._asyncIterable = new AsyncIterableObject(emitter => {
+
+			if (earlyError) {
+				emitter.reject(earlyError);
+				return;
+			}
+			if (earlyItems) {
+				emitter.emitMany(earlyItems);
+			}
+			this._errorFn = (error: Error) => emitter.reject(error);
+			this._emitFn = (item: T) => emitter.emitOne(item);
+			return this._deferred.p;
+		});
+
+		let earlyError: Error | undefined;
+		let earlyItems: T[] | undefined;
+
+		this._emitFn = (item: T) => {
+			if (!earlyItems) {
+				earlyItems = [];
+			}
+			earlyItems.push(item);
+		};
+		this._errorFn = (error: Error) => {
+			if (!earlyError) {
+				earlyError = error;
+			}
+		};
+	}
+
+	get asyncIterable(): AsyncIterableObject<T> {
+		return this._asyncIterable;
+	}
+
+	resolve(): void {
+		this._deferred.complete();
+	}
+
+	reject(error: Error): void {
+		this._errorFn(error);
+		this._deferred.complete();
+	}
+
+	emitOne(item: T): void {
+		this._emitFn(item);
+	}
 }
 
 //#endregion

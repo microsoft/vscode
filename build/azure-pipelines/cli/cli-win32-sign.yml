@@ -12,21 +12,21 @@ steps:
       SecretsFilter: "ESRP-PKI,esrp-aad-username,esrp-aad-password"
 
   - task: UseDotNet@2
-    displayName: "Use .NET"
     inputs:
-      version: 3.x
+      version: 6.x
 
   - task: EsrpClientTool@1
     displayName: "Use ESRP client"
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
       - task: DownloadPipelineArtifact@2
-        displayName: Download artifacts
+        displayName: Download artifact
         inputs:
           artifact: ${{ target }}
           path: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}
 
       - task: ExtractFiles@1
+        displayName: Extract artifact
         inputs:
           archiveFilePatterns: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/*.zip
           destinationFolder: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
@@ -42,11 +42,8 @@ steps:
       echo "##vso[task.setvariable variable=EsrpCliDllPath]$EsrpCliDllPath"
     displayName: Find ESRP CLI
 
-  - powershell: |
-      . build/azure-pipelines/win32/exec.ps1
-      $ErrorActionPreference = "Stop"
-      exec { node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/sign "*.exe" }
-    displayName: "Code sign"
+  - powershell: node build\azure-pipelines\common\sign $env:EsrpCliDllPath windows $(ESRP-PKI) $(esrp-aad-username) $(esrp-aad-password) $(Build.ArtifactStagingDirectory)/sign "*.exe"
+    displayName: Codesign executable
 
   - ${{ each target in parameters.VSCODE_CLI_ARTIFACTS }}:
       - powershell: |
@@ -55,6 +52,7 @@ steps:
         displayName: Set asset id variable
 
       - task: ArchiveFiles@2
+        displayName: Archive signed files
         inputs:
           rootFolderOrFile: $(Build.ArtifactStagingDirectory)/sign/${{ target }}
           includeRootFolder: false
@@ -62,4 +60,5 @@ steps:
           archiveFile: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
 
       - publish: $(Build.ArtifactStagingDirectory)/$(ASSET_ID).zip
+        displayName: Publish signed artifact with ID $(ASSET_ID)
         artifact: $(ASSET_ID)

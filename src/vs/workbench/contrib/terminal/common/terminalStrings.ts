@@ -14,6 +14,8 @@ export const terminalStrings = {
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
+	typeTask: localize('task', "Task"),
+	typeLocal: localize('local', "Local"),
 	actionCategory: {
 		value: localize('terminalCategory', "Terminal"),
 		original: 'Terminal'
@@ -21,6 +23,10 @@ export const terminalStrings = {
 	focus: {
 		value: localize('workbench.action.terminal.focus', "Focus Terminal"),
 		original: 'Focus Terminal'
+	},
+	focusAndHideAccessibleBuffer: {
+		value: localize('workbench.action.terminal.focusAndHideAccessibleBuffer', "Focus Terminal and Hide Accessible Buffer"),
+		original: 'Focus Terminal and Hide Accessible Buffer'
 	},
 	kill: {
 		value: localize('killTerminal', "Kill Terminal"),
@@ -59,5 +65,21 @@ export const terminalStrings = {
 	toggleSizeToContentWidth: {
 		value: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width"),
 		original: 'Toggle Size to Content Width'
+	},
+	focusHover: {
+		value: localize('workbench.action.terminal.focusHover', "Focus Hover"),
+		original: 'Focus Hover'
+	},
+	sendSequence: {
+		value: localize('workbench.action.terminal.sendSequence', "Send Custom Sequence To Terminal"),
+		original: 'Send Custom Sequence To Terminal'
+	},
+	newWithCwd: {
+		value: localize('workbench.action.terminal.newWithCwd', "Create New Terminal Starting in a Custom Working Directory"),
+		original: 'Create New Terminal Starting in a Custom Working Directory'
+	},
+	renameWithArgs: {
+		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
+		original: 'Rename the Currently Active Terminal'
 	}
 };

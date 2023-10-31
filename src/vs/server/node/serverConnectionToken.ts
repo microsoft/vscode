@@ -29,17 +29,6 @@ export class NoneServerConnectionToken {
 	}
 }
 
-export class OptionalServerConnectionToken {
-	public readonly type = ServerConnectionTokenType.Optional;
-
-	constructor(public readonly value: string) {
-	}
-
-	public validate(connectionToken: any): boolean {
-		return (connectionToken === this.value);
-	}
-}
-
 export class MandatoryServerConnectionToken {
 	public readonly type = ServerConnectionTokenType.Mandatory;
 
@@ -51,7 +40,7 @@ export class MandatoryServerConnectionToken {
 	}
 }
 
-export type ServerConnectionToken = NoneServerConnectionToken | OptionalServerConnectionToken | MandatoryServerConnectionToken;
+export type ServerConnectionToken = NoneServerConnectionToken | MandatoryServerConnectionToken;
 
 export class ServerConnectionTokenParseError {
 	constructor(
@@ -63,7 +52,6 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 	const withoutConnectionToken = args['without-connection-token'];
 	const connectionToken = args['connection-token'];
 	const connectionTokenFile = args['connection-token-file'];
-	const compatibility = (args['compatibility'] === '1.63');
 
 	if (withoutConnectionToken) {
 		if (typeof connectionToken !== 'undefined' || typeof connectionTokenFile !== 'undefined') {
@@ -96,18 +84,7 @@ export async function parseServerConnectionToken(args: ServerParsedArgs, default
 			return new ServerConnectionTokenParseError(`The connection token '${connectionToken} does not adhere to the characters 0-9, a-z, A-Z or -.`);
 		}
 
-		if (compatibility) {
-			// TODO: Remove this case soon
-			return new OptionalServerConnectionToken(connectionToken);
-		}
-
 		return new MandatoryServerConnectionToken(connectionToken);
-	}
-
-	if (compatibility) {
-		// TODO: Remove this case soon
-		console.log(`Breaking change in the next release: Please use one of the following arguments: '--connection-token', '--connection-token-file' or '--without-connection-token'.`);
-		return new OptionalServerConnectionToken(await defaultValue());
 	}
 
 	return new MandatoryServerConnectionToken(await defaultValue());

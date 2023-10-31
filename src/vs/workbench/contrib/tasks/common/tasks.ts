@@ -1116,19 +1116,54 @@ export const enum TaskRunType {
 	Background = 'background'
 }
 
-export interface ITaskEvent {
-	kind: TaskEventKind;
-	taskId?: string;
-	taskName?: string;
-	runType?: TaskRunType;
-	group?: string | TaskGroup;
-	processId?: number;
-	exitCode?: number;
-	terminalId?: number;
-	__task?: Task;
-	resolvedVariables?: Map<string, string>;
-	exitReason?: TerminalExitReason;
+export interface ITaskChangedEvent {
+	kind: TaskEventKind.Changed;
 }
+
+interface ITaskCommon {
+	taskId: string;
+	runType: TaskRunType;
+	taskName: string | undefined;
+	group: string | TaskGroup | undefined;
+	__task: Task;
+}
+
+export interface ITaskProcessStartedEvent extends ITaskCommon {
+	kind: TaskEventKind.ProcessStarted;
+	terminalId: number;
+	processId: number;
+}
+
+export interface ITaskProcessEndedEvent extends ITaskCommon {
+	kind: TaskEventKind.ProcessEnded;
+	terminalId: number | undefined;
+	exitCode?: number;
+}
+
+export interface ITaskTerminatedEvent extends ITaskCommon {
+	kind: TaskEventKind.Terminated;
+	terminalId: number;
+	exitReason: TerminalExitReason | undefined;
+}
+
+export interface ITaskStartedEvent extends ITaskCommon {
+	kind: TaskEventKind.Start;
+	terminalId: number;
+	resolvedVariables: Map<string, string>;
+}
+
+export interface ITaskGeneralEvent extends ITaskCommon {
+	kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End;
+	terminalId: number | undefined;
+}
+
+export type ITaskEvent =
+	| ITaskChangedEvent
+	| ITaskProcessStartedEvent
+	| ITaskProcessEndedEvent
+	| ITaskTerminatedEvent
+	| ITaskStartedEvent
+	| ITaskGeneralEvent;
 
 export const enum TaskRunSource {
 	System,
@@ -1139,34 +1174,61 @@ export const enum TaskRunSource {
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.ProcessStarted | TaskEventKind.ProcessEnded, task: Task, terminalId?: number, processIdOrExitCode?: number): ITaskEvent;
-	export function create(kind: TaskEventKind.Start, task: Task, terminalId?: number, resolvedVariables?: Map<string, string>): ITaskEvent;
-	export function create(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task, terminalId?: number, exitReason?: TerminalExitReason): ITaskEvent;
-	export function create(kind: TaskEventKind.Changed): ITaskEvent;
-	export function create(kind: TaskEventKind, task?: Task, terminalId?: number, resolvedVariablesORProcessIdOrExitCodeOrExitReason?: number | Map<string, string> | TerminalExitReason): ITaskEvent {
-		if (task) {
-			const result: ITaskEvent = {
-				kind: kind,
-				taskId: task._id,
-				taskName: task.configurationProperties.name,
-				runType: task.configurationProperties.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
-				group: task.configurationProperties.group,
-				processId: undefined as number | undefined,
-				exitCode: undefined as number | undefined,
-				terminalId,
-				__task: task
-			};
-			if (kind === TaskEventKind.Start) {
-				result.resolvedVariables = resolvedVariablesORProcessIdOrExitCodeOrExitReason as Map<string, string>;
-			} else if (kind === TaskEventKind.ProcessStarted) {
-				result.processId = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
-			} else if (kind === TaskEventKind.ProcessEnded) {
-				result.exitCode = resolvedVariablesORProcessIdOrExitCodeOrExitReason as number;
-			}
-			return Object.freeze(result);
-		} else {
-			return Object.freeze({ kind: TaskEventKind.Changed });
-		}
+	function common(task: Task): ITaskCommon {
+		return {
+			taskId: task._id,
+			taskName: task.configurationProperties.name,
+			runType: task.configurationProperties.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
+			group: task.configurationProperties.group,
+			__task: task,
+		};
+	}
+
+	export function start(task: Task, terminalId: number, resolvedVariables: Map<string, string>): ITaskStartedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.Start,
+			terminalId,
+			resolvedVariables,
+		};
+	}
+
+	export function processStarted(task: Task, terminalId: number, processId: number): ITaskProcessStartedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.ProcessStarted,
+			terminalId,
+			processId,
+		};
+	}
+	export function processEnded(task: Task, terminalId: number | undefined, exitCode: number | undefined): ITaskProcessEndedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.ProcessEnded,
+			terminalId,
+			exitCode,
+		};
+	}
+
+	export function terminated(task: Task, terminalId: number, exitReason: TerminalExitReason | undefined): ITaskTerminatedEvent {
+		return {
+			...common(task),
+			kind: TaskEventKind.Terminated,
+			exitReason,
+			terminalId,
+		};
+	}
+
+	export function general(kind: TaskEventKind.AcquiredInput | TaskEventKind.DependsOnStarted | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.End, task: Task, terminalId?: number): ITaskGeneralEvent {
+		return {
+			...common(task),
+			kind,
+			terminalId,
+		};
+	}
+
+	export function changed(): ITaskChangedEvent {
+		return { kind: TaskEventKind.Changed };
 	}
 }
 

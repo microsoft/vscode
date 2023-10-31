@@ -62,7 +62,7 @@ export class TerminalEditor extends EditorPane {
 	) {
 		super(terminalEditorId, telemetryService, themeService, storageService);
 		this._dropdownMenu = this._register(menuService.createMenu(MenuId.TerminalNewDropdownContext, contextKeyService));
-		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalEditorInstanceContext, contextKeyService));
+		this._instanceMenu = this._register(menuService.createMenu(MenuId.TerminalInstanceContext, contextKeyService));
 	}
 
 	override async setInput(newInput: TerminalEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken) {
@@ -85,7 +85,9 @@ export class TerminalEditor extends EditorPane {
 
 	override clearInput(): void {
 		super.clearInput();
-		this._editorInput?.terminalInstance?.detachFromElement();
+		if (this._overflowGuardElement && this._editorInput?.terminalInstance?.domElement.parentElement === this._overflowGuardElement) {
+			this._editorInput.terminalInstance?.detachFromElement();
+		}
 		this._editorInput = undefined;
 	}
 
@@ -97,13 +99,15 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	override focus() {
+		super.focus();
+
 		this._editorInput?.terminalInstance?.focus();
 	}
 
 	// eslint-disable-next-line @typescript-eslint/naming-convention
 	protected createEditor(parent: HTMLElement): void {
 		this._editorInstanceElement = parent;
-		this._overflowGuardElement = dom.$('.terminal-overflow-guard');
+		this._overflowGuardElement = dom.$('.terminal-overflow-guard.terminal-editor');
 		this._editorInstanceElement.appendChild(this._overflowGuardElement);
 		this._registerListeners();
 	}
@@ -138,7 +142,7 @@ export class TerminalEditor extends EditorPane {
 
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -176,7 +180,7 @@ export class TerminalEditor extends EditorPane {
 			else
 				if (!this._cancelContextMenu && rightClickBehavior !== 'copyPaste' && rightClickBehavior !== 'paste') {
 					if (!this._cancelContextMenu) {
-						openContextMenu(event, this._editorInstanceElement!, this._instanceMenu, this._contextMenuService);
+						openContextMenu(event, this._editorInput?.terminalInstance, this._instanceMenu, this._contextMenuService);
 					}
 					event.preventDefault();
 					event.stopImmediatePropagation();
@@ -186,7 +190,11 @@ export class TerminalEditor extends EditorPane {
 	}
 
 	layout(dimension: dom.Dimension): void {
-		this._editorInput?.terminalInstance?.layout(dimension);
+		const instance = this._editorInput?.terminalInstance;
+		if (instance) {
+			instance.attachToElement(this._overflowGuardElement!);
+			instance.layout(dimension);
+		}
 		this._lastDimension = dimension;
 	}
 
