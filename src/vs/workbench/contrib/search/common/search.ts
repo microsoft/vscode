@@ -126,6 +126,7 @@ export interface IWorkbenchSearchConfigurationProperties extends ISearchConfigur
 		history: {
 			filterSortOrder: 'default' | 'recency';
 		};
+		seedStringFromSelection: boolean;
 	};
 }
 

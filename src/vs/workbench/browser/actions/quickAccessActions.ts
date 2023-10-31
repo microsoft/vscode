@@ -11,10 +11,14 @@ import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/commo
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from 'vs/workbench/browser/quickaccess';
+import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler, getFileSelectionTextFromEditor } from 'vs/workbench/browser/quickaccess';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { AnythingQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
 import { Codicon } from 'vs/base/common/codicons';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditor } from 'vs/editor/common/editorCommon';
+import { ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 
 //#region Quick access management commands and keys
 
@@ -147,9 +151,31 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 	run(accessor: ServicesAccessor, prefix: undefined): void {
 		const quickInputService = accessor.get(IQuickInputService);
-		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : undefined, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
+		const searchText = getFileSearchText(accessor) ?? '';
+		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : searchText, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	}
 });
+
+function getFileSearchText(accessor: ServicesAccessor): string | null {
+	const editorService = accessor.get(IEditorService);
+	const configurationService = accessor.get(IConfigurationService);
+
+	const activeEditor: IEditor = editorService.activeTextEditorControl as IEditor;
+	if (!activeEditor) {
+		return null;
+	}
+	if (!activeEditor.hasTextFocus()) {
+		return null;
+	}
+
+	const seedStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').quickOpen.seedStringFromSelection ?? false;
+
+	if (!seedStringFromSelection) {
+		return null;
+	}
+
+	return getFileSelectionTextFromEditor(seedStringFromSelection, activeEditor);
+}
 
 registerAction2(class QuickAccessAction extends Action2 {
 	constructor() {
