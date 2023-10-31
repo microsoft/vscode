@@ -46,7 +46,7 @@ export interface IHostService {
 	 * focused application which may not be VSCode. It may not be supported
 	 * in all environments.
 	 */
-	focus(options?: { force: boolean }): Promise<void>;
+	focus(window: Window, options?: { force: boolean }): Promise<void>;
 
 	//#endregion
 
@@ -72,7 +72,7 @@ export interface IHostService {
 	/**
 	 * Bring a window to the front and restore it if needed.
 	 */
-	moveTop(window: Window & typeof globalThis): Promise<void>;
+	moveTop(window: Window): Promise<void>;
 
 	//#endregion
 

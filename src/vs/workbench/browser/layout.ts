@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -47,11 +47,12 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
+	activeContainerId: 'main' | number /* window ID */;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -169,7 +170,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
 	get containers(): Iterable<HTMLElement> {
 		const containers: HTMLElement[] = [];
-		for (const window of getWindows()) {
+		for (const { window } of getWindows()) {
 			containers.push(this.getContainerFromDocument(window.document));
 		}
 
@@ -451,16 +452,29 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (hasFocus) {
-			// This is a bit simplified: we assume that the active container
-			// has changed when receiving focus, but we might end up with
-			// the same active container as before...
-			this._onDidChangeActiveContainer.fire();
+			const activeContainerId = this.getActiveContainerId();
+			if (this.state.runtime.activeContainerId !== activeContainerId) {
+				this.state.runtime.activeContainerId = activeContainerId;
+				this._onDidChangeActiveContainer.fire();
+			}
 		}
 
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
 			this.updateWindowBorder();
 		}
+	}
+
+	private getActiveContainerId(): 'main' | number {
+		const activeContainer = this.activeContainer;
+		if (activeContainer !== this.container) {
+			const containerWindow = getWindow(activeContainer);
+			if (isAuxiliaryWindow(containerWindow)) {
+				return containerWindow.vscodeWindowId;
+			}
+		}
+
+		return 'main';
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -601,6 +615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Layout Runtime State
 		const layoutRuntimeState: ILayoutRuntimeState = {
+			activeContainerId: this.getActiveContainerId(),
 			fullscreen: isFullscreen(),
 			hasFocus: this.hostService.hasFocus,
 			maximized: false,
@@ -1110,12 +1125,19 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	getContainer(part: Parts): HTMLElement | undefined {
-		if (!this.parts.get(part)) {
-			return undefined;
+	getContainer(window: Window): HTMLElement;
+	getContainer(part: Parts): HTMLElement | undefined;
+	getContainer(windowOrPart: Window | Parts): HTMLElement | undefined {
+		if (typeof windowOrPart === 'string') {
+			const part = windowOrPart;
+			if (!this.parts.get(part)) {
+				return undefined;
+			}
+
+			return this.getPart(part).getContainer();
 		}
 
-		return this.getPart(part).getContainer();
+		return this.getContainerFromDocument(windowOrPart.document);
 	}
 
 	isVisible(part: Parts): boolean {
@@ -1170,7 +1192,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		// with the command center enabled, we should always show
-		if (this.configurationService.getValue<boolean>('window.commandCenter')) {
+		if (this.configurationService.getValue<boolean>(LayoutSettings.COMMAND_CENTER)) {
 			return true;
 		}
 
@@ -1215,7 +1237,14 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	}
 
 	focus(): void {
-		this.focusPart(Parts.EDITOR_PART);
+		const activeContainer = this.activeContainer;
+		if (activeContainer === this.container) {
+			// main window
+			this.focusPart(Parts.EDITOR_PART);
+		} else {
+			// auxiliary window
+			this.editorGroupService.getPart(activeContainer)?.activeGroup.focus();
+		}
 	}
 
 	getDimension(part: Parts): Dimension | undefined {

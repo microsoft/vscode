@@ -28,7 +28,9 @@ export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFIN
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
-	tabCloseButton: 'right',
+	tabActionLocation: 'right',
+	tabActionCloseVisibility: true,
+	tabActionUnpinVisibility: true,
 	tabSizing: 'fit',
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
@@ -103,6 +105,8 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		'wrapTabs',
 		'scrollToSwitchTabs',
 		'highlightModifiedTabs',
+		'tabActionCloseVisibility',
+		'tabActionUnpinVisibility',
 		'pinnedTabsOnSeparateRow',
 		'focusRecentEditorAfterClose',
 		'showIcons',
@@ -137,7 +141,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 	// String options
 	const stringOptions: Array<[OptionalStringKey<IEditorPartOptions>, Array<string>]> = [
 		['showTabs', ['multiple', 'single', 'none']],
-		['tabCloseButton', ['left', 'right', 'off']],
+		['tabActionLocation', ['left', 'right']],
 		['tabSizing', ['fit', 'shrink', 'fixed']],
 		['pinnedTabSizing', ['normal', 'compact', 'shrink']],
 		['tabHeight', ['default', 'compact']],
@@ -212,6 +216,8 @@ export interface IEditorPartsView {
  */
 export interface IEditorGroupsView {
 
+	readonly isAuxiliary: boolean;
+
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
 
@@ -223,7 +229,7 @@ export interface IEditorGroupsView {
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 	getGroups(order: GroupsOrder): IEditorGroupView[];
 
-	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	activateGroup(identifier: IEditorGroupView | GroupIdentifier, preserveWindowOrder?: boolean): IEditorGroupView;
 	restoreGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView;
@@ -232,7 +238,7 @@ export interface IEditorGroupsView {
 	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 
-	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
+	removeGroup(group: IEditorGroupView | GroupIdentifier, preserveFocus?: boolean): void;
 
 	arrangeGroups(arrangement: GroupsArrangement, target?: IEditorGroupView | GroupIdentifier): void;
 	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void;

@@ -15,7 +15,7 @@ import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/termina
 import { ITerminalProfileResolverService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { createStyleSheet } from 'vs/base/browser/dom';
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 
 
 export function getColorClass(colorKey: string): string;
@@ -50,8 +50,9 @@ export function getStandardColors(colorTheme: IColorTheme): string[] {
 }
 
 export function createColorStyleElement(colorTheme: IColorTheme): IDisposable {
+	const disposable = new DisposableStore();
 	const standardColors = getStandardColors(colorTheme);
-	const styleElement = createStyleSheet();
+	const styleElement = createStyleSheet(undefined, undefined, disposable);
 	let css = '';
 	for (const colorKey of standardColors) {
 		const colorClass = getColorClass(colorKey);
@@ -64,7 +65,7 @@ export function createColorStyleElement(colorTheme: IColorTheme): IDisposable {
 		}
 	}
 	styleElement.textContent = css;
-	return toDisposable(() => styleElement.remove());
+	return disposable;
 }
 
 export function getColorStyleContent(colorTheme: IColorTheme, editor?: boolean): string {

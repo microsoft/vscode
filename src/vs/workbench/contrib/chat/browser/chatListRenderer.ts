@@ -372,6 +372,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			} else if (icon) {
 				const avatarIcon = dom.$(ThemeIcon.asCSSSelector(icon));
 				templateData.agentAvatarContainer.replaceChildren(dom.$('.avatar.codicon-avatar', undefined, avatarIcon));
+			} else {
+				dom.hide(templateData.agentAvatarContainer);
+				return;
 			}
 
 			templateData.agentAvatarContainer.classList.toggle('complete', element.isComplete);
