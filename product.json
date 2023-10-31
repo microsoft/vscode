@@ -80,5 +80,6 @@
 				"publisherDisplayName": "Microsoft"
 			}
 		}
-	]
+	],
+	"trustedExtensionAuthAccess": ["github.copilot", "github.copilot-chat"]
 }
