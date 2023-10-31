@@ -22,6 +22,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 // eslint-disable-next-line local/code-import-patterns
@@ -43,6 +44,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IWorkbenchAssignmentService private readonly experimentService: IWorkbenchAssignmentService,
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
+		@IExtensionService private readonly extensionService: IExtensionService,
 	) {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
@@ -61,6 +63,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensionData: IssueReporterExtensionData[] = [];
 		try {
+			this.extensionService.activateByEvent(`onIssueReporterOpened`);
 			const extensions = await this.extensionManagementService.getInstalled();
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
 			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {
