@@ -243,7 +243,7 @@ export class Code {
 	}
 
 	whenWorkbenchRestored(): Promise<void> {
-		return this.driver.whenWorkbenchRestored();
+		return this.poll(() => this.driver.whenWorkbenchRestored(), () => true, `when workbench restored`);
 	}
 
 	getLocaleInfo(): Promise<ILocaleInfo> {
