@@ -22,7 +22,7 @@ import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/ed
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { deserializeSearchError, FileMatch, ICachedSearchStats, IFileMatch, IFileQuery, IFileSearchStats, IFolderQuery, IProgressMessage, ISearchComplete, ISearchEngineStats, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, isFileMatch, isProgressMessage, ITextQuery, pathIncludedInQuery, QueryType, SEARCH_RESULT_LANGUAGE_ID, SearchError, SearchErrorCode, SearchProviderType } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class SearchService extends Disposable implements ISearchService {
 
@@ -494,7 +494,7 @@ export class SearchService extends Disposable implements ISearchService {
 					openEditorResults.set(originalResource, fileMatch);
 
 					const textSearchResults = editorMatchesToTextSearchResults(matches, model, query.previewOptions);
-					fileMatch.results = addContextToEditorMatches(textSearchResults, model, query);
+					fileMatch.results = getTextSearchMatchWithModelContext(textSearchResults, model, query);
 				} else {
 					openEditorResults.set(originalResource, null);
 				}

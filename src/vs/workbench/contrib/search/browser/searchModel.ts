@@ -41,7 +41,7 @@ import { CellSearchModel, ICellMatch, contentMatchesToTextSearchMatches, isIFile
 import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
 
 export class Match {
 
@@ -245,7 +245,7 @@ export class CellMatch {
 			return;
 		}
 		this.cell.resolveTextModel().then((textModel) => {
-			const textResultsWithContext = addContextToEditorMatches(textSearchMatches, textModel, this.parent.parent().query!);
+			const textResultsWithContext = getTextSearchMatchWithModelContext(textSearchMatches, textModel, this.parent.parent().query!);
 			const contexts = textResultsWithContext.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext));
 			contexts.map(context => ({ ...context, lineNumber: context.lineNumber + 1 }))
 				.forEach((context) => { this._context.set(context.lineNumber, context.text); });
@@ -567,10 +567,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		this.addContext(
-			addContextToEditorMatches(textSearchResults, model, this.parent().parent().query!)
-				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+		this.addContext(getTextSearchMatchWithModelContext(textSearchResults, model, this.parent().parent().query!));
 
 		this._onChange.fire({ forceUpdateModel: modelChange });
 		this.updateHighlights();
@@ -1176,7 +1173,9 @@ export class FolderMatch extends Disposable {
 
 				updated.push(existingFileMatch);
 
-				existingFileMatch.addContext(rawFileMatch.results);
+				if (rawFileMatch.results && rawFileMatch.results.length > 0) {
+					existingFileMatch.addContext(rawFileMatch.results);
+				}
 			} else {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch, searchInstanceID);
