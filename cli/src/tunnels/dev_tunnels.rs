@@ -979,6 +979,7 @@ impl ActiveTunnelManager {
 			.add_port_raw(&TunnelPort {
 				port_number,
 				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
 				..Default::default()
 			})
 			.await
@@ -1179,11 +1180,9 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 }
 
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
-	let mut acl = TunnelAccessControl { entries: vec![] };
-
-	if privacy == PortPrivacy::Public {
-		acl.entries
-			.push(tunnels::contracts::TunnelAccessControlEntry {
+	TunnelAccessControl {
+		entries: vec![match privacy {
+			PortPrivacy::Public => tunnels::contracts::TunnelAccessControlEntry {
 				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
 				provider: None,
 				is_inherited: false,
@@ -1193,10 +1192,22 @@ fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
 				expiration: None,
 				subjects: vec![],
 				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
-			});
+			},
+			// Ensure private ports are actually private and do not inherit any
+			// default visibility that may be set on the tunnel:
+			PortPrivacy::Private => tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: true,
+				is_inverse: false,
+				organization: None,
+				expiration: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			},
+		}],
 	}
-
-	acl
 }
 
 #[cfg(test)]
