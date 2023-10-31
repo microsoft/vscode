@@ -215,22 +215,21 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this.onDidChangeBodyVisibility(async visible => {
 			this._viewShowing.set(visible);
 			if (visible) {
-				if (this.hasWelcomeScreen()) {
-					if (this.hasWelcomeScreen()) {
-						this._onDidChangeViewWelcomeState.fire();
-					}
-					this._initializeTerminal(false);
-					// we don't know here whether or not it should be focused, so
-					// defer focusing the panel to the focus() call
-					// to prevent overriding preserveFocus for extensions
-					this._terminalGroupService.showPanel(false);
-				} else {
-					for (const instance of this._terminalGroupService.instances) {
-						instance.resetFocusContextKey();
-					}
+				if (this._hasWelcomeScreen()) {
+					this._onDidChangeViewWelcomeState.fire();
 				}
-				this._terminalGroupService.updateVisibility();
-			}));
+				this._initializeTerminal(false);
+				// we don't know here whether or not it should be focused, so
+				// defer focusing the panel to the focus() call
+				// to prevent overriding preserveFocus for extensions
+				this._terminalGroupService.showPanel(false);
+			} else {
+				for (const instance of this._terminalGroupService.instances) {
+					instance.resetFocusContextKey();
+				}
+			}
+			this._terminalGroupService.updateVisibility();
+		}));
 		this._register(this._terminalService.onDidChangeConnectionState(() => this._initializeTerminal(true)));
 		this.layoutBody(this._parentDomElement.offsetHeight, this._parentDomElement.offsetWidth);
 	}
@@ -335,13 +334,12 @@ export class TerminalViewPane extends ViewPane {
 		}
 	}
 
-	private hasWelcomeScreen(): boolean {
+	private _hasWelcomeScreen(): boolean {
 		return !this._terminalService.isProcessSupportRegistered;
 	}
 
 	override shouldShowWelcome(): boolean {
-		return this.hasWelcomeScreen() && this._terminalService.instances.length === 0;
-		return this.hasWelcomeScreen() && this._terminalService.instances.length === 0;
+		return this._hasWelcomeScreen() && this._terminalService.instances.length === 0;
 	}
 }
 
