@@ -813,6 +813,16 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			return [['workbench.editor.showTabs', { value: value }]];
 		}
 	}, {
+		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {
+			const result: ConfigurationKeyValuePairs = [];
+			if (value === 'left' || value === 'right') {
+				result.push(['workbench.editor.tabActionLocation', { value }]);
+			} else if (value === 'off') {
+				result.push(['workbench.editor.tabActionCloseVisibility', { value: false }]);
+			}
+			return result;
+		}
+	}, {
 		key: 'zenMode.hideTabs', migrateFn: (value: any) => {
 			const result: ConfigurationKeyValuePairs = [['zenMode.hideTabs', { value: undefined }]];
 			if (value === true) {
