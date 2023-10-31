@@ -206,7 +206,7 @@ function editsToLineRangeEdit(range: LineRange, sortedEdits: RangeEdit[], textMo
 	let currentPosition = startsLineBefore
 		? new Position(
 			range.startLineNumber - 1,
-			Constants.MAX_SAFE_SMALL_INTEGER
+			textModel.getLineMaxColumn(range.startLineNumber - 1)
 		)
 		: new Position(range.startLineNumber, 1);
 

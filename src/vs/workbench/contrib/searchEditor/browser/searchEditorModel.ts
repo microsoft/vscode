@@ -16,6 +16,7 @@ import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textMo
 import { SearchEditorWorkingCopyTypeId } from 'vs/workbench/contrib/searchEditor/browser/constants';
 import { Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
+import { SEARCH_RESULT_LANGUAGE_ID } from 'vs/workbench/services/search/common/search';
 
 export type SearchEditorData = { resultsModel: ITextModel; configurationModel: SearchConfigurationModel };
 
@@ -65,7 +66,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById('search-result'), resource),
+							resultsModel: modelService.getModel(resource) ?? modelService.createModel('', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -98,7 +99,7 @@ class SearchEditorModelFactory {
 						}
 
 						return Promise.resolve({
-							resultsModel: modelService.createModel(contents ?? '', languageService.createById('search-result'), resource),
+							resultsModel: modelService.createModel(contents ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -132,7 +133,7 @@ class SearchEditorModelFactory {
 
 						const { text, config } = await instantiationService.invokeFunction(parseSavedSearchEditor, existingFile);
 						return ({
-							resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
+							resultsModel: modelService.createModel(text ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 							configurationModel: new SearchConfigurationModel(config)
 						});
 					})();
@@ -149,7 +150,7 @@ class SearchEditorModelFactory {
 		if (!model && backup) {
 			const factory = await createTextBufferFactoryFromStream(backup.value);
 
-			model = modelService.createModel(factory, languageService.createById('search-result'), resource);
+			model = modelService.createModel(factory, languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource);
 		}
 
 		if (model) {
@@ -157,7 +158,7 @@ class SearchEditorModelFactory {
 			const { text, config } = parseSerializedSearchEditor(existingFile);
 			modelService.destroyModel(resource);
 			return ({
-				resultsModel: modelService.createModel(text ?? '', languageService.createById('search-result'), resource),
+				resultsModel: modelService.createModel(text ?? '', languageService.createById(SEARCH_RESULT_LANGUAGE_ID), resource),
 				configurationModel: new SearchConfigurationModel(config)
 			});
 		}

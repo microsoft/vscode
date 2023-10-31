@@ -53,7 +53,7 @@
 	max-height: 100%;
 	aspect-ratio: 1/1;
 	background-image: url('./letterpress-light.svg');
-	background-size: 100%;
+	background-size: contain;
 	background-position-x: center;
 	background-repeat: no-repeat;
 }

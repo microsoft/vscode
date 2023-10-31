@@ -217,17 +217,6 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	return !!(match && regexp.lastIndex === 0);
 }
 
-export function regExpContainsBackreference(regexpValue: string): boolean {
-	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
-}
-
-export function regExpFlags(regexp: RegExp): string {
-	return (regexp.global ? 'g' : '')
-		+ (regexp.ignoreCase ? 'i' : '')
-		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
-}
-
 export function splitLines(str: string): string[] {
 	return str.split(/\r\n|\r|\n/);
 }
@@ -730,9 +719,12 @@ export function lcut(text: string, n: number) {
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
 const CSI_SEQUENCE = /(:?\x1b\[|\x9B)[=?>!]?[\d;:]*["$#'* ]?[a-zA-Z@^`{}|~]/g;
 
+// Plus additional markers for custom `\x1b]...\x07` instructions.
+const CSI_CUSTOM_SEQUENCE = /\x1b\].*?\x07/g;
+
 export function removeAnsiEscapeCodes(str: string): string {
 	if (str) {
-		str = str.replace(CSI_SEQUENCE, '');
+		str = str.replace(CSI_SEQUENCE, '').replace(CSI_CUSTOM_SEQUENCE, '');
 	}
 
 	return str;

@@ -5,9 +5,12 @@
 
 import { strictEqual } from 'assert';
 import { OperatingSystem, OS } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { collapseTildePath, sanitizeCwd } from 'vs/platform/terminal/common/terminalEnvironment';
 
 suite('terminalEnvironment', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('collapseTildePath', () => {
 		test('should return empty string for a falsy path', () => {
 			strictEqual(collapseTildePath('', '/foo', '/'), '');

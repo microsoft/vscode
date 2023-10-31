@@ -5,7 +5,7 @@
 
 import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { lastIndex } from 'vs/base/common/arrays';
+import { findLastIdx } from 'vs/base/common/arraysFind';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -29,7 +29,7 @@ import { DiffSide, DIFF_CELL_MARGIN, IDiffCellInfo, INotebookTextDiffEditor } fr
 import { Emitter, Event } from 'vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
-import { CellUri, INotebookDiffEditorModel, INotebookDiffResult, NOTEBOOK_DIFF_EDITOR_ID } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellUri, INotebookDiffEditorModel, INotebookDiffResult, NOTEBOOK_DIFF_EDITOR_ID, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { URI } from 'vs/base/common/uri';
 import { IDiffChange, IDiffResult } from 'vs/base/common/diff/diff';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
@@ -151,7 +151,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		@INotebookExecutionStateService notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super(NotebookTextDiffEditor.ID, telemetryService, themeService, storageService);
-		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService);
+		this._notebookOptions = new NotebookOptions(this.configurationService, notebookExecutionStateService, false);
 		this._register(this._notebookOptions);
 		const editorOptions = this.configurationService.getValue<ICodeEditorOptions>('editor');
 		this._fontInfo = FontMeasurements.readFontInfo(BareFontInfo.createFromRawSettings(editorOptions, PixelRatio.value));
@@ -159,7 +159,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 	}
 
 	private isOverviewRulerEnabled(): boolean {
-		return this.configurationService.getValue('notebook.experimental.diffOverviewRuler.enabled') ?? false;
+		return this.configurationService.getValue(NotebookSetting.diffOverviewRuler) ?? false;
 	}
 
 	getSelection(): IEditorPaneSelection | undefined {
@@ -181,6 +181,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 	async focusNextNotebookCell(cell: IGenericCellViewModel, focus: 'output' | 'editor' | 'container'): Promise<void> {
 		// throw new Error('Method not implemented.');
+	}
+
+	didFocusOutputInputChange(inputFocused: boolean): void {
+		// noop
 	}
 
 	getScrollTop() {
@@ -264,7 +268,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				mouseSupport: true,
 				multipleSelectionSupport: false,
 				typeNavigationEnabled: true,
-				additionalScrollHeight: 0,
+				paddingBottom: 0,
 				// transformOptimization: (isMacintosh && isNative) || getTitleBarStyle(this.configurationService, this.environmentService) === 'native',
 				styleController: (_suffix: string) => { return this._list!; },
 				overrideStyles: {
@@ -364,7 +368,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 					// output is already gone
 					removedItems.push(key);
 				} else {
-					const cellTop = this._list.getAbsoluteTopOfElement(value.cellInfo.diffElement);
+					const cellTop = this._list.getCellViewScrollTop(value.cellInfo.diffElement);
 					const outputIndex = cell.outputsViewModels.indexOf(key);
 					const outputOffset = value.cellInfo.diffElement.getOutputOffsetInCell(diffSide, outputIndex);
 					updateItems.push({
@@ -821,7 +825,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			this._list.reveal(prevChangeIndex);
 		} else {
 			// go to the last one
-			const index = lastIndex(this._diffElementViewModels, vm => vm.type !== 'unchanged');
+			const index = findLastIdx(this._diffElementViewModels, vm => vm.type !== 'unchanged');
 			if (index >= 0) {
 				this._list.setFocus([index]);
 				this._list.reveal(index);
@@ -868,10 +872,10 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			}
 
 			if (!activeWebview.insetMapping.has(output.source)) {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 				await activeWebview.createOutput({ diffElement: cellDiffViewModel, cellHandle: cellViewModel.handle, cellId: cellViewModel.id, cellUri: cellViewModel.uri }, output, cellTop, getOffset());
 			} else {
-				const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+				const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 				const outputIndex = cellViewModel.outputsViewModels.indexOf(output.source);
 				const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 				activeWebview.updateScrollTops([{
@@ -923,7 +927,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 				return;
 			}
 
-			const cellTop = this._list.getAbsoluteTopOfElement(cellDiffViewModel);
+			const cellTop = this._list.getCellViewScrollTop(cellDiffViewModel);
 			const outputIndex = cellViewModel.outputsViewModels.indexOf(displayOutput);
 			const outputOffset = cellDiffViewModel.getOutputOffsetInCell(diffSide, outputIndex);
 			activeWebview.updateScrollTops([{
@@ -963,10 +967,6 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 		super.setEditorVisible(visible, group);
 	}
 
-	override focus() {
-		super.focus();
-	}
-
 	override clearInput(): void {
 		super.clearInput();
 
@@ -995,6 +995,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 			height: this._dimension!.height,
 			fontInfo: this._fontInfo!,
 			scrollHeight: this._list?.getScrollHeight() ?? 0,
+			stickyHeight: 0,
 		};
 	}
 

@@ -309,7 +309,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: undefined,
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyP),
 	id: 'workbench.action.files.copyPathOfActiveFile',
-	handler: async (accessor) => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 		const activeInput = editorService.activeEditor;
 		const resource = EditorResourceAccessor.getOriginalUri(activeInput, { supportSideBySide: SideBySideEditor.PRIMARY });
@@ -377,11 +377,16 @@ async function saveSelectedEditors(accessor: ServicesAccessor, options?: ISaveEd
 			// has 2 sides, we consider both, to support saving both sides.
 			// We only allow this when saving, not for "Save As" and not if any
 			// editor is untitled which would bring up a "Save As" dialog too.
+			// In addition, we require the secondary side to be modified to not
+			// trigger a touch operation unexpectedly.
+			//
 			// See also https://github.com/microsoft/vscode/issues/4180
 			// See also https://github.com/microsoft/vscode/issues/106330
+			// See also https://github.com/microsoft/vscode/issues/190210
 			if (
 				activeGroup.activeEditor instanceof SideBySideEditorInput &&
-				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled))
+				!options?.saveAs && !(activeGroup.activeEditor.primary.hasCapability(EditorInputCapabilities.Untitled) || activeGroup.activeEditor.secondary.hasCapability(EditorInputCapabilities.Untitled)) &&
+				activeGroup.activeEditor.secondary.isModified()
 			) {
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.primary });
 				editors.push({ groupId: activeGroup.id, editor: activeGroup.activeEditor.secondary });
@@ -491,7 +496,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyS },
 	win: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyS) },
 	id: SAVE_ALL_COMMAND_ID,
-	handler: (accessor) => {
+	handler: accessor => {
 		return saveDirtyEditorsOfGroups(accessor, accessor.get(IEditorGroupsService).getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE), { reason: SaveReason.EXPLICIT });
 	}
 });
@@ -516,10 +521,11 @@ CommandsRegistry.registerCommand({
 
 CommandsRegistry.registerCommand({
 	id: SAVE_FILES_COMMAND_ID,
-	handler: accessor => {
+	handler: async accessor => {
 		const editorService = accessor.get(IEditorService);
 
-		return editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		const res = await editorService.saveAll({ includeUntitled: false, reason: SaveReason.EXPLICIT });
+		return res.success;
 	}
 });
 
@@ -580,7 +586,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.LeftArrow,
 	id: PREVIOUS_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -599,7 +605,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.RightArrow,
 	id: NEXT_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -618,7 +624,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedFirstFocusContext.negate()),
 	primary: KeyCode.Home,
 	id: FIRST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -637,7 +643,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerCompressedFocusContext, ExplorerCompressedLastFocusContext.negate()),
 	primary: KeyCode.End,
 	id: LAST_COMPRESSED_FOLDER,
-	handler: (accessor) => {
+	handler: accessor => {
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewlet = paneCompositeService.getActivePaneComposite(ViewContainerLocation.Sidebar);
 
@@ -657,13 +663,13 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: isWeb ? (isWindows ? KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyN) : KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KeyN) : KeyMod.CtrlCmd | KeyCode.KeyN,
 	secondary: isWeb ? [KeyMod.CtrlCmd | KeyCode.KeyN] : undefined,
 	id: NEW_UNTITLED_FILE_COMMAND_ID,
-	description: {
+	metadata: {
 		description: NEW_UNTITLED_FILE_LABEL,
 		args: [
 			{
 				isOptional: true,
-				name: 'New Untitled Text File args',
-				description: 'The editor view type, language ID, or resource path if known',
+				name: 'New Untitled Text File arguments',
+				description: 'The editor view type or language ID if known',
 				schema: {
 					'type': 'object',
 					'properties': {
@@ -672,7 +678,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 						},
 						'languageId': {
 							'type': 'string'
-						},
+						}
 					}
 				}
 			}

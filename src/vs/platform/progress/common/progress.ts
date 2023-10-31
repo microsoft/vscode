@@ -111,14 +111,67 @@ export class Progress<T> implements IProgress<T> {
 
 	static readonly None = Object.freeze<IProgress<unknown>>({ report() { } });
 
+	report: (item: T) => void;
+
 	private _value?: T;
 	get value(): T | undefined { return this._value; }
 
-	constructor(private callback: (data: T) => void) { }
+	private _asyncQueue?: T[];
+	private _processingAsyncQueue?: boolean;
+	private _drainListener: (() => void) | undefined;
 
-	report(item: T) {
+	constructor(private callback: (data: T) => unknown, opts?: { async?: boolean }) {
+		this.report = opts?.async
+			? this._reportAsync.bind(this)
+			: this._reportSync.bind(this);
+	}
+
+	private _reportSync(item: T) {
 		this._value = item;
 		this.callback(this._value);
+	}
+
+	private _reportAsync(item: T) {
+		if (!this._asyncQueue) {
+			this._asyncQueue = [item];
+		} else {
+			this._asyncQueue.push(item);
+		}
+		this._processAsyncQueue();
+	}
+
+	private async _processAsyncQueue() {
+		if (this._processingAsyncQueue) {
+			return;
+		}
+		try {
+			this._processingAsyncQueue = true;
+
+			while (this._asyncQueue && this._asyncQueue.length) {
+				const item = this._asyncQueue.shift()!;
+				this._value = item;
+				await this.callback(this._value);
+			}
+
+		} finally {
+			this._processingAsyncQueue = false;
+			const drainListener = this._drainListener;
+			this._drainListener = undefined;
+			drainListener?.();
+		}
+	}
+
+	public drain(): Promise<void> {
+		if (this._processingAsyncQueue) {
+			return new Promise<void>(resolve => {
+				const prevListener = this._drainListener;
+				this._drainListener = () => {
+					prevListener?.();
+					resolve();
+				};
+			});
+		}
+		return Promise.resolve();
 	}
 }
 

@@ -137,7 +137,11 @@ export interface IWindowSettings {
 	readonly enableMenuBarMnemonics: boolean;
 	readonly closeWhenEmpty: boolean;
 	readonly clickThroughInactive: boolean;
-	readonly experimental?: { useSandbox: boolean; sharedProcessUseUtilityProcess: boolean };
+	readonly density: IDensitySettings;
+}
+
+export interface IDensitySettings {
+	readonly editorTabHeight: 'default' | 'compact';
 }
 
 export function getTitleBarStyle(configurationService: IConfigurationService): 'native' | 'custom' {
@@ -173,11 +177,6 @@ export function useWindowControlsOverlay(configurationService: IConfigurationSer
 
 	if (getTitleBarStyle(configurationService) === 'native') {
 		return false; // only supported when title bar is custom
-	}
-
-	const configuredUseWindowControlsOverlay = configurationService.getValue<boolean | undefined>('window.experimental.windowControlsOverlay.enabled');
-	if (typeof configuredUseWindowControlsOverlay === 'boolean') {
-		return configuredUseWindowControlsOverlay;
 	}
 
 	// Default to true.
@@ -274,6 +273,7 @@ export interface IWindowConfiguration {
 export interface IOSConfiguration {
 	readonly release: string;
 	readonly hostname: string;
+	readonly arch: string;
 }
 
 export interface INativeWindowConfiguration extends IWindowConfiguration, NativeParsedArgs, ISandboxConfiguration {
@@ -318,8 +318,6 @@ export interface INativeWindowConfiguration extends IWindowConfiguration, Native
 
 	os: IOSConfiguration;
 	policiesData?: IStringDictionary<{ definition: PolicyDefinition; value: PolicyValue }>;
-
-	preferUtilityProcess: boolean; // TODO@bpasero remove me once full app sandbox landed
 }
 
 /**

@@ -3,15 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IIdentityProvider } from 'vs/base/browser/ui/list/list';
 import { ObjectTree } from 'vs/base/browser/ui/tree/objectTree';
-import { Event } from 'vs/base/common/event';
+import { IObjectTreeElement, ObjectTreeElementCollapseState } from 'vs/base/browser/ui/tree/tree';
+import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
-import { ISerializedTestTreeCollapseState } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
-import { InternalTestItem, ITestItemContext, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ISerializedTestTreeCollapseState, isCollapsedInSerializedTestTree } from 'vs/workbench/contrib/testing/browser/explorerProjections/testingViewState';
+import { ITestItemContext, InternalTestItem, TestItemExpandState, TestResultState } from 'vs/workbench/contrib/testing/common/testTypes';
 
 /**
  * Describes a rendering of tests in the explorer view. Different
@@ -47,83 +49,32 @@ export interface ITestTreeProjection extends IDisposable {
 	applyTo(tree: ObjectTree<TestExplorerTreeElement, FuzzyScore>): void;
 }
 
-/**
- * Interface describing the workspace folder and test item tree elements.
- */
-export interface IActionableTestTreeElement {
-	/**
-	 * Parent tree item.
-	 */
-	parent: IActionableTestTreeElement | null;
-
-	/**
-	 * Unique ID of the element in the tree.
-	 */
-	treeId: string;
-
-	/**
-	 * Test children of this item.
-	 */
-	children: Set<TestExplorerTreeElement>;
-
-	/**
-	 * Depth of the element in the tree.
-	 */
-	depth: number;
-
-	/**
-	 * Iterable of the tests this element contains.
-	 */
-	tests: Iterable<InternalTestItem>;
-
-	/**
-	 * State to show on the item. This is generally the item's computed state
-	 * from its children.
-	 */
-	state: TestResultState;
-
-	/**
-	 * Time it took this test/item to run.
-	 */
-	duration: number | undefined;
-
-	/**
-	 * Label for the item.
-	 */
-	label: string;
-}
-
 let idCounter = 0;
 
 const getId = () => String(idCounter++);
 
-export class TestItemTreeElement implements IActionableTestTreeElement {
+export abstract class TestItemTreeElement {
+	protected readonly changeEmitter = new Emitter<void>();
+
 	/**
-	 * @inheritdoc
+	 * Fired whenever the element or test properties change.
+	 */
+	public readonly onChange = this.changeEmitter.event;
+
+	/**
+	 * Tree children of this item.
 	 */
 	public readonly children = new Set<TestExplorerTreeElement>();
 
 	/**
-	 * @inheritdoc
+	 * Unique ID of the element in the tree.
 	 */
 	public readonly treeId = getId();
 
 	/**
-	 * @inheritdoc
+	 * Depth of the element in the tree.
 	 */
 	public depth: number = this.parent ? this.parent.depth + 1 : 0;
-
-	public get tests() {
-		return Iterable.single(this.test);
-	}
-
-	public get description() {
-		return this.test.item.description;
-	}
-
-	public get sortText() {
-		return this.test.item.sortText;
-	}
 
 	/**
 	 * Whether the node's test result is 'retired' -- from an outdated test run.
@@ -131,19 +82,10 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	public retired = false;
 
 	/**
-	 * @inheritdoc
+	 * State to show on the item. This is generally the item's computed state
+	 * from its children.
 	 */
 	public state = TestResultState.Unset;
-
-	/**
-	 * Own, non-computed state.
-	 */
-	public ownState = TestResultState.Unset;
-
-	/**
-	 * Own, non-computed duration.
-	 */
-	public ownDuration: number | undefined;
 
 	/**
 	 * Time it took this test/item to run.
@@ -151,14 +93,16 @@ export class TestItemTreeElement implements IActionableTestTreeElement {
 	public duration: number | undefined;
 
 	/**
-	 * @inheritdoc
+	 * Tree element description.
 	 */
-	public get label() {
-		return this.test.item.label;
-	}
+	public abstract description: string | null;
 
 	constructor(
 		public readonly test: InternalTestItem,
+		/**
+		 * Parent tree item. May not actually be the test item who owns this one
+		 * in a 'flat' projection.
+		 */
 		public readonly parent: TestItemTreeElement | null = null,
 	) { }
 
@@ -195,3 +139,35 @@ export class TestTreeErrorMessage {
 }
 
 export type TestExplorerTreeElement = TestItemTreeElement | TestTreeErrorMessage;
+
+export const testIdentityProvider: IIdentityProvider<TestExplorerTreeElement> = {
+	getId(element) {
+		return element.treeId + '\0' + (element instanceof TestTreeErrorMessage ? 'error' : element.test.expand);
+	}
+};
+
+export const getChildrenForParent = (serialized: ISerializedTestTreeCollapseState, rootsWithChildren: Iterable<TestExplorerTreeElement>, node: TestExplorerTreeElement | null): Iterable<IObjectTreeElement<TestExplorerTreeElement>> => {
+	let it: Iterable<TestExplorerTreeElement>;
+	if (node === null) { // roots
+		const rootsWithChildrenArr = [...rootsWithChildren];
+		if (rootsWithChildrenArr.length === 1) {
+			return getChildrenForParent(serialized, rootsWithChildrenArr, rootsWithChildrenArr[0]);
+		}
+		it = rootsWithChildrenArr;
+	} else {
+		it = node.children;
+	}
+
+	return Iterable.map(it, element => (
+		element instanceof TestTreeErrorMessage
+			? { element }
+			: {
+				element,
+				collapsible: element.test.expand !== TestItemExpandState.NotExpandable,
+				collapsed: isCollapsedInSerializedTestTree(serialized, element.test.item.extId) ?? element.depth > 0
+					? ObjectTreeElementCollapseState.PreserveOrCollapsed
+					: ObjectTreeElementCollapseState.PreserveOrExpanded,
+				children: getChildrenForParent(serialized, rootsWithChildren, element),
+			}
+	));
+};

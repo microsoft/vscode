@@ -4,23 +4,34 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { fail, strictEqual } from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ConsoleLogger, ILogService } from 'vs/platform/log/common/log';
 import { LogService } from 'vs/platform/log/common/logService';
 import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 
 suite('RequestStore', () => {
+	let disposables: DisposableStore;
 	let instantiationService: TestInstantiationService;
 
 	setup(() => {
+		disposables = new DisposableStore();
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ILogService, new LogService(new ConsoleLogger()));
 	});
 
+	teardown(() => {
+		instantiationService.dispose();
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('should resolve requests', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, undefined);
+		const store: RequestStore<{ data: string }, { arg: string }> = disposables.add(instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, undefined));
 		let eventArgs: { requestId: number; arg: string } | undefined;
-		store.onCreateRequest(e => eventArgs = e);
+		disposables.add(store.onCreateRequest(e => eventArgs = e));
 		const request = store.createRequest({ arg: 'foo' });
 		strictEqual(typeof eventArgs?.requestId, 'number');
 		strictEqual(eventArgs?.arg, 'foo');
@@ -30,7 +41,7 @@ suite('RequestStore', () => {
 	});
 
 	test('should reject the promise when the request times out', async () => {
-		const store: RequestStore<{ data: string }, { arg: string }> = instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, 1);
+		const store: RequestStore<{ data: string }, { arg: string }> = disposables.add(instantiationService.createInstance(RequestStore<{ data: string }, { arg: string }>, 1));
 		const request = store.createRequest({ arg: 'foo' });
 		let threw = false;
 		try {

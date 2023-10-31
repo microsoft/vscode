@@ -26,7 +26,7 @@ SetupIconFile={#RepoDir}\resources\win32\code.ico
 UninstallDisplayIcon={app}\{#ExeBasename}.exe
 ChangesEnvironment=true
 ChangesAssociations=true
-MinVersion=6.2
+MinVersion=10.0
 SourceDir={#SourceDir}
 AppVersion={#Version}
 VersionInfoVersion={#RawVersion}
@@ -62,13 +62,13 @@ Name: "hungarian"; MessagesFile: "{#RepoDir}\build\win32\i18n\Default.hu.isl,{#R
 Name: "turkish"; MessagesFile: "compiler:Languages\Turkish.isl,{#RepoDir}\build\win32\i18n\messages.tr.isl" {#LocalizedLanguageFile("trk")}
 
 [InstallDelete]
-Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotUpdate
-Type: filesandordirs; Name: "{app}\resources\app\node_modules.asar.unpacked"; Check: IsNotUpdate
-Type: files; Name: "{app}\resources\app\node_modules.asar"; Check: IsNotUpdate
-Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotUpdate
+Type: filesandordirs; Name: "{app}\resources\app\out"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\plugins"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\extensions"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules"; Check: IsNotBackgroundUpdate
+Type: filesandordirs; Name: "{app}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
+Type: files; Name: "{app}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
@@ -1299,6 +1299,16 @@ Root: {#SoftwareClassesRootKey}; Subkey: "Software\Classes\Drive\shell\{#RegValu
 Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}\bin"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}\bin'))
 
 [Code]
+function IsBackgroundUpdate(): Boolean;
+begin
+  Result := ExpandConstant('{param:update|false}') <> 'false';
+end;
+
+function IsNotBackgroundUpdate(): Boolean;
+begin
+  Result := not IsBackgroundUpdate();
+end;
+
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
@@ -1348,9 +1358,10 @@ begin
     end;
 
     if not Result and not WizardSilent() then begin
-      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version.', mbInformation, MB_OK);
+      MsgBox('Please uninstall the ' + AltArch + '-bit version of {#NameShort} before installing this ' + ThisArch + '-bit version. Uninstalling will not delete settings.', mbInformation, MB_OK);
     end;
   end;
+
 end;
 
 function WizardNotSilent(): Boolean;
@@ -1359,14 +1370,73 @@ begin
 end;
 
 // Updates
-function IsBackgroundUpdate(): Boolean;
+
+var
+	ShouldRestartTunnelService: Boolean;
+
+function StopTunnelOtherProcesses(): Boolean;
+var
+	WaitCounter: Integer;
+	TaskKilled: Integer;
 begin
-  Result := ExpandConstant('{param:update|false}') <> 'false';
+	Log('Stopping all tunnel services (at ' + ExpandConstant('"{app}\bin\{#TunnelApplicationName}.exe"') + ')');
+	ShellExec('', 'powershell.exe', '-Command "Get-WmiObject Win32_Process | Where-Object { $_.ExecutablePath -eq ' + ExpandConstant('''{app}\bin\{#TunnelApplicationName}.exe''') + ' } | Select @{Name=''Id''; Expression={$_.ProcessId}} | Stop-Process -Force"', '', SW_HIDE, ewWaitUntilTerminated, TaskKilled)
+
+	WaitCounter := 10;
+	while (WaitCounter > 0) and CheckForMutexes('{#TunnelMutex}') do
+	begin
+		Log('Tunnel process is is still running, waiting');
+		Sleep(500);
+		WaitCounter := WaitCounter - 1
+	end;
+
+	if CheckForMutexes('{#TunnelMutex}') then
+		begin
+			Log('Unable to stop tunnel processes');
+			Result := False;
+		end
+	else
+		Result := True;
 end;
 
-function IsNotUpdate(): Boolean;
+procedure StopTunnelServiceIfNeeded();
+var
+	StopServiceResultCode: Integer;
+	WaitCounter: Integer;
 begin
-  Result := not IsBackgroundUpdate();
+  ShouldRestartTunnelService := False;
+ 	if CheckForMutexes('{#TunnelServiceMutex}') then begin
+		// stop the tunnel service
+		Log('Stopping the tunnel service using ' + ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'));
+		ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service uninstall', '', SW_HIDE, ewWaitUntilTerminated, StopServiceResultCode);
+
+		Log('Stopping the tunnel service completed with result code ' + IntToStr(StopServiceResultCode));
+
+		WaitCounter := 10;
+		while (WaitCounter > 0) and CheckForMutexes('{#TunnelServiceMutex}') do
+		begin
+			Log('Tunnel service is still running, waiting');
+			Sleep(500);
+			WaitCounter := WaitCounter - 1
+		end;
+		if CheckForMutexes('{#TunnelServiceMutex}') then
+			Log('Unable to stop tunnel service')
+		else
+			ShouldRestartTunnelService := True;
+	end
+end;
+
+
+// called before the wizard checks for running application
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  if IsNotBackgroundUpdate() then
+    StopTunnelServiceIfNeeded();
+
+  if IsNotBackgroundUpdate() and not StopTunnelOtherProcesses() then
+     Result := '{#NameShort} is still running a tunnel process. Please stop the tunnel before installing.'
+  else
+  	Result := '';
 end;
 
 // VS Code will create a flag file before the update starts (/update=C:\foo\bar)
@@ -1450,18 +1520,34 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 var
   UpdateResultCode: Integer;
+	StartServiceResultCode: Integer;
 begin
-  if IsBackgroundUpdate() and (CurStep = ssPostInstall) then
+  if CurStep = ssPostInstall then
   begin
-    CreateMutex('{#AppMutex}-ready');
-
-    while (CheckForMutexes('{#AppMutex}')) do
+    if IsBackgroundUpdate() then
     begin
-      Log('Application is still running, waiting');
-      Sleep(1000);
+      CreateMutex('{#AppMutex}-ready');
+
+      Log('Checking whether application is still running...');
+      while (CheckForMutexes('{#AppMutex}')) do
+      begin
+        Sleep(1000)
+      end;
+      Log('Application appears not to be running.');
+
+      StopTunnelServiceIfNeeded();
+
+      Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
     end;
 
-    Exec(ExpandConstant('{app}\tools\inno_updater.exe'), ExpandConstant('"{app}\{#ExeBasename}.exe" ' + BoolToStr(LockFileExists())), '', SW_SHOW, ewWaitUntilTerminated, UpdateResultCode);
+    if ShouldRestartTunnelService then
+    begin
+      // start the tunnel service
+      Log('Restarting the tunnel service...');
+      ShellExec('', ExpandConstant('"{app}\bin\{#ApplicationName}.cmd"'), 'tunnel service install', '', SW_HIDE, ewWaitUntilTerminated, StartServiceResultCode);
+      Log('Starting the tunnel service completed with result code ' + IntToStr(StartServiceResultCode));
+      ShouldRestartTunnelService := False
+    end;
   end;
 end;
 

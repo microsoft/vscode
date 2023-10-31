@@ -376,12 +376,15 @@ export class SwcTranspiler implements ITranspiler {
 				tsx: false,
 				decorators: true
 			},
-			target: 'es2020',
+			target: 'es2022',
 			loose: false,
 			minify: {
 				compress: false,
 				mangle: false
-			}
+			},
+			transform: {
+				useDefineForClassFields: false,
+			},
 		},
 		module: {
 			type: 'amd',

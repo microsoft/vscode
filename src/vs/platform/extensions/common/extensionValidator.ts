@@ -273,7 +273,7 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 			return validations;
 		}
 		if (typeof extensionManifest.main === 'undefined' && typeof extensionManifest.browser === 'undefined') {
-			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents2', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main')]);
+			validations.push([Severity.Error, nls.localize('extensionDescription.activationEvents2', "property `{0}` should be omitted if the extension doesn't have a `{1}` or `{2}` property.", 'activationEvents', 'main', 'browser')]);
 			return validations;
 		}
 	}
@@ -294,10 +294,6 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 				// not a failure case
 			}
 		}
-		if (typeof extensionManifest.activationEvents === 'undefined') {
-			validations.push([Severity.Error, nls.localize('extensionDescription.main3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'main')]);
-			return validations;
-		}
 	}
 	if (typeof extensionManifest.browser !== 'undefined') {
 		if (typeof extensionManifest.browser !== 'string') {
@@ -309,10 +305,6 @@ export function validateExtensionManifest(productVersion: string, productDate: P
 				validations.push([Severity.Warning, nls.localize('extensionDescription.browser2', "Expected `browser` ({0}) to be included inside extension's folder ({1}). This might make the extension non-portable.", browserLocation.path, extensionLocation.path)]);
 				// not a failure case
 			}
-		}
-		if (typeof extensionManifest.activationEvents === 'undefined') {
-			validations.push([Severity.Error, nls.localize('extensionDescription.browser3', "properties `{0}` and `{1}` must both be specified or must both be omitted", 'activationEvents', 'browser')]);
-			return validations;
 		}
 	}
 

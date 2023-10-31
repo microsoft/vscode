@@ -53,15 +53,15 @@ export namespace Schemas {
 
 	export const vscodeRemoteResource = 'vscode-remote-resource';
 
+	export const vscodeManagedRemoteResource = 'vscode-managed-remote-resource';
+
 	export const vscodeUserData = 'vscode-userdata';
 
 	export const vscodeCustomEditor = 'vscode-custom-editor';
 
 	export const vscodeNotebookCell = 'vscode-notebook-cell';
-
 	export const vscodeNotebookCellMetadata = 'vscode-notebook-cell-metadata';
 	export const vscodeNotebookCellOutput = 'vscode-notebook-cell-output';
-	export const vscodeInteractive = 'vscode-interactive';
 	export const vscodeInteractiveInput = 'vscode-interactive-input';
 
 	export const vscodeSettings = 'vscode-settings';
@@ -69,6 +69,8 @@ export namespace Schemas {
 	export const vscodeWorkspaceTrust = 'vscode-workspace-trust';
 
 	export const vscodeTerminal = 'vscode-terminal';
+
+	export const vscodeChatSesssion = 'vscode-chat-editor';
 
 	/**
 	 * Scheme used internally for webviews that aren't linked to a resource (i.e. not custom editors)
@@ -190,9 +192,11 @@ export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
 export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
 export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
 
+export const VSCODE_AUTHORITY = 'vscode-app';
+
 class FileAccessImpl {
 
-	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
+	private static readonly FALLBACK_AUTHORITY = VSCODE_AUTHORITY;
 
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible

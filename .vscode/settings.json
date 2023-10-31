@@ -17,7 +17,6 @@
 	},
 	"search.exclude": {
 		"**/node_modules": true,
-		"**/bower_components": true,
 		"cli/target/**": true,
 		".build/**": true,
 		"out/**": true,
@@ -33,6 +32,31 @@
 		"src/vs/base/test/node/uri.test.data.txt": true,
 		"src/vs/workbench/api/test/browser/extHostDocumentData.test.perf-data.ts": true,
 		"src/vs/editor/test/node/diffing/fixtures/**": true,
+	},
+	"files.readonlyInclude": {
+		"**/node_modules/**": true,
+		"**/yarn.lock": true,
+		"**/Cargo.lock": true,
+		"src/vs/workbench/workbench.web.main.css": true,
+		"src/vs/workbench/workbench.desktop.main.css": true,
+		"src/vs/workbench/workbench.desktop.main.nls.js": true,
+		"src/vs/workbench/workbench.web.main.nls.js": true,
+		"build/**/*.js": true,
+		"out/**": true,
+		"out-build/**": true,
+		"out-vscode/**": true,
+		"out-vscode-reh/**": true,
+		"extensions/**/dist/**": true,
+		"extensions/**/out/**": true,
+		"test/smoke/out/**": true,
+		"test/automation/out/**": true,
+		"test/integration/browser/out/**": true,
+	},
+	"files.readonlyExclude": {
+		"build/builtin/*.js": true,
+		"build/monaco/*.js": true,
+		"build/npm/*.js": true,
+		"build/*.js": true
 	},
 	"lcov.path": [
 		"./.build/coverage/lcov.info",
@@ -112,6 +136,7 @@
 		"git",
 		"sash"
 	],
+	"githubPullRequests.experimental.createView": true,
 	"debug.javascript.terminalOptions": {
 		"outFiles": [
 			"${workspaceFolder}/out/**/*.js",
@@ -120,6 +145,18 @@
 	},
 	"githubPullRequests.assignCreated": "${user}",
 	"githubPullRequests.defaultMergeMethod": "squash",
+	"githubPullRequests.ignoredPullRequestBranches": [
+		"main"
+	],
 	"application.experimental.rendererProfiling": true,
-	"editor.experimental.asyncTokenization": true
+	"editor.experimental.asyncTokenization": true,
+	"editor.experimental.asyncTokenizationVerification": true,
+	"typescript.preferences.autoImportFileExcludePatterns": [
+		"xterm",
+		"xterm-headless",
+		"node-pty",
+		"vscode-notebook-renderer",
+		"src/vs/workbench/workbench.web.main.ts",
+		"src/vs/workbench/api/common/extHostTypes.ts"
+	]
 }

@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
 import VsCodeTelemetryReporter from '@vscode/extension-telemetry';
+import * as vscode from 'vscode';
 import * as tas from 'vscode-tas-client';
 
 export interface IExperimentationTelemetryReporter extends tas.IExperimentationTelemetry, vscode.Disposable {

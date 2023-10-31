@@ -41,6 +41,9 @@ pub trait ServiceManager {
 	/// Show logs from the running service to standard out.
 	async fn show_logs(&self) -> Result<(), AnyError>;
 
+	/// Gets whether the tunnel service is installed.
+	async fn is_installed(&self) -> Result<bool, AnyError>;
+
 	/// Unregisters the current executable as a service.
 	async fn unregister(&self) -> Result<(), AnyError>;
 }

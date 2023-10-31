@@ -18,7 +18,7 @@ export class ExperimentationService {
 
 	constructor(telemetryReporter: IExperimentationTelemetryReporter, id: string, version: string, globalState: vscode.Memento) {
 		this._telemetryReporter = telemetryReporter;
-		this._experimentationServicePromise = createExperimentationService(this._telemetryReporter, id, version, globalState);
+		this._experimentationServicePromise = createTasExperimentationService(this._telemetryReporter, id, version, globalState);
 	}
 
 	public async getTreatmentVariable<K extends keyof ExperimentTypes>(name: K, defaultValue: ExperimentTypes[K]): Promise<ExperimentTypes[K]> {
@@ -32,7 +32,7 @@ export class ExperimentationService {
 	}
 }
 
-export async function createExperimentationService(
+export async function createTasExperimentationService(
 	reporter: IExperimentationTelemetryReporter,
 	id: string,
 	version: string,

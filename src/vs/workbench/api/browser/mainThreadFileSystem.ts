@@ -17,6 +17,7 @@ import { IWorkbenchFileService } from 'vs/workbench/services/files/common/files'
 import { normalizeWatcherPattern } from 'vs/platform/files/common/watcher';
 import { GLOBSTAR } from 'vs/base/common/glob';
 import { rtrim } from 'vs/base/common/strings';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 
 @extHostNamedCustomer(MainContext.MainThreadFileSystem)
 export class MainThreadFileSystem implements MainThreadFileSystemShape {
@@ -50,8 +51,8 @@ export class MainThreadFileSystem implements MainThreadFileSystemShape {
 		this._watches.dispose();
 	}
 
-	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities): Promise<void> {
-		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, handle, this._proxy));
+	async $registerFileSystemProvider(handle: number, scheme: string, capabilities: FileSystemProviderCapabilities, readonlyMessage?: IMarkdownString): Promise<void> {
+		this._fileProvider.set(handle, new RemoteFileSystemProvider(this._fileService, scheme, capabilities, readonlyMessage, handle, this._proxy));
 	}
 
 	$unregisterProvider(handle: number): void {
@@ -273,6 +274,7 @@ class RemoteFileSystemProvider implements IFileSystemProviderWithFileReadWriteCa
 		fileService: IFileService,
 		scheme: string,
 		capabilities: FileSystemProviderCapabilities,
+		public readonly readOnlyMessage: IMarkdownString | undefined,
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostFileSystemShape
 	) {

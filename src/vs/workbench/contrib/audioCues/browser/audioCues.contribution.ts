@@ -98,15 +98,15 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineInserted': {
-			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in diff review mode or to the next/previous change"),
+			'description': localize('audioCues.diffLineInserted', "Plays a sound when the focus moves to an inserted line in accessible diff viewer mode or to the next/previous change"),
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineDeleted': {
-			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in diff review mode or to the next/previous change"),
+			'description': localize('audioCues.diffLineDeleted', "Plays a sound when the focus moves to a deleted line in accessible diff viewer mode or to the next/previous change"),
 			...audioCueFeatureBase,
 		},
 		'audioCues.diffLineModified': {
-			'description': localize('audioCues.diffLineModified', "Plays a sound when the focus moves to a modified line in diff review mode or to the next/previous change"),
+			'description': localize('audioCues.diffLineModified', "Plays a sound when the focus moves to a modified line in accessible diff viewer mode or to the next/previous change"),
 			...audioCueFeatureBase,
 		},
 		'audioCues.notebookCellCompleted': {
@@ -117,6 +117,21 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'description': localize('audioCues.notebookCellFailed', "Plays a sound when a notebook cell execution fails."),
 			...audioCueFeatureBase,
 		},
+		'audioCues.chatRequestSent': {
+			'description': localize('audioCues.chatRequestSent', "Plays a sound when a chat request is made."),
+			...audioCueFeatureBase,
+			default: 'off'
+		},
+		'audioCues.chatResponsePending': {
+			'description': localize('audioCues.chatResponsePending', "Plays a sound on loop while the response is pending."),
+			...audioCueFeatureBase,
+			default: 'auto'
+		},
+		'audioCues.chatResponseReceived': {
+			'description': localize('audioCues.chatResponseReceived', "Plays a sound on loop while the response has been received."),
+			...audioCueFeatureBase,
+			default: 'off'
+		}
 	}
 });
 

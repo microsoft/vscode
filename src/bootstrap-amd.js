@@ -15,7 +15,16 @@ const nodeRequire = require;
 globalThis._VSCODE_NODE_MODULES = new Proxy(Object.create(null), { get: (_target, mod) => nodeRequire(String(mod)) });
 
 // VSCODE_GLOBALS: package/product.json
+/** @type Record<string, any> */
 globalThis._VSCODE_PRODUCT_JSON = require('../product.json');
+if (process.env['VSCODE_DEV']) {
+	// Patch product overrides when running out of sources
+	try {
+		// @ts-ignore
+		const overrides = require('../product.overrides.json');
+		globalThis._VSCODE_PRODUCT_JSON = Object.assign(globalThis._VSCODE_PRODUCT_JSON, overrides);
+	} catch (error) { /* ignore */ }
+}
 globalThis._VSCODE_PACKAGE_JSON = require('../package.json');
 
 // @ts-ignore
@@ -51,9 +60,9 @@ if (nlsConfig && nlsConfig.pseudo) {
 }
 
 /**
- * @param {string} entrypoint
- * @param {(value: any) => void} onLoad
- * @param {(err: Error) => void} onError
+ * @param {string=} entrypoint
+ * @param {(value: any) => void=} onLoad
+ * @param {(err: Error) => void=} onError
  */
 exports.load = function (entrypoint, onLoad, onError) {
 	if (!entrypoint) {

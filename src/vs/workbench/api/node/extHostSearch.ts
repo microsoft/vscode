@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as pfs from 'vs/base/node/pfs';
@@ -20,7 +20,7 @@ import { OutputChannel } from 'vs/workbench/services/search/node/ripgrepSearchUt
 import { NativeTextSearchManager } from 'vs/workbench/services/search/node/textSearchManager';
 import type * as vscode from 'vscode';
 
-export class NativeExtHostSearch extends ExtHostSearch {
+export class NativeExtHostSearch extends ExtHostSearch implements IDisposable {
 
 	protected _pfs: typeof pfs = pfs; // allow extending for tests
 
@@ -28,6 +28,8 @@ export class NativeExtHostSearch extends ExtHostSearch {
 	private _internalFileSearchProvider: SearchService | null = null;
 
 	private _registeredEHSearchProvider = false;
+
+	private readonly _disposables = new DisposableStore();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -38,10 +40,14 @@ export class NativeExtHostSearch extends ExtHostSearch {
 		super(extHostRpc, _uriTransformer, _logService);
 
 		const outputChannel = new OutputChannel('RipgrepSearchUD', this._logService);
-		this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.vscodeUserData, new RipgrepSearchProvider(outputChannel)));
 		if (initData.remote.isRemote && initData.remote.authority) {
 			this._registerEHSearchProviders();
 		}
+	}
+
+	dispose(): void {
+		this._disposables.dispose();
 	}
 
 	override $enableExtensionHostSearch(): void {
@@ -55,8 +61,8 @@ export class NativeExtHostSearch extends ExtHostSearch {
 
 		this._registeredEHSearchProvider = true;
 		const outputChannel = new OutputChannel('RipgrepSearchEH', this._logService);
-		this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel));
-		this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider'));
+		this._disposables.add(this.registerTextSearchProvider(Schemas.file, new RipgrepSearchProvider(outputChannel)));
+		this._disposables.add(this.registerInternalFileSearchProvider(Schemas.file, new SearchService('fileSearchProvider')));
 	}
 
 	private registerInternalFileSearchProvider(scheme: string, provider: SearchService): IDisposable {

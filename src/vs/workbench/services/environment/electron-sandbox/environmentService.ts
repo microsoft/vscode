@@ -63,6 +63,9 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 	get remoteAuthority() { return this.configuration.remoteAuthority; }
 
 	@memoize
+	get expectsResolverExtension() { return !!this.configuration.remoteAuthority?.includes('+'); }
+
+	@memoize
 	get execPath() { return this.configuration.execPath; }
 
 	@memoize
@@ -80,9 +83,6 @@ export class NativeWorkbenchEnvironmentService extends AbstractNativeEnvironment
 			isCodeCaching: typeof this.configuration.codeCachePath === 'string'
 		};
 	}
-
-	@memoize
-	override get userRoamingDataHome(): URI { return this.appSettingsHome.with({ scheme: Schemas.vscodeUserData }); }
 
 	@memoize
 	get windowLogsPath(): URI { return joinPath(this.logsHome, `window${this.configuration.windowId}`); }

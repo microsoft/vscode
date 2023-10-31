@@ -1,0 +1,32 @@
+{
+	"original": {
+		"content": "import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';\nimport { IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';\nimport { IModelService } from 'vs/editor/common/services/model';\n\nlet x: [IEditorWorkerService, EditorSimpleWorker, IModelService, IUnicodeHighlightsResult];",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "import { EditorSimpleWorker } from 'vs/editor/common/services/editorSimpleWorker';\nimport { IDiffComputationResult, IEditorWorkerService, IUnicodeHighlightsResult } from 'vs/editor/common/services/editorWorker';\nimport { IModelService } from 'vs/editor/common/services/model';\n\nlet x: [IEditorWorkerService, EditorSimpleWorker, IModelService, IUnicodeHighlightsResult];\nlet y: IDiffComputationResult;",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,3)",
+			"modifiedRange": "[2,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,9 -> 2,9]",
+					"modifiedRange": "[2,9 -> 2,33]"
+				}
+			]
+		},
+		{
+			"originalRange": "[6,6)",
+			"modifiedRange": "[6,7)",
+			"innerChanges": [
+				{
+					"originalRange": "[5,92 -> 5,92 EOL]",
+					"modifiedRange": "[5,92 -> 6,31 EOL]"
+				}
+			]
+		}
+	]
+}

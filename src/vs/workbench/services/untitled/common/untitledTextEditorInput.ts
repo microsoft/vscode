@@ -16,6 +16,7 @@ import { isEqual, toLocalResource } from 'vs/base/common/resources';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * An editor input to be used for untitled text buffers.
@@ -41,9 +42,10 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
-		@IPathService private readonly pathService: IPathService
+		@IPathService private readonly pathService: IPathService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(model.resource, undefined, editorService, textFileService, labelService, fileService);
+		super(model.resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
 
 		this.registerModelListeners(model);
 	}
@@ -138,7 +140,7 @@ export class UntitledTextEditorInput extends AbstractTextResourceEditorInput imp
 		if (typeof options?.preserveViewState === 'number') {
 			untypedInput.encoding = this.getEncoding();
 			untypedInput.languageId = this.getLanguageId();
-			untypedInput.contents = this.model.isDirty() ? this.model.textEditorModel?.getValue() : undefined;
+			untypedInput.contents = this.model.isModified() ? this.model.textEditorModel?.getValue() : undefined;
 			untypedInput.options.viewState = findViewStateForEditor(this, options.preserveViewState, this.editorService);
 
 			if (typeof untypedInput.contents === 'string' && !this.model.hasAssociatedFilePath) {

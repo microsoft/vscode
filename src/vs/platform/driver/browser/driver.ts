@@ -6,10 +6,24 @@
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
-import { IElement, ILocaleInfo, ILocalizedStrings, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IElement, ILocaleInfo, ILocalizedStrings, ILogFile, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import localizedStrings from 'vs/platform/languagePacks/common/localizedStrings';
+import { getLogs } from 'vs/platform/log/browser/log';
 
 export class BrowserWindowDriver implements IWindowDriver {
+
+	constructor(
+		@IFileService private readonly fileService: IFileService,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService
+	) {
+	}
+
+	async getLogs(): Promise<ILogFile[]> {
+		return getLogs(this.fileService, this.environmentService);
+	}
 
 	async setValue(selector: string, text: string): Promise<void> {
 		const element = document.querySelector(selector);
@@ -199,6 +213,6 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 }
 
-export function registerWindowDriver(): void {
-	Object.assign(window, { driver: new BrowserWindowDriver() });
+export function registerWindowDriver(instantiationService: IInstantiationService): void {
+	Object.assign(window, { driver: instantiationService.createInstance(BrowserWindowDriver) });
 }

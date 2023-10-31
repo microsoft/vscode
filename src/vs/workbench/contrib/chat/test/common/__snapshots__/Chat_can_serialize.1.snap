@@ -1,0 +1,68 @@
+{
+  requesterUsername: "test",
+  requesterAvatarIconUri: undefined,
+  responderUsername: "test",
+  responderAvatarIconUri: undefined,
+  welcomeMessage: undefined,
+  requests: [
+    {
+      providerRequestId: undefined,
+      message: {
+        parts: [
+          {
+            range: {
+              start: 0,
+              endExclusive: 12
+            },
+            editorRange: {
+              startLineNumber: 1,
+              startColumn: 1,
+              endLineNumber: 1,
+              endColumn: 13
+            },
+            text: "test request",
+            kind: "text"
+          }
+        ],
+        text: "test request"
+      },
+      response: [
+        {
+          value: "",
+          isTrusted: false,
+          supportThemeIcons: false,
+          supportHtml: false
+        }
+      ],
+      responseErrorDetails: undefined,
+      followups: undefined,
+      isCanceled: false,
+      vote: undefined,
+      agent: undefined,
+      usedContext: { documents: [
+          {
+            uri: {
+              scheme: "file",
+              authority: "",
+              path: "/test/path/to/file",
+              query: "",
+              fragment: "",
+              _formatted: null,
+              _fsPath: null
+            },
+            version: 3,
+            ranges: [
+              {
+                startLineNumber: 1,
+                startColumn: 1,
+                endLineNumber: 2,
+                endColumn: 2
+              }
+            ]
+          }
+        ] }
+    }
+  ],
+  providerId: "ChatProviderWithUsedContext",
+  providerState: undefined
+}
