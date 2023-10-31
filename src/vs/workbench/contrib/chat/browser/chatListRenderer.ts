@@ -63,7 +63,6 @@ import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponse
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
 import { IFilesConfiguration } from 'vs/workbench/contrib/files/common/files';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const $ = dom.$;
 
@@ -135,7 +134,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IChatService private readonly chatService: IChatService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IProductService productService: IProductService,
 		@IThemeService private readonly themeService: IThemeService,
 	) {
