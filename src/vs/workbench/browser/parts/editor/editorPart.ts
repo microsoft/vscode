@@ -32,7 +32,7 @@ import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder
 import { SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
 
@@ -151,10 +151,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly gridWidgetDisposables = this._register(new DisposableStore());
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
-	// Scoped Context Keys
-	private multipleEditorGroupsContext!: IContextKey<boolean>;
-	private maximizedEditorGroupContext!: IContextKey<boolean>;
-
 	constructor(
 		private readonly editorPartsView: IEditorPartsView,
 		id: string,
@@ -176,29 +172,6 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
 		this._register(this.themeService.onDidFileIconThemeChange(() => this.handleChangedPartOptions()));
-
-		// editor part context keys
-		this._register(this.onDidAddGroup(() => this.handleEditorPartContextKeys()));
-		this._register(this.onDidRemoveGroup(() => this.handleEditorPartContextKeys()));
-		this._register(this.onDidChangeGroupIndex(() => this.handleEditorPartContextKeys()));
-
-		this._register(this.onDidChangeGroupMaximized((maximized) => this.maximizedEditorGroupContext.set(maximized)));
-	}
-
-	private registerEditorPartContextKeys(scopedContextKeyService: IContextKeyService): void {
-		this.multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(scopedContextKeyService);
-		this.maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(scopedContextKeyService);
-
-		this.handleEditorPartContextKeys();
-	}
-
-	private handleEditorPartContextKeys(): void {
-		const groupCount = this.count;
-		if (groupCount > 1) {
-			this.multipleEditorGroupsContext.set(true);
-		} else {
-			this.multipleEditorGroupsContext.reset();
-		}
 	}
 
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
@@ -1000,11 +973,10 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.container.classList.add('content');
 		parent.appendChild(this.container);
 
-		// Scoped contexkey & instantiation service
+		// Scoped instantiation service
 		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.container));
-
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService],
+			[IContextKeyService, scopedContextKeyService]
 		));
 
 		// Grid control
@@ -1017,8 +989,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		// Drag & Drop support
 		this.setupDragAndDropSupport(parent, this.container);
 
-		// set context keys
-		this.registerEditorPartContextKeys(scopedContextKeyService);
+		// Context keys
+		this.handleContextKeys(scopedContextKeyService);
 
 		// Signal ready
 		this.whenReadyPromise.complete();
@@ -1030,6 +1002,32 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		});
 
 		return this.container;
+	}
+
+	private handleContextKeys(contextKeyService: IContextKeyService): void {
+		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(contextKeyService);
+		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(contextKeyService);
+
+		const updateContextKeys = () => {
+			const groupCount = this.count;
+			if (groupCount > 1) {
+				multipleEditorGroupsContext.set(true);
+			} else {
+				multipleEditorGroupsContext.reset();
+			}
+
+			if (this.hasMaximizedGroup()) {
+				maximizedEditorGroupContext.set(true);
+			} else {
+				maximizedEditorGroupContext.reset();
+			}
+		};
+
+		updateContextKeys();
+
+		this._register(this.onDidAddGroup(() => updateContextKeys()));
+		this._register(this.onDidRemoveGroup(() => updateContextKeys()));
+		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {
