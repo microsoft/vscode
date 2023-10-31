@@ -275,7 +275,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return {
 			picks: syncResult,
 			additionalPicks: allMatches.asyncResults
-				.then(asyncResults => this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
+				.then(asyncResults => (asyncResults.length + syncResult.length === 0) ? [{
+					label: localize('noAnythingResults', "No matching results")
+				}] : this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
 				.then(picks => {
 					if (picks.length > 0) {
 						this.searchModel.searchResult.toggleHighlights(true);
