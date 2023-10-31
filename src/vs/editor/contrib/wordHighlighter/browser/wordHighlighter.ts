@@ -533,6 +533,10 @@ class WordHighlighter {
 		const lineNumber = editorSelection.startLineNumber;
 		const startColumn = editorSelection.startColumn;
 
+		if (this.model.isDisposed()) {
+			return null;
+		}
+
 		return this.model.getWordAtPosition({
 			lineNumber: lineNumber,
 			column: startColumn
