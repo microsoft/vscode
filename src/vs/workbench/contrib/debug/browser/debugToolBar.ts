@@ -73,7 +73,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 
 		this.$el = dom.$('div.debug-toolbar');
 		this.$el.style.top = `${layoutService.mainContainerOffset.top}px`;
-		this.setHeight();
 
 		this.dragArea = dom.append(this.$el, dom.$('div.drag-area' + ThemeIcon.asCSSSelector(icons.debugGripper)));
 
@@ -135,7 +134,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			}
 			if (e.affectsConfiguration(LayoutSettings.EDITOR_TABS_MODE) || e.affectsConfiguration(LayoutSettings.COMMAND_CENTER)) {
 				this._yRange = undefined;
-				this.setHeight();
 				this.setYCoordinate();
 			}
 		}));
@@ -191,6 +189,11 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			const position = parseFloat(left) / window.innerWidth;
 			this.storageService.store(DEBUG_TOOLBAR_POSITION_KEY, position, StorageScope.PROFILE, StorageTarget.MACHINE);
 		}
+		if (this.yCoordinate) {
+			this.storageService.store(DEBUG_TOOLBAR_Y_KEY, this.yCoordinate, StorageScope.PROFILE, StorageTarget.MACHINE);
+		} else {
+			this.storageService.remove(DEBUG_TOOLBAR_Y_KEY, StorageScope.PROFILE);
+		}
 	}
 
 	override updateStyles(): void {
@@ -239,7 +242,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		y = Math.max(yMin, Math.min(y, yMax));
 		this.$el.style.top = `${y}px`;
 		this.yCoordinate = y;
-		this.storageService.store(DEBUG_TOOLBAR_Y_KEY, y, StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
 	private _yRange: [number, number] | undefined;
@@ -263,10 +265,6 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			this._yRange = [yMin, yMax];
 		}
 		return this._yRange;
-	}
-
-	private setHeight(): void {
-		this.$el.style.height = `${this.configurationService.getValue(LayoutSettings.EDITOR_TABS_MODE) === EditorTabsMode.NONE && this.configurationService.getValue(LayoutSettings.COMMAND_CENTER) !== true ? 26 : 32}px`;
 	}
 
 	private show(): void {

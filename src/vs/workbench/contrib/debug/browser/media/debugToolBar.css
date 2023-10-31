@@ -6,6 +6,7 @@
 .monaco-workbench .debug-toolbar {
 	position: absolute;
 	z-index: 3000;
+	height: 26px;
 	display: flex;
 	padding-left: 7px;
 	border-radius: 4px;
