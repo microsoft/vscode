@@ -88,7 +88,7 @@ export class TerminalViewPane extends ViewPane {
 		this._register(this._terminalService.onDidChangeInstances(() => {
 			// If the first terminal is opened, hide the welcome view
 			// and if the last one is closed, show it again
-			if (this.hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
+			if (this._hasWelcomeScreen() && this._terminalService.instances.length <= 1) {
 				this._onDidChangeViewWelcomeState.fire();
 			}
 			if (!this._parentDomElement) { return; }
