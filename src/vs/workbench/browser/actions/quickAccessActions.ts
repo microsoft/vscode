@@ -168,13 +168,13 @@ function getFileSearchText(accessor: ServicesAccessor): string | null {
 		return null;
 	}
 
-	const seedFileSearchStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').experimental?.quickAccess.seedFileSearchStringFromSelection ?? false;
+	const seedStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').quickOpen.seedStringFromSelection ?? false;
 
-	if (!seedFileSearchStringFromSelection) {
+	if (!seedStringFromSelection) {
 		return null;
 	}
 
-	return getFileSelectionTextFromEditor(seedFileSearchStringFromSelection, activeEditor);
+	return getFileSelectionTextFromEditor(seedStringFromSelection, activeEditor);
 }
 
 registerAction2(class QuickAccessAction extends Action2 {

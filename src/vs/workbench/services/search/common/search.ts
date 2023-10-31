@@ -413,11 +413,13 @@ export interface ISearchConfigurationProperties {
 		badges: boolean;
 	};
 	defaultViewMode: ViewMode;
+	quickOpen: {
+		seedStringFromSelection: boolean;
+	};
 	experimental: {
 		closedNotebookRichContentResults: boolean;
 		quickAccess: {
 			preserveInput: boolean;
-			seedFileSearchStringFromSelection: boolean;
 		};
 	};
 }
