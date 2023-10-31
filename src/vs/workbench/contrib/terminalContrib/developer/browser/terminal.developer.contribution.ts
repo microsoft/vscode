@@ -15,7 +15,7 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -118,7 +118,8 @@ class DevModeContribution extends DisposableStore implements ITerminalContributi
 		instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IConfigurationService private readonly _configurationService: IConfigurationService) {
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalService private readonly _terminalService: ITerminalService) {
 		super();
 		this.add(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TerminalSettingId.DevMode)) {
@@ -134,6 +135,11 @@ class DevModeContribution extends DisposableStore implements ITerminalContributi
 	private _updateDevMode() {
 		const devMode: boolean = this._configurationService.getValue(TerminalSettingId.DevMode) || false;
 		this._xterm?.raw.element?.classList.toggle('dev-mode', devMode);
+		if (this._xterm?.raw.textarea) {
+			const font = this._terminalService.configHelper.getFont();
+			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
+			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
+		}
 	}
 }
 registerTerminalContribution(DevModeContribution.ID, DevModeContribution);
