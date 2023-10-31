@@ -84,14 +84,11 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 				};
 			},
 			searchInNotebooks: async (textQuery, token): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
-				let fileNames = data?.filenamePattern;
-				if (!fileNames) {
-					const contributedType = this._notebookService.getContributedNotebookType(viewType);
-					if (!contributedType) {
-						return { results: [], limitHit: false };
-					}
-					fileNames = contributedType.selectors;
+				const contributedType = this._notebookService.getContributedNotebookType(viewType);
+				if (!contributedType) {
+					return { results: [], limitHit: false };
 				}
+				const fileNames = contributedType.selectors;
 
 				const includes = fileNames.map((selector) => {
 					const globPattern = (selector as INotebookExclusiveDocumentFilter).include || selector as IRelativePattern | string;
