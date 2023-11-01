@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use super::protocol::{self, PortPrivacy};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -32,10 +33,41 @@ use tunnels::management::{
 	NO_REQUEST_OPTIONS,
 };
 
-use super::protocol::{self, PortPrivacy};
-use super::wsl_detect::is_wsl_installed;
-
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+
+#[allow(dead_code)]
+mod tunnel_flags {
+	use crate::{log, tunnels::wsl_detect::is_wsl_installed};
+
+	pub const IS_WSL_INSTALLED: u32 = 1 << 0;
+	pub const IS_WINDOWS: u32 = 1 << 1;
+	pub const IS_LINUX: u32 = 1 << 2;
+	pub const IS_MACOS: u32 = 1 << 3;
+
+	/// Creates a flag string for the tunnel
+	pub fn create(log: &log::Logger) -> String {
+		let mut flags = 0;
+
+		#[cfg(windows)]
+		{
+			flags |= IS_WINDOWS;
+		}
+		#[cfg(target_os = "linux")]
+		{
+			flags |= IS_LINUX;
+		}
+		#[cfg(target_os = "macos")]
+		{
+			flags |= IS_MACOS;
+		}
+
+		if is_wsl_installed(log) {
+			flags |= IS_WSL_INSTALLED;
+		}
+
+		format!("_flag{}", flags)
+	}
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -600,17 +632,12 @@ impl DevTunnels {
 
 	/// Gets the expected tunnel tags
 	fn get_tags(&self, name: &str) -> Vec<String> {
-		let mut tags = vec![
+		vec![
 			name.to_string(),
 			PROTOCOL_VERSION_TAG.to_string(),
 			self.tag.to_string(),
-		];
-
-		if is_wsl_installed(&self.log) {
-			tags.push("_wsl".to_string())
-		}
-
-		tags
+			tunnel_flags::create(&self.log),
+		]
 	}
 
 	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
