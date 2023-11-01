@@ -66,20 +66,19 @@
             "default": true,
             "description": "%css.validate.desc%"
           },
-          "css.alias.paths": {
+          "css.importAliases": {
             "type": "object",
             "additionalProperties": false,
             "patternProperties": {
-              "[^/]$": {
+              "^[^/]+(/)?$": {
                 "type": "string",
-                "pattern": "((\\.css)|/\\*)$",
-                "patternErrorMessage": "Path must end with stylesheet filetype or folder glob '/*'"
-              },
-              "patternErrorMessage": "Alias must not end with forward slash"
+                "pattern": "((\\.css)|/)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or forward slash"
+              }
             },
             "scope": "resource",
             "default": null,
-            "description": "%css.alias.paths%"
+            "description": "%css.importAliases%"
           },
           "css.hover.documentation": {
             "type": "boolean",
@@ -397,20 +396,19 @@
             "default": true,
             "description": "%scss.validate.desc%"
           },
-          "scss.alias.paths": {
+          "scss.importAliases": {
             "type": "object",
             "additionalProperties": false,
             "patternProperties": {
-              "[^/]$": {
+              "^[^/]+(/)?$": {
                 "type": "string",
-                "pattern": "((\\.s?css)|/\\*)$",
-                "patternErrorMessage": "Path must end with stylesheet filetype or folder glob '/*'"
-              },
-              "patternErrorMessage": "Alias must not end with forward slash"
+                "pattern": "((\\.s?css)|/)$",
+                "patternErrorMessage": "Path must end with stylesheet filetype or forward slash"
+              }
             },
             "scope": "resource",
             "default": null,
-            "description": "%scss.alias.paths%"
+            "description": "%scss.importAliases%"
           },
           "scss.hover.documentation": {
             "type": "boolean",
