@@ -165,7 +165,7 @@ export const getChildrenForParent = (serialized: ISerializedTestTreeCollapseStat
 				element,
 				collapsible: element.test.expand !== TestItemExpandState.NotExpandable,
 				collapsed: element.test.item.error
-					? ObjectTreeElementCollapseState.Expanded
+					? ObjectTreeElementCollapseState.PreserveOrExpanded
 					: (isCollapsedInSerializedTestTree(serialized, element.test.item.extId) ?? element.depth > 0
 						? ObjectTreeElementCollapseState.PreserveOrCollapsed
 						: ObjectTreeElementCollapseState.PreserveOrExpanded),
