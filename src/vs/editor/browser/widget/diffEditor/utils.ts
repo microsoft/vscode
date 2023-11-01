@@ -123,7 +123,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 }
 
-export function animatedObservable(base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
+export function animatedObservable(targetWindow: Window, base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
 	let targetVal = base.get();
 	let startVal = targetVal;
 	let curVal = targetVal;
@@ -160,7 +160,7 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 		curVal = Math.floor(easeOutExpo(passedMs, startVal, targetVal - startVal, durationMs));
 
 		if (passedMs < durationMs) {
-			animationFrame = requestAnimationFrame(update);
+			animationFrame = targetWindow.requestAnimationFrame(update);
 		} else {
 			curVal = targetVal;
 		}

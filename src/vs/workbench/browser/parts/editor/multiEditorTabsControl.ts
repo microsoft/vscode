@@ -1039,7 +1039,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
+			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
 		}));
 
 		// Drop support
@@ -1610,16 +1610,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		Object.assign(this.dimensions, dimensions);
 
 		if (this.visible) {
-			// The layout of tabs can be an expensive operation because we access DOM properties
-			// that can result in the browser doing a full page layout to validate them. To buffer
-			// this a little bit we try at least to schedule this work on the next animation frame
-			// when we have restored or when idle otherwise.
 			if (!this.layoutScheduler.value) {
-				const scheduledLayout = (this.lifecycleService.phase >= LifecyclePhase.Restored ? scheduleAtNextAnimationFrame : runWhenIdle)(() => {
+
+				// The layout of tabs can be an expensive operation because we access DOM properties
+				// that can result in the browser doing a full page layout to validate them. To buffer
+				// this a little bit we try at least to schedule this work on the next animation frame
+				// when we have restored or when idle otherwise.
+
+				const layoutFunction = () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				});
+				};
+
+				let scheduledLayout: IDisposable;
+				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
+					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+				} else {
+					scheduledLayout = runWhenIdle(layoutFunction);
+				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
 			}
