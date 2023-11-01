@@ -501,7 +501,6 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
 	border: none;
 	border-radius: 4px;
@@ -526,10 +525,10 @@
 	gap: 6px;
 }
 
+.interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 4px;
 	margin-bottom: 8px;
 }
 
