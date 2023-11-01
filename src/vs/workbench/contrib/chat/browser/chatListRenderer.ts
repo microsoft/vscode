@@ -458,7 +458,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
-			}));
+			}, dom.getWindow(templateData.value)));
 		}
 	}
 
@@ -496,7 +496,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
-			}));
+			}, dom.getWindow(templateData.value)));
 		}
 	}
 

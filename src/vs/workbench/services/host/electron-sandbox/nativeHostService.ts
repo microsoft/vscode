@@ -15,7 +15,7 @@ import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHos
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getActiveDocument, getWindowsCount, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { getActiveDocument, getWindowsCount, onDidRegisterWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { memoize } from 'vs/base/common/decorators';
 
@@ -59,6 +59,14 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
 			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
 			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
+
+			// Workaround: the window does not immediately seem to have focus when
+			// opening, so we schedule a check for focus on the next animation frame
+			scheduleAtNextAnimationFrame(() => {
+				if (window.document.hasFocus()) {
+					emitter.fire(true);
+				}
+			}, window);
 		}));
 
 		return emitter.event;
