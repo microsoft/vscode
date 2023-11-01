@@ -31,7 +31,7 @@ suite('Workbench - TerminalWordLinkDetector', () => {
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.set(IProductService, TestProductService);
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
 		detector = store.add(instantiationService.createInstance(TerminalWordLinkDetector, xterm));
 	});

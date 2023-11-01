@@ -129,7 +129,7 @@ suite('XtermTerminal', () => {
 		instantiationService.stub(ILayoutService, new TestLayoutService());
 
 		configHelper = store.add(instantiationService.createInstance(TerminalConfigHelper));
-		XTermBaseCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		XTermBaseCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		const capabilityStore = store.add(new TerminalCapabilityStore());
 		xterm = store.add(instantiationService.createInstance(TestXtermTerminal, XTermBaseCtor, configHelper, 80, 30, { getBackgroundColor: () => undefined }, capabilityStore, '', new MockContextKeyService().createKey('', true)!, true));

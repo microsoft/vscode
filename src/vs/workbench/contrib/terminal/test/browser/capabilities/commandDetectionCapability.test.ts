@@ -62,7 +62,7 @@ suite('CommandDetectionCapability', () => {
 
 	setup(async () => {
 		disposables = new DisposableStore();
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
 		instantiationService = disposables.add(new TestInstantiationService());
