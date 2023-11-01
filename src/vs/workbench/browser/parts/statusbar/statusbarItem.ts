@@ -80,6 +80,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
+		addDisposableListener(this.labelContainer, EventType.FOCUS, () => this.hover?.show(false));
 	}
 
 	update(entry: IStatusbarEntry): void {
@@ -138,6 +139,10 @@ export class StatusbarEntryItem extends Disposable {
 						EventHelper.stop(e);
 
 						this.executeCommand(command);
+					} else if (event.equals(KeyCode.Escape) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
+						EventHelper.stop(e);
+
+						this.hover?.hide();
 					}
 				});
 
