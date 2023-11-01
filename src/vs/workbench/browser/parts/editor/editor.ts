@@ -149,7 +149,8 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		['labelFormat', ['default', 'short', 'medium', 'long']],
 		['splitInGroupLayout', ['vertical', 'horizontal']],
 		['splitSizing', ['distribute', 'split', 'auto']],
-		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']]
+		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']],
+		['showEditorActionsInTitleBar', ['noTabs', 'never']]
 	];
 	for (const [option, allowed] of stringOptions) {
 		if (typeof option === 'string') {

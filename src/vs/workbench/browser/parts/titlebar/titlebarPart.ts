@@ -12,7 +12,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -93,8 +93,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	protected lastLayoutDimensions: Dimension | undefined;
 
 	private actionToolBar!: WorkbenchToolBar;
-	private editorChangeDisposable: IDisposable | undefined;
-	private editorActionsChangeDisposable: IDisposable | undefined;
+	private actionToolBarDisposable = this._register(new DisposableStore());
+	private editorActionsChangeDisposable = this._register(new MutableDisposable());
 	private actionToolBarElement!: HTMLElement;
 
 	private layoutToolbarMenu: IMenu | undefined;
@@ -195,7 +195,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 			if (affectsEditorActions) {
 				this.createActionToolBar();
-				this.updateEditorChangeListener();
 			}
 			if (affectsEditorActions || affectsLayoutControl || affectsActivityControl) {
 				this.createActionToolBarMenus({ editorActions: affectsEditorActions, layoutActions: affectsLayoutControl, activityActions: affectsActivityControl });
@@ -314,7 +313,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.actionToolBarElement = append(this.rightContent, $('div.action-toolbar-container'));
 			this.createActionToolBar();
 			this.createActionToolBarMenus();
-			this.updateEditorChangeListener();
 		}
 
 		let primaryControlLocation = isMacintosh ? 'left' : 'right';
@@ -395,9 +393,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private createActionToolBar() {
-		if (this.actionToolBar) {
-			this.actionToolBar.dispose();
-		}
+		// Creates the action tool bar. Depends on the configuration of the title bar menus
+		// Requires to be recreated whenever editor actions enablement changes
+
+		this.actionToolBarDisposable.clear();
+
 		this.actionToolBar = this.instantiationService.createInstance(WorkbenchToolBar, this.actionToolBarElement, {
 			contextMenu: MenuId.TitleBarContext,
 			orientation: ActionsOrientation.HORIZONTAL,
@@ -409,6 +409,12 @@ export class TitlebarPart extends Part implements ITitleService {
 			highlightToggledItems: this.editorActionsEnabled, // Only show toggled state for editor actions (Layout actions are not shown as toggled)
 			actionViewItemProvider: action => this.actionViewItemProvider(action)
 		});
+
+		this.actionToolBarDisposable.add(this.actionToolBar);
+
+		if (this.editorActionsEnabled) {
+			this.actionToolBarDisposable.add(this.editorGroupService.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
+		}
 	}
 
 	private createActionToolBarMenus(update: true | { editorActions?: boolean; layoutActions?: boolean; activityActions?: boolean } = true) {
@@ -421,20 +427,19 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			// --- Editor Actions
 			if (this.editorActionsEnabled) {
-				// activeGroup can be undefined on startup
-				const editorActions = this.editorGroupService.activeGroup?.getEditorActions();
-				if (editorActions) {
+				const activeGroup = this.editorGroupService.activeGroup;
+				if (activeGroup) { // Can be undefined on startup
+					const editorActions = activeGroup.getEditorActions();
+
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);
 
-					this.editorActionsChangeDisposable?.dispose();
-					this.editorActionsChangeDisposable = editorActions.onDidChange(() => updateToolBarActions());
+					this.editorActionsChangeDisposable.value = editorActions.onDidChange(() => updateToolBarActions());
 				}
 			}
 
 			// --- Layout Actions
 			if (this.layoutToolbarMenu) {
-				// Create layout actions
 				createAndFillInActionBarActions(
 					this.layoutToolbarMenu,
 					{},
@@ -443,8 +448,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				);
 			}
 
+			// --- Activity Actions
 			if (this.activityToolbarMenu) {
-				// Create layout actions
 				createAndFillInActionBarActions(
 					this.activityToolbarMenu,
 					{},
@@ -456,9 +461,13 @@ export class TitlebarPart extends Part implements ITitleService {
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
 		};
 
+		// Create/Update the menus which should be in the title tool bar
+
 		if (update.editorActions) {
 			this.editorToolbarMenuDisposables.clear();
 
+			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
+			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
 				const context: IEditorCommandsContext = { groupId: this.editorGroupService.activeGroup.id };
 
@@ -500,18 +509,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		updateToolBarActions();
-	}
-
-	private updateEditorChangeListener(): void {
-		const showEditorActions = this.editorActionsEnabled;
-		if (showEditorActions && !this.editorChangeDisposable) {
-			// Install editor change listener if not yet installed
-			this.editorChangeDisposable = this.editorService.onDidActiveEditorChange(() => this.createActionToolBarMenus({ editorActions: true }));
-		} else if (!showEditorActions && this.editorChangeDisposable) {
-			// Uninstall editor change listener if installed
-			this.editorChangeDisposable.dispose();
-			this.editorChangeDisposable = undefined;
-		}
 	}
 
 	override updateStyles(): void {
@@ -619,13 +616,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		return {
 			type: Parts.TITLEBAR_PART
 		};
-	}
-
-	public override dispose(): void {
-		this.editorChangeDisposable?.dispose();
-		this.actionToolBar?.dispose();
-
-		super.dispose();
 	}
 }
 
