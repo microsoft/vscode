@@ -137,4 +137,4 @@ steps:
     workingDirectory: build
 
   - powershell: |
-      node build/azure-pipelines/common/provision.ts $(esrp-aad-username) $(esrp-aad-password)
+      node build/azure-pipelines/common/provision.js $(esrp-aad-username) $(esrp-aad-password)
