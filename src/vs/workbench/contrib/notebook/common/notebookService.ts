@@ -16,8 +16,8 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IFileStatWithMetadata, IWriteFileOptions } from 'vs/platform/files/common/files';
 import { ITextQuery } from 'vs/workbench/services/search/common/search';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
+import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 
 
 export const INotebookService = createDecorator<INotebookService>('notebookService');
