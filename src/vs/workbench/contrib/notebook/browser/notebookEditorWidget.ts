@@ -1454,7 +1454,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._localStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
-			}, 100));
+			}, DOM.getWindow(this._body), 100));
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
@@ -2259,7 +2259,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 
 		if (this._list.inRenderingTransaction) {
-			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout);
+			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout, DOM.getWindow(this._body));
 
 			this._pendingLayouts?.set(cell, toDisposable(() => {
 				layoutDisposable.dispose();
@@ -2973,7 +2973,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
 
 				this._pendingOutputHeightAcks.clear();
-			}, -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
+			}, DOM.getWindow(this._body), -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
 		}
 	}
 

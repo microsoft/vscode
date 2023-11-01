@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { $, h } from 'vs/base/browser/dom';
+import { $, getWindow, h } from 'vs/base/browser/dom';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -178,6 +178,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			/** @description ViewZoneManager */
 			store.add(this._instantiationService.createInstance(
 				readHotReloadableExport(ViewZoneManager, reader),
+				getWindow(this._domElement),
 				this._editors,
 				this._diffModel,
 				this._options,
