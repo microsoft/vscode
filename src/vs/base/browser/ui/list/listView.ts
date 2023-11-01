@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { $, addDisposableListener, animate, Dimension, getContentHeight, getContentWidth, getTopLeftOffset, getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, Gesture, GestureEvent } from 'vs/base/browser/touch';
@@ -407,7 +407,7 @@ export class ListView<T> implements IListView<T> {
 		this.scrollable = this.disposables.add(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: (options.smoothScrolling ?? false) ? 125 : 0,
-			scheduleAtNextAnimationFrame: cb => scheduleAtNextAnimationFrame(cb)
+			scheduleAtNextAnimationFrame: cb => scheduleAtNextAnimationFrame(cb, getWindow(this.domNode))
 		}));
 		this.scrollableElement = this.disposables.add(new SmoothScrollableElement(this.rowsContainer, {
 			alwaysConsumeMouseWheel: options.alwaysConsumeMouseWheel ?? DefaultOptions.alwaysConsumeMouseWheel,
@@ -684,7 +684,7 @@ export class ListView<T> implements IListView<T> {
 				this.scrollableElement.setScrollDimensions({ scrollHeight: this.scrollHeight });
 				this.updateScrollWidth();
 				this.scrollableElementUpdateDisposable = null;
-			});
+			}, getWindow(this.domNode));
 		}
 	}
 
@@ -1291,7 +1291,7 @@ export class ListView<T> implements IListView<T> {
 	private setupDragAndDropScrollTopAnimation(event: DragEvent): void {
 		if (!this.dragOverAnimationDisposable) {
 			const viewTop = getTopLeftOffset(this.domNode).top;
-			this.dragOverAnimationDisposable = animate(this.animateDragAndDropScrollTop.bind(this, viewTop));
+			this.dragOverAnimationDisposable = animate(this.animateDragAndDropScrollTop.bind(this, viewTop), getWindow(this.domNode));
 		}
 
 		this.dragOverAnimationStopDisposable.dispose();

@@ -746,7 +746,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
-			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
+			oldOptions.tabActionLocation !== newOptions.tabActionLocation ||
+			oldOptions.tabActionCloseVisibility !== newOptions.tabActionCloseVisibility ||
+			oldOptions.tabActionUnpinVisibility !== newOptions.tabActionUnpinVisibility ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
@@ -1037,7 +1039,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
+			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
 		}));
 
 		// Drop support
@@ -1322,19 +1324,33 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
-		if (!tabActionBar.hasAction(tabAction)) {
+		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
+		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		const hasAction = hasUnpinAction || hasCloseAction;
+
+		// If no action is visible, ensure to clear it
+		if (!hasAction) {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
 			}
+		}
+		// If action is visible, ensure it is showing
+		else {
+			const tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+			if (!tabActionBar.hasAction(tabAction)) {
+				if (!tabActionBar.isEmpty()) {
+					tabActionBar.clear();
+				}
 
-			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+				tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
+			}
 		}
 
-		// Settings
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
-		for (const option of ['off', 'left', 'right']) {
-			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
+		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
+		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+
+		for (const option of ['left', 'right']) {
+			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
 		}
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
@@ -1594,16 +1610,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		Object.assign(this.dimensions, dimensions);
 
 		if (this.visible) {
-			// The layout of tabs can be an expensive operation because we access DOM properties
-			// that can result in the browser doing a full page layout to validate them. To buffer
-			// this a little bit we try at least to schedule this work on the next animation frame
-			// when we have restored or when idle otherwise.
 			if (!this.layoutScheduler.value) {
-				const scheduledLayout = (this.lifecycleService.phase >= LifecyclePhase.Restored ? scheduleAtNextAnimationFrame : runWhenIdle)(() => {
+
+				// The layout of tabs can be an expensive operation because we access DOM properties
+				// that can result in the browser doing a full page layout to validate them. To buffer
+				// this a little bit we try at least to schedule this work on the next animation frame
+				// when we have restored or when idle otherwise.
+
+				const layoutFunction = () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				});
+				};
+
+				let scheduledLayout: IDisposable;
+				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
+					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+				} else {
+					scheduledLayout = runWhenIdle(layoutFunction);
+				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
 			}

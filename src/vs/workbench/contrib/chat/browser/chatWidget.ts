@@ -407,7 +407,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
-				}, 0);
+				}, dom.getWindow(this.listContainer), 0);
 			}
 		}
 
@@ -640,7 +640,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
-			});
+			}, dom.getWindow(this.listContainer));
 		}));
 	}
 

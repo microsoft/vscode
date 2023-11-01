@@ -315,7 +315,6 @@ const nlsMultiSelection = localize('multiSelection', "{0} selections");
 const nlsEOLLF = localize('endOfLineLineFeed', "LF");
 const nlsEOLCRLF = localize('endOfLineCarriageReturnLineFeed', "CRLF");
 
-
 export class EditorStatus extends Disposable implements IWorkbenchContribution {
 
 	private readonly tabFocusModeElement = this._register(new MutableDisposable<IStatusbarEntryAccessor>());
@@ -335,6 +334,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private toRender: StateChange | undefined = undefined;
 
 	private editorService: IEditorService;
+	private targetWindow = window;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -570,7 +570,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				if (toRender) {
 					this.doRenderNow();
 				}
-			});
+			}, this.targetWindow);
 		} else {
 			this.toRender.combine(changed);
 		}
