@@ -376,6 +376,8 @@ export class CodeApplication extends Disposable {
 			// Child Window: delegate to `AuxiliaryWindow` class
 			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 			if (isChildWindow) {
+				this.logService.trace('[aux window]  app.on("web-contents-created"): Registering auxiliary window');
+
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
@@ -392,7 +394,7 @@ export class CodeApplication extends Disposable {
 
 				// about:blank windows can open as window witho our default options
 				if (handler.url === 'about:blank') {
-					this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
+					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {
 						action: 'allow',
