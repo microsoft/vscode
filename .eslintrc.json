@@ -340,7 +340,7 @@
 							"vscode-textmate",
 							"worker_threads",
 							"@xterm/addon-canvas",
-							"xterm-addon-image",
+							"@xterm/addon-image",
 							"@xterm/addon-search",
 							"@xterm/addon-serialize",
 							"@xterm/addon-unicode11",
@@ -551,10 +551,6 @@
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-image"
-							}, // node module allowed even in /browser/
-							{
-								"when": "hasBrowser",
 								"pattern": "vscode-textmate"
 							} // node module allowed even in /browser/
 						]
@@ -581,10 +577,6 @@
 							{
 								"when": "hasBrowser",
 								"pattern": "@xterm/addon-*"
-							}, // node module allowed even in /browser/
-							{
-								"when": "hasBrowser",
-								"pattern": "xterm-addon-image"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",

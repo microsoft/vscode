@@ -9,11 +9,10 @@ const path = require('path');
 const moduleNames = [
 	'@xterm/xterm',
 	'@xterm/addon-canvas',
+	'@xterm/addon-image',
 	'@xterm/addon-search',
 	'@xterm/addon-unicode11',
 	'@xterm/addon-webgl',
-	// TODO: Pick up scoped image addon when published
-	'xterm-addon-image',
 ];
 
 const backendOnlyModuleNames = [
