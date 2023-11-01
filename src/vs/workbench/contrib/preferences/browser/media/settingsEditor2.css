@@ -533,7 +533,6 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 11px;
 	color: var(--vscode-textPreformat-foreground);
-	background-color: var(--vscode-textPreformat-background);
 	padding: 1px 3px;
 	border-radius: 4px;
 }
@@ -604,7 +603,6 @@
 	font-family: var(--monaco-monospace-font);
 	font-size: 12px;
 	color: var(--vscode-textPreformat-foreground);
-	background-color: var(--vscode-textPreformat-background);
 	padding: 2px 5px;
 	border-radius: 4px;
 }
