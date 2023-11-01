@@ -503,7 +503,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const resourceOrFolder = node.element;
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
-		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.childrenCount > 0 ? FileKind.FOLDER : FileKind.FILE;
+		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
 		const viewModel = this.viewModelProvider();
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
 
@@ -1351,7 +1351,7 @@ class ViewModel {
 				for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
 					const groupItem = repository.provider.groups[j];
 					const resource = this.mode === ViewModelMode.Tree
-						? groupItem.resourceTree.getNode(uri)
+						? groupItem.resourceTree.getNode(uri)?.element
 						: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 					if (resource) {
@@ -2559,11 +2559,21 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				return inputOrElement.resources;
 			} else if (this.viewModelProvider().mode === ViewModelMode.Tree) {
 				// Resources (Tree)
-				return inputOrElement.resourceTree.root.children;
+				const children: TreeElement[] = [];
+				for (const node of inputOrElement.resourceTree.root.children) {
+					children.push(node.childrenCount === 0 ? node.element ?? node : node);
+				}
+
+				return children;
 			}
 		} else if (ResourceTree.isResourceNode(inputOrElement)) {
 			// Resources (Tree)
-			return inputOrElement.children;
+			const children: TreeElement[] = [];
+			for (const node of inputOrElement.children) {
+				children.push(node.childrenCount === 0 ? node.element ?? node : node);
+			}
+
+			return children;
 		}
 
 		return [];
