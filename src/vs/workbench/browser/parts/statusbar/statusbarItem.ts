@@ -80,6 +80,7 @@ export class StatusbarEntryItem extends Disposable {
 		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
+		addDisposableListener(this.labelContainer, EventType.FOCUS, () => this.hover?.show(false));
 	}
 
 	update(entry: IStatusbarEntry): void {
@@ -121,7 +122,6 @@ export class StatusbarEntryItem extends Disposable {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
 		}
-		addDisposableListener(this.labelContainer, EventType.FOCUS, () => this.hover?.show(false));
 
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
