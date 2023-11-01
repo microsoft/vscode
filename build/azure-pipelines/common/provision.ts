@@ -7,8 +7,12 @@ import { ClientSecretCredential } from '@azure/identity';
 import * as https from 'https';
 
 export async function main([username, password]: string[]) {
+	console.log('running...');
+
 	const credential = new ClientSecretCredential('72f988bf-86f1-41af-91ab-2d7cd011db47', username, password);
 	const accessToken = await credential.getToken('https://microsoft.onmicrosoft.com/DS.ProvisioningUAT.WebApi/.default');
+
+	console.log('got access token');
 
 	const body = JSON.stringify({
 		ReleaseId: '36df8da5-4670-4b9f-acd3-c53de62ea93d',
@@ -23,6 +27,8 @@ export async function main([username, password]: string[]) {
 		}]
 	});
 
+	console.log('body', body);
+
 	await new Promise<void>((c, e) => {
 		const req = https.request(`https://dsprovisionapi.microsoft.com/api/v2/ProvisionedFiles/CreateProvisionedFiles`, {
 			method: 'POST',
@@ -31,18 +37,20 @@ export async function main([username, password]: string[]) {
 				'Content-Type': 'application/json',
 				'Content-Length': body.length
 			}
-		});
+		}, res => {
+			console.log('STATUS', res.statusCode);
 
-		req.on('error', e);
-		req.on('response', res => {
 			if (res.statusCode !== 200) {
 				return e(new Error(`Unexpected status code: ${res.statusCode}`));
 			}
 
 			const chunks: Buffer[] = [];
-			res.on('data', chunk => chunks.push(chunk));
+			res.on('data', chunk => {
+				console.log('data', chunk);
+				chunks.push(chunk);
+			});
 			res.on('end', () => {
-				console.log(chunks);
+				console.log('end', chunks);
 				const body = Buffer.concat(chunks).toString();
 
 				try {
@@ -55,7 +63,9 @@ export async function main([username, password]: string[]) {
 			});
 		});
 
-		req.end(body, 'utf8');
+		req.on('error', e);
+		req.write(body);
+		req.end();
 	});
 }
 
