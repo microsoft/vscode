@@ -462,7 +462,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// Custom prompts like starship end in the common \u276f character
-		const customMatch = lineText.match(/.*\u276f(?=[^\u276f]*$)/g);
+		const customMatch = lineText.match(/.*\u276f(?=[^\u276f]*\s?$)/g);
 		if (customMatch) {
 			return customMatch[0];
 		}
