@@ -53,6 +53,7 @@ import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 interface ContributedKeyBinding {
 	command: string;
@@ -237,10 +238,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this.updateKeybindingsJsonSchema();
 		this._register(extensionService.onDidRegisterExtensions(() => this.updateKeybindingsJsonSchema()));
 
-		this._register(this._registerKeyListeners(window));
-		this._register(dom.onDidCreateWindow(({ window, disposableStore }) => {
-			disposableStore.add(this._registerKeyListeners(window));
-		}));
+		this._register(Event.runAndSubscribe(dom.onDidRegisterWindow, ({ window, disposables }) => disposables.add(this._registerKeyListeners(window)), { window, disposables: this._store }));
 
 		this._register(browser.onDidChangeFullscreen(() => {
 			const keyboard: IKeyboard | null = (<INavigatorWithKeyboard>navigator).keyboard;
@@ -906,13 +904,13 @@ class KeybindingsJsonSchema {
 		this.commandsEnumDescriptions.length = 0;
 
 		const knownCommands = new Set<string>();
-		const addKnownCommand = (commandId: string, description?: string | undefined) => {
+		const addKnownCommand = (commandId: string, description?: string | ILocalizedString | undefined) => {
 			if (!/^_/.test(commandId)) {
 				if (!knownCommands.has(commandId)) {
 					knownCommands.add(commandId);
 
 					this.commandsEnum.push(commandId);
-					this.commandsEnumDescriptions.push(description);
+					this.commandsEnumDescriptions.push(isLocalizedString(description) ? description.value : description);
 
 					// Also add the negative form for keybinding removal
 					this.removalCommandsEnum.push(`-${commandId}`);
@@ -922,18 +920,18 @@ class KeybindingsJsonSchema {
 
 		const allCommands = CommandsRegistry.getCommands();
 		for (const [commandId, command] of allCommands) {
-			const commandDescription = command.description;
+			const commandMetadata = command.metadata;
 
-			addKnownCommand(commandId, commandDescription ? commandDescription.description : undefined);
+			addKnownCommand(commandId, commandMetadata?.description);
 
-			if (!commandDescription || !commandDescription.args || commandDescription.args.length !== 1 || !commandDescription.args[0].schema) {
+			if (!commandMetadata || !commandMetadata.args || commandMetadata.args.length !== 1 || !commandMetadata.args[0].schema) {
 				continue;
 			}
 
-			const argsSchema = commandDescription.args[0].schema;
+			const argsSchema = commandMetadata.args[0].schema;
 			const argsRequired = (
-				(typeof commandDescription.args[0].isOptional !== 'undefined')
-					? (!commandDescription.args[0].isOptional)
+				(typeof commandMetadata.args[0].isOptional !== 'undefined')
+					? (!commandMetadata.args[0].isOptional)
 					: (Array.isArray(argsSchema.required) && argsSchema.required.length > 0)
 			);
 			const addition = {

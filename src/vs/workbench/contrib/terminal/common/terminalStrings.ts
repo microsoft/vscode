@@ -14,6 +14,8 @@ export const terminalStrings = {
 	doNotShowAgain: localize('doNotShowAgain', 'Do Not Show Again'),
 	currentSessionCategory: localize('currentSessionCategory', 'current session'),
 	previousSessionCategory: localize('previousSessionCategory', 'previous session'),
+	typeTask: localize('task', "Task"),
+	typeLocal: localize('local', "Local"),
 	actionCategory: {
 		value: localize('terminalCategory', "Terminal"),
 		original: 'Terminal'

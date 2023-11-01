@@ -78,6 +78,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			verticalScrollbarSize: input.verticalScrollbarWidth,
 			verticalSliderSize: EditorOptions.scrollbar.defaultValue.verticalSliderSize,
 			scrollByPage: EditorOptions.scrollbar.defaultValue.scrollByPage,
+			ignoreHorizontalScrollbarInContentHeight: false,
 		};
 		options._write(EditorOption.scrollbar, scrollbarOptions);
 		const lineNumbersOptions: InternalEditorRenderLineNumbersOptions = {

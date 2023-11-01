@@ -43,7 +43,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		controller.nextCommentThread();
 	},
 	weight: KeybindingWeight.EditorContrib,
-	when: EditorContextKeys.focus,
 	primary: KeyMod.Alt | KeyCode.F9,
 });
 
@@ -62,7 +61,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		controller.previousCommentThread();
 	},
 	weight: KeybindingWeight.EditorContrib,
-	when: EditorContextKeys.focus,
 	primary: KeyMod.Shift | KeyMod.Alt | KeyCode.F9
 });
 

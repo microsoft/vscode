@@ -16,7 +16,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICommentService } from 'vs/workbench/contrib/comments/browser/commentService';
-import { STARTING_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
+import { LayoutableEditor, MIN_EDITOR_HEIGHT, SimpleCommentEditor, calculateEditorHeight } from 'vs/workbench/contrib/comments/browser/simpleCommentEditor';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Emitter, Event } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -72,7 +72,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	private _commentEditor: SimpleCommentEditor | null = null;
 	private _commentEditorDisposables: IDisposable[] = [];
 	private _commentEditorModel: ITextModel | null = null;
-	private _editorHeight = STARTING_EDITOR_HEIGHT;
+	private _editorHeight = MIN_EDITOR_HEIGHT;
 
 	private _isPendingLabel!: HTMLElement;
 	private _timestamp: HTMLElement | undefined;
@@ -98,6 +98,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 	public isEditing: boolean = false;
 
 	constructor(
+		private readonly parentEditor: LayoutableEditor,
 		private commentThread: languages.CommentThread<T>,
 		public comment: languages.Comment,
 		private pendingEdit: string | undefined,
@@ -169,7 +170,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb, dom.getWindow(container))
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
@@ -488,7 +489,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		dom.scheduleAtNextAnimationFrame(() => {
 			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
-		});
+		}, dom.getWindow(editContainer));
 
 		const lastLine = this._commentEditorModel.getLineCount();
 		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
@@ -536,7 +537,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 	private calculateEditorHeight(): boolean {
 		if (this._commentEditor) {
-			const newEditorHeight = calculateEditorHeight(this._commentEditor, this._editorHeight);
+			const newEditorHeight = calculateEditorHeight(this.parentEditor, this._commentEditor, this._editorHeight);
 			if (newEditorHeight !== this._editorHeight) {
 				this._editorHeight = newEditorHeight;
 				return true;

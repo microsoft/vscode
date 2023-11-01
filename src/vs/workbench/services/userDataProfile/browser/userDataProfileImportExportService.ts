@@ -366,7 +366,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		profileIconElement.role = 'button';
 		profileIconElement.ariaLabel = localize('select icon', "Icon: {0}", icon.id);
 		const iconSelectBox = disposables.add(this.instantiationService.createInstance(WorkbenchIconSelectBox, { icons: ICONS, inputBoxStyles: defaultInputBoxStyles }));
-		const dimension = new DOM.Dimension(496, 260);
+		const dimension = new DOM.Dimension(486, 260);
 		iconSelectBox.layout(dimension);
 		let hoverWidget: IHoverWidget | undefined;
 
@@ -994,7 +994,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 		const actionRunner = new ActionRunner();
 		const descriptor: ITreeViewDescriptor = {
 			id,
-			name,
+			name: { value: name, original: name },
 			ctorDescriptor: new SyncDescriptor(UserDataProfilePreviewViewPane, [userDataProfilesData, primary, secondary, actionRunner]),
 			canToggleVisibility: false,
 			canMoveView: false,

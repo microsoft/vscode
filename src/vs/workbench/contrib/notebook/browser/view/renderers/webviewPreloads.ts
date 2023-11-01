@@ -162,12 +162,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 			return;
 		}
 
+		let outputFocus: { id: string } | undefined = undefined;
 		for (const node of event.composedPath()) {
 			if (node instanceof HTMLElement && node.classList.contains('output')) {
-				// output
-				postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', {
-					id: node.id,
-				});
+				outputFocus = {
+					id: node.id
+				};
 				break;
 			}
 		}
@@ -175,8 +175,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 		for (const node of event.composedPath()) {
 			if (node instanceof HTMLAnchorElement && node.href) {
 				if (node.href.startsWith('blob:')) {
+					if (outputFocus) {
+						postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
+					}
+
 					handleBlobUrlClick(node.href, node.download);
 				} else if (node.href.startsWith('data:')) {
+					if (outputFocus) {
+						postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
+					}
 					handleDataUrl(node.href, node.download);
 				} else if (node.getAttribute('href')?.trim().startsWith('#')) {
 					// Scrolling to location within current doc
@@ -209,6 +216,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 				} else {
 					const href = node.getAttribute('href');
 					if (href) {
+						if (href.startsWith('command:') && outputFocus) {
+							postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
+						}
 						postNotebookMessage<webviewMessages.IClickedLinkMessage>('clicked-link', { href });
 					}
 				}
@@ -217,6 +227,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				event.stopPropagation();
 				return;
 			}
+		}
+
+		if (outputFocus) {
+			postNotebookMessage<webviewMessages.IOutputFocusMessage>('outputFocus', outputFocus);
 		}
 	};
 
@@ -476,7 +490,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
 		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
-			alternateId ? document.getElementById(alternateId!) : undefined;
+			(alternateId ? document.getElementById(alternateId!) : undefined);
 		if (cellOutputContainer) {
 			if (cellOutputContainer.contains(document.activeElement)) {
 				return;

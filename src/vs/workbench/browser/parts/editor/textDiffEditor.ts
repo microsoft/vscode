@@ -147,6 +147,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 				originalEditable: !resolvedDiffEditorModel.originalModel?.isReadonly()
 			});
 
+			control.handleInitialized();
+
 			// Start to measure input lifecycle
 			this.inputLifecycleStopWatch = new StopWatch(false);
 		} catch (error) {
@@ -338,6 +340,8 @@ export class TextDiffEditor extends AbstractTextEditor<IDiffEditorViewState> imp
 	}
 
 	override focus(): void {
+		super.focus();
+
 		this.diffEditorControl?.focus();
 	}
 

@@ -18,6 +18,7 @@ import type * as vscode from 'vscode';
 import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
+import { raceCancellation } from 'vs/base/common/async';
 
 class ProviderWrapper {
 
@@ -126,6 +127,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		return {
 			id,
 			placeholder: session.placeholder,
+			input: session.input,
 			slashCommands: session.slashCommands?.map(c => ({ command: c.command, detail: c.detail, refer: c.refer, executeImmediately: c.executeImmediately })),
 			wholeRange: typeConvert.Range.from(session.wholeRange),
 			message: session.message
@@ -152,68 +154,71 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 
 
 		let done = false;
-		const progress: vscode.Progress<{ message?: string; edits?: vscode.TextEdit[] }> = {
-			report: value => {
-				if (!request.live) {
+		const progress: vscode.Progress<vscode.InteractiveEditorProgressItem> = {
+			report: async value => {
+				if (!request.live && value.edits?.length) {
 					throw new Error('Progress reporting is only supported for live sessions');
 				}
 				if (done || token.isCancellationRequested) {
 					return;
 				}
-				if (!value.message && !value.edits) {
-					return;
-				}
-				this._proxy.$handleProgressChunk(request.requestId, {
+				await this._proxy.$handleProgressChunk(request.requestId, {
 					message: value.message,
-					edits: value.edits?.map(typeConvert.TextEdit.from)
+					edits: value.edits?.map(typeConvert.TextEdit.from),
+					editsShouldBeInstant: value.editsShouldBeInstant,
+					slashCommand: value.slashCommand?.command,
+					markdownFragment: extHostTypes.MarkdownString.isMarkdownString(value.content) ? value.content.value : value.content
 				});
 			}
 		};
 
-		const task = entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token);
+		const task = Promise.resolve(entry.provider.provideInteractiveEditorResponse(sessionData.session, apiRequest, progress, token));
 
-		Promise.resolve(task).finally(() => done = true);
-
-		const res = await task;
-
-		if (res) {
-
-			const id = sessionData.responses.push(res) - 1;
-
-			const stub: Partial<IInlineChatResponseDto> = {
-				wholeRange: typeConvert.Range.from(res.wholeRange),
-				placeholder: res.placeholder,
-			};
-
-			if (ExtHostInteractiveEditor._isMessageResponse(res)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.Message,
-					message: typeConvert.MarkdownString.from(res.contents),
-				};
-			}
-
-			const { edits } = res;
-			if (edits instanceof extHostTypes.WorkspaceEdit) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.BulkEdit,
-					edits: typeConvert.WorkspaceEdit.from(edits),
-				};
-
-			} else if (Array.isArray(edits)) {
-				return {
-					...stub,
-					id,
-					type: InlineChatResponseType.EditorEdit,
-					edits: edits.map(typeConvert.TextEdit.from),
-				};
-			}
+		let res: vscode.InteractiveEditorResponse | vscode.InteractiveEditorMessageResponse | null | undefined;
+		try {
+			res = await raceCancellation(task, token);
+		} finally {
+			done = true;
 		}
 
-		return undefined;
+		if (!res) {
+			return undefined;
+		}
+
+
+		const id = sessionData.responses.push(res) - 1;
+
+		const stub: Partial<IInlineChatResponseDto> = {
+			wholeRange: typeConvert.Range.from(res.wholeRange),
+			placeholder: res.placeholder,
+		};
+
+		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.Message,
+				message: typeConvert.MarkdownString.from(res.contents),
+			};
+		}
+
+		const { edits } = res;
+		if (edits instanceof extHostTypes.WorkspaceEdit) {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.BulkEdit,
+				edits: typeConvert.WorkspaceEdit.from(edits),
+			};
+
+		} else {
+			return {
+				...stub,
+				id,
+				type: InlineChatResponseType.EditorEdit,
+				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+			};
+		}
 	}
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {

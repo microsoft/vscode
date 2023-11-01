@@ -12,6 +12,9 @@ import { LinesSliceCharSequence } from 'vs/editor/common/diff/defaultLinesDiffCo
 export function optimizeSequenceDiffs(sequence1: ISequence, sequence2: ISequence, sequenceDiffs: SequenceDiff[]): SequenceDiff[] {
 	let result = sequenceDiffs;
 	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
+	// Sometimes, calling this function twice improves the result.
+	// Uncomment the second invocation and run the tests to see the difference.
+	result = joinSequenceDiffsByShifting(sequence1, sequence2, result);
 	result = shiftSequenceDiffs(sequence1, sequence2, result);
 	return result;
 }
@@ -79,8 +82,8 @@ function joinSequenceDiffsByShifting(sequence1: ISequence, sequence2: ISequence,
 			let d;
 			for (d = 0; d < length; d++) {
 				if (
-					sequence1.getElement(cur.seq1Range.start + d) !== sequence1.getElement(cur.seq1Range.endExclusive + d) ||
-					sequence2.getElement(cur.seq2Range.start + d) !== sequence2.getElement(cur.seq2Range.endExclusive + d)
+					!sequence1.isStronglyEqual(cur.seq1Range.start + d, cur.seq1Range.endExclusive + d) ||
+					!sequence2.isStronglyEqual(cur.seq2Range.start + d, cur.seq2Range.endExclusive + d)
 				) {
 					break;
 				}

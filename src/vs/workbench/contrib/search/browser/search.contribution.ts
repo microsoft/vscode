@@ -56,7 +56,7 @@ const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: { value: nls.localize('name', "Search"), original: 'Search' },
+	title: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
@@ -66,7 +66,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
 	containerIcon: searchViewIcon,
-	name: nls.localize('search', "Search"),
+	name: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(SearchView),
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -93,7 +93,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 	) {
 		const data = configurationService.inspect('search.location');
 		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, 'search.location');
 		}
 		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);
@@ -202,7 +202,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.useGlobalIgnoreFiles': {
 			type: 'boolean',
-			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (e.g., from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
+			markdownDescription: nls.localize('useGlobalIgnoreFiles', "Controls whether to use your global gitignore file (for example, from `$HOME/.config/git/ignore`) when searching for files. Requires `#search.useIgnoreFiles#` to be enabled."),
 			default: false,
 			scope: ConfigurationScope.RESOURCE
 		},

@@ -26,10 +26,10 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IsWebContext } from 'vs/platform/contextkey/common/contextkeys';
-import { IExtensionUrlTrustService } from 'vs/platform/extensionManagement/common/extensionUrlTrust';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IProductService } from 'vs/platform/product/common/productService';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -121,7 +121,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IProgressService private readonly progressService: IProgressService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IExtensionUrlTrustService private readonly extensionUrlTrustService: IExtensionUrlTrustService
+		@IProductService private readonly productService: IProductService
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
@@ -166,7 +166,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 		}
 
 		const trusted = options?.trusted
-			|| (options?.originalUrl ? await this.extensionUrlTrustService.isExtensionUrlTrusted(extensionId, options.originalUrl) : false)
+			|| this.productService.trustedExtensionProtocolHandlers?.includes(extensionId)
 			|| this.didUserTrustExtension(ExtensionIdentifier.toKey(extensionId));
 
 		if (!trusted) {

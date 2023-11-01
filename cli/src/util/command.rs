@@ -57,7 +57,7 @@ where
 	I: IntoIterator<Item = S>,
 	S: AsRef<OsStr>,
 {
-	Command::new(&command_str)
+	new_tokio_command(&command_str)
 		.args(args)
 		.stdin(Stdio::null())
 		.stdout(Stdio::piped())
@@ -70,15 +70,64 @@ where
 		})
 }
 
+/// Makes a new Command, setting flags to avoid extra windows on win32
+#[cfg(windows)]
+pub fn new_tokio_command(exe: impl AsRef<OsStr>) -> Command {
+	let mut p = tokio::process::Command::new(exe);
+	p.creation_flags(winapi::um::winbase::CREATE_NO_WINDOW);
+	p
+}
+
+/// Makes a new Command, setting flags to avoid extra windows on win32
+#[cfg(not(windows))]
+pub fn new_tokio_command(exe: impl AsRef<OsStr>) -> Command {
+	tokio::process::Command::new(exe)
+}
+
+/// Makes a new command to run the target script. For windows, ensures it's run
+/// in a cmd.exe context.
+#[cfg(windows)]
+pub fn new_script_command(script: impl AsRef<OsStr>) -> Command {
+	let mut cmd = new_tokio_command("cmd");
+	cmd.arg("/Q");
+	cmd.arg("/C");
+	cmd.arg(script);
+	cmd
+}
+
+/// Makes a new command to run the target script. For windows, ensures it's run
+/// in a cmd.exe context.
+#[cfg(not(windows))]
+pub fn new_script_command(script: impl AsRef<OsStr>) -> Command {
+	new_tokio_command(script) // it's assumed scripts are already +x and don't need extra handling
+}
+
+/// Makes a new Command, setting flags to avoid extra windows on win32
+#[cfg(windows)]
+pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
+	let mut p = std::process::Command::new(exe);
+	std::os::windows::process::CommandExt::creation_flags(
+		&mut p,
+		winapi::um::winbase::CREATE_NO_WINDOW,
+	);
+	p
+}
+
+/// Makes a new Command, setting flags to avoid extra windows on win32
+#[cfg(not(windows))]
+pub fn new_std_command(exe: impl AsRef<OsStr>) -> std::process::Command {
+	std::process::Command::new(exe)
+}
+
 /// Kills and processes and all of its children.
-#[cfg(target_os = "windows")]
+#[cfg(windows)]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 	capture_command("taskkill", &["/t", "/pid", &process_id.to_string()]).await?;
 	Ok(())
 }
 
 /// Kills and processes and all of its children.
-#[cfg(not(target_os = "windows"))]
+#[cfg(not(windows))]
 pub async fn kill_tree(process_id: u32) -> Result<(), CodeError> {
 	use futures::future::join_all;
 	use tokio::io::{AsyncBufReadExt, BufReader};

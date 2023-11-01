@@ -28,7 +28,7 @@
 
 /* Breadcrumbs (inline next to single editor tab) */
 
-.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .no-tabs.title-label {
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .single-tab.title-label {
 	flex: none;
 }
 

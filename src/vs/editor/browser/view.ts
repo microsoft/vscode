@@ -432,7 +432,7 @@ export class View extends ViewEventHandler {
 
 	private _scheduleRender(): void {
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), 100);
+			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), dom.getWindow(this.domNode.domNode), 100);
 		}
 	}
 
@@ -457,7 +457,7 @@ export class View extends ViewEventHandler {
 	}
 
 	private _actualRender(): void {
-		if (!dom.isInDOM(this.domNode.domNode)) {
+		if (!this.domNode.domNode.isConnected) {
 			return;
 		}
 

@@ -194,9 +194,15 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			metadata.preRelease = true;
 		}
 		// unset if false
-		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
-		metadata.isBuiltin = metadata.isBuiltin || undefined;
-		metadata.pinned = metadata.pinned || undefined;
+		if (metadata.isMachineScoped === false) {
+			metadata.isMachineScoped = undefined;
+		}
+		if (metadata.isBuiltin === false) {
+			metadata.isBuiltin = undefined;
+		}
+		if (metadata.pinned === false) {
+			metadata.pinned = undefined;
+		}
 		local = await this.extensionsScanner.updateMetadata(local, metadata, profileLocation);
 		this.manifestCache.invalidate(profileLocation);
 		this._onDidUpdateExtensionMetadata.fire(local);
@@ -317,7 +323,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
 		if (removed) {
-			for (const identifier of removed.extensions) {
+			const removedExtensions = added && this.uriIdentityService.extUri.isEqual(removed.profileLocation, added.profileLocation)
+				? removed.extensions.filter(e => added.extensions.every(identifier => !areSameExtensions(identifier, e)))
+				: removed.extensions;
+			for (const identifier of removedExtensions) {
 				this.logService.info('Extensions removed from another source', identifier.id, removed.profileLocation.toString());
 				this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation });
 			}

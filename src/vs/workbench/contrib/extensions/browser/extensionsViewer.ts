@@ -279,7 +279,7 @@ export class ExtensionsTree extends WorkbenchAsyncDataTree<IExtensionData, IExte
 		this.setInput(input);
 
 		this.disposables.add(this.onDidChangeSelection(event => {
-			if (event.browserEvent && event.browserEvent instanceof KeyboardEvent) {
+			if (dom.isKeyboardEvent(event.browserEvent)) {
 				extensionsWorkdbenchService.open(event.elements[0].extension, { sideByside: false });
 			}
 		}));

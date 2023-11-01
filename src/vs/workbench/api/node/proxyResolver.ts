@@ -18,7 +18,7 @@ import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch } from '@vscode/proxy-agent';
 
-const systemCertificatesV2Default = true;
+const systemCertificatesV2Default = false;
 
 export function connectProxyResolver(
 	extHostWorkspace: IExtHostWorkspaceProvider,
