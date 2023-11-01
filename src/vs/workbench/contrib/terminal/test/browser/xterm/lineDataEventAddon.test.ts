@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { LineDataEventAddon } from 'vs/workbench/contrib/terminal/browser/xterm/lineDataEventAddon';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { deepStrictEqual } from 'assert';

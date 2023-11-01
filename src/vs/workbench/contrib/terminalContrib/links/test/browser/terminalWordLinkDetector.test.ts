@@ -13,7 +13,7 @@ import { ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contr
 import { TerminalWordLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalWordLinkDetector';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { TestProductService } from 'vs/workbench/test/common/workbenchTestServices';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 suite('Workbench - TerminalWordLinkDetector', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();

@@ -17,7 +17,7 @@ import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions 
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 export const enum ClassName {
 	Active = 'active',

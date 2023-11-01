@@ -13,7 +13,7 @@ import { TerminalUriLinkDetector } from 'vs/workbench/contrib/terminalContrib/li
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
 import { createFileStat } from 'vs/workbench/test/common/workbenchTestServices';
 import { URI } from 'vs/base/common/uri';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';

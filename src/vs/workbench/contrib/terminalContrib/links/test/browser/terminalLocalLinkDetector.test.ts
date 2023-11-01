@@ -12,7 +12,7 @@ import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/li
 import { TerminalLocalLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLocalLinkDetector';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';

@@ -13,7 +13,7 @@ import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/termin
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
