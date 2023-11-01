@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -44,8 +44,8 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 		this._lastHoverOptions = options;
-		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
 		const activeElement = getActiveElement();
+		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
 		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
 			if (trapFocus && activeElement) {
@@ -55,10 +55,13 @@ export class HoverService implements IHoverService {
 			}
 		}
 		const hoverDisposables = new DisposableStore();
+		const hoverFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode!);
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		hover.onDispose(() => {
-			// Required to handle cases such as closing the hover with the escape key
-			this._lastFocusedElementBeforeOpen?.focus();
+			if (hoverFocused) {
+				// Required to handle cases such as closing the hover with the escape key
+				this._lastFocusedElementBeforeOpen?.focus();
+			}
 
 			// Only clear the current options if it's the current hover, the current options help
 			// reduce flickering when the same hover is shown multiple times
