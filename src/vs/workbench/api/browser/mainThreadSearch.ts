@@ -5,7 +5,7 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { UriComponents } from 'vs/base/common/uri';
+import { URI, UriComponents } from 'vs/base/common/uri';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -159,6 +159,14 @@ class RemoteSearchProvider implements ISearchResultProvider, IDisposable {
 			return;
 		}
 
-		dataOrUri.forEach(result => searchOp.addMatch(revive((<IRawFileMatch2>result))));
+		dataOrUri.forEach(result => {
+			if ((<IRawFileMatch2>result).results) {
+				searchOp.addMatch(revive((<IRawFileMatch2>result)));
+			} else {
+				searchOp.addMatch({
+					resource: URI.revive(<UriComponents>result)
+				});
+			}
+		});
 	}
 }
