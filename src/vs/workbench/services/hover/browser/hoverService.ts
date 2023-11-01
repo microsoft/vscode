@@ -46,8 +46,8 @@ export class HoverService implements IHoverService {
 		}
 		this._currentHoverOptions = options;
 		this._lastHoverOptions = options;
-		const activeElement = getActiveElement();
 		const trapFocus = options.trapFocus || this._accessibilityService.isScreenReaderOptimized();
+		const activeElement = getActiveElement();
 		// HACK, remove this check when #189076 is fixed
 		if (!skipLastFocusedUpdate) {
 			if (trapFocus && activeElement) {
@@ -57,10 +57,10 @@ export class HoverService implements IHoverService {
 			}
 		}
 		const hoverDisposables = new DisposableStore();
-		const hoverFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode!);
+		const hoverWasFocused = this._currentHover?.domNode && isAncestorOfActiveElement(this._currentHover.domNode!);
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
 		hover.onDispose(() => {
-			if (hoverFocused) {
+			if (hoverWasFocused) {
 				// Required to handle cases such as closing the hover with the escape key
 				this._lastFocusedElementBeforeOpen?.focus();
 			}
