@@ -201,8 +201,8 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return true;
 	}
 
-	async focus(window: Window): Promise<void> {
-		window.focus();
+	async focus(targetWindow: Window): Promise<void> {
+		targetWindow.focus();
 	}
 
 	//#endregion
@@ -505,7 +505,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async moveTop(window: Window): Promise<void> {
+	async moveTop(targetWindow: Window): Promise<void> {
 		// There seems to be no API to bring a window to front in browsers
 	}
 
