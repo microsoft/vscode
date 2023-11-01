@@ -28,7 +28,9 @@ export const DEFAULT_EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFIN
 export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: 'multiple',
 	highlightModifiedTabs: false,
-	tabCloseButton: 'right',
+	tabActionLocation: 'right',
+	tabActionCloseVisibility: true,
+	tabActionUnpinVisibility: true,
 	tabSizing: 'fit',
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
@@ -103,6 +105,8 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 		'wrapTabs',
 		'scrollToSwitchTabs',
 		'highlightModifiedTabs',
+		'tabActionCloseVisibility',
+		'tabActionUnpinVisibility',
 		'pinnedTabsOnSeparateRow',
 		'focusRecentEditorAfterClose',
 		'showIcons',
@@ -137,7 +141,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): void {
 	// String options
 	const stringOptions: Array<[OptionalStringKey<IEditorPartOptions>, Array<string>]> = [
 		['showTabs', ['multiple', 'single', 'none']],
-		['tabCloseButton', ['left', 'right', 'off']],
+		['tabActionLocation', ['left', 'right']],
 		['tabSizing', ['fit', 'shrink', 'fixed']],
 		['pinnedTabSizing', ['normal', 'compact', 'shrink']],
 		['tabHeight', ['default', 'compact']],
