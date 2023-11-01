@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-QA1gXilHYAUFCvp7MpjgcmyBCFzSKV0SpiecMU8aUVc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-Ne5nVg2ZDLxLh1eqzYd1sGbOz022xlokwv+X6+HR1hw=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -122,7 +122,12 @@
 			}
 
 			code {
+				font-family: var(--monaco-monospace-font);
 				color: var(--vscode-textPreformat-foreground);
+				font-size: 12px;
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
 			}
 
 			blockquote {
