@@ -20,7 +20,8 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { INotebookFileMatchNoModel, reviveINotebookCellMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { revive } from 'vs/base/common/marshalling';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -100,7 +101,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					const resource = URI.revive(result.resource);
 					return {
 						resource,
-						cellResults: result.cellResults.map(e => reviveINotebookCellMatchNoModel(e))
+						cellResults: result.cellResults.map(e => revive(e))
 					};
 				});
 				return { results: revivedResults, limitHit: searchComplete.limitHit };

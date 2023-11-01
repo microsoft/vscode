@@ -1786,7 +1786,6 @@ export interface ExtHostSearchShape {
 	$provideFileSearchResults(handle: number, session: number, query: search.IRawQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$provideTextSearchResults(handle: number, session: number, query: search.IRawTextQuery, token: CancellationToken): Promise<search.ISearchCompleteStats>;
 	$clearCache(cacheKey: string): Promise<void>;
-	$doInternalFileSearchWithCustomCallback(query: search.IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<search.ISearchCompleteStats>;
 }
 
 export interface ExtHostExtensionServiceShape {

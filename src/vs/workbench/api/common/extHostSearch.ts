@@ -19,6 +19,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 export interface IExtHostSearch extends ExtHostSearchShape {
 	registerTextSearchProvider(scheme: string, provider: vscode.TextSearchProvider): IDisposable;
 	registerFileSearchProvider(scheme: string, provider: vscode.FileSearchProvider): IDisposable;
+	doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<ISearchCompleteStats>;
 }
 
 export const IExtHostSearch = createDecorator<IExtHostSearch>('IExtHostSearch');
@@ -89,10 +90,8 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		}
 	}
 
-	$doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<ISearchCompleteStats> {
-		return Promise.resolve({
-			messages: []
-		});
+	async doInternalFileSearchWithCustomCallback(query: IFileQuery, token: CancellationToken, handleFileMatch: (data: UriComponents[]) => void): Promise<ISearchCompleteStats> {
+		return { messages: [] };
 	}
 
 	$clearCache(cacheKey: string): Promise<void> {

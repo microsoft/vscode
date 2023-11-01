@@ -403,7 +403,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 					folderQueries: textQuery.folderQueries,
 					maxResults: textQuery.maxResults,
 				};
-				return this._extHostSearch.$doInternalFileSearchWithCustomCallback(query, token, (data) => {
+				return this._extHostSearch.doInternalFileSearchWithCustomCallback(query, token, (data) => {
 					data.forEach(e => {
 						uris.add(URI.revive(e));
 					});

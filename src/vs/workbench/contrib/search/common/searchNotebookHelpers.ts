@@ -25,24 +25,6 @@ export function isINotebookFileMatchNoModel(object: IFileMatch): object is INote
 	return 'cellResults' in object;
 }
 
-export function reviveINotebookCellMatchNoModel(cellMatch: INotebookCellMatchNoModel<UriComponents>): INotebookCellMatchNoModel<URI> {
-	return {
-		index: cellMatch.index,
-		contentResults: cellMatch.contentResults.map(e => {
-			return {
-				...e,
-				...{ uri: URI.revive(e.uri) }
-			};
-		}),
-		webviewResults: cellMatch.webviewResults.map(e => {
-			return {
-				...e,
-				...{ uri: URI.revive(e.uri) }
-			};
-		})
-	};
-}
-
 export const rawCellPrefix = 'rawCell#';
 
 export function genericCellMatchesToTextSearchMatches(contentMatches: FindMatch[], buffer: IReadonlyTextBuffer) {
