@@ -1124,6 +1124,7 @@ class ViewModel {
 		this.sortKey = this.getViewModelSortKey();
 
 		this._updateChildren();
+		this._onDidActiveEditorChange();
 		this._onDidChangeMode.fire(mode);
 		this.modeContextKey.set(mode);
 
@@ -1156,8 +1157,7 @@ class ViewModel {
 	private items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
 	private scrollTop: number | undefined;
-	private firstVisible = true;
-	private readonly updateChildrenSequencer = new Sequencer();
+	private readonly asyncOperationSequencer = new Sequencer();
 	private readonly disposables = new DisposableStore();
 
 	private modeContextKey: IContextKey<ViewModelMode>;
@@ -1242,8 +1242,11 @@ class ViewModel {
 			const repositoryDisposables = new DisposableStore();
 
 			repositoryDisposables.add(repository.provider.onDidChange(() => this._updateChildren()));
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => this._updateChildren()));
 			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this._updateChildren()));
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => {
+				this._updateChildren();
+				this._onDidActiveEditorChange();
+			}));
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
 
@@ -1259,7 +1262,10 @@ class ViewModel {
 						const disposableStore = new DisposableStore();
 
 						disposableStore.add(resourceGroup.onDidChange(() => this._updateChildren()));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => this._updateChildren()));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => {
+							this._updateChildren();
+							this._onDidActiveEditorChange();
+						}));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
 					}
 				}
@@ -1277,6 +1283,7 @@ class ViewModel {
 		}
 
 		this._updateChildren();
+		this._onDidActiveEditorChange();
 	}
 
 	setVisible(visible: boolean): void {
@@ -1289,8 +1296,8 @@ class ViewModel {
 				this.scrollTop = undefined;
 			}
 
-			this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
-			this.onDidActiveEditorChange();
+			this.editorService.onDidActiveEditorChange(this._onDidActiveEditorChange, this, this.visibilityDisposables);
+			this._onDidActiveEditorChange();
 		} else {
 			this.visibilityDisposables.clear();
 			this._onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
@@ -1307,7 +1314,7 @@ class ViewModel {
 			return;
 		}
 
-		this.updateChildrenSequencer.queue(async () => {
+		this.asyncOperationSequencer.queue(async () => {
 			this.updateRepositoryContextKeys();
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
@@ -1321,14 +1328,8 @@ class ViewModel {
 		});
 	}
 
-	private onDidActiveEditorChange(): void {
+	private _onDidActiveEditorChange(): void {
 		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
-			return;
-		}
-
-		if (this.firstVisible) {
-			this.firstVisible = false;
-			this.visibilityDisposables.add(disposableTimeout(() => this.onDidActiveEditorChange(), 250));
 			return;
 		}
 
@@ -1338,28 +1339,30 @@ class ViewModel {
 			return;
 		}
 
-		for (const repository of this.scmViewService.visibleRepositories) {
-			const item = this.items.get(repository);
+		this.asyncOperationSequencer.queue(async () => {
+			for (const repository of this.scmViewService.visibleRepositories) {
+				const item = this.items.get(repository);
 
-			if (!item) {
-				continue;
-			}
+				if (!item) {
+					continue;
+				}
 
-			// go backwards from last group
-			for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
-				const groupItem = repository.provider.groups[j];
-				const resource = this.mode === ViewModelMode.Tree
-					? groupItem.resourceTree.getNode(uri)?.element
-					: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+				// go backwards from last group
+				for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
+					const groupItem = repository.provider.groups[j];
+					const resource = this.mode === ViewModelMode.Tree
+						? groupItem.resourceTree.getNode(uri)
+						: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
-				if (resource) {
-					this.tree.reveal(resource);
-					this.tree.setSelection([resource]);
-					this.tree.setFocus([resource]);
-					return;
+					if (resource) {
+						this.tree.reveal(resource);
+						this.tree.setSelection([resource]);
+						this.tree.setFocus([resource]);
+						return;
+					}
 				}
 			}
-		}
+		});
 	}
 
 	focus() {
