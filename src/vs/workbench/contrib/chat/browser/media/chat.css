@@ -525,7 +525,7 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list,
+.interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
