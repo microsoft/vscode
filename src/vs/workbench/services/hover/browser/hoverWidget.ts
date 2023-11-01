@@ -59,6 +59,13 @@ export class HoverWidget extends Widget {
 	private _enableFocusTraps: boolean = false;
 	private _addedFocusTrap: boolean = false;
 
+	private get _targetWindow(): Window {
+		return this._target.targetElements?.[0].ownerDocument.defaultView || window;
+	}
+	private get _targetDocumentElement(): HTMLElement {
+		return this._target.targetElements?.[0].ownerDocument.documentElement;
+	}
+
 	get isDisposed(): boolean { return this._isDisposed; }
 	get isMouseIn(): boolean { return this._lockMouseTracker.isMouseIn; }
 	get domNode(): HTMLElement { return this._hover.containerDomNode; }
@@ -134,7 +141,7 @@ export class HoverWidget extends Widget {
 		});
 
 		// Hide when the window loses focus
-		this._register(dom.addDisposableListener(window, 'blur', () => this.dispose()));
+		this._register(dom.addDisposableListener(this._targetWindow, 'blur', () => this.dispose()));
 
 		const rowElement = $('div.hover-row.markdown-hover');
 		const contentsElement = $('div.hover-contents');
@@ -416,14 +423,14 @@ export class HoverWidget extends Widget {
 			}
 
 			// Hover is going beyond window towards right end
-			if (this._x + hoverWidth >= document.documentElement.clientWidth) {
+			if (this._x + hoverWidth >= this._targetDocumentElement.clientWidth) {
 				this._hover.containerDomNode.classList.add('right-aligned');
-				this._x = Math.max(document.documentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, document.documentElement.clientLeft);
+				this._x = Math.max(this._targetDocumentElement.clientWidth - hoverWidth - Constants.HoverWindowEdgeMargin, this._targetDocumentElement.clientLeft);
 			}
 		}
 
 		// Hover is going beyond window towards left end
-		if (this._x < document.documentElement.clientLeft) {
+		if (this._x < this._targetDocumentElement.clientLeft) {
 			this._x = target.left + Constants.HoverWindowEdgeMargin;
 		}
 
@@ -451,7 +458,7 @@ export class HoverWidget extends Widget {
 		}
 
 		// Hover on bottom is going beyond window
-		if (this._y > window.innerHeight) {
+		if (this._y > this._targetWindow.innerHeight) {
 			this._y = target.bottom;
 		}
 	}
@@ -466,7 +473,7 @@ export class HoverWidget extends Widget {
 		if (this._forcePosition) {
 			const padding = (this._hoverPointer ? Constants.PointerSize : 0) + Constants.HoverBorderWidth;
 			if (this._hoverPosition === HoverPosition.RIGHT) {
-				this._hover.containerDomNode.style.maxWidth = `${document.documentElement.clientWidth - target.right - padding}px`;
+				this._hover.containerDomNode.style.maxWidth = `${this._targetDocumentElement.clientWidth - target.right - padding}px`;
 			} else if (this._hoverPosition === HoverPosition.LEFT) {
 				this._hover.containerDomNode.style.maxWidth = `${target.left - padding}px`;
 			}
@@ -475,7 +482,7 @@ export class HoverWidget extends Widget {
 
 		// Position hover on right to target
 		if (this._hoverPosition === HoverPosition.RIGHT) {
-			const roomOnRight = document.documentElement.clientWidth - target.right;
+			const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 			// Hover on the right is going beyond window.
 			if (roomOnRight < this._hover.containerDomNode.clientWidth) {
 				const roomOnLeft = target.left;
@@ -495,7 +502,7 @@ export class HoverWidget extends Widget {
 			const roomOnLeft = target.left;
 			// Hover on the left is going beyond window.
 			if (roomOnLeft < this._hover.containerDomNode.clientWidth) {
-				const roomOnRight = document.documentElement.clientWidth - target.right;
+				const roomOnRight = this._targetDocumentElement.clientWidth - target.right;
 				// There's enough room on the right, flip the hover position
 				if (roomOnRight >= this._hover.containerDomNode.clientWidth) {
 					this._hoverPosition = HoverPosition.RIGHT;
@@ -506,7 +513,7 @@ export class HoverWidget extends Widget {
 				}
 			}
 			// Hover on the left is going beyond window.
-			if (target.left - this._hover.containerDomNode.clientWidth <= document.documentElement.clientLeft) {
+			if (target.left - this._hover.containerDomNode.clientWidth <= this._targetDocumentElement.clientLeft) {
 				this._hoverPosition = HoverPosition.RIGHT;
 			}
 		}
@@ -530,14 +537,14 @@ export class HoverWidget extends Widget {
 		// Position hover below the target
 		else if (this._hoverPosition === HoverPosition.BELOW) {
 			// Hover on bottom is going beyond window
-			if (target.bottom + this._hover.containerDomNode.clientHeight > window.innerHeight) {
+			if (target.bottom + this._hover.containerDomNode.clientHeight > this._targetWindow.innerHeight) {
 				this._hoverPosition = HoverPosition.ABOVE;
 			}
 		}
 	}
 
 	private adjustHoverMaxHeight(target: TargetRect): void {
-		let maxHeight = window.innerHeight / 2;
+		let maxHeight = this._targetWindow.innerHeight / 2;
 
 		// When force position is enabled, restrict max height
 		if (this._forcePosition) {
@@ -545,7 +552,7 @@ export class HoverWidget extends Widget {
 			if (this._hoverPosition === HoverPosition.ABOVE) {
 				maxHeight = Math.min(maxHeight, target.top - padding);
 			} else if (this._hoverPosition === HoverPosition.BELOW) {
-				maxHeight = Math.min(maxHeight, window.innerHeight - target.bottom - padding);
+				maxHeight = Math.min(maxHeight, this._targetWindow.innerHeight - target.bottom - padding);
 			}
 		}
 

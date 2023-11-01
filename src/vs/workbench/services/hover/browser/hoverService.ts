@@ -18,6 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -33,12 +34,13 @@ export class HoverService implements IHoverService {
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
 		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
-	showHover(options: Readonly<IHoverOptions>, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
+	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
@@ -67,6 +69,11 @@ export class HoverService implements IHoverService {
 			}
 			hoverDisposables.dispose();
 		});
+		// Set the container explicitly to enable aux window support
+		if (!options.container) {
+			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
+			options.container = this._layoutService.getContainer(targetElement.ownerDocument.defaultView || window);
+		}
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(
 			new HoverContextViewDelegate(hover, focus),
