@@ -1221,10 +1221,8 @@ class ViewModel {
 			}
 		}));
 
-		this.tree.setInput(this.scmViewService, this.loadTreeViewState()).then(() => {
-			configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-			this.onDidChangeConfiguration();
-		});
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
 	}
 
 	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
@@ -1284,6 +1282,10 @@ class ViewModel {
 
 		this._updateChildren();
 		this._onDidActiveEditorChange();
+	}
+
+	setInput(): void {
+		this.tree.setInput(this.scmViewService, this.loadTreeViewState());
 	}
 
 	setVisible(visible: boolean): void {
@@ -2301,6 +2303,7 @@ export class SCMViewPane extends ViewPane {
 		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
 
 		this._viewModel = this._register(this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer));
+		this._viewModel.setInput();
 
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
