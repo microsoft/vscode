@@ -461,8 +461,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return prompt;
 		}
 
-		//allow-any-unicode-next-line
-		const customMatch = lineText.match(/.*❯(?=[^❯]*$)/g);
+		// Custom prompts like starship end in the common \u276f character
+		const customMatch = lineText.match(/.*\u276f(?=[^\u276f]*$)/g);
 		if (customMatch) {
 			return customMatch[0];
 		}
