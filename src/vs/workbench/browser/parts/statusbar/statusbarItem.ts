@@ -121,6 +121,7 @@ export class StatusbarEntryItem extends Disposable {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
 		}
+		addDisposableListener(this.labelContainer, EventType.FOCUS, () => this.hover?.show(false));
 
 		// Update: Command
 		if (!this.entry || entry.command !== this.entry.command) {
@@ -138,6 +139,10 @@ export class StatusbarEntryItem extends Disposable {
 						EventHelper.stop(e);
 
 						this.executeCommand(command);
+					} else if (event.equals(KeyCode.Escape) || event.equals(KeyCode.LeftArrow) || event.equals(KeyCode.RightArrow)) {
+						EventHelper.stop(e);
+
+						this.hover?.hide();
 					}
 				});
 
