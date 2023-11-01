@@ -33,9 +33,9 @@ import { IExtHostConsumerFileSystem } from 'vs/workbench/api/common/extHostFileS
 import { filter } from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { IFileQuery, ITextQuery, QueryType } from 'vs/workbench/services/search/common/search';
-import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { IExtHostSearch } from 'vs/workbench/api/common/extHostSearch';
 import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
+import { INotebookCellMatchNoModel, INotebookFileMatchNoModel, IRawClosedNotebookFileMatch, genericCellMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 
 export class ExtHostNotebookController implements ExtHostNotebookShape {
 	private static _notebookStatusBarItemProviderHandlePool: number = 0;
@@ -398,10 +398,8 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 			const uris = new ResourceSet();
 			await Promise.all(includes.map(include => {
 				const query: IFileQuery = {
-					type: QueryType.File,
-					filePattern: include,
-					folderQueries: textQuery.folderQueries,
-					maxResults: textQuery.maxResults,
+					...textQuery,
+					...{ type: QueryType.File, filePattern: include }
 				};
 				return this._extHostSearch.doInternalFileSearchWithCustomCallback(query, token, (data) => {
 					data.forEach(e => uris.add(e));
