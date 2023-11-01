@@ -279,15 +279,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const observeActiveEditor = () => {
 			activeEditorListener.clear();
 
-			const activeEditor = this.model.activeEditor;
-			if (activeEditor) {
-				this.groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-				activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
+			this.scopedContextKeyService.bufferChangeEvents(() => {
+				const activeEditor = this.activeEditor;
+
+				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
+
+				applyAvailableEditorIds(this.groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
+
+				this.groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+				this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
+
+				if (activeEditor) {
 					this.groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
-				});
-			} else {
-				this.groupActiveEditorDirtyContext.set(false);
-			}
+					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
+						this.groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+					});
+				} else {
+					this.groupActiveEditorDirtyContext.set(false);
+				}
+			});
 		};
 
 		// Update group contexts based on group changes
@@ -1926,18 +1936,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Dispose previous listeners
 		this.editorToolBarMenuDisposables.clear();
-
-		// Update contexts
-		this.scopedContextKeyService.bufferChangeEvents(() => {
-			const activeEditor = this.activeEditor;
-
-			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
-
-			applyAvailableEditorIds(this.groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
-
-			this.groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
-		});
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
