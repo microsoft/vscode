@@ -35,7 +35,7 @@ import { Iterable } from 'vs/base/common/iterator';
 import { ICompressedTreeNode, ICompressedTreeElement } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { URI } from 'vs/base/common/uri';
 import { FileKind } from 'vs/platform/files/common/files';
-import { compareFileNames, comparePaths } from 'vs/base/common/comparers';
+import { compareFileExtensions, compareFileNames, comparePaths } from 'vs/base/common/comparers';
 import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
@@ -767,6 +767,14 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
 		// List
 		if (this.viewModel.mode === ViewModelMode.List) {
+			// Extension
+			if (this.viewModel.sortKey === ViewModelSortKey.Extension) {
+				const oneName = basename((one as ISCMResource).sourceUri);
+				const otherName = basename((other as ISCMResource).sourceUri);
+
+				return compareFileExtensions(oneName, otherName);
+			}
+
 			// FileName
 			if (this.viewModel.sortKey === ViewModelSortKey.Name) {
 				const oneName = basename((one as ISCMResource).sourceUri);
@@ -969,7 +977,8 @@ const enum ViewModelMode {
 const enum ViewModelSortKey {
 	Path = 'path',
 	Name = 'name',
-	Status = 'status'
+	Status = 'status',
+	Extension = 'extension'
 }
 
 const Menus = {
@@ -1566,10 +1575,13 @@ class ViewModel {
 
 		// List
 		let viewSortKey: ViewModelSortKey;
-		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'extension' | 'name' | 'status'>('scm.defaultViewSortKey');
 		switch (viewSortKeyString) {
 			case 'name':
 				viewSortKey = ViewModelSortKey.Name;
+				break;
+			case 'extension':
+				viewSortKey = ViewModelSortKey.Extension;
 				break;
 			case 'status':
 				viewSortKey = ViewModelSortKey.Status;
@@ -1732,6 +1744,12 @@ class SetSortByNameAction extends SetSortKeyAction {
 	}
 }
 
+class SetSortByExtensionAction extends SetSortKeyAction {
+	constructor() {
+		super(ViewModelSortKey.Extension, localize('sortChangesByExtension', "Sort Changes by Extension"));
+	}
+}
+
 class SetSortByPathAction extends SetSortKeyAction {
 	constructor() {
 		super(ViewModelSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
@@ -1745,6 +1763,7 @@ class SetSortByStatusAction extends SetSortKeyAction {
 }
 
 registerAction2(SetSortByNameAction);
+registerAction2(SetSortByExtensionAction);
 registerAction2(SetSortByPathAction);
 registerAction2(SetSortByStatusAction);
 
