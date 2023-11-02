@@ -121,15 +121,39 @@ abstract class Verifier<T> implements IVerifier<T> {
 		return value;
 	}
 
-	protected isType(value: unknown): value is T {
-		return (value as T) !== undefined;
+	protected abstract isType(value: unknown): value is T;
+}
+
+class BooleanVerifier extends Verifier<boolean> {
+	protected isType(value: unknown): value is boolean {
+		return typeof value === 'boolean';
 	}
 }
 
-class BooleanVerifier extends Verifier<boolean> { }
-class NumberVerifier extends Verifier<number> { }
-class EnumVerifier<T> extends Verifier<T> { }
-class SetVerifier<T> extends Verifier<Set<T>> { }
+class NumberVerifier extends Verifier<number> {
+	protected isType(value: unknown): value is number {
+		return typeof value === 'number';
+	}
+}
+
+class SetVerifier<T> extends Verifier<Set<T>> {
+	protected isType(value: unknown): value is Set<T> {
+		return value instanceof Set;
+	}
+}
+
+class EnumVerifier<T> extends Verifier<T> {
+	private readonly allowedValues: ReadonlyArray<T>;
+
+	constructor(defaultValue: T, allowedValues: ReadonlyArray<T>) {
+		super(defaultValue);
+		this.allowedValues = allowedValues;
+	}
+
+	protected isType(value: unknown): value is T {
+		return this.allowedValues.includes(value as T);
+	}
+}
 
 class ObjectVerifier<T extends Object> extends Verifier<T> {
 
@@ -138,10 +162,14 @@ class ObjectVerifier<T extends Object> extends Verifier<T> {
 	}
 
 	override verify(value: unknown): T {
-		if (!isObject(value)) {
+		if (!this.isType(value)) {
 			return this.defaultValue;
 		}
 		return verifyObject<T>(this.verifier, value);
+	}
+
+	protected isType(value: unknown): value is T {
+		return isObject(value);
 	}
 }
 
@@ -189,22 +217,22 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'restoreViewState': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['restoreViewState']),
 		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
 		'centeredLayoutFixedWidth': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['centeredLayoutFixedWidth']),
-		'hasIcons': new BooleanVerifier(true),
+		'hasIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['hasIcons']),
 		'tabSizingFixedMinWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMinWidth']),
 		'tabSizingFixedMaxWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMaxWidth']),
-		'showTabs': new EnumVerifier<'multiple' | 'single' | 'none'>(DEFAULT_EDITOR_PART_OPTIONS['showTabs']),
-		'tabActionLocation': new EnumVerifier<'left' | 'right'>(DEFAULT_EDITOR_PART_OPTIONS['tabActionLocation']),
-		'tabSizing': new EnumVerifier<'fit' | 'shrink' | 'fixed'>(DEFAULT_EDITOR_PART_OPTIONS['tabSizing']),
-		'pinnedTabSizing': new EnumVerifier<'normal' | 'compact' | 'shrink'>(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabSizing']),
-		'tabHeight': new EnumVerifier<'default' | 'compact'>(DEFAULT_EDITOR_PART_OPTIONS['tabHeight']),
-		'preventPinnedEditorClose': new EnumVerifier<'keyboardAndMouse' | 'keyboard' | 'mouse' | 'never'>(DEFAULT_EDITOR_PART_OPTIONS['preventPinnedEditorClose']),
-		'titleScrollbarSizing': new EnumVerifier<'default' | 'large'>(DEFAULT_EDITOR_PART_OPTIONS['titleScrollbarSizing']),
-		'openPositioning': new EnumVerifier<'left' | 'right' | 'first' | 'last'>(DEFAULT_EDITOR_PART_OPTIONS['openPositioning']),
-		'openSideBySideDirection': new EnumVerifier<'right' | 'down'>(DEFAULT_EDITOR_PART_OPTIONS['openSideBySideDirection']),
-		'labelFormat': new EnumVerifier<'default' | 'short' | 'medium' | 'long'>(DEFAULT_EDITOR_PART_OPTIONS['labelFormat']),
-		'splitInGroupLayout': new EnumVerifier<'vertical' | 'horizontal'>(DEFAULT_EDITOR_PART_OPTIONS['splitInGroupLayout']),
-		'splitSizing': new EnumVerifier<'distribute' | 'split' | 'auto'>(DEFAULT_EDITOR_PART_OPTIONS['splitSizing']),
-		'doubleClickTabToToggleEditorGroupSizes': new EnumVerifier<'maximize' | 'expand' | 'off'>(DEFAULT_EDITOR_PART_OPTIONS['doubleClickTabToToggleEditorGroupSizes']),
+		'showTabs': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabs'], ['multiple', 'single', 'none']),
+		'tabActionLocation': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionLocation'], ['left', 'right']),
+		'tabSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizing'], ['fit', 'shrink', 'fixed']),
+		'pinnedTabSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabSizing'], ['normal', 'compact', 'shrink']),
+		'tabHeight': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabHeight'], ['default', 'compact']),
+		'preventPinnedEditorClose': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['preventPinnedEditorClose'], ['keyboardAndMouse', 'keyboard', 'mouse', 'never']),
+		'titleScrollbarSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['titleScrollbarSizing'], ['default', 'large']),
+		'openPositioning': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['openPositioning'], ['left', 'right', 'first', 'last']),
+		'openSideBySideDirection': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['openSideBySideDirection'], ['right', 'down']),
+		'labelFormat': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['labelFormat'], ['default', 'short', 'medium', 'long']),
+		'splitInGroupLayout': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitInGroupLayout'], ['vertical', 'horizontal']),
+		'splitSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitSizing'], ['distribute', 'split', 'auto']),
+		'doubleClickTabToToggleEditorGroupSizes': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['doubleClickTabToToggleEditorGroupSizes'], ['maximize', 'expand', 'off']),
 		'autoLockGroups': new SetVerifier<string>(DEFAULT_EDITOR_PART_OPTIONS['autoLockGroups']),
 
 		'limit': new ObjectVerifier<IEditorPartLimitOptions>(DEFAULT_EDITOR_PART_OPTIONS['limit'], {
