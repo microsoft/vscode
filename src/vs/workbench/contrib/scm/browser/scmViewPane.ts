@@ -25,7 +25,7 @@ import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer, Sequencer } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
@@ -39,8 +39,7 @@ import { FuzzyScore, createMatches, IMatch } from 'vs/base/common/filters';
 import { IViewDescriptorService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { localize } from 'vs/nls';
 import { flatten } from 'vs/base/common/arrays';
-import { memoize } from 'vs/base/common/decorators';
-import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { SIDE_BAR_BACKGROUND, PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
@@ -459,7 +458,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 	private renderedResources = new Map<ResourceTemplate, RenderedResourceData>();
 
 	constructor(
-		private viewModelProvider: () => ViewModel,
+		private viewMode: () => ViewMode,
 		private labels: ResourceLabels,
 		private actionViewItemProvider: IActionViewItemProvider,
 		private actionRunner: ActionRunner,
@@ -492,8 +491,8 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		const iconResource = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.element : resourceOrFolder;
 		const uri = ResourceTree.isResourceNode(resourceOrFolder) ? resourceOrFolder.uri : resourceOrFolder.sourceUri;
 		const fileKind = ResourceTree.isResourceNode(resourceOrFolder) ? FileKind.FOLDER : FileKind.FILE;
-		const viewModel = this.viewModelProvider();
 		const tooltip = !ResourceTree.isResourceNode(resourceOrFolder) && resourceOrFolder.decorations.tooltip || '';
+		const hidePath = this.viewMode() === ViewMode.Tree;
 
 		let matches: IMatch[] | undefined;
 		let descriptionMatches: IMatch[] | undefined;
@@ -523,16 +522,7 @@ class ResourceRenderer implements ICompressibleTreeRenderer<ISCMResource | IReso
 		}
 
 		const renderedData: RenderedResourceData = {
-			tooltip,
-			uri,
-			fileLabelOptions: {
-				hidePath: viewModel.mode === ViewModelMode.Tree,
-				fileKind,
-				matches,
-				descriptionMatches,
-				strikethrough
-			},
-			iconResource
+			tooltip, uri, fileLabelOptions: { hidePath, fileKind, matches, descriptionMatches, strikethrough }, iconResource
 		};
 
 		this.renderIcon(template, renderedData);
@@ -743,10 +733,9 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 
 export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 
-	@memoize
-	private get viewModel(): ViewModel { return this.viewModelProvider(); }
-
-	constructor(private viewModelProvider: () => ViewModel) { }
+	constructor(
+		private readonly viewMode: () => ViewMode,
+		private readonly viewSortKey: () => ViewSortKey) { }
 
 	compare(one: TreeElement, other: TreeElement): number {
 		if (isSCMRepository(one)) {
@@ -778,9 +767,9 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		// List
-		if (this.viewModel.mode === ViewModelMode.List) {
+		if (this.viewMode() === ViewMode.List) {
 			// FileName
-			if (this.viewModel.sortKey === ViewModelSortKey.Name) {
+			if (this.viewSortKey() === ViewSortKey.Name) {
 				const oneName = basename((one as ISCMResource).sourceUri);
 				const otherName = basename((other as ISCMResource).sourceUri);
 
@@ -788,7 +777,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			}
 
 			// Status
-			if (this.viewModel.sortKey === ViewModelSortKey.Status) {
+			if (this.viewSortKey() === ViewSortKey.Status) {
 				const oneTooltip = (one as ISCMResource).decorations.tooltip ?? '';
 				const otherTooltip = (other as ISCMResource).decorations.tooltip ?? '';
 
@@ -822,7 +811,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyboardNavigationLabelProvider<TreeElement> {
 
 	constructor(
-		private viewModelProvider: () => ViewModel,
+		private viewMode: () => ViewMode,
 		@ILabelService private readonly labelService: ILabelService,
 	) { }
 
@@ -834,8 +823,7 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 		} else if (isSCMResourceGroup(element)) {
 			return element.label;
 		} else {
-			const viewModel = this.viewModelProvider();
-			if (viewModel.mode === ViewModelMode.List) {
+			if (this.viewMode() === ViewMode.List) {
 				// In List mode match using the file name and the path.
 				// Since we want to match both on the file name and the
 				// full path we return an array of labels. A match in the
@@ -939,12 +927,12 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 	}
 }
 
-const enum ViewModelMode {
+const enum ViewMode {
 	List = 'list',
 	Tree = 'tree'
 }
 
-const enum ViewModelSortKey {
+const enum ViewSortKey {
 	Path = 'path',
 	Name = 'name',
 	Status = 'status'
@@ -956,10 +944,10 @@ const Menus = {
 };
 
 const ContextKeys = {
-	ViewModelMode: new RawContextKey<ViewModelMode>('scmViewModelMode', ViewModelMode.List),
-	ViewModelSortKey: new RawContextKey<ViewModelSortKey>('scmViewModelSortKey', ViewModelSortKey.Path),
-	ViewModelAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewModelAreAllRepositoriesCollapsed', false),
-	ViewModelIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewModelIsAnyRepositoryCollapsible', false),
+	SCMViewMode: new RawContextKey<ViewMode>('scmViewMode', ViewMode.List),
+	SCMViewSortKey: new RawContextKey<ViewSortKey>('scmViewSortKey', ViewSortKey.Path),
+	SCMViewAreAllRepositoriesCollapsed: new RawContextKey<boolean>('scmViewAreAllRepositoriesCollapsed', false),
+	SCMViewIsAnyRepositoryCollapsible: new RawContextKey<boolean>('scmViewIsAnyRepositoryCollapsible', false),
 	SCMProvider: new RawContextKey<string | undefined>('scmProvider', undefined),
 	SCMProviderRootUri: new RawContextKey<string | undefined>('scmProviderRootUri', undefined),
 	SCMProviderHasRootUri: new RawContextKey<boolean>('scmProviderHasRootUri', undefined),
@@ -1090,391 +1078,6 @@ class RepositoryVisibilityActionController {
 	}
 }
 
-class ViewModel {
-
-	private readonly _onDidChangeMode = new Emitter<ViewModelMode>();
-	readonly onDidChangeMode = this._onDidChangeMode.event;
-
-	private readonly _onDidChangeSortKey = new Emitter<ViewModelSortKey>();
-	readonly onDidChangeSortKey = this._onDidChangeSortKey.event;
-
-	private visible: boolean = false;
-
-	get mode(): ViewModelMode { return this._mode; }
-	set mode(mode: ViewModelMode) {
-		if (this._mode === mode) {
-			return;
-		}
-
-		this._mode = mode;
-
-		// Update sort key based on view mode
-		this.sortKey = this.getViewModelSortKey();
-
-		this._updateChildren();
-		this._onDidActiveEditorChange();
-		this._onDidChangeMode.fire(mode);
-		this.modeContextKey.set(mode);
-
-		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
-	}
-
-	get sortKey(): ViewModelSortKey { return this._sortKey; }
-	set sortKey(sortKey: ViewModelSortKey) {
-		if (this._sortKey === sortKey) {
-			return;
-		}
-
-		this._sortKey = sortKey;
-
-		this._updateChildren();
-		this._onDidChangeSortKey.fire(sortKey);
-		this.sortKeyContextKey.set(sortKey);
-
-		if (this._mode === ViewModelMode.List) {
-			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
-		}
-	}
-
-	private _showActionButton = false;
-	get showActionButton(): boolean { return this._showActionButton; }
-
-	private _alwaysShowRepositories = false;
-	get alwaysShowRepositories(): boolean { return this._alwaysShowRepositories; }
-
-	private items = new DisposableMap<ISCMRepository, IDisposable>();
-	private readonly visibilityDisposables = new DisposableStore();
-	private scrollTop: number | undefined;
-	private readonly asyncOperationSequencer = new Sequencer();
-	private readonly disposables = new DisposableStore();
-
-	private modeContextKey: IContextKey<ViewModelMode>;
-	private sortKeyContextKey: IContextKey<ViewModelSortKey>;
-	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
-	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
-	private scmProviderContextKey: IContextKey<string | undefined>;
-	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
-	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
-
-	private _mode: ViewModelMode;
-	private _sortKey: ViewModelSortKey;
-
-	constructor(
-		private tree: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>,
-		private inputRenderer: InputRenderer,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IEditorService protected editorService: IEditorService,
-		@IConfigurationService protected configurationService: IConfigurationService,
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@IStorageService private storageService: IStorageService,
-		@IUriIdentityService private uriIdentityService: IUriIdentityService,
-		@IContextKeyService contextKeyService: IContextKeyService
-	) {
-		// View mode and sort key
-		this._mode = this.getViewModelMode();
-		this._sortKey = this.getViewModelSortKey();
-
-		this.modeContextKey = ContextKeys.ViewModelMode.bindTo(contextKeyService);
-		this.modeContextKey.set(this._mode);
-		this.sortKeyContextKey = ContextKeys.ViewModelSortKey.bindTo(contextKeyService);
-		this.sortKeyContextKey.set(this._sortKey);
-		this.areAllRepositoriesCollapsedContextKey = ContextKeys.ViewModelAreAllRepositoriesCollapsed.bindTo(contextKeyService);
-		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.ViewModelIsAnyRepositoryCollapsible.bindTo(contextKeyService);
-		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
-		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
-		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
-
-		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)
-			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
-
-		this.disposables.add(this.storageService.onWillSaveState(e => {
-			this.mode = this.getViewModelMode();
-			this.sortKey = this.getViewModelSortKey();
-		}));
-
-		this.disposables.add(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
-			switch (e.key) {
-				case 'scm.viewMode':
-					this.mode = this.getViewModelMode();
-					break;
-				case 'scm.viewSortKey':
-					this.sortKey = this.getViewModelSortKey();
-					break;
-			}
-		}));
-
-		this.disposables.add(this.storageService.onWillSaveState(e => {
-			if (e.reason === WillSaveStateReason.SHUTDOWN) {
-				this.storeTreeViewState();
-			}
-		}));
-
-		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
-		this.onDidChangeConfiguration();
-	}
-
-	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
-		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.showActionButton')) {
-			this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-			this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
-
-			this._updateChildren();
-		}
-	}
-
-	private _onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
-		// Added repositories
-		for (const repository of added) {
-			const repositoryDisposables = new DisposableStore();
-
-			repositoryDisposables.add(repository.provider.onDidChange(() => this._updateChildren()));
-			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this._updateChildren()));
-			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this._updateChildren()));
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => {
-				this._updateChildren();
-				this._onDidActiveEditorChange();
-			}));
-
-			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
-
-			const onDidChangeResourceGroups = () => {
-				for (const [resourceGroup] of resourceGroupDisposables) {
-					if (!repository.provider.groups.includes(resourceGroup)) {
-						resourceGroupDisposables.deleteAndDispose(resourceGroup);
-					}
-				}
-
-				for (const resourceGroup of repository.provider.groups) {
-					if (!resourceGroupDisposables.has(resourceGroup)) {
-						const disposableStore = new DisposableStore();
-
-						disposableStore.add(resourceGroup.onDidChange(() => this._updateChildren()));
-						disposableStore.add(resourceGroup.onDidChangeResources(() => {
-							this._updateChildren();
-							this._onDidActiveEditorChange();
-						}));
-						resourceGroupDisposables.set(resourceGroup, disposableStore);
-					}
-				}
-			};
-
-			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(onDidChangeResourceGroups));
-			onDidChangeResourceGroups();
-
-			this.items.set(repository, repositoryDisposables);
-		}
-
-		// Removed repositories
-		for (const repository of removed) {
-			this.items.deleteAndDispose(repository);
-		}
-
-		this._updateChildren();
-		this._onDidActiveEditorChange();
-	}
-
-	setInput(): void {
-		this.tree.setInput(this.scmViewService, this.loadTreeViewState());
-	}
-
-	setVisible(visible: boolean): void {
-		if (visible) {
-			this.scmViewService.onDidChangeVisibleRepositories(this._onDidChangeVisibleRepositories, this, this.visibilityDisposables);
-			this._onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
-
-			if (typeof this.scrollTop === 'number') {
-				this.tree.scrollTop = this.scrollTop;
-				this.scrollTop = undefined;
-			}
-
-			this.editorService.onDidActiveEditorChange(this._onDidActiveEditorChange, this, this.visibilityDisposables);
-			this._onDidActiveEditorChange();
-		} else {
-			this.visibilityDisposables.clear();
-			this._onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
-			this.scrollTop = this.tree.scrollTop;
-		}
-
-		this.visible = visible;
-		this.updateRepositoryContextKeys();
-		this.updateRepositoryCollapseAllContextKeys();
-	}
-
-	private _updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
-		if (!this.tree.getInput()) {
-			return;
-		}
-
-		this.asyncOperationSequencer.queue(async () => {
-			this.updateRepositoryContextKeys();
-			const focusedInput = this.inputRenderer.getFocusedInput();
-
-			await this.tree.updateChildren(element, recursive, rerender);
-
-			if (focusedInput) {
-				this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
-			}
-
-			this.updateRepositoryCollapseAllContextKeys();
-		});
-	}
-
-	private _onDidActiveEditorChange(): void {
-		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
-			return;
-		}
-
-		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
-
-		if (!uri) {
-			return;
-		}
-
-		this.asyncOperationSequencer.queue(async () => {
-			for (const repository of this.scmViewService.visibleRepositories) {
-				const item = this.items.get(repository);
-
-				if (!item) {
-					continue;
-				}
-
-				// go backwards from last group
-				for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
-					const groupItem = repository.provider.groups[j];
-					const resource = this.mode === ViewModelMode.Tree
-						? groupItem.resourceTree.getNode(uri)?.element
-						: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
-
-					if (resource) {
-						this.tree.reveal(resource);
-						this.tree.setSelection([resource]);
-						this.tree.setFocus([resource]);
-						return;
-					}
-				}
-			}
-		});
-	}
-
-	focus() {
-		if (this.tree.getFocus().length === 0) {
-			for (const repository of this.scmViewService.visibleRepositories) {
-				const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
-
-				if (widget) {
-					widget.focus();
-					return;
-				}
-			}
-		}
-
-		this.tree.domFocus();
-	}
-
-	private updateRepositoryContextKeys(): void {
-		if (!this.alwaysShowRepositories && this.items.size === 1) {
-			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
-			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
-			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
-		} else {
-			this.scmProviderContextKey.set(undefined);
-			this.scmProviderRootUriContextKey.set(undefined);
-			this.scmProviderHasRootUriContextKey.set(false);
-		}
-	}
-
-	private updateRepositoryCollapseAllContextKeys(): void {
-		if (!this.visible || this.scmViewService.visibleRepositories.length === 1) {
-			this.isAnyRepositoryCollapsibleContextKey.set(false);
-			this.areAllRepositoriesCollapsedContextKey.set(false);
-			return;
-		}
-
-		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
-		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
-	}
-
-	collapseAllRepositories(): void {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repository)) {
-				this.tree.collapse(repository);
-			}
-		}
-	}
-
-	expandAllRepositories(): void {
-		for (const repository of this.scmViewService.visibleRepositories) {
-			if (this.tree.isCollapsible(repository)) {
-				this.tree.expand(repository);
-			}
-		}
-	}
-
-	private getViewModelMode(): ViewModelMode {
-		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewModelMode.List : ViewModelMode.Tree;
-		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewModelMode;
-		if (typeof storageMode === 'string') {
-			mode = storageMode;
-		}
-
-		return mode;
-	}
-
-	private getViewModelSortKey(): ViewModelSortKey {
-		// Tree
-		if (this._mode === ViewModelMode.Tree) {
-			return ViewModelSortKey.Path;
-		}
-
-		// List
-		let viewSortKey: ViewModelSortKey;
-		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
-		switch (viewSortKeyString) {
-			case 'name':
-				viewSortKey = ViewModelSortKey.Name;
-				break;
-			case 'status':
-				viewSortKey = ViewModelSortKey.Status;
-				break;
-			default:
-				viewSortKey = ViewModelSortKey.Path;
-				break;
-		}
-
-		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewModelSortKey;
-		if (typeof storageSortKey === 'string') {
-			viewSortKey = storageSortKey;
-		}
-
-		return viewSortKey;
-	}
-
-	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
-		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
-		if (!storageViewState) {
-			return undefined;
-		}
-
-		try {
-			const treeViewState = JSON.parse(storageViewState);
-			return treeViewState;
-		} catch {
-			return undefined;
-		}
-	}
-
-	private storeTreeViewState() {
-		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
-	}
-
-	dispose(): void {
-		this.visibilityDisposables.dispose();
-		this.disposables.dispose();
-		this.items.dispose();
-	}
-}
-
 class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 	constructor(menu: Partial<IAction2Options['menu']> = {}) {
 		super({
@@ -1483,13 +1086,13 @@ class SetListViewModeAction extends ViewAction<SCMViewPane>  {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listTree,
-			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
+			toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.List),
 			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.mode = ViewModelMode.List;
+		view.viewMode = ViewMode.List;
 	}
 }
 
@@ -1497,7 +1100,7 @@ class SetListViewModeNavigationAction extends SetListViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree)),
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree)),
 			group: 'navigation',
 			order: -1000
 		});
@@ -1512,13 +1115,13 @@ class SetTreeViewModeAction extends ViewAction<SCMViewPane>  {
 			viewId: VIEW_PANE_ID,
 			f1: false,
 			icon: Codicon.listFlat,
-			toggled: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.Tree),
+			toggled: ContextKeys.SCMViewMode.isEqualTo(ViewMode.Tree),
 			menu: { id: Menus.ViewSort, group: '1_viewmode', ...menu }
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.mode = ViewModelMode.Tree;
+		view.viewMode = ViewMode.Tree;
 	}
 }
 
@@ -1526,7 +1129,7 @@ class SetTreeViewModeNavigationAction extends SetTreeViewModeAction {
 	constructor() {
 		super({
 			id: MenuId.SCMTitle,
-			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List)),
+			when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.RepositoryCount.notEqualsTo(0), ContextKeys.SCMViewMode.isEqualTo(ViewMode.List)),
 			group: 'navigation',
 			order: -1000
 		});
@@ -1589,38 +1192,38 @@ registerAction2(RepositorySortByNameAction);
 registerAction2(RepositorySortByPathAction);
 
 abstract class SetSortKeyAction extends ViewAction<SCMViewPane>  {
-	constructor(private sortKey: ViewModelSortKey, title: string) {
+	constructor(private sortKey: ViewSortKey, title: string) {
 		super({
 			id: `workbench.scm.action.setSortKey.${sortKey}`,
 			title,
 			viewId: VIEW_PANE_ID,
 			f1: false,
-			toggled: ContextKeys.ViewModelSortKey.isEqualTo(sortKey),
-			precondition: ContextKeys.ViewModelMode.isEqualTo(ViewModelMode.List),
+			toggled: ContextKeys.SCMViewSortKey.isEqualTo(sortKey),
+			precondition: ContextKeys.SCMViewMode.isEqualTo(ViewMode.List),
 			menu: { id: Menus.ViewSort, group: '2_sort' }
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.sortKey = this.sortKey;
+		view.viewSortKey = this.sortKey;
 	}
 }
 
 class SetSortByNameAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Name, localize('sortChangesByName', "Sort Changes by Name"));
+		super(ViewSortKey.Name, localize('sortChangesByName', "Sort Changes by Name"));
 	}
 }
 
 class SetSortByPathAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
+		super(ViewSortKey.Path, localize('sortChangesByPath', "Sort Changes by Path"));
 	}
 }
 
 class SetSortByStatusAction extends SetSortKeyAction {
 	constructor() {
-		super(ViewModelSortKey.Status, localize('sortChangesByStatus', "Sort Changes by Status"));
+		super(ViewSortKey.Status, localize('sortChangesByStatus', "Sort Changes by Status"));
 	}
 }
 
@@ -1640,13 +1243,13 @@ class CollapseAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 			menu: {
 				id: MenuId.SCMTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(false))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.SCMViewIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.SCMViewAreAllRepositoriesCollapsed.isEqualTo(false))
 			}
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.collapseAllRepositories();
+		view.collapseAllRepositories();
 	}
 }
 
@@ -1662,13 +1265,13 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 			menu: {
 				id: MenuId.SCMTitle,
 				group: 'navigation',
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.ViewModelIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.ViewModelAreAllRepositoriesCollapsed.isEqualTo(true))
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', VIEW_PANE_ID), ContextKeys.SCMViewIsAnyRepositoryCollapsible.isEqualTo(true), ContextKeys.SCMViewAreAllRepositoriesCollapsed.isEqualTo(true))
 			}
 		});
 	}
 
 	async runInView(_: ServicesAccessor, view: SCMViewPane): Promise<void> {
-		view.viewModel.expandAllRepositories();
+		view.expandAllRepositories();
 	}
 }
 
@@ -2223,40 +1826,135 @@ export class SCMViewPane extends ViewPane {
 	private _onDidLayout: Emitter<void>;
 	private layoutCache: ISCMLayout;
 
-	private listContainer!: HTMLElement;
+	private treeScrollTop: number | undefined;
+	private treeContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
-	private _viewModel!: ViewModel;
-	get viewModel(): ViewModel { return this._viewModel; }
+
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
 	private actionButtonRenderer!: ActionButtonRenderer;
+
+	private _viewMode: ViewMode;
+	get viewMode(): ViewMode { return this._viewMode; }
+	set viewMode(mode: ViewMode) {
+		if (this._viewMode === mode) {
+			return;
+		}
+
+		this._viewMode = mode;
+
+		// Update sort key based on view mode
+		this.viewSortKey = this.getViewSortKey();
+
+		this.updateChildren();
+		this.onDidActiveEditorChange();
+		this._onDidChangeViewMode.fire(mode);
+		this.viewModeContextKey.set(mode);
+
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this.storageService.store(`scm.viewMode`, mode, StorageScope.WORKSPACE, StorageTarget.USER);
+	}
+
+	private readonly _onDidChangeViewMode = new Emitter<ViewMode>();
+	readonly onDidChangeViewMode = this._onDidChangeViewMode.event;
+
+	private _viewSortKey: ViewSortKey;
+	get viewSortKey(): ViewSortKey { return this._viewSortKey; }
+	set viewSortKey(sortKey: ViewSortKey) {
+		if (this._viewSortKey === sortKey) {
+			return;
+		}
+
+		this._viewSortKey = sortKey;
+
+		this.updateChildren();
+		this.viewSortKeyContextKey.set(sortKey);
+		this._onDidChangeViewSortKey.fire(sortKey);
+
+		if (this._viewMode === ViewMode.List) {
+			this.storageService.store(`scm.viewSortKey`, sortKey, StorageScope.WORKSPACE, StorageTarget.USER);
+		}
+	}
+
+	private readonly _onDidChangeViewSortKey = new Emitter<ViewSortKey>();
+	readonly onDidChangeViewSortKey = this._onDidChangeViewSortKey.event;
+
+	private _showActionButton = false;
+	get showActionButton(): boolean { return this._showActionButton; }
+
+	private _alwaysShowRepositories = false;
+	get alwaysShowRepositories(): boolean { return this._alwaysShowRepositories; }
+
+	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
+	private readonly visibilityDisposables = new DisposableStore();
+	private readonly asyncOperationSequencer = new Sequencer();
+
+	private viewModeContextKey: IContextKey<ViewMode>;
+	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
+	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
+	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
+	private scmProviderContextKey: IContextKey<string | undefined>;
+	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
+	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
+
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
-		@ISCMService private scmService: ISCMService,
-		@ISCMViewService private scmViewService: ISCMViewService,
+		@ISCMService private readonly scmService: ISCMService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService private commandService: ICommandService,
-		@IEditorService private editorService: IEditorService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService private menuService: IMenuService,
+		@IMenuService private readonly menuService: IMenuService,
+		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		// View mode and sort key
+		this._viewMode = this.getViewMode();
+		this._viewSortKey = this.getViewSortKey();
+
+		// Context Keys
+		this.viewModeContextKey = ContextKeys.SCMViewMode.bindTo(contextKeyService);
+		this.viewModeContextKey.set(this._viewMode);
+		this.viewSortKeyContextKey = ContextKeys.SCMViewSortKey.bindTo(contextKeyService);
+		this.viewSortKeyContextKey.set(this.viewSortKey);
+		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
+		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
+		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
+		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
+		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
+
 		this._onDidLayout = new Emitter<void>();
-		this.layoutCache = {
-			height: undefined,
-			width: undefined,
-			onDidChange: this._onDidLayout.event
-		};
+		this.layoutCache = { height: undefined, width: undefined, onDidChange: this._onDidLayout.event };
+
+		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
+			switch (e.key) {
+				case 'scm.viewMode':
+					this.viewMode = this.getViewMode();
+					break;
+				case 'scm.viewSortKey':
+					this.viewSortKey = this.getViewSortKey();
+					break;
+			}
+		}));
+
+		this._register(this.storageService.onWillSaveState(e => {
+			this.viewMode = this.getViewMode();
+			this.viewSortKey = this.getViewSortKey();
+
+			this.storeTreeViewState();
+		}));
 
 		this._register(this.instantiationService.createInstance(ScmInputContentProvider));
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
@@ -2265,28 +1963,76 @@ export class SCMViewPane extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		// List
-		this.listContainer = append(container, $('.scm-view.show-file-icons'));
-		this.listContainer.classList.add('file-icon-themable-tree');
-		this.listContainer.classList.add('show-file-icons');
+		// Tree
+		this.treeContainer = append(container, $('.scm-view.show-file-icons'));
+		this.treeContainer.classList.add('file-icon-themable-tree');
+		this.treeContainer.classList.add('show-file-icons');
 
-		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
-
-		const updateActionsVisibility = () => this.listContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
+		const updateActionsVisibility = () => this.treeContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'), this.disposables)(updateActionsVisibility));
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
 			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
-			this.listContainer.classList.toggle('hide-provider-counts', value === 'hidden');
-			this.listContainer.classList.toggle('auto-provider-counts', value === 'auto');
+			this.treeContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			this.treeContainer.classList.toggle('auto-provider-counts', value === 'auto');
 		};
 		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
 		updateProviderCountVisibility();
 
-		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
-		const delegate = new ListDelegate(this.inputRenderer);
+		this.createTree(this.treeContainer);
 
+		this._register(this.onDidChangeBodyVisibility(async visible => {
+			if (visible) {
+				await this.tree.setInput(this.scmViewService, this.loadTreeViewState());
+
+				const updateActionButtonVisibility = () => {
+					this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
+					this.updateChildren();
+				};
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showActionButton'), this.visibilityDisposables)(updateActionButtonVisibility, this);
+				updateActionButtonVisibility();
+
+				const updateRepositoryVisibility = () => {
+					this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+					this.updateChildren();
+					this.updateActions();
+				};
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this);
+				updateRepositoryVisibility();
+
+				// Add visible repositories
+				this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
+				this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+
+				// Select resource for active editor
+				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
+				this.onDidActiveEditorChange();
+
+				// Restore scroll position
+				if (typeof this.treeScrollTop === 'number') {
+					this.tree.scrollTop = this.treeScrollTop;
+					this.treeScrollTop = undefined;
+				}
+			} else {
+				this.visibilityDisposables.clear();
+				this.onDidChangeVisibleRepositories({ added: Iterable.empty(), removed: [...this.items.keys()] });
+				this.treeScrollTop = this.tree.scrollTop;
+			}
+
+			this.updateRepositoryContextKeys();
+			this.updateRepositoryCollapseAllContextKeys();
+		}));
+
+		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
+		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+		this.updateIndentStyles(this.themeService.getFileIconTheme());
+	}
+
+	private createTree(container: HTMLElement): void {
+		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
+
+		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
@@ -2301,32 +2047,26 @@ export class SCMViewPane extends ViewPane {
 			this.inputRenderer,
 			this.actionButtonRenderer,
 			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this._viewModel, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
+			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
 		];
-
-		const filter = new SCMTreeFilter();
-		const sorter = new SCMTreeSorter(() => this._viewModel);
-		const keyboardNavigationLabelProvider = this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this._viewModel);
-		const identityProvider = new SCMResourceIdentityProvider();
-		const dnd = new SCMTreeDragAndDrop(this.instantiationService);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
 			'SCM Tree Repo',
-			this.listContainer,
-			delegate,
+			container,
+			new ListDelegate(this.inputRenderer),
 			new SCMTreeCompressionDelegate(),
 			renderers,
-			this.instantiationService.createInstance(SCMTreeDataSource, () => this._viewModel),
+			this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton),
 			{
-				transformOptimization: false,
-				identityProvider,
-				dnd,
 				horizontalScrolling: false,
 				setRowLineHeight: false,
-				filter,
-				sorter,
-				keyboardNavigationLabelProvider,
+				transformOptimization: false,
+				dnd: new SCMTreeDragAndDrop(this.instantiationService),
+				filter: new SCMTreeFilter(),
+				identityProvider: new SCMResourceIdentityProvider(),
+				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
+				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
@@ -2334,38 +2074,21 @@ export class SCMViewPane extends ViewPane {
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
+		this._register(this.tree);
 		this._register(this.tree.onDidOpen(this.open, this));
-
 		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
 		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
-		this._register(this.tree);
+		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)
+			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
-		append(this.listContainer, overflowWidgetsDomNode);
-
-		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
-
-		this._viewModel = this._register(this.instantiationService.createInstance(ViewModel, this.tree, this.inputRenderer));
-		this._viewModel.setInput();
-
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
-		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
-		this._register(this._viewModel.onDidChangeMode(this.onDidChangeMode, this));
-
-		this._register(this.onDidChangeBodyVisibility(this._viewModel.setVisible, this._viewModel));
-
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.disposables)(this.updateActions, this));
-		this.updateActions();
+		append(container, overflowWidgetsDomNode);
 	}
 
 	private updateIndentStyles(theme: IFileIconTheme): void {
-		this.listContainer.classList.toggle('list-view-mode', this._viewModel.mode === ViewModelMode.List);
-		this.listContainer.classList.toggle('tree-view-mode', this._viewModel.mode === ViewModelMode.Tree);
-		this.listContainer.classList.toggle('align-icons-and-twisties', (this._viewModel.mode === ViewModelMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		this.listContainer.classList.toggle('hide-arrows', this._viewModel.mode === ViewModelMode.Tree && theme.hidesExplorerArrows === true);
-	}
-
-	private onDidChangeMode(): void {
-		this.updateIndentStyles(this.themeService.getFileIconTheme());
+		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
+		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
+		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
@@ -2381,16 +2104,8 @@ export class SCMViewPane extends ViewPane {
 		this.layoutCache.width = width;
 		this._onDidLayout.fire();
 
-		this.listContainer.style.height = `${height}px`;
+		this.treeContainer.style.height = `${height}px`;
 		this.tree.layout(height, width);
-	}
-
-	override focus(): void {
-		super.focus();
-
-		if (this.isExpanded()) {
-			this._viewModel.focus();
-		}
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
@@ -2461,6 +2176,94 @@ export class SCMViewPane extends ViewPane {
 		}
 	}
 
+	private onDidActiveEditorChange(): void {
+		if (!this.configurationService.getValue<boolean>('scm.autoReveal')) {
+			return;
+		}
+
+		const uri = EditorResourceAccessor.getOriginalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
+
+		if (!uri) {
+			return;
+		}
+
+		this.asyncOperationSequencer.queue(async () => {
+			for (const repository of this.scmViewService.visibleRepositories) {
+				const item = this.items.get(repository);
+
+				if (!item) {
+					continue;
+				}
+
+				// go backwards from last group
+				for (let j = repository.provider.groups.length - 1; j >= 0; j--) {
+					const groupItem = repository.provider.groups[j];
+					const resource = this.viewMode === ViewMode.Tree
+						? groupItem.resourceTree.getNode(uri)?.element
+						: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
+
+					if (resource) {
+						this.tree.reveal(resource);
+						this.tree.setSelection([resource]);
+						this.tree.setFocus([resource]);
+						return;
+					}
+				}
+			}
+		});
+	}
+
+	private onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
+		// Added repositories
+		for (const repository of added) {
+			const repositoryDisposables = new DisposableStore();
+
+			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren()));
+			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren()));
+			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren()));
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => {
+				this.updateChildren();
+				this.onDidActiveEditorChange();
+			}));
+
+			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
+
+			const onDidChangeResourceGroups = () => {
+				for (const [resourceGroup] of resourceGroupDisposables) {
+					if (!repository.provider.groups.includes(resourceGroup)) {
+						resourceGroupDisposables.deleteAndDispose(resourceGroup);
+					}
+				}
+
+				for (const resourceGroup of repository.provider.groups) {
+					if (!resourceGroupDisposables.has(resourceGroup)) {
+						const disposableStore = new DisposableStore();
+
+						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren()));
+						disposableStore.add(resourceGroup.onDidChangeResources(() => {
+							this.updateChildren();
+							this.onDidActiveEditorChange();
+						}));
+						resourceGroupDisposables.set(resourceGroup, disposableStore);
+					}
+				}
+			};
+
+			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(onDidChangeResourceGroups));
+			onDidChangeResourceGroups();
+
+			this.items.set(repository, repositoryDisposables);
+		}
+
+		// Removed repositories
+		for (const repository of removed) {
+			this.items.deleteAndDispose(repository);
+		}
+
+		this.updateChildren();
+		this.onDidActiveEditorChange();
+	}
+
 	private onListContextMenu(e: ITreeContextMenuEvent<TreeElement | null>): void {
 		if (!e.element) {
 			const menu = this.menuService.createMenu(Menus.ViewSort, this.contextKeyService);
@@ -2523,6 +2326,118 @@ export class SCMViewPane extends ViewPane {
 			.filter(r => !!r && !isSCMResourceGroup(r))! as any;
 	}
 
+	private getViewMode(): ViewMode {
+		let mode = this.configurationService.getValue<'tree' | 'list'>('scm.defaultViewMode') === 'list' ? ViewMode.List : ViewMode.Tree;
+		const storageMode = this.storageService.get(`scm.viewMode`, StorageScope.WORKSPACE) as ViewMode;
+		if (typeof storageMode === 'string') {
+			mode = storageMode;
+		}
+
+		return mode;
+	}
+
+	private getViewSortKey(): ViewSortKey {
+		// Tree
+		if (this._viewMode === ViewMode.Tree) {
+			return ViewSortKey.Path;
+		}
+
+		// List
+		let viewSortKey: ViewSortKey;
+		const viewSortKeyString = this.configurationService.getValue<'path' | 'name' | 'status'>('scm.defaultViewSortKey');
+		switch (viewSortKeyString) {
+			case 'name':
+				viewSortKey = ViewSortKey.Name;
+				break;
+			case 'status':
+				viewSortKey = ViewSortKey.Status;
+				break;
+			default:
+				viewSortKey = ViewSortKey.Path;
+				break;
+		}
+
+		const storageSortKey = this.storageService.get(`scm.viewSortKey`, StorageScope.WORKSPACE) as ViewSortKey;
+		if (typeof storageSortKey === 'string') {
+			viewSortKey = storageSortKey;
+		}
+
+		return viewSortKey;
+	}
+
+	private loadTreeViewState(): IAsyncDataTreeViewState | undefined {
+		const storageViewState = this.storageService.get('scm.viewState2', StorageScope.WORKSPACE);
+		if (!storageViewState) {
+			return undefined;
+		}
+
+		try {
+			const treeViewState = JSON.parse(storageViewState);
+			return treeViewState;
+		} catch {
+			return undefined;
+		}
+	}
+
+	private storeTreeViewState() {
+		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
+	}
+
+	private updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
+		this.asyncOperationSequencer.queue(async () => {
+			this.updateRepositoryContextKeys();
+			const focusedInput = this.inputRenderer.getFocusedInput();
+
+			await this.tree.updateChildren(element, recursive, rerender);
+
+			if (focusedInput) {
+				this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
+			}
+
+			this.updateRepositoryCollapseAllContextKeys();
+		});
+	}
+
+	private updateRepositoryContextKeys(): void {
+		if (!this.alwaysShowRepositories && this.items.size === 1) {
+			const provider = Iterable.first(this.items.keys())!.provider;
+			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
+			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
+		} else {
+			this.scmProviderContextKey.set(undefined);
+			this.scmProviderRootUriContextKey.set(undefined);
+			this.scmProviderHasRootUriContextKey.set(false);
+		}
+	}
+
+	private updateRepositoryCollapseAllContextKeys(): void {
+		if (!this.isBodyVisible() || this.scmViewService.visibleRepositories.length === 1) {
+			this.isAnyRepositoryCollapsibleContextKey.set(false);
+			this.areAllRepositoriesCollapsedContextKey.set(false);
+			return;
+		}
+
+		this.isAnyRepositoryCollapsibleContextKey.set(this.scmViewService.visibleRepositories.some(r => this.tree.hasElement(r) && this.tree.isCollapsible(r)));
+		this.areAllRepositoriesCollapsedContextKey.set(this.scmViewService.visibleRepositories.every(r => this.tree.hasElement(r) && (!this.tree.isCollapsible(r) || this.tree.isCollapsed(r))));
+	}
+
+	collapseAllRepositories(): void {
+		for (const repository of this.scmViewService.visibleRepositories) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.collapse(repository);
+			}
+		}
+	}
+
+	expandAllRepositories(): void {
+		for (const repository of this.scmViewService.visibleRepositories) {
+			if (this.tree.isCollapsible(repository)) {
+				this.tree.expand(repository);
+			}
+		}
+	}
+
 	override shouldShowWelcome(): boolean {
 		return this.scmService.repositoryCount === 0;
 	}
@@ -2531,8 +2446,29 @@ export class SCMViewPane extends ViewPane {
 		return this.scmViewService.visibleRepositories.length === 1 ? this.scmViewService.visibleRepositories[0].provider : undefined;
 	}
 
+	override focus(): void {
+		super.focus();
+
+		if (this.isExpanded()) {
+			if (this.tree.getFocus().length === 0) {
+				for (const repository of this.scmViewService.visibleRepositories) {
+					const widget = this.inputRenderer.getRenderedInputWidget(repository.input);
+
+					if (widget) {
+						widget.focus();
+						return;
+					}
+				}
+			}
+
+			this.tree.domFocus();
+		}
+	}
+
 	override dispose(): void {
+		this.visibilityDisposables.dispose();
 		this.disposables.dispose();
+		this.items.dispose();
 		super.dispose();
 	}
 }
@@ -2540,7 +2476,9 @@ export class SCMViewPane extends ViewPane {
 class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
 
 	constructor(
-		private readonly viewModelProvider: () => ViewModel,
+		private readonly viewMode: () => ViewMode,
+		private readonly alwaysShowRepositories: () => boolean,
+		private readonly showActionButton: () => boolean,
 		@ISCMViewService private readonly scmViewService: ISCMViewService) { }
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
@@ -2565,7 +2503,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 	getChildren(inputOrElement: ISCMViewService | TreeElement): Iterable<TreeElement> | Promise<Iterable<TreeElement>> {
 		const repositoryCount = this.scmViewService.visibleRepositories.length;
-		const alwaysShowRepositories = this.viewModelProvider().alwaysShowRepositories;
+		const alwaysShowRepositories = this.alwaysShowRepositories();
 
 		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
 			return this.scmViewService.visibleRepositories;
@@ -2575,7 +2513,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			inputOrElement = isSCMRepository(inputOrElement) ? inputOrElement : this.scmViewService.visibleRepositories[0];
 			const actionButton = inputOrElement.provider.actionButton;
 			const resourceGroups = inputOrElement.provider.groups;
-			const showActionButton = this.viewModelProvider().showActionButton;
+			const showActionButton = this.showActionButton();
 
 			// SCM Input
 			if (inputOrElement.input.visible) {
@@ -2599,10 +2537,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
-			if (this.viewModelProvider().mode === ViewModelMode.List) {
+			if (this.viewMode() === ViewMode.List) {
 				// Resources (List)
 				return inputOrElement.resources;
-			} else if (this.viewModelProvider().mode === ViewModelMode.Tree) {
+			} else if (this.viewMode() === ViewMode.Tree) {
 				// Resources (Tree)
 				const children: TreeElement[] = [];
 				for (const node of inputOrElement.resourceTree.root.children) {
