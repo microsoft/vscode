@@ -203,17 +203,17 @@ function nodejs(platform, arch) {
 	}
 
 	let fullVersion = nodeVersion;
-	if (product.nodejsRepository === 'Microsoft/vscode-node') {
+	if (product.nodejsRepository !== 'joaomoreno/node-mirror') {
 		fullVersion = `${nodeVersion}-${internalNodeVersion}`;
 	}
 
 	switch (platform) {
 		case 'win32':
-			if (product.nodejsRepository === 'Microsoft/vscode-node') {
+			if (product.nodejsRepository !== 'joaomoreno/node-mirror') {
 				return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `win-${arch}-node.exe`, checksumSha256 })
 					.pipe(rename('node.exe'));
 			} else {
-				return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-${platform}-${arch}.zip`, checksumSha256 })
+				return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-win-${arch}.zip`, checksumSha256 })
 					.pipe(unzip())
 					.pipe(filter(['**/node.exe']))
 					.pipe(rename('node.exe'));
