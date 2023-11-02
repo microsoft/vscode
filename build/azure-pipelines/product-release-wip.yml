@@ -22,119 +22,23 @@ steps:
       KeyVaultName: vscode-build-packages
       SecretsFilter: "vscode-esrp,c24324f7-e65f-4c45-8702-ed2d4c35df99"
 
-  # - powershell: |
-  #     $ErrorActionPreference = "Stop"
-  #     Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
-  #     $size = (Get-Item $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz).length
-  #     $sha256 = Get-FileHash $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz -Algorithm SHA256 | Select-Object -ExpandProperty Hash
+  - powershell: |
+      $ErrorActionPreference = "Stop"
+      Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
 
-  #     function Create-TmpJson($Obj) {
-  #       $FileName = [System.IO.Path]::GetTempFileName()
-  #       ConvertTo-Json -Depth 100 $Obj | Out-File -Encoding UTF8 $FileName
-  #       return $FileName
-  #     }
+      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
+      $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+      $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+      $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+      $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
+      $CertStore.Open("ReadWrite")
+      $CertStore.AddRange($CertCollection)
+      $CertStore.Close()
 
-  #     $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
-  #     $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
-
-  #     $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
-  #     $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-  #     $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-
-  #     $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
-  #     $CertStore.Open("ReadWrite")
-  #     $CertStore.AddRange($CertCollection)
-  #     $CertStore.Close()
-
-  #     $Auth = Create-TmpJson @{
-  #       Version = "1.0.0"
-  #       AuthenticationType = "AAD_CERT"
-  #       TenantId = "975f013f-7f24-47e8-a7d3-abc4752bf346"
-  #       ClientId = "c24324f7-e65f-4c45-8702-ed2d4c35df99"
-  #       AuthCert = @{
-  #         SubjectName = "CN=vscode-esrp"
-  #         StoreLocation = "LocalMachine"
-  #         StoreName = "My"
-  #         SendX5c = "true"
-  #       }
-  #       RequestSigningCert = @{
-  #         SubjectName = "CN=c24324f7-e65f-4c45-8702-ed2d4c35df99"
-  #         StoreLocation = "LocalMachine"
-  #         StoreName = "My"
-  #       }
-  #     }
-
-  #     $Policy = Create-TmpJson @{
-  #       Version = "1.0.0"
-  #       Audience = "InternalLimited"
-  #       Intent = "distribution"
-  #       ContentType = "InstallPackage"
-  #     }
-
-  #     $Input = Create-TmpJson @{
-  #       Version = "1.0.0"
-  #       ReleaseInfo = @{
-  #         ReleaseMetadata = @{
-  #           Title = "VS Code"
-  #           Properties = @{
-  #             ReleaseContentType = "InstallPackage"
-  #           }
-  #           MinimumNumberOfApprovers = 1
-  #         }
-  #         ProductInfo = @{
-  #           Name = "VS Code"
-  #           Version = "e7e037083ff4455cf320e344325dacb480062c3c"
-  #           Description = "vscode_cli_linux_x64_cli"
-  #         }
-  #         Owners = @(
-  #           @{
-  #             Owner = @{
-  #               UserPrincipalName = "jomo@microsoft.com"
-  #             }
-  #           }
-  #         )
-  #         Approvers = @(
-  #           @{
-  #             Approver = @{
-  #               UserPrincipalName = "jomo@microsoft.com"
-  #             }
-  #             IsAutoApproved = $true
-  #             IsMandatory = $false
-  #           }
-  #         )
-  #         AccessPermissions = @{
-  #           MainPublisher = "VSCode"
-  #           ChannelDownloadEntityDetails = @{
-  #             Consumer = @("VSCode")
-  #           }
-  #         }
-  #         CreatedBy = @{
-  #           UserPrincipalName = "jomo@microsoft.com"
-  #         }
-  #       }
-  #       ReleaseBatches = @(
-  #         @{
-  #           ReleaseRequestFiles = @(
-  #             @{
-  #               SizeInBytes = $size
-  #               SourceHash = $sha256
-  #               HashType = "SHA256"
-  #               SourceLocation = "vscode_cli_linux_x64_cli.tar.gz"
-  #             }
-  #           )
-  #           SourceLocationType = "UNC"
-  #           SourceRootDirectory = "$(Build.ArtifactStagingDirectory)"
-  #           DestinationLocationType = "AzureBlob"
-  #         }
-  #       )
-  #     }
-
-  #     $Output = [System.IO.Path]::GetTempFileName()
-
-  #     ESRPClient SubmitRelease -l Verbose -a $Auth -p $Policy -i $Input -o $Output
+  - powershell: node build/npm/setupBuildYarnrc
 
   - powershell: yarn
     workingDirectory: build
 
-  - powershell: |
-      node build/azure-pipelines/common/provision.js $(esrp-aad-username) $(esrp-aad-password)
+  - powershell: node build/azure-pipelines/common/release "975f013f-7f24-47e8-a7d3-abc4752bf346" "c24324f7-e65f-4c45-8702-ed2d4c35df99" "CN=vscode-esrp" "CN=c24324f7-e65f-4c45-8702-ed2d4c35df99" "72f988bf-86f1-41af-91ab-2d7cd011db47" "$(esrp-aad-username)" "$(esrp-aad-password)" "e7e037083ff4455cf320e344325dacb480062c3c" "stable" "$(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz"
