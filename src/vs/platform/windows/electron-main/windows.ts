@@ -9,7 +9,7 @@ import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from 'vs/base/co
 import { URI } from 'vs/base/common/uri';
 import { NativeParsedArgs } from 'vs/platform/environment/common/argv';
 import { ServicesAccessor, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { ICodeWindow, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { ICodeWindow, IWindowState } from 'vs/platform/window/electron-main/window';
 import { IOpenEmptyWindowOptions, IWindowOpenable, IWindowSettings, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -111,7 +111,7 @@ export interface IOpenConfiguration extends IBaseOpenConfiguration {
 
 export interface IOpenEmptyConfiguration extends IBaseOpenConfiguration { }
 
-export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState = defaultWindowState(), overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
+export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowState?: IWindowState, overrides?: BrowserWindowConstructorOptions): BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } {
 	const themeMainService = accessor.get(IThemeMainService);
 	const productService = accessor.get(IProductService);
 	const configurationService = accessor.get(IConfigurationService);
@@ -120,10 +120,6 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
 	const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
-		width: windowState.width,
-		height: windowState.height,
-		x: windowState.x,
-		y: windowState.y,
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -142,6 +138,13 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		},
 		experimentalDarkMode: true
 	};
+
+	if (windowState) {
+		options.x = windowState.x;
+		options.y = windowState.y;
+		options.width = windowState.width;
+		options.height = windowState.height;
+	}
 
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux

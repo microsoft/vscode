@@ -635,6 +635,7 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 	}
 
 	override focus(): void {
+		super.focus();
 		this.searchBox?.focus();
 	}
 

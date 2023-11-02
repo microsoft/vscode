@@ -65,7 +65,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
-		@IHoverService hoverService: IHoverService,
+		@IHoverService hoverService: IHoverService
 	) {
 		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService);
 
@@ -198,7 +198,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
 		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
-			this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
+			this._register(this.nativeHostService.onDidTriggerMainWindowSystemContextMenu(({ windowId, x, y }) => {
 				if (this.nativeHostService.windowId !== windowId) {
 					return;
 				}

@@ -4,26 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals, tail } from 'vs/base/common/arrays';
+import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { Lazy } from 'vs/base/common/lazy';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
+import { IRange } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IEditorDecorationsCollection } from 'vs/editor/common/editorCommon';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation } from 'vs/editor/common/model';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecorationOptions, IModelDeltaDecoration, ITextModel, IValidEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService } from 'vs/platform/storage/common/storage';
+import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -32,23 +36,21 @@ export abstract class EditModeStrategy {
 
 	abstract dispose(): void;
 
-	abstract checkChanges(response: EditResponse): boolean;
+	abstract checkChanges(response: ReplyResponse): boolean;
 
 	abstract apply(): Promise<void>;
 
 	abstract cancel(): Promise<void>;
 
+	abstract makeProgressiveChanges(edits: ISingleEditOperation[], timings: ProgressingEditsOptions): Promise<void>;
+
 	abstract makeChanges(edits: ISingleEditOperation[]): Promise<void>;
 
-	abstract undoChanges(response: EditResponse): Promise<void>;
+	abstract undoChanges(altVersionId: number): Promise<void>;
 
-	abstract renderProgressChanges(): Promise<void>;
-
-	abstract renderChanges(response: EditResponse): Promise<void>;
+	abstract renderChanges(response: ReplyResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
-
-	abstract getWidgetPosition(): Position | undefined;
 
 	abstract needsMargin(): boolean;
 }
@@ -80,7 +82,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._ctxDocumentChanged.reset();
 	}
 
-	checkChanges(response: EditResponse): boolean {
+	checkChanges(response: ReplyResponse): boolean {
 		if (!response.workspaceEdits || response.singleCreateFileEdit) {
 			// preview stategy can handle simple workspace edit (single file create)
 			return true;
@@ -91,7 +93,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	async apply() {
 
-		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
+		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
 			return;
 		}
 		const editResponse = this._session.lastExchange?.response;
@@ -122,15 +124,15 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async undoChanges(_response: EditResponse): Promise<void> {
+	override async undoChanges(_altVersionId: number): Promise<void> {
 		// nothing to do
 	}
 
-	override async renderProgressChanges(): Promise<void> {
+	override async makeProgressiveChanges(): Promise<void> {
 		// nothing to do
 	}
 
-	override async renderChanges(response: EditResponse): Promise<void> {
+	override async renderChanges(response: ReplyResponse): Promise<void> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
 			await this._widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
@@ -143,10 +145,6 @@ export class PreviewStrategy extends EditModeStrategy {
 		} else {
 			this._widget.hideCreatePreview();
 		}
-	}
-
-	getWidgetPosition(): Position | undefined {
-		return;
 	}
 
 	hasFocus(): boolean {
@@ -225,6 +223,11 @@ class InlineDiffDecorations {
 	}
 }
 
+export interface ProgressingEditsOptions {
+	duration: number;
+	token: CancellationToken;
+}
+
 export class LiveStrategy extends EditModeStrategy {
 
 	protected _diffEnabled: boolean = false;
@@ -232,7 +235,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _store: DisposableStore = new DisposableStore();
 
-	private _lastResponse?: EditResponse;
+	private _lastResponse?: ReplyResponse;
 	private _editCount: number = 0;
 
 	constructor(
@@ -268,7 +271,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
 
-	checkChanges(response: EditResponse): boolean {
+	checkChanges(response: ReplyResponse): boolean {
 		this._lastResponse = response;
 		if (response.singleCreateFileEdit) {
 			// preview stategy can handle simple workspace edit (single file create)
@@ -317,16 +320,28 @@ export class LiveStrategy extends EditModeStrategy {
 		this._editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
 	}
 
-	override async undoChanges(response: EditResponse): Promise<void> {
+	override async undoChanges(altVersionId: number): Promise<void> {
 		const { textModelN } = this._session;
-		LiveStrategy._undoModelUntil(textModelN, response.modelAltVersionId);
+		LiveStrategy._undoModelUntil(textModelN, altVersionId);
 	}
 
-	override async renderProgressChanges(): Promise<void> {
-		// nothing to do
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
+		}
+
+		const durationInSec = opts.duration / 1000;
+		for (const edit of edits) {
+			const wordCount = countWords(edit.text ?? '');
+			const speed = wordCount / durationInSec;
+			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+			await performAsyncTextEdit(this._session.textModelN, asProgressiveEdit(edit, speed, opts.token));
+		}
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async renderChanges(response: ReplyResponse) {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
 		this._inlineDiffDecorations.update();
@@ -358,10 +373,6 @@ export class LiveStrategy extends EditModeStrategy {
 			message = localize('lines.N', "Changed {0} lines", linesChanged);
 		}
 		this._widget.updateStatus(message);
-	}
-
-	override getWidgetPosition(): Position | undefined {
-		return undefined;
 	}
 
 	override needsMargin(): boolean {
@@ -405,9 +416,13 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 
 
-	private async _renderDiffZones() {
+	private async _updateDiffZones() {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		if (!diff || diff.changes.length === 0) {
+			for (const zone of this._diffZonePool) {
+				zone.hide();
+				zone.dispose();
+			}
 			return;
 		}
 
@@ -421,7 +436,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 			const change = diff.changes[i];
 
 			// everything below the original start line is one group
-			if (change.original.startLineNumber >= originalStartLineNumber) {
+			if (change.original.startLineNumber >= originalStartLineNumber || 'true') { // TODO@jrieken be smarter and fix this
 				mainGroup.push(change);
 				continue;
 			}
@@ -458,7 +473,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		this._currentLineRangeGroups = groups;
 
 		const handleDiff = () => {
-			this._renderDiffZones();
+			this._updateDiffZones();
 		};
 
 		// create enough zones
@@ -474,16 +489,32 @@ export class LivePreviewStrategy extends LiveStrategy {
 		}
 	}
 
-	override async renderProgressChanges(): Promise<void> {
-		return this._renderDiffZones();
+	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+
+		const changeTask = super.makeProgressiveChanges(edits, opts);
+
+		//add a listener that shows the diff zones as soon as the first edit is applied
+		let renderTask = Promise.resolve();
+		const changeListener = this._session.textModelN.onDidChangeContent(() => {
+			changeListener.dispose();
+			renderTask = this._updateDiffZones();
+		});
+		await changeTask;
+		await renderTask;
+		changeListener.dispose();
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async undoChanges(altVersionId: number): Promise<void> {
+		await super.undoChanges(altVersionId);
+		await this._updateDiffZones();
+	}
 
-		await this._renderDiffZones();
+	override async renderChanges(response: ReplyResponse) {
+
+		await this._updateDiffZones();
 
 		if (response.singleCreateFileEdit) {
-			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToEnd(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
+			this._previewZone.value.showCreation(this._session.wholeRange.value.collapseToStart(), response.singleCreateFileEdit.uri, await Promise.all(response.singleCreateFileEdit.edits));
 		} else {
 			this._previewZone.value.hide();
 		}
@@ -492,22 +523,88 @@ export class LivePreviewStrategy extends LiveStrategy {
 	override hasFocus(): boolean {
 		return super.hasFocus() || Boolean(this._previewZone.rawValue?.hasFocus()) || this._diffZonePool.some(zone => zone.isVisible && zone.hasFocus());
 	}
-
-	override getWidgetPosition(): Position | undefined {
-		for (let i = this._diffZonePool.length - 1; i >= 0; i--) {
-			const zone = this._diffZonePool[i];
-			if (zone.isVisible && zone.position) {
-				// above last view zone
-				return zone.position;
-			}
-		}
-		return undefined;
-	}
 }
 
-function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
+function showSingleCreateFile(accessor: ServicesAccessor, edit: ReplyResponse) {
 	const editorService = accessor.get(IEditorService);
 	if (edit.singleCreateFileEdit) {
 		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
 	}
+}
+
+export interface AsyncTextEdit {
+	readonly range: IRange;
+	readonly newText: AsyncIterable<string>;
+}
+
+export async function performAsyncTextEdit(model: ITextModel, edit: AsyncTextEdit) {
+
+	const [id] = model.deltaDecorations([], [{
+		range: edit.range,
+		options: {
+			description: 'asyncTextEdit',
+			stickiness: TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges
+		}
+	}]);
+
+	let first = true;
+	for await (const part of edit.newText) {
+
+		if (model.isDisposed()) {
+			break;
+		}
+
+		const range = model.getDecorationRange(id);
+		if (!range) {
+			throw new Error('FAILED to perform async replace edit because the anchor decoration was removed');
+		}
+
+		const edit = first
+			? EditOperation.replace(range, part) // first edit needs to override the "anchor"
+			: EditOperation.insert(range.getEndPosition(), part);
+
+		model.pushEditOperations(null, [edit], () => null);
+		first = false;
+	}
+}
+
+export function asAsyncEdit(edit: IIdentifiedSingleEditOperation): AsyncTextEdit {
+	return {
+		range: edit.range,
+		newText: AsyncIterableObject.fromArray([edit.text ?? ''])
+	} satisfies AsyncTextEdit;
+}
+
+export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPerSec: number, token: CancellationToken): AsyncTextEdit {
+
+	wordsPerSec = Math.max(10, wordsPerSec);
+
+	const stream = new AsyncIterableSource<string>();
+	let newText = edit.text ?? '';
+	// const wordCount = countWords(newText);
+
+	const handle = setInterval(() => {
+
+		const r = getNWords(newText, 1);
+		stream.emitOne(r.value);
+		newText = newText.substring(r.value.length);
+		if (r.isFullString) {
+			clearInterval(handle);
+			stream.resolve();
+			d.dispose();
+		}
+
+	}, 1000 / wordsPerSec);
+
+	// cancel ASAP
+	const d = token.onCancellationRequested(() => {
+		clearTimeout(handle);
+		stream.resolve();
+		d.dispose();
+	});
+
+	return {
+		range: edit.range,
+		newText: stream.asyncIterable
+	};
 }

@@ -41,8 +41,24 @@ export interface NotebookEditorInputOptions {
 
 export class NotebookEditorInput extends AbstractResourceEditorInput {
 
-	static create(instantiationService: IInstantiationService, resource: URI, viewType: string, options: NotebookEditorInputOptions = {}) {
-		return instantiationService.createInstance(NotebookEditorInput, resource, viewType, options);
+	private static EditorCache: Record<string, NotebookEditorInput> = {};
+
+	static getOrCreate(instantiationService: IInstantiationService, resource: URI, preferredResource: URI | undefined, viewType: string, options: NotebookEditorInputOptions = {}) {
+		const cacheId = `${resource.toString()}|${viewType}|${options._workingCopy?.typeId}`;
+		let editor = NotebookEditorInput.EditorCache[cacheId];
+
+		if (!editor) {
+			editor = instantiationService.createInstance(NotebookEditorInput, resource, preferredResource, viewType, options);
+			NotebookEditorInput.EditorCache[cacheId] = editor;
+
+			editor.onWillDispose(() => {
+				delete NotebookEditorInput.EditorCache[cacheId];
+			});
+		} else if (preferredResource) {
+			editor.setPreferredResource(preferredResource);
+		}
+
+		return editor;
 	}
 
 	static readonly ID: string = 'workbench.input.notebook';
@@ -53,19 +69,19 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	constructor(
 		resource: URI,
+		preferredResource: URI | undefined,
 		public readonly viewType: string,
 		public readonly options: NotebookEditorInputOptions,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 		@IFileDialogService private readonly _fileDialogService: IFileDialogService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IFileService fileService: IFileService,
 		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService,
 		@IExtensionService extensionService: IExtensionService,
 		@IEditorService editorService: IEditorService
 	) {
-		super(resource, undefined, labelService, fileService, filesConfigurationService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService);
 		this._defaultDirtyState = !!options.startDirty;
 
 		// Automatically resolve this input when the "wanted" model comes to life via
@@ -253,18 +269,10 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 	// called when users rename a notebook document
 	override async rename(group: GroupIdentifier, target: URI): Promise<IMoveResult | undefined> {
 		if (this._editorModelReference) {
-			const contributedNotebookProviders = this._notebookService.getContributedNotebookTypes(target);
+			return { editor: { resource: target }, options: { override: this.viewType } };
 
-			if (contributedNotebookProviders.find(provider => provider.id === this._editorModelReference!.object.viewType)) {
-				return this._move(group, target);
-			}
 		}
 		return undefined;
-	}
-
-	private _move(_group: GroupIdentifier, newResource: URI): { editor: EditorInput } {
-		const editorInput = NotebookEditorInput.create(this._instantiationService, newResource, this.viewType);
-		return { editor: editorInput };
 	}
 
 	override async revert(_group: GroupIdentifier, options?: IRevertOptions): Promise<void> {
@@ -336,7 +344,7 @@ export class NotebookEditorInput extends AbstractResourceEditorInput {
 
 	override toUntyped(): IResourceEditorInput {
 		return {
-			resource: this.preferredResource,
+			resource: this.resource,
 			options: {
 				override: this.viewType
 			}

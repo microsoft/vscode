@@ -28,6 +28,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { AbstractPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
+import { IMenuService } from 'vs/platform/actions/common/actions';
 
 export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
@@ -45,7 +46,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	get preferredHeight(): number | undefined {
 		// Don't worry about titlebar or statusbar visibility
 		// The difference is minimal and keeps this function clean
-		return this.layoutService.dimension.height * 0.4;
+		return this.layoutService.mainContainerDimension.height * 0.4;
 	}
 
 	get preferredWidth(): number | undefined {
@@ -77,6 +78,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@ICommandService private commandService: ICommandService,
+		@IMenuService menuService: IMenuService,
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -100,6 +102,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 			viewDescriptorService,
 			contextKeyService,
 			extensionService,
+			menuService,
 		);
 	}
 
@@ -155,6 +158,11 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 
 	private fillExtraContextMenuActions(actions: IAction[]): void {
 		const currentPositionRight = this.layoutService.getSideBarPosition() === Position.LEFT;
+		const viewsSubmenuAction = this.getViewsSubmenuAction();
+		if (viewsSubmenuAction) {
+			actions.push(new Separator());
+			actions.push(viewsSubmenuAction);
+		}
 		actions.push(...[
 			new Separator(),
 			toAction({ id: ToggleSidebarPositionAction.ID, label: currentPositionRight ? localize('move second side bar left', "Move Secondary Side Bar Left") : localize('move second side bar right', "Move Secondary Side Bar Right"), run: () => this.commandService.executeCommand(ToggleSidebarPositionAction.ID) }),

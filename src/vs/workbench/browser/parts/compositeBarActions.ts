@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { $, addDisposableListener, append, clearNode, EventHelper, EventType, getDomNodePagePosition, hide, show } from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { toDisposable, DisposableStore, disposeIfDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { toDisposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService, IColorTheme } from 'vs/platform/theme/common/themeService';
 import { NumberBadge, IBadge, IActivity, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
@@ -220,7 +220,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 			this.badgeContent.style.color = badgeFg ? badgeFg.toString() : '';
 			this.badgeContent.style.backgroundColor = badgeBg ? badgeBg.toString() : '';
 
-			this.badgeContent.style.borderStyle = contrastBorderColor ? 'solid' : '';
+			this.badgeContent.style.borderStyle = contrastBorderColor && !this.options.compact ? 'solid' : '';
 			this.badgeContent.style.borderWidth = contrastBorderColor ? '1px' : '';
 			this.badgeContent.style.borderColor = contrastBorderColor ? contrastBorderColor.toString() : '';
 		}
@@ -423,12 +423,18 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		const hoverPosition = this.options.hoverOptions!.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
-			hoverPosition,
 			content: this.computeTitle(),
-			showPointer: true,
-			compact: true,
-			hideOnKeyDown: true,
-			skipFadeInAnimation,
+			position: {
+				hoverPosition,
+			},
+			persistence: {
+				hideOnKeyDown: true,
+			},
+			appearance: {
+				showPointer: true,
+				compact: true,
+				skipFadeInAnimation,
+			}
 		});
 	}
 
@@ -462,8 +468,6 @@ export class CompositeOverflowActivityAction extends CompositeBarAction {
 
 export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionViewItem {
 
-	private actions: IAction[] = [];
-
 	constructor(
 		action: CompositeBarAction,
 		private getOverflowingComposites: () => { id: string; name?: string }[],
@@ -482,17 +486,10 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 	}
 
 	showMenu(): void {
-		if (this.actions) {
-			disposeIfDisposable(this.actions);
-		}
-
-		this.actions = this.getActions();
-
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => this.container,
-			getActions: () => this.actions,
+			getActions: () => this.getActions(),
 			getCheckedActionsRepresentation: () => 'radio',
-			onHide: () => disposeIfDisposable(this.actions)
 		});
 	}
 
@@ -515,14 +512,6 @@ export class CompositeOverflowActivityActionViewItem extends CompoisteBarActionV
 
 			return action;
 		});
-	}
-
-	override dispose(): void {
-		super.dispose();
-
-		if (this.actions) {
-			this.actions = disposeIfDisposable(this.actions);
-		}
 	}
 }
 

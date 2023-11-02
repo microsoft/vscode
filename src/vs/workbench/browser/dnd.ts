@@ -96,14 +96,14 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	async handleDrop(event: DragEvent, resolveTargetGroup?: () => IEditorGroup | undefined, afterDrop?: (targetGroup: IEditorGroup | undefined) => void, options?: IEditorOptions): Promise<void> {
+	async handleDrop(event: DragEvent, targetWindow: Window, resolveTargetGroup?: () => IEditorGroup | undefined, afterDrop?: (targetGroup: IEditorGroup | undefined) => void, options?: IEditorOptions): Promise<void> {
 		const editors = await this.instantiationService.invokeFunction(accessor => extractEditorsAndFilesDropData(accessor, event));
 		if (!editors.length) {
 			return;
 		}
 
 		// Make the window active to handle the drop properly within
-		await this.hostService.focus();
+		await this.hostService.focus(targetWindow);
 
 		// Check for workspace file / folder being dropped if we are allowed to do so
 		if (this.options.allowWorkspaceOpen) {
@@ -167,9 +167,6 @@ export class ResourcesDropHandler {
 		if (toOpen.length === 0) {
 			return false;
 		}
-
-		// Pass focus to window
-		this.hostService.focus();
 
 		// Open in separate windows if we drop workspaces or just one folder
 		if (toOpen.length > folderURIs.length || folderURIs.length === 1) {

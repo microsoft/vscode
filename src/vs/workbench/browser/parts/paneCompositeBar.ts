@@ -106,6 +106,7 @@ export class PaneCompositeBar extends Disposable {
 		@IViewDescriptorService private readonly viewDescriptorService: IViewDescriptorService,
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
 		this.location = paneCompositePart.partId === Parts.PANEL_PART
@@ -182,17 +183,18 @@ export class PaneCompositeBar extends Disposable {
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
 
 		// View Container Visibility Changes
-		this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true));
-		this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false));
+		this._register(this.paneCompositePart.onDidPaneCompositeOpen(e => this.onDidChangeViewContainerVisibility(e.getId(), true)));
+		this._register(this.paneCompositePart.onDidPaneCompositeClose(e => this.onDidChangeViewContainerVisibility(e.getId(), false)));
 
 		// Extension registration
-		const disposables = this._register(new DisposableStore());
-		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			disposables.clear();
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			if (this._store.isDisposed) {
+				return;
+			}
 			this.onDidRegisterExtensions();
-			this.compositeBar.onDidChange(() => this.saveCachedViewContainers(), this, disposables);
-			this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, disposables)(e => this.onDidPinnedViewContainersStorageValueChange(e), this, disposables);
-		}));
+			this._register(this.compositeBar.onDidChange(() => this.saveCachedViewContainers()));
+			this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.options.pinnedViewContainersKey, this._store)(e => this.onDidPinnedViewContainersStorageValueChange(e)));
+		});
 	}
 
 	private onDidChangeViewContainers(added: readonly { container: ViewContainer; location: ViewContainerLocation }[], removed: readonly { container: ViewContainer; location: ViewContainerLocation }[]) {
@@ -207,6 +209,12 @@ export class PaneCompositeBar extends Disposable {
 
 		if (to === this.location) {
 			this.onDidRegisterViewContainers([container]);
+
+			// Open view container if part is visible and there is no other view container opened
+			const visibleComposites = this.compositeBar.getVisibleComposites();
+			if (!this.paneCompositePart.getActivePaneComposite() && this.layoutService.isVisible(this.paneCompositePart.partId) && visibleComposites.length) {
+				this.paneCompositePart.openPaneComposite(visibleComposites[0].id);
+			}
 		}
 	}
 
@@ -269,16 +277,16 @@ export class PaneCompositeBar extends Disposable {
 			if (viewContainer) {
 				const viewContainerModel = this.viewDescriptorService.getViewContainerModel(viewContainer);
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(ViewContainerActivityAction, this.toCompositeBarActionItemFrom(viewContainerModel), this.part, this.paneCompositePart),
-					pinnedAction: new ToggleCompositePinnedAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar),
-					badgeAction: new ToggleCompositeBadgeAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar)
+					activityAction: this._register(this.instantiationService.createInstance(ViewContainerActivityAction, this.toCompositeBarActionItemFrom(viewContainerModel), this.part, this.paneCompositePart)),
+					pinnedAction: this._register(new ToggleCompositePinnedAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar)),
+					badgeAction: this._register(new ToggleCompositeBadgeAction(this.toCompositeBarActionItemFrom(viewContainerModel), this.compositeBar))
 				};
 			} else {
 				const cachedComposite = this.cachedViewContainers.filter(c => c.id === compositeId)[0];
 				compositeActions = {
-					activityAction: this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined), this.part, this.paneCompositePart),
-					pinnedAction: new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar),
-					badgeAction: new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar)
+					activityAction: this._register(this.instantiationService.createInstance(PlaceHolderViewContainerActivityAction, this.toCompositeBarActionItem(compositeId, cachedComposite?.name ?? compositeId, cachedComposite?.icon, undefined), this.part, this.paneCompositePart)),
+					pinnedAction: this._register(new PlaceHolderToggleCompositePinnedAction(compositeId, this.compositeBar)),
+					badgeAction: this._register(new PlaceHolderToggleCompositeBadgeAction(compositeId, this.compositeBar))
 				};
 			}
 
@@ -399,7 +407,7 @@ export class PaneCompositeBar extends Disposable {
 		}
 
 		// Check cache only if extensions are not yet registered and current window is not native (desktop) remote connection window
-		if (this.options.icon && !this.hasExtensionsRegistered && !(this.environmentService.remoteAuthority && isNative)) {
+		if (!this.hasExtensionsRegistered && !(this.part === Parts.SIDEBAR_PART && this.environmentService.remoteAuthority && isNative)) {
 			cachedViewContainer = cachedViewContainer || this.cachedViewContainers.find(({ id }) => id === viewContainerId);
 
 			// Show builtin ViewContainer if not registered yet

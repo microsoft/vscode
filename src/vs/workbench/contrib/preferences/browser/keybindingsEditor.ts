@@ -186,14 +186,14 @@ export class KeybindingsEditor extends EditorPane implements IKeybindingsEditorP
 	}
 
 	override focus(): void {
+		super.focus();
+
 		const activeKeybindingEntry = this.activeKeybindingEntry;
 		if (activeKeybindingEntry) {
 			this.selectEntry(activeKeybindingEntry);
 		} else if (!isIOS) {
 			this.searchWidget.focus();
 		}
-
-		super.focus();
 	}
 
 	get activeKeybindingEntry(): IKeybindingItemEntry | null {

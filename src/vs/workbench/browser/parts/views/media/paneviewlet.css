@@ -80,7 +80,6 @@
 	left: 0;
 	top: -2px;
 	z-index: 5;
-	height: 2px;
 }
 
 .monaco-pane-view .pane:not(.merged-header) .monaco-progress-container {

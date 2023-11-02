@@ -11,6 +11,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { IBulkEditService, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { Range } from 'vs/editor/common/core/range';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { DocumentContextItem, WorkspaceEdit } from 'vs/editor/common/languages';
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ITextModel } from 'vs/editor/common/model';
@@ -396,13 +397,17 @@ export function registerChatCodeBlockActions() {
 		}
 	});
 
+	const shellLangIds = [
+		'powershell',
+		'shellscript'
+	];
 	registerAction2(class RunInTerminalAction extends ChatCodeBlockAction {
 		constructor() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: {
-					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
-					original: 'Run in Terminal'
+					value: localize('interactive.runInTerminal.label', "Insert into Terminal"),
+					original: 'Insert into Terminal'
 				},
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
@@ -411,9 +416,21 @@ export function registerChatCodeBlockActions() {
 				menu: [{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						ContextKeyExpr.or(...shellLangIds.map(e => ContextKeyExpr.equals(EditorContextKeys.languageId.key, e)))
+					),
+				},
+				{
+					id: MenuId.ChatCodeBlock,
+					group: 'navigation',
 					isHiddenByDefault: true,
-					when: CONTEXT_IN_CHAT_SESSION,
-				}, {
+					when: ContextKeyExpr.and(
+						CONTEXT_IN_CHAT_SESSION,
+						...shellLangIds.map(e => ContextKeyExpr.notEquals(EditorContextKeys.languageId.key, e))
+					)
+				},
+				{
 					id: MenuId.ChatCodeBlock,
 					group: 'navigation',
 					when: CTX_INLINE_CHAT_VISIBLE,

@@ -965,6 +965,17 @@ export interface DocumentHighlightProvider {
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 }
 
+export interface MultiDocumentHighlightProvider {
+	/**
+	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
+	 * all exit-points of a function.
+	 *
+	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+	 * with shared symbols.
+	 */
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
+}
+
 /**
  * The linked editing range provider interface defines the contract between extensions and
  * the linked editing feature.

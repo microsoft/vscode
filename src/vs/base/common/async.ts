@@ -522,6 +522,20 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	return disposable;
 }
 
+export function disposableInterval(handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
+	let iteration = 0;
+	const timer = setInterval(() => {
+		iteration++;
+		if (iteration >= iterations || handler()) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		clearInterval(timer);
+	});
+	return disposable;
+}
+
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
@@ -1887,7 +1901,7 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 	});
 }
 
-export class DeferredAsyncIterableObject<T> {
+export class AsyncIterableSource<T> {
 
 	private readonly _deferred = new DeferredPromise<void>();
 	private readonly _asyncIterable: AsyncIterableObject<T>;
@@ -1930,16 +1944,16 @@ export class DeferredAsyncIterableObject<T> {
 		return this._asyncIterable;
 	}
 
-	complete(): void {
+	resolve(): void {
 		this._deferred.complete();
 	}
 
-	error(error: Error): void {
+	reject(error: Error): void {
 		this._errorFn(error);
 		this._deferred.complete();
 	}
 
-	emit(item: T): void {
+	emitOne(item: T): void {
 		this._emitFn(item);
 	}
 }

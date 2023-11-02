@@ -52,7 +52,7 @@ export class UnusedWorkspaceStorageDataCleaner extends Disposable {
 					return; // keep workspace storage for empty extension development workspaces
 				}
 
-				const windows = await this.nativeHostService.getWindows();
+				const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 				if (windows.some(window => window.workspace?.id === workspaceStorageFolder)) {
 					return; // keep workspace storage for empty workspaces opened as window
 				}

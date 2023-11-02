@@ -314,14 +314,16 @@ export class FileIconThemeLoader {
 				const rootFolderNames = associations.rootFolderNames;
 				if (rootFolderNames) {
 					for (const key in rootFolderNames) {
-						addSelector(`${qualifier} .${escapeCSS(key)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNames[key]);
 						result.hasFolderIcons = true;
 					}
 				}
 				const rootFolderNamesExpanded = associations.rootFolderNamesExpanded;
 				if (rootFolderNamesExpanded) {
 					for (const key in rootFolderNamesExpanded) {
-						addSelector(`${qualifier} ${expanded} .${escapeCSS(key)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
+						const name = key.toLowerCase();
+						addSelector(`${qualifier} ${expanded} .${escapeCSS(name)}-root-name-folder-icon.rootfolder-icon::before`, rootFolderNamesExpanded[key]);
 						result.hasFolderIcons = true;
 					}
 				}

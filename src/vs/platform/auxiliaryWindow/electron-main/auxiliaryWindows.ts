@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BrowserWindowConstructorOptions, WebContents } from 'electron';
+import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
@@ -20,4 +21,10 @@ export interface IAuxiliaryWindowsMainService {
 
 	getFocusedWindow(): IAuxiliaryWindow | undefined;
 	getLastActiveWindow(): IAuxiliaryWindow | undefined;
+
+	getWindows(): readonly IAuxiliaryWindow[];
+}
+
+export function isAuxiliaryWindow(webContents: WebContents): boolean {
+	return webContents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
 }

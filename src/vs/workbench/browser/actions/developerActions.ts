@@ -9,9 +9,9 @@ import { localize } from 'vs/nls';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomEmitter } from 'vs/base/browser/event';
 import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, toDisposable, dispose, DisposableStore, setDisposableTracker, DisposableTracker, DisposableInfo } from 'vs/base/common/lifecycle';
-import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, getActiveDocument } from 'vs/base/browser/dom';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule, append, $, getActiveDocument, onDidRegisterWindow, getWindows } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
@@ -56,10 +56,7 @@ class InspectContextKeysAction extends Action2 {
 
 		const disposables = new DisposableStore();
 
-		const stylesheet = createStyleSheet();
-		disposables.add(toDisposable(() => {
-			stylesheet.parentNode?.removeChild(stylesheet);
-		}));
+		const stylesheet = createStyleSheet(undefined, undefined, disposables);
 		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
 
 		const hoverFeedback = document.createElement('div');
@@ -133,13 +130,34 @@ class ToggleScreencastModeAction extends Action2 {
 
 		const disposables = new DisposableStore();
 
-		const container = layoutService.container;
+		const container = layoutService.activeContainer;
+
 		const mouseMarker = append(container, $('.screencast-mouse'));
 		disposables.add(toDisposable(() => mouseMarker.remove()));
 
-		const onMouseDown = disposables.add(new DomEmitter(container, 'mousedown', true));
-		const onMouseUp = disposables.add(new DomEmitter(container, 'mouseup', true));
-		const onMouseMove = disposables.add(new DomEmitter(container, 'mousemove', true));
+		const keyboardMarker = append(container, $('.screencast-keyboard'));
+		disposables.add(toDisposable(() => keyboardMarker.remove()));
+
+		const onMouseDown = disposables.add(new Emitter<MouseEvent>());
+		const onMouseUp = disposables.add(new Emitter<MouseEvent>());
+		const onMouseMove = disposables.add(new Emitter<MouseEvent>());
+
+		function registerContainerListeners(container: HTMLElement, disposables: DisposableStore): void {
+			disposables.add(disposables.add(new DomEmitter(container, 'mousedown', true)).event(e => onMouseDown.fire(e)));
+			disposables.add(disposables.add(new DomEmitter(container, 'mouseup', true)).event(e => onMouseUp.fire(e)));
+			disposables.add(disposables.add(new DomEmitter(container, 'mousemove', true)).event(e => onMouseMove.fire(e)));
+		}
+
+		for (const { window, disposables } of getWindows()) {
+			registerContainerListeners(layoutService.getContainer(window), disposables);
+		}
+
+		disposables.add(onDidRegisterWindow(({ window, disposables }) => registerContainerListeners(layoutService.getContainer(window), disposables)));
+
+		disposables.add(layoutService.onDidChangeActiveContainer(() => {
+			layoutService.activeContainer.appendChild(mouseMarker);
+			layoutService.activeContainer.appendChild(keyboardMarker);
+		}));
 
 		const updateMouseIndicatorColor = () => {
 			mouseMarker.style.borderColor = Color.fromHex(configurationService.getValue<string>('screencastMode.mouseIndicatorColor')).toString();
@@ -174,9 +192,6 @@ class ToggleScreencastModeAction extends Action2 {
 				mouseMoveListener.dispose();
 			});
 		}));
-
-		const keyboardMarker = append(container, $('.screencast-keyboard'));
-		disposables.add(toDisposable(() => keyboardMarker.remove()));
 
 		const updateKeyboardFontSize = () => {
 			keyboardMarker.style.fontSize = `${clamp(configurationService.getValue<number>('screencastMode.fontSize') || 56, 20, 100)}px`;
@@ -217,10 +232,23 @@ class ToggleScreencastModeAction extends Action2 {
 			}
 		}));
 
-		const onKeyDown = disposables.add(new DomEmitter(window, 'keydown', true));
-		const onCompositionStart = disposables.add(new DomEmitter(window, 'compositionstart', true));
-		const onCompositionUpdate = disposables.add(new DomEmitter(window, 'compositionupdate', true));
-		const onCompositionEnd = disposables.add(new DomEmitter(window, 'compositionend', true));
+		const onKeyDown = disposables.add(new Emitter<KeyboardEvent>());
+		const onCompositionStart = disposables.add(new Emitter<CompositionEvent>());
+		const onCompositionUpdate = disposables.add(new Emitter<CompositionEvent>());
+		const onCompositionEnd = disposables.add(new Emitter<CompositionEvent>());
+
+		function registerWindowListeners(window: Window, disposables: DisposableStore): void {
+			disposables.add(disposables.add(new DomEmitter(window, 'keydown', true)).event(e => onKeyDown.fire(e)));
+			disposables.add(disposables.add(new DomEmitter(window, 'compositionstart', true)).event(e => onCompositionStart.fire(e)));
+			disposables.add(disposables.add(new DomEmitter(window, 'compositionupdate', true)).event(e => onCompositionUpdate.fire(e)));
+			disposables.add(disposables.add(new DomEmitter(window, 'compositionend', true)).event(e => onCompositionEnd.fire(e)));
+		}
+
+		for (const { window, disposables } of getWindows()) {
+			registerWindowListeners(window, disposables);
+		}
+
+		disposables.add(onDidRegisterWindow(({ window, disposables }) => registerWindowListeners(window, disposables)));
 
 		let length = 0;
 		let composing: Element | undefined = undefined;

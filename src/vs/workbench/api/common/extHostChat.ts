@@ -6,6 +6,7 @@
 import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -98,7 +99,7 @@ export class ExtHostChat implements ExtHostChatShape {
 		};
 	}
 
-	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IChatReplyFollowup[])[] | undefined> {
+	async $provideWelcomeMessage(handle: number, token: CancellationToken): Promise<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined> {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
@@ -115,8 +116,10 @@ export class ExtHostChat implements ExtHostChatShape {
 		return content.map(item => {
 			if (typeof item === 'string') {
 				return item;
-			} else {
+			} else if (Array.isArray(item)) {
 				return item.map(f => typeConvert.ChatReplyFollowup.from(f));
+			} else {
+				return typeConvert.MarkdownString.from(item);
 			}
 		});
 	}
@@ -211,7 +214,7 @@ export class ExtHostChat implements ExtHostChatShape {
 					firstProgress = stopWatch.elapsed();
 				}
 
-				const convertedProgress = typeConvert.ChatResponseProgress.from(progress);
+				const convertedProgress = typeConvert.ChatResponseProgress.from(entry.extension, progress);
 				if ('placeholder' in progress && 'resolvedContent' in progress) {
 					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress), progress.resolvedContent]);
 					raceCancellation(resolvedContent, token).then((res) => {

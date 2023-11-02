@@ -623,9 +623,8 @@ export class ExtensionEditor extends EditorPane {
 	}
 
 	override focus(): void {
-		this.activeElement?.focus();
-
 		super.focus();
+		this.activeElement?.focus();
 	}
 
 	showFind(): void {
@@ -1237,7 +1236,7 @@ export class ExtensionEditor extends EditorPane {
 						return $('tr', undefined,
 							$('td', undefined, $('code', undefined, key)),
 							$('td', undefined, description),
-							$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : properties[key].default}`)));
+							$('td', undefined, $('code', undefined, `${isUndefined(properties[key].default) ? getDefaultValue(properties[key].type) : JSON.stringify(properties[key].default)}`)));
 					})
 			)
 		);
