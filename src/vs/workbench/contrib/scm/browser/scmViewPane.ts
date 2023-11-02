@@ -1961,7 +1961,7 @@ export class SCMViewPane extends ViewPane {
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = { height: undefined, width: undefined, onDidChange: this._onDidLayout.event };
 
-		this._register(this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
+		this.storageService.onDidChangeValue(StorageScope.WORKSPACE, undefined, this.disposables)(e => {
 			switch (e.key) {
 				case 'scm.viewMode':
 					this.viewMode = this.getViewMode();
@@ -1970,17 +1970,17 @@ export class SCMViewPane extends ViewPane {
 					this.viewSortKey = this.getViewSortKey();
 					break;
 			}
-		}));
+		}, this, this.disposables);
 
-		this._register(this.storageService.onWillSaveState(e => {
+		this.storageService.onWillSaveState(e => {
 			this.viewMode = this.getViewMode();
 			this.viewSortKey = this.getViewSortKey();
 
 			this.storeTreeViewState();
-		}));
+		}, this, this.disposables);
 
-		this._register(this.instantiationService.createInstance(ScmInputContentProvider));
-		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+		this.disposables.add(this.instantiationService.createInstance(ScmInputContentProvider));
+		Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire(), this, this.disposables);
 	}
 
 	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
@@ -2009,7 +2009,7 @@ export class SCMViewPane extends ViewPane {
 		this.treeContainer.classList.add('show-file-icons');
 
 		const updateActionsVisibility = () => this.treeContainer.classList.toggle('show-actions', this.configurationService.getValue<boolean>('scm.alwaysShowActions'));
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'), this.disposables)(updateActionsVisibility));
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowActions'), this.disposables)(updateActionsVisibility, this, this.disposables);
 		updateActionsVisibility();
 
 		const updateProviderCountVisibility = () => {
@@ -2017,12 +2017,12 @@ export class SCMViewPane extends ViewPane {
 			this.treeContainer.classList.toggle('hide-provider-counts', value === 'hidden');
 			this.treeContainer.classList.toggle('auto-provider-counts', value === 'auto');
 		};
-		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
+		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility, this, this.disposables);
 		updateProviderCountVisibility();
 
 		this.createTree(this.treeContainer);
 
-		this._register(this.onDidChangeBodyVisibility(async visible => {
+		this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
 				await this.tree.setInput(this.scmViewService, this.loadTreeViewState());
 
@@ -2030,7 +2030,7 @@ export class SCMViewPane extends ViewPane {
 					this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 					this.updateChildren();
 				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showActionButton'), this.visibilityDisposables)(updateActionButtonVisibility, this);
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showActionButton'), this.visibilityDisposables)(updateActionButtonVisibility, this, this.visibilityDisposables);
 				updateActionButtonVisibility();
 
 				const updateRepositoryVisibility = () => {
@@ -2038,7 +2038,7 @@ export class SCMViewPane extends ViewPane {
 					this.updateChildren();
 					this.updateActions();
 				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this);
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this, this.visibilityDisposables);
 				updateRepositoryVisibility();
 
 				// Add visible repositories
@@ -2061,10 +2061,11 @@ export class SCMViewPane extends ViewPane {
 			}
 
 			this.updateRepositoryCollapseAllContextKeys();
-		}));
+		}, this, this.disposables);
 
-		this._register(this.instantiationService.createInstance(RepositoryVisibilityActionController));
-		this._register(this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this));
+		this.disposables.add(this.instantiationService.createInstance(RepositoryVisibilityActionController));
+
+		this.themeService.onDidFileIconThemeChange(this.updateIndentStyles, this, this.disposables);
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
@@ -2075,19 +2076,11 @@ export class SCMViewPane extends ViewPane {
 		this.actionButtonRenderer = this.instantiationService.createInstance(ActionButtonRenderer);
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
-		this._register(this.listLabels);
+		this.disposables.add(this.listLabels);
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
-		this._register(actionRunner);
-		this._register(actionRunner.onWillRun(() => this.tree.domFocus()));
-
-		const renderers: ICompressibleTreeRenderer<any, any, any>[] = [
-			this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
-			this.inputRenderer,
-			this.actionButtonRenderer,
-			this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
-			this._register(this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner))
-		];
+		actionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
+		this.disposables.add(actionRunner);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -2095,14 +2088,20 @@ export class SCMViewPane extends ViewPane {
 			container,
 			new ListDelegate(this.inputRenderer),
 			new SCMTreeCompressionDelegate(),
-			renderers,
+			[
+				this.inputRenderer,
+				this.actionButtonRenderer,
+				this.instantiationService.createInstance(RepositoryRenderer, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
+				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner)
+			],
 			this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton),
 			{
 				horizontalScrolling: false,
 				setRowLineHeight: false,
 				transformOptimization: false,
-				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				filter: new SCMTreeFilter(),
+				dnd: new SCMTreeDragAndDrop(this.instantiationService),
 				identityProvider: new SCMResourceIdentityProvider(),
 				sorter: new SCMTreeSorter(() => this.viewMode, () => this.viewSortKey),
 				keyboardNavigationLabelProvider: this.instantiationService.createInstance(SCMTreeKeyboardNavigationLabelProvider, () => this.viewMode),
@@ -2113,12 +2112,12 @@ export class SCMViewPane extends ViewPane {
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
-		this._register(this.tree);
-		this._register(this.tree.onDidOpen(this.open, this));
-		this._register(this.tree.onContextMenu(this.onListContextMenu, this));
-		this._register(this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer));
-		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)
-			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
+		this.disposables.add(this.tree);
+
+		this.tree.onDidOpen(this.open, this, this.disposables);
+		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
+		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
+		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		append(container, overflowWidgetsDomNode);
 	}
