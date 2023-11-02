@@ -30,6 +30,8 @@ export interface IAuxiliaryWindowService {
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
+	getWindowById(windowId: number): IAuxiliaryWindow | undefined;
+
 	open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow>;
 }
 
@@ -48,7 +50,7 @@ export type AuxiliaryWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
 
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
+export function isAuxiliaryWindow(obj: Window): obj is AuxiliaryWindow {
 	const candidate = obj as AuxiliaryWindow | undefined;
 
 	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
@@ -64,6 +66,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private readonly _onDidOpenAuxiliaryWindow = this._register(new Emitter<IAuxiliaryWindowOpenEvent>());
 	readonly onDidOpenAuxiliaryWindow = this._onDidOpenAuxiliaryWindow.event;
+
+	private readonly windows = new Map<number, IAuxiliaryWindow>();
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
@@ -82,7 +86,6 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			throw new Error(localize('unableToOpenWindowError', "Unable to open a new window."));
 		}
 
-		disposables.add(registerWindow(auxiliaryWindow));
 		disposables.add(toDisposable(() => auxiliaryWindow.close()));
 
 		const { container, onDidLayout, onDidClose } = await this.create(auxiliaryWindow, disposables);
@@ -95,6 +98,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			layout: () => onDidLayout.fire(getClientArea(container)),
 			dispose: () => disposables.dispose()
 		};
+
+		this.windows.set(auxiliaryWindow.vscodeWindowId, result);
+		disposables.add(toDisposable(() => this.windows.delete(auxiliaryWindow.vscodeWindowId)));
+
+		disposables.add(registerWindow(auxiliaryWindow));
 
 		const eventDisposables = new DisposableStore();
 		disposables.add(eventDisposables);
@@ -303,6 +311,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		};
 
 		mark('code/auxiliaryWindow/didPatchMethods');
+	}
+
+	getWindowById(windowId: number): IAuxiliaryWindow | undefined {
+		return this.windows.get(windowId);
 	}
 }
 

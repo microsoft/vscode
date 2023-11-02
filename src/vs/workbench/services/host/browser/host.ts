@@ -23,7 +23,7 @@ export interface IHostService {
 	//#region Focus
 
 	/**
-	 * Emitted when the window focus changes.
+	 * Emitted when the focus of the window changes.
 	 */
 	readonly onDidChangeFocus: Event<boolean>;
 
@@ -52,6 +52,12 @@ export interface IHostService {
 
 
 	//#region Window
+
+	/**
+	 * Emitted when the active window changes between main window
+	 * and auxiliary windows.
+	 */
+	readonly onDidChangeActiveWindow: Event<void>;
 
 	/**
 	 * Opens an empty window. The optional parameter allows to define if
