@@ -22,39 +22,41 @@ interface WatermarkEntry {
 	readonly when?: ContextKeyExpression;
 }
 
-const showCommands: WatermarkEntry = { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' };
-const quickAccess: WatermarkEntry = { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' };
-const openFileNonMacOnly: WatermarkEntry = { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile', mac: false };
-const openFolderNonMacOnly: WatermarkEntry = { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder', mac: false };
-const openFileOrFolderMacOnly: WatermarkEntry = { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder', mac: true };
-const openRecent: WatermarkEntry = { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' };
-const newUntitledFileMacOnly: WatermarkEntry = { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile', mac: true };
-const findInFiles: WatermarkEntry = { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' };
-const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
-const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
-const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
-const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
-const quickChat: WatermarkEntry = { text: localize('watermark.quickChat', "Toggle Quick Chat"), id: 'workbench.action.quickchat.toggle' };
+const entries: Record<string, WatermarkEntry> = {
+	findInFiles: { text: localize('watermark.findInFiles', "Find in Files"), id: 'workbench.action.findInFiles' },
+	newUntitledFileMacOnly: { text: localize('watermark.newUntitledFile', "New Untitled Text File"), id: 'workbench.action.files.newUntitledFile', mac: true },
+	openFileNonMacOnly: { text: localize('watermark.openFile', "Open File"), id: 'workbench.action.files.openFile', mac: false },
+	openFileOrFolderMacOnly: { text: localize('watermark.openFileFolder', "Open File or Folder"), id: 'workbench.action.files.openFileFolder', mac: true },
+	openFolderNonMacOnly: { text: localize('watermark.openFolder', "Open Folder"), id: 'workbench.action.files.openFolder', mac: false },
+	openRecent: { text: localize('watermark.openRecent', "Open Recent"), id: 'workbench.action.openRecent' },
+	quickAccess: { text: localize('watermark.quickAccess', "Go to File"), id: 'workbench.action.quickOpen' },
+	quickChat: { text: localize('watermark.quickChat', "Toggle Quick Chat"), id: 'workbench.action.quickchat.toggle' },
+	showCommands: { text: localize('watermark.showCommands', "Show All Commands"), id: 'workbench.action.showCommands' },
+	showSettings: { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() },
+	startDebugging: { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) },
+	toggleFullscreen: { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() },
+	toggleTerminal: { text: localize({ key: 'watermark.toggleTerminal', comment: ['toggle is a verb here'] }, "Toggle Terminal"), id: 'workbench.action.terminal.toggleTerminal', when: ContextKeyExpr.equals('terminalProcessSupported', true) },
+};
 
 const noFolderEntries = [
-	showCommands,
-	openFileNonMacOnly,
-	openFolderNonMacOnly,
-	openFileOrFolderMacOnly,
-	openRecent,
-	newUntitledFileMacOnly,
-	quickChat
+	entries.newUntitledFileMacOnly,
+	entries.openFileNonMacOnly,
+	entries.openFolderNonMacOnly,
+	entries.openFileOrFolderMacOnly,
+	entries.openRecent,
+	entries.quickChat,
+	entries.showCommands,
 ];
 
 const folderEntries = [
-	showCommands,
-	quickAccess,
-	findInFiles,
-	startDebugging,
-	toggleTerminal,
-	toggleFullscreen,
-	showSettings,
-	quickChat
+	entries.findInFiles,
+	entries.quickAccess,
+	entries.showCommands,
+	entries.startDebugging,
+	entries.toggleFullscreen,
+	entries.toggleTerminal,
+	entries.showSettings,
+	entries.quickChat,
 ];
 
 export class EditorGroupWatermark extends Disposable {
