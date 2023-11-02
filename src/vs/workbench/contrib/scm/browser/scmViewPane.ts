@@ -25,7 +25,7 @@ import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
 import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
-import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer, Sequencer } from 'vs/base/common/async';
 import { ITreeNode, ITreeFilter, ITreeSorter, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeDragOverReaction, IAsyncDataSource } from 'vs/base/browser/ui/tree/tree';
 import { ResourceTree, IResourceNode } from 'vs/base/common/resourceTree';
@@ -1001,18 +1001,29 @@ interface RepositoryVisibilityItem {
 
 class RepositoryVisibilityActionController {
 
+	private alwaysShowRepositories = false;
 	private items = new Map<ISCMRepository, RepositoryVisibilityItem>();
 	private repositoryCountContextKey: IContextKey<number>;
 	private repositoryVisibilityCountContextKey: IContextKey<number>;
+	private scmProviderContextKey: IContextKey<string | undefined>;
+	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
+	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 	private readonly disposables = new DisposableStore();
 
 	constructor(
-		@ISCMViewService private scmViewService: ISCMViewService,
-		@ISCMService scmService: ISCMService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@ISCMService scmService: ISCMService
 	) {
 		this.repositoryCountContextKey = ContextKeys.RepositoryCount.bindTo(contextKeyService);
 		this.repositoryVisibilityCountContextKey = ContextKeys.RepositoryVisibilityCount.bindTo(contextKeyService);
+		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
+		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
+		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
+
+		configurationService.onDidChangeConfiguration(this.onDidChangeConfiguration, this, this.disposables);
+		this.onDidChangeConfiguration();
 
 		scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
 		scmService.onDidAddRepository(this.onDidAddRepository, this, this.disposables);
@@ -1041,13 +1052,13 @@ class RepositoryVisibilityActionController {
 			}
 		});
 
-		this.updateRepositoriesCounts();
+		this.updateRepositoryContextKeys();
 	}
 
 	private onDidRemoveRepository(repository: ISCMRepository): void {
 		this.items.get(repository)?.dispose();
 		this.items.delete(repository);
-		this.updateRepositoriesCounts();
+		this.updateRepositoryContextKeys();
 	}
 
 	private onDidChangeVisibleRepositories(): void {
@@ -1066,9 +1077,27 @@ class RepositoryVisibilityActionController {
 		this.repositoryVisibilityCountContextKey.set(count);
 	}
 
-	private updateRepositoriesCounts(): void {
+	private onDidChangeConfiguration(e?: IConfigurationChangeEvent): void {
+		if (!e || e.affectsConfiguration('scm.alwaysShowRepositories')) {
+			this.alwaysShowRepositories = this.contextKeyService.getContextKeyValue('scm.alwaysShowRepositories') === true;
+			this.updateRepositoryContextKeys();
+		}
+	}
+
+	private updateRepositoryContextKeys(): void {
 		this.repositoryCountContextKey.set(this.items.size);
 		this.repositoryVisibilityCountContextKey.set(Iterable.reduce(this.items.keys(), (r, repository) => r + (this.scmViewService.isVisible(repository) ? 1 : 0), 0));
+
+		if (!this.alwaysShowRepositories && this.items.size === 1) {
+			const provider = Iterable.first(this.items.keys())!.provider;
+			this.scmProviderContextKey.set(provider.contextValue);
+			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
+			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
+		} else {
+			this.scmProviderContextKey.set(undefined);
+			this.scmProviderRootUriContextKey.set(undefined);
+			this.scmProviderHasRootUriContextKey.set(false);
+		}
 	}
 
 	dispose(): void {
@@ -1893,29 +1922,26 @@ export class SCMViewPane extends ViewPane {
 	private viewSortKeyContextKey: IContextKey<ViewSortKey>;
 	private areAllRepositoriesCollapsedContextKey: IContextKey<boolean>;
 	private isAnyRepositoryCollapsibleContextKey: IContextKey<boolean>;
-	private scmProviderContextKey: IContextKey<string | undefined>;
-	private scmProviderRootUriContextKey: IContextKey<string | undefined>;
-	private scmProviderHasRootUriContextKey: IContextKey<boolean>;
 
 	private readonly disposables = new DisposableStore();
 
 	constructor(
 		options: IViewPaneOptions,
+		@ICommandService private readonly commandService: ICommandService,
+		@IEditorService private readonly editorService: IEditorService,
+		@IMenuService private readonly menuService: IMenuService,
 		@ISCMService private readonly scmService: ISCMService,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
+		@IStorageService private readonly storageService: IStorageService,
+		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IThemeService themeService: IThemeService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IEditorService private readonly editorService: IEditorService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IViewDescriptorService viewDescriptorService: IViewDescriptorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IMenuService private readonly menuService: IMenuService,
-		@IStorageService private readonly storageService: IStorageService,
 		@IOpenerService openerService: IOpenerService,
-		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@ITelemetryService telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
@@ -1931,9 +1957,6 @@ export class SCMViewPane extends ViewPane {
 		this.viewSortKeyContextKey.set(this.viewSortKey);
 		this.areAllRepositoriesCollapsedContextKey = ContextKeys.SCMViewAreAllRepositoriesCollapsed.bindTo(contextKeyService);
 		this.isAnyRepositoryCollapsibleContextKey = ContextKeys.SCMViewIsAnyRepositoryCollapsible.bindTo(contextKeyService);
-		this.scmProviderContextKey = ContextKeys.SCMProvider.bindTo(contextKeyService);
-		this.scmProviderRootUriContextKey = ContextKeys.SCMProviderRootUri.bindTo(contextKeyService);
-		this.scmProviderHasRootUriContextKey = ContextKeys.SCMProviderHasRootUri.bindTo(contextKeyService);
 
 		this._onDidLayout = new Emitter<void>();
 		this.layoutCache = { height: undefined, width: undefined, onDidChange: this._onDidLayout.event };
@@ -1958,6 +1981,23 @@ export class SCMViewPane extends ViewPane {
 
 		this._register(this.instantiationService.createInstance(ScmInputContentProvider));
 		this._register(Event.any(this.scmService.onDidAddRepository, this.scmService.onDidRemoveRepository)(() => this._onDidChangeViewWelcomeState.fire()));
+	}
+
+	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
+		if (height === undefined) {
+			return;
+		}
+
+		if (width !== undefined) {
+			super.layoutBody(height, width);
+		}
+
+		this.layoutCache.height = height;
+		this.layoutCache.width = width;
+		this._onDidLayout.fire();
+
+		this.treeContainer.style.height = `${height}px`;
+		this.tree.layout(height, width);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -2020,7 +2060,6 @@ export class SCMViewPane extends ViewPane {
 				this.treeScrollTop = this.tree.scrollTop;
 			}
 
-			this.updateRepositoryContextKeys();
 			this.updateRepositoryCollapseAllContextKeys();
 		}));
 
@@ -2082,30 +2121,6 @@ export class SCMViewPane extends ViewPane {
 			(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		append(container, overflowWidgetsDomNode);
-	}
-
-	private updateIndentStyles(theme: IFileIconTheme): void {
-		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
-		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
-		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
-		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
-	}
-
-	protected override layoutBody(height: number | undefined = this.layoutCache.height, width: number | undefined = this.layoutCache.width): void {
-		if (height === undefined) {
-			return;
-		}
-
-		if (width !== undefined) {
-			super.layoutBody(height, width);
-		}
-
-		this.layoutCache.height = height;
-		this.layoutCache.width = width;
-		this._onDidLayout.fire();
-
-		this.treeContainer.style.height = `${height}px`;
-		this.tree.layout(height, width);
 	}
 
 	private async open(e: IOpenEvent<TreeElement | undefined>): Promise<void> {
@@ -2385,7 +2400,6 @@ export class SCMViewPane extends ViewPane {
 
 	private updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
 		this.asyncOperationSequencer.queue(async () => {
-			this.updateRepositoryContextKeys();
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
 			await this.tree.updateChildren(element, recursive, rerender);
@@ -2398,21 +2412,15 @@ export class SCMViewPane extends ViewPane {
 		});
 	}
 
-	private updateRepositoryContextKeys(): void {
-		if (!this.alwaysShowRepositories && this.items.size === 1) {
-			const provider = Iterable.first(this.items.keys())!.provider;
-			this.scmProviderContextKey.set(provider.contextValue);
-			this.scmProviderRootUriContextKey.set(provider.rootUri?.toString());
-			this.scmProviderHasRootUriContextKey.set(!!provider.rootUri);
-		} else {
-			this.scmProviderContextKey.set(undefined);
-			this.scmProviderRootUriContextKey.set(undefined);
-			this.scmProviderHasRootUriContextKey.set(false);
-		}
+	private updateIndentStyles(theme: IFileIconTheme): void {
+		this.treeContainer.classList.toggle('list-view-mode', this.viewMode === ViewMode.List);
+		this.treeContainer.classList.toggle('tree-view-mode', this.viewMode === ViewMode.Tree);
+		this.treeContainer.classList.toggle('align-icons-and-twisties', (this.viewMode === ViewMode.List && theme.hasFileIcons) || (theme.hasFileIcons && !theme.hasFolderIcons));
+		this.treeContainer.classList.toggle('hide-arrows', this.viewMode === ViewMode.Tree && theme.hidesExplorerArrows === true);
 	}
 
 	private updateRepositoryCollapseAllContextKeys(): void {
-		if (!this.isBodyVisible() || this.scmViewService.visibleRepositories.length === 1) {
+		if (!this.isBodyVisible() || this.items.size === 1) {
 			this.isAnyRepositoryCollapsibleContextKey.set(false);
 			this.areAllRepositoriesCollapsedContextKey.set(false);
 			return;
