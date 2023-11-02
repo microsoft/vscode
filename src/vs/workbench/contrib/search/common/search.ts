@@ -19,7 +19,6 @@ import { isNumber } from 'vs/base/common/types';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { compare } from 'vs/base/common/strings';
 import { groupBy } from 'vs/base/common/arrays';
-import { EditorAssociation } from 'vs/workbench/services/editor/common/editorResolverService';
 
 export interface IWorkspaceSymbol {
 	name: string;
@@ -225,6 +224,6 @@ export enum SearchUIState {
 export const SearchStateKey = new RawContextKey<SearchUIState>('searchState', SearchUIState.Idle);
 
 export interface NotebookPriorityInfo {
-	rank: number;
-	editorAssociations: EditorAssociation[];
+	isFromSettings: boolean;
+	filenamePatterns: string[];
 }

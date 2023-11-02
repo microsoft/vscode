@@ -15,7 +15,7 @@ import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatche
 import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
-import { IEditorResolverService, priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
@@ -112,26 +112,36 @@ export class NotebookSearchService implements INotebookSearchService {
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<IClosedNotebookSearchResults> {
 
 		const userAssociations = this.editorResolverService.getAllUserAssociations();
-		const allPriorityInfo: Map<string, NotebookPriorityInfo> = new Map();
+		const allPriorityInfo: Map<string, NotebookPriorityInfo[]> = new Map();
+		const contributedNotebookTypes = this.notebookService.getContributedNotebookTypes();
 
-		[...this.notebookService.getContributedNotebookTypes()]
-			.forEach(e => {
-				const association = userAssociations.filter(association => association.viewType === e.id);
-				const info = <NotebookPriorityInfo>{
-					rank: priorityToRank(e.priority),
-					editorAssociations: association
-				};
-				allPriorityInfo.set(e.id, info);
-			});
+		userAssociations.forEach(association => {
+
+			if (!association.filenamePattern) {
+				return;
+			}
+
+			const info = <NotebookPriorityInfo>{
+				isFromSettings: true,
+				filenamePatterns: [association.filenamePattern]
+			};
+
+			const existingEntry = allPriorityInfo.get(association.viewType);
+			if (existingEntry) {
+				allPriorityInfo.set(association.viewType, existingEntry.concat(info));
+			} else {
+				allPriorityInfo.set(association.viewType, [info]);
+			}
+		});
 
 		const promises: Promise<{
 			results: INotebookFileMatchNoModel<URI>[];
 			limitHit: boolean;
 		}>[] = [];
 
-		allPriorityInfo.forEach((value, key) => {
+		contributedNotebookTypes.forEach((notebook) => {
 			promises.push((async () => {
-				const serializer = (await this.notebookService.withNotebookDataProvider(key)).serializer;
+				const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
 				return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
 			})());
 		});
