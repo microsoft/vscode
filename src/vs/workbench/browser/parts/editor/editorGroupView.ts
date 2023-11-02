@@ -24,7 +24,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { DisposableStore, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
@@ -133,9 +133,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly whenRestoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.whenRestoredPromise.p;
-
-	// Editor Actions
-	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
 
 	// Editor Group Context
 	private resourceContext!: ResourceContextKey;
@@ -1930,26 +1927,25 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Editor Actions
 
-	getEditorActions(): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } {
+	getEditorActions(): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent>; menuDisposable: IDisposable } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		// Dispose previous listeners
-		this.editorToolBarMenuDisposables.clear();
+		let menuDisposable = Disposable.None;
+		let onDidChangeActionsEvent = Event.None;
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
 		const activeEditorPane = this.activeEditorPane;
-		let onDidChangeActionsEvent = Event.None;
 		if (activeEditorPane instanceof EditorPane) {
 			const editorScopedContextKeyService = activeEditorPane.scopedContextKeyService ?? this.scopedContextKeyService;
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
-			this.editorToolBarMenuDisposables.add(titleBarMenu);
-			onDidChangeActionsEvent = titleBarMenu.onDidChange;
+			const editorTitleMenu = this.menuService.createMenu(MenuId.EditorTitle, editorScopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
+			menuDisposable = toDisposable(() => editorTitleMenu.dispose());
+			onDidChangeActionsEvent = editorTitleMenu.onDidChange;
 
 			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
 
 			createAndFillInActionBarActions(
-				titleBarMenu,
+				editorTitleMenu,
 				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
 				{ primary, secondary },
 				'navigation',
@@ -1957,7 +1953,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			);
 		}
 
-		return { actions: { primary, secondary }, onDidChange: onDidChangeActionsEvent };
+		return { actions: { primary, secondary }, onDidChange: onDidChangeActionsEvent, menuDisposable };
 	}
 
 	//#endregion

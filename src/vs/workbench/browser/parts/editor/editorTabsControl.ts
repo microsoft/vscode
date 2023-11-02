@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -97,7 +97,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	};
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
-	private editorActionsChangeDisposable = this._register(new MutableDisposable());
+	private editorActionsChangeDisposable = this._register(new DisposableStore());
 
 	private resourceContext: ResourceContextKey;
 
@@ -205,7 +205,9 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		const editorActions = this.groupView.getEditorActions();
 		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 
-		this.editorActionsChangeDisposable.value = editorActions.onDidChange(() => this.updateEditorActionsToolbar());
+		this.editorActionsChangeDisposable.clear();
+		this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
+		this.editorActionsChangeDisposable.add(editorActions.menuDisposable);
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
