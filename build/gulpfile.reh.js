@@ -201,29 +201,28 @@ function nodejs(platform, arch) {
 		log.warn(`Unable to verify integrity of downloaded node.js binary because no SHA256 checksum was found!`);
 	}
 
+	let fullVersion = nodeVersion;
+	if (product.nodejsRepository === 'Microsoft/vscode-node') {
+		fullVersion = `${nodeVersion}-${internalNodeVersion}`;
+	}
+
 	switch (platform) {
 		case 'win32':
-			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `win-${arch}-node.exe`, checksumSha256 }) :
-				fetchUrls(`/dist/v${nodeVersion}/win-${arch}/node.exe`, { base: 'https://nodejs.org', checksumSha256 }))
+			return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `win-${arch}-node.exe`, checksumSha256 })
 				.pipe(rename('node.exe'));
 		case 'darwin':
 		case 'linux':
-			return (product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 }) :
-				fetchUrls(`/dist/v${nodeVersion}/node-v${nodeVersion}-${platform}-${arch}.tar.gz`, { base: 'https://nodejs.org', checksumSha256 })
-			).pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+			return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
+				.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
 				.pipe(filter('**/node'))
 				.pipe(util.setExecutableBit('**'))
 				.pipe(rename('node'));
 		case 'alpine':
-			return product.nodejsRepository !== 'https://nodejs.org' ?
-				fetchGithub(product.nodejsRepository, { version: `${nodeVersion}-${internalNodeVersion}`, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
-					.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
-					.pipe(filter('**/node'))
-					.pipe(util.setExecutableBit('**'))
-					.pipe(rename('node'))
-				: extractAlpinefromDocker(nodeVersion, platform, arch);
+			return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
+				.pipe(flatmap(stream => stream.pipe(gunzip()).pipe(untar())))
+				.pipe(filter('**/node'))
+				.pipe(util.setExecutableBit('**'))
+				.pipe(rename('node'));
 	}
 }
 
