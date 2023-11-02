@@ -205,8 +205,8 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
 
-	private readonly _name: string;
-	get name(): string { return this._name; }
+	private readonly _name: string | undefined;
+	get name(): string { return this._name ?? this._label; }
 
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
@@ -241,11 +241,7 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 				this._name = folder.name;
 			} else if (_rootUri.path !== '/') {
 				this._name = basename(_rootUri);
-			} else {
-				this._name = _label;
 			}
-		} else {
-			this._name = _label;
 		}
 	}
 
