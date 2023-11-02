@@ -1148,7 +1148,7 @@ export class IssueReporter extends Disposable {
 						const toActivate = await this.sendReporterStatus(matches[0]);
 						matches[0].hasIssueDataProviders = toActivate[0];
 						matches[0].hasIssueUriRequestHandler = toActivate[1];
-						console.log('came here because extension is not activated');
+						this.renderBlocks();
 					}
 
 					if (matches[0].hasIssueUriRequestHandler) {
