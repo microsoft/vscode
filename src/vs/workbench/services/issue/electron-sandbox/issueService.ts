@@ -25,7 +25,6 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-// eslint-disable-next-line local/code-import-patterns
 
 export class NativeIssueService implements IWorkbenchIssueService {
 	declare readonly _serviceBrand: undefined;
@@ -58,12 +57,17 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
 			ipcRenderer.send(request.replyChannel, result);
 		});
+		ipcRenderer.on('vscode:sendReporterStatus', async (event, arg) => {
+			const extension = arg.extensionId;
+			await this.extensionService.activateByEvent(`onIssueReporterOpened`);
+			const result = [this._providers.has(extension.toLowerCase()), this._handlers.has(extension.toLowerCase())];
+			ipcRenderer.send('vscode:sendReporterStatus1', result);
+		});
 	}
 
 	async openReporter(dataOverrides: Partial<IssueReporterData> = {}): Promise<void> {
 		const extensionData: IssueReporterExtensionData[] = [];
 		try {
-			this.extensionService.activateByEvent(`onIssueReporterOpened`);
 			const extensions = await this.extensionManagementService.getInstalled();
 			const enabledExtensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension) || (dataOverrides.extensionId && extension.identifier.id === dataOverrides.extensionId));
 			extensionData.push(...enabledExtensions.map((extension): IssueReporterExtensionData => {

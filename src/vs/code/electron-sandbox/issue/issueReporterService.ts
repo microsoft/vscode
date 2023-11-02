@@ -277,6 +277,15 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private async sendReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
+		try {
+			const data = await this.issueMainService.$sendReporterStatus(extension.id);
+			return data;
+		} catch (e) {
+			throw e;
+		}
+	}
+
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
@@ -1129,8 +1138,19 @@ export class IssueReporter extends Disposable {
 				const selectedExtensionId = (<HTMLInputElement>e.target).value;
 				const extensions = this.issueReporterModel.getData().allExtensions;
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
+				const foundHandler = matches[0].hasIssueUriRequestHandler;
+				const foundProvider = matches[0].hasIssueDataProviders;
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+
+					// if extension is not activated and has a provider/handler w
+					if (!matches[0].hasIssueDataProviders && !matches[0].hasIssueUriRequestHandler) {
+						const toActivate = await this.sendReporterStatus(matches[0]);
+						matches[0].hasIssueDataProviders = toActivate[0];
+						matches[0].hasIssueUriRequestHandler = toActivate[1];
+						console.log('came here because extension is not activated');
+					}
+
 					if (matches[0].hasIssueUriRequestHandler) {
 						this.updateIssueReporterUri(matches[0]);
 					} else if (matches[0].hasIssueDataProviders) {
@@ -1162,6 +1182,8 @@ export class IssueReporter extends Disposable {
 					this.clearSearchResults();
 					this.validateSelectedExtension();
 				}
+				matches[0].hasIssueDataProviders = foundProvider;
+				matches[0].hasIssueUriRequestHandler = foundHandler;
 				this.updatePreviewButtonState();
 				this.renderBlocks();
 			});
