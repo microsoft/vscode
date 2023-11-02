@@ -194,17 +194,6 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 
 	get handle(): number { return this._handle; }
 	get label(): string { return this._label; }
-	get name(): string {
-		if (this.rootUri) {
-			const folder = this._workspaceContextService.getWorkspaceFolder(this.rootUri);
-			if (folder?.uri.toString() === this.rootUri.toString()) {
-				return folder.name;
-			} else if (this.rootUri.path !== '/') {
-				return basename(this.rootUri);
-			}
-		}
-		return this.label;
-	}
 	get rootUri(): URI | undefined { return this._rootUri; }
 	get inputBoxDocumentUri(): URI { return this._inputBoxDocumentUri; }
 	get contextValue(): string { return this._contextValue; }
@@ -215,6 +204,9 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	get actionButton(): ISCMActionButtonDescriptor | undefined { return this.features.actionButton ?? undefined; }
 	get statusBarCommands(): Command[] | undefined { return this.features.statusBarCommands; }
 	get count(): number | undefined { return this.features.count; }
+
+	private readonly _name: string;
+	get name(): string { return this._name; }
 
 	private readonly _onDidChangeCommitTemplate = new Emitter<string>();
 	readonly onDidChangeCommitTemplate: Event<string> = this._onDidChangeCommitTemplate.event;
@@ -242,7 +234,20 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 		private readonly _inputBoxDocumentUri: URI,
 		private readonly _quickDiffService: IQuickDiffService,
 		private readonly _workspaceContextService: IWorkspaceContextService
-	) { }
+	) {
+		if (_rootUri) {
+			const folder = this._workspaceContextService.getWorkspaceFolder(_rootUri);
+			if (folder?.uri.toString() === _rootUri.toString()) {
+				this._name = folder.name;
+			} else if (_rootUri.path !== '/') {
+				this._name = basename(_rootUri);
+			} else {
+				this._name = _label;
+			}
+		} else {
+			this._name = _label;
+		}
+	}
 
 	$updateSourceControl(features: SCMProviderFeatures): void {
 		this.features = { ...this.features, ...features };
