@@ -78,7 +78,6 @@ import { LabelFuzzyScore } from 'vs/base/browser/ui/tree/abstractTree';
 import { Selection } from 'vs/editor/common/core/selection';
 import { API_OPEN_DIFF_EDITOR_COMMAND_ID, API_OPEN_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { createAndFillInContextMenuActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { MarkdownRenderer, openLinkFromMarkdown } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { Button, ButtonWithDescription, ButtonWithDropdown } from 'vs/base/browser/ui/button/button';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -888,8 +887,7 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 		if (ResourceTree.isResourceNode(element)) {
 			return this.labelService.getUriLabel(element.uri, { relative: true, noPrefix: true }) || element.name;
 		} else if (isSCMRepository(element)) {
-			const folderName = element.provider.name;
-			return `${folderName} ${element.provider.label}`;
+			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMInput(element)) {
 			return localize('input', "Source Control Input");
 		} else if (isSCMActionButton(element)) {

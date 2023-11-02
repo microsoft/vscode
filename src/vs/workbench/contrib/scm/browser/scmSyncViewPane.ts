@@ -36,7 +36,6 @@ import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { basename, dirname } from 'vs/base/common/resources';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { stripIcons } from 'vs/base/common/iconLabels';
@@ -333,8 +332,7 @@ class SCMSyncViewPaneAccessibilityProvider implements IListAccessibilityProvider
 
 	getAriaLabel(element: TreeElement): string {
 		if (isSCMRepository(element)) {
-			const folderName = element.provider.name;
-			return `${folderName} ${element.provider.label}`;
+			return `${element.provider.name} ${element.provider.label}`;
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			return `${stripIcons(element.label).trim()}${element.description ? `, ${element.description}` : ''}`;
 		} else if (isSCMActionButton(element)) {

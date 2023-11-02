@@ -17,8 +17,6 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IListRenderer } from 'vs/base/browser/ui/list/list';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { basename } from 'vs/base/common/resources';
 import { IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { defaultCountBadgeStyles } from 'vs/platform/theme/browser/defaultStyles';
 
@@ -42,8 +40,7 @@ export class RepositoryRenderer implements ICompressibleTreeRenderer<ISCMReposit
 		private actionViewItemProvider: IActionViewItemProvider,
 		@ISCMViewService private scmViewService: ISCMViewService,
 		@ICommandService private commandService: ICommandService,
-		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) { }
 
 	renderTemplate(container: HTMLElement): RepositoryTemplate {
