@@ -212,6 +212,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 			verifiedPublisher.title = `Verified Domain: ${this.extension.publisherDomain.link}`;
 			verifiedPublisher.setAttribute('role', 'link');
 
+			append(verifiedPublisher, $('span.extension-verified-publisher'));
 			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
 			this.disposables.add(onClick(verifiedPublisher, () => this.openerService.open(publisherDomainLink)));
 		}
