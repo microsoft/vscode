@@ -136,7 +136,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onCommandExecutedShowListener.value = this._register(capability.onCommandExecuted(() => this.show()));
+		this._onCommandExecutedShowListener.value = this._register(capability.onCommandExecuted(() => {
+			if (this._instance.hasFocus) {
+				this.show();
+			}
+		}));
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {
