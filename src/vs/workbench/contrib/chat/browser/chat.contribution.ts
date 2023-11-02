@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
@@ -56,10 +56,6 @@ import { registerChatFileTreeActions } from 'vs/workbench/contrib/chat/browser/a
 import { QuickChatService } from 'vs/workbench/contrib/chat/browser/chatQuick';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatVariablesService } from 'vs/workbench/contrib/chat/browser/chatVariables';
-import { Action2 } from 'vs/platform/actions/common/actions';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
@@ -235,50 +231,6 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 		}, async () => {
 			commandService.executeCommand(ACTION_ID_CLEAR_CHAT);
 		}));
-	}
-}
-
-export class ChatUndockAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'chat.action.undock',
-			title: {
-				value: nls.localize('chatUndock', "Undock the panel chat (experimental)"),
-				mnemonicTitle: nls.localize({ key: 'miChatUndock', comment: ['&& denotes a mnemonic'] }, "&&Undock the panel chat (experimental)"),
-				original: 'Undock the panel chat (experimental)'
-			},
-			category: Categories.View,
-			precondition: ActiveEditorContext,
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
-		if (!lastFocusedWidget) {
-			return;
-		}
-		const viewModel = lastFocusedWidget.viewModel;
-		if (!viewModel) {
-			return;
-		}
-		const sessionId = viewModel.sessionId;
-
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		// create a chat editor and drop it inside of the group
-		const editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
-		const instantiationService = accessor.get(IInstantiationService);
-		const chatEditorInput: ChatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-		const editorPaneDescriptor = editorPanesRegistry.getEditorPane(chatEditorInput);
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-		const editorPane = editorPaneDescriptor?.instantiate(instantiationService);
-		if (!editorPane || !editorPane.group || !editorPane.input) {
-			return;
-		}
-		editorPane.group.moveEditor(editorPane.input, auxiliaryEditorPart.activeGroup);
 	}
 }
 
