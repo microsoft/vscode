@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitConfiguration, IEditorPartDecorationsConfiguration } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IEditorIdentifier, IEditorCloseEvent, IEditorPartOptions, IEditorPartOptionsChangeEvent, SideBySideEditor, EditorCloseContext, IEditorPane, IEditorPartLimitOptions, IEditorPartDecorationOptions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorGroup, GroupDirection, IMergeGroupOptions, GroupsOrder, GroupsArrangement } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -13,10 +13,9 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { OptionalBooleanKey, OptionalNumberKey, OptionalStringKey, isObject } from 'vs/base/common/types';
+import { isObject } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
-import { ensureOptionalBooleanValue, ensureOptionalNumberValue, ensureOptionalStringValue } from 'vs/base/common/objects';
 
 export interface IEditorPartCreationOptions {
 	readonly restorePreviousState: boolean;
@@ -51,6 +50,20 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
+	wrapTabs: false,
+	enablePreviewFromQuickOpen: false,
+	scrollToSwitchTabs: false,
+	enablePreviewFromCodeNavigation: false,
+	closeOnFileDelete: false,
+	mouseBackForwardToNavigate: true,
+	restoreViewState: true,
+	splitInGroupLayout: 'horizontal',
+	revealIfOpen: false,
+	// Properties that are Objects have to be defined as getters
+	// to ensure no consumer modifies the default values
+	get limit(): IEditorPartLimitOptions { return { enabled: false, value: 10, perEditorGroup: false, excludeDirty: false }; },
+	get decorations(): IEditorPartDecorationOptions { return { badges: true, colors: true }; },
+	get autoLockGroups(): Set<string> { return new Set<string>(); }
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
@@ -71,7 +84,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 
 		// Special handle array types and convert to Set
 		if (isObject(config.workbench.editor.autoLockGroups)) {
-			options.autoLockGroups = new Set();
+			options.autoLockGroups = DEFAULT_EDITOR_PART_OPTIONS.autoLockGroups;
 
 			for (const [editorId, enablement] of Object.entries(config.workbench.editor.autoLockGroups)) {
 				if (enablement === true) {
@@ -79,7 +92,7 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 				}
 			}
 		} else {
-			options.autoLockGroups = undefined;
+			options.autoLockGroups = DEFAULT_EDITOR_PART_OPTIONS.autoLockGroups;
 		}
 	}
 
@@ -88,110 +101,124 @@ export function getEditorPartOptions(configurationService: IConfigurationService
 		options.tabHeight = windowConfig.window.density.editorTabHeight;
 	}
 
-	validateEditorPartOptions(options);
-
-	return options;
+	return validateEditorPartOptions(options);
 }
 
-function validateEditorPartOptions(options: IEditorPartOptions): void {
+
+interface IVerifier<T> {
+	verify(value: unknown): T;
+}
+
+abstract class Verifier<T> implements IVerifier<T> {
+
+	constructor(protected readonly defaultValue: T) { }
+
+	verify(value: unknown): T {
+		if (!this.isType(value)) {
+			return this.defaultValue;
+		}
+
+		return value;
+	}
+
+	protected isType(value: unknown): value is T {
+		return (value as T) !== undefined;
+	}
+}
+
+class BooleanVerifier extends Verifier<boolean> { }
+class NumberVerifier extends Verifier<number> { }
+class EnumVerifier<T> extends Verifier<T> { }
+class SetVerifier<T> extends Verifier<Set<T>> { }
+
+class ObjectVerifier<T extends Object> extends Verifier<T> {
+
+	constructor(defaultValue: T, private readonly verifier: { [K in keyof T]: IVerifier<T[K]> }) {
+		super(defaultValue);
+	}
+
+	override verify(value: unknown): T {
+		if (!isObject(value)) {
+			return this.defaultValue;
+		}
+		return verifyObject<T>(this.verifier, value);
+	}
+}
+
+function verifyObject<T extends Object>(verifiers: { [K in keyof T]: IVerifier<T[K]> }, value: Object): T {
+	const result = Object.create(null);
+
+	for (const key in verifiers) {
+		if (Object.hasOwnProperty.call(verifiers, key)) {
+			const verifier = verifiers[key];
+			if (!(verifier instanceof Verifier)) {
+				result[key] = verifyObject(verifier as any, value);
+			} else {
+				result[key] = verifier.verify((value as any)[key]);
+			}
+		}
+	}
+
+	return result;
+}
+
+
+function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOptions {
 
 	// Migrate: Show tabs (config migration kicks in very late and can cause flicker otherwise)
 	if (typeof options.showTabs === 'boolean') {
 		options.showTabs = options.showTabs ? 'multiple' : 'single';
 	}
 
-	// Boolean options
-	const booleanOptions: Array<OptionalBooleanKey<IEditorPartOptions>> = [
-		'wrapTabs',
-		'scrollToSwitchTabs',
-		'highlightModifiedTabs',
-		'tabActionCloseVisibility',
-		'tabActionUnpinVisibility',
-		'pinnedTabsOnSeparateRow',
-		'focusRecentEditorAfterClose',
-		'showIcons',
-		'enablePreview',
-		'enablePreviewFromQuickOpen',
-		'enablePreviewFromCodeNavigation',
-		'closeOnFileDelete',
-		'closeEmptyGroups',
-		'revealIfOpen',
-		'mouseBackForwardToNavigate',
-		'restoreViewState',
-		'splitOnDragAndDrop',
-		'centeredLayoutFixedWidth',
-	];
-	for (const option of booleanOptions) {
-		if (typeof option === 'string') {
-			ensureOptionalBooleanValue(options, option, Boolean(DEFAULT_EDITOR_PART_OPTIONS[option]));
-		}
-	}
+	return verifyObject<IEditorPartOptions>({
+		'wrapTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['wrapTabs']),
+		'scrollToSwitchTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['scrollToSwitchTabs']),
+		'highlightModifiedTabs': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['highlightModifiedTabs']),
+		'tabActionCloseVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionCloseVisibility']),
+		'tabActionUnpinVisibility': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionUnpinVisibility']),
+		'pinnedTabsOnSeparateRow': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabsOnSeparateRow']),
+		'focusRecentEditorAfterClose': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['focusRecentEditorAfterClose']),
+		'showIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['showIcons']),
+		'enablePreview': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['enablePreview']),
+		'enablePreviewFromQuickOpen': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['enablePreviewFromQuickOpen']),
+		'enablePreviewFromCodeNavigation': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['enablePreviewFromCodeNavigation']),
+		'closeOnFileDelete': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeOnFileDelete']),
+		'closeEmptyGroups': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['closeEmptyGroups']),
+		'revealIfOpen': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['revealIfOpen']),
+		'mouseBackForwardToNavigate': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['mouseBackForwardToNavigate']),
+		'restoreViewState': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['restoreViewState']),
+		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
+		'centeredLayoutFixedWidth': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['centeredLayoutFixedWidth']),
+		'hasIcons': new BooleanVerifier(true),
+		'tabSizingFixedMinWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMinWidth']),
+		'tabSizingFixedMaxWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMaxWidth']),
+		'showTabs': new EnumVerifier<'multiple' | 'single' | 'none'>(DEFAULT_EDITOR_PART_OPTIONS['showTabs']),
+		'tabActionLocation': new EnumVerifier<'left' | 'right'>(DEFAULT_EDITOR_PART_OPTIONS['tabActionLocation']),
+		'tabSizing': new EnumVerifier<'fit' | 'shrink' | 'fixed'>(DEFAULT_EDITOR_PART_OPTIONS['tabSizing']),
+		'pinnedTabSizing': new EnumVerifier<'normal' | 'compact' | 'shrink'>(DEFAULT_EDITOR_PART_OPTIONS['pinnedTabSizing']),
+		'tabHeight': new EnumVerifier<'default' | 'compact'>(DEFAULT_EDITOR_PART_OPTIONS['tabHeight']),
+		'preventPinnedEditorClose': new EnumVerifier<'keyboardAndMouse' | 'keyboard' | 'mouse' | 'never'>(DEFAULT_EDITOR_PART_OPTIONS['preventPinnedEditorClose']),
+		'titleScrollbarSizing': new EnumVerifier<'default' | 'large'>(DEFAULT_EDITOR_PART_OPTIONS['titleScrollbarSizing']),
+		'openPositioning': new EnumVerifier<'left' | 'right' | 'first' | 'last'>(DEFAULT_EDITOR_PART_OPTIONS['openPositioning']),
+		'openSideBySideDirection': new EnumVerifier<'right' | 'down'>(DEFAULT_EDITOR_PART_OPTIONS['openSideBySideDirection']),
+		'labelFormat': new EnumVerifier<'default' | 'short' | 'medium' | 'long'>(DEFAULT_EDITOR_PART_OPTIONS['labelFormat']),
+		'splitInGroupLayout': new EnumVerifier<'vertical' | 'horizontal'>(DEFAULT_EDITOR_PART_OPTIONS['splitInGroupLayout']),
+		'splitSizing': new EnumVerifier<'distribute' | 'split' | 'auto'>(DEFAULT_EDITOR_PART_OPTIONS['splitSizing']),
+		'doubleClickTabToToggleEditorGroupSizes': new EnumVerifier<'maximize' | 'expand' | 'off'>(DEFAULT_EDITOR_PART_OPTIONS['doubleClickTabToToggleEditorGroupSizes']),
+		'autoLockGroups': new SetVerifier<string>(DEFAULT_EDITOR_PART_OPTIONS['autoLockGroups']),
 
-	// Number options
-	const numberOptions: Array<OptionalNumberKey<IEditorPartOptions>> = [
-		'tabSizingFixedMinWidth',
-		'tabSizingFixedMaxWidth'
-	];
-	for (const option of numberOptions) {
-		if (typeof option === 'string') {
-			ensureOptionalNumberValue(options, option, Number(DEFAULT_EDITOR_PART_OPTIONS[option]));
-		}
-	}
+		'limit': new ObjectVerifier<IEditorPartLimitOptions>(DEFAULT_EDITOR_PART_OPTIONS['limit'], {
+			'enabled': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['enabled']),
+			'value': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['value']),
+			'perEditorGroup': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['perEditorGroup']),
+			'excludeDirty': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['excludeDirty'])
+		}),
 
-	// String options
-	const stringOptions: Array<[OptionalStringKey<IEditorPartOptions>, Array<string>]> = [
-		['showTabs', ['multiple', 'single', 'none']],
-		['tabActionLocation', ['left', 'right']],
-		['tabSizing', ['fit', 'shrink', 'fixed']],
-		['pinnedTabSizing', ['normal', 'compact', 'shrink']],
-		['tabHeight', ['default', 'compact']],
-		['preventPinnedEditorClose', ['keyboardAndMouse', 'keyboard', 'mouse', 'never']],
-		['titleScrollbarSizing', ['default', 'large']],
-		['openPositioning', ['left', 'right', 'first', 'last']],
-		['openSideBySideDirection', ['right', 'down']],
-		['labelFormat', ['default', 'short', 'medium', 'long']],
-		['splitInGroupLayout', ['vertical', 'horizontal']],
-		['splitSizing', ['distribute', 'split', 'auto']],
-		['doubleClickTabToToggleEditorGroupSizes', ['maximize', 'expand', 'off']]
-	];
-	for (const [option, allowed] of stringOptions) {
-		if (typeof option === 'string') {
-			ensureOptionalStringValue(options, option, allowed, String(DEFAULT_EDITOR_PART_OPTIONS[option]));
-		}
-	}
-
-	// Complex options
-	if (options.autoLockGroups && !(options.autoLockGroups instanceof Set)) {
-		options.autoLockGroups = undefined;
-	}
-	if (options.limit && !isObject(options.limit)) {
-		options.limit = undefined;
-	} else if (options.limit) {
-		const booleanLimitOptions: Array<OptionalBooleanKey<IEditorPartLimitConfiguration>> = [
-			'enabled',
-			'excludeDirty',
-			'perEditorGroup'
-		];
-		for (const option of booleanLimitOptions) {
-			if (typeof option === 'string') {
-				ensureOptionalBooleanValue(options.limit, option, undefined);
-			}
-		}
-		ensureOptionalNumberValue(options.limit, 'value', undefined);
-	}
-	if (options.decorations && !isObject(options.decorations)) {
-		options.decorations = undefined;
-	} else if (options.decorations) {
-		const booleanDecorationOptions: Array<OptionalBooleanKey<IEditorPartDecorationsConfiguration>> = [
-			'badges',
-			'colors'
-		];
-		for (const option of booleanDecorationOptions) {
-			if (typeof option === 'string') {
-				ensureOptionalBooleanValue(options.decorations, option, undefined);
-			}
-		}
-	}
+		'decorations': new ObjectVerifier<IEditorPartDecorationOptions>(DEFAULT_EDITOR_PART_OPTIONS['decorations'], {
+			'badges': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['badges']),
+			'colors': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['colors'])
+		}),
+	}, options);
 }
 
 /**
