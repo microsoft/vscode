@@ -179,11 +179,7 @@ function verifyObject<T extends Object>(verifiers: { [K in keyof T]: IVerifier<T
 	for (const key in verifiers) {
 		if (Object.hasOwnProperty.call(verifiers, key)) {
 			const verifier = verifiers[key];
-			if (!(verifier instanceof Verifier)) {
-				result[key] = verifyObject(verifier as any, value);
-			} else {
-				result[key] = verifier.verify((value as any)[key]);
-			}
+			result[key] = verifier.verify((value as any)[key]);
 		}
 	}
 
@@ -218,8 +214,10 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'splitOnDragAndDrop': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitOnDragAndDrop']),
 		'centeredLayoutFixedWidth': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['centeredLayoutFixedWidth']),
 		'hasIcons': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['hasIcons']),
+
 		'tabSizingFixedMinWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMinWidth']),
 		'tabSizingFixedMaxWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMaxWidth']),
+
 		'showTabs': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabs'], ['multiple', 'single', 'none']),
 		'tabActionLocation': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionLocation'], ['left', 'right']),
 		'tabSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizing'], ['fit', 'shrink', 'fixed']),
@@ -241,7 +239,6 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 			'perEditorGroup': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['perEditorGroup']),
 			'excludeDirty': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['limit']['excludeDirty'])
 		}),
-
 		'decorations': new ObjectVerifier<IEditorPartDecorationOptions>(DEFAULT_EDITOR_PART_OPTIONS['decorations'], {
 			'badges': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['badges']),
 			'colors': new BooleanVerifier(DEFAULT_EDITOR_PART_OPTIONS['decorations']['colors'])
