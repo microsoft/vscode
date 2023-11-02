@@ -27,7 +27,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { countWords, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { InlineChatFileCreatePreviewWidget, InlineChatLivePreviewWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatLivePreviewWidget';
-import { EditResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_DOCUMENT_CHANGED } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
@@ -36,7 +36,7 @@ export abstract class EditModeStrategy {
 
 	abstract dispose(): void;
 
-	abstract checkChanges(response: EditResponse): boolean;
+	abstract checkChanges(response: ReplyResponse): boolean;
 
 	abstract apply(): Promise<void>;
 
@@ -48,7 +48,7 @@ export abstract class EditModeStrategy {
 
 	abstract undoChanges(altVersionId: number): Promise<void>;
 
-	abstract renderChanges(response: EditResponse): Promise<void>;
+	abstract renderChanges(response: ReplyResponse): Promise<void>;
 
 	abstract hasFocus(): boolean;
 
@@ -82,7 +82,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		this._ctxDocumentChanged.reset();
 	}
 
-	checkChanges(response: EditResponse): boolean {
+	checkChanges(response: ReplyResponse): boolean {
 		if (!response.workspaceEdits || response.singleCreateFileEdit) {
 			// preview stategy can handle simple workspace edit (single file create)
 			return true;
@@ -93,7 +93,7 @@ export class PreviewStrategy extends EditModeStrategy {
 
 	async apply() {
 
-		if (!(this._session.lastExchange?.response instanceof EditResponse)) {
+		if (!(this._session.lastExchange?.response instanceof ReplyResponse)) {
 			return;
 		}
 		const editResponse = this._session.lastExchange?.response;
@@ -132,7 +132,7 @@ export class PreviewStrategy extends EditModeStrategy {
 		// nothing to do
 	}
 
-	override async renderChanges(response: EditResponse): Promise<void> {
+	override async renderChanges(response: ReplyResponse): Promise<void> {
 		if (response.allLocalEdits.length > 0) {
 			const allEditOperation = response.allLocalEdits.map(edits => edits.map(TextEdit.asEditOperation));
 			await this._widget.showEditsPreview(this._session.textModel0, this._session.textModelN, allEditOperation);
@@ -225,7 +225,6 @@ class InlineDiffDecorations {
 
 export interface ProgressingEditsOptions {
 	duration: number;
-	round: number;
 	token: CancellationToken;
 }
 
@@ -236,7 +235,7 @@ export class LiveStrategy extends EditModeStrategy {
 	private readonly _inlineDiffDecorations: InlineDiffDecorations;
 	private readonly _store: DisposableStore = new DisposableStore();
 
-	private _lastResponse?: EditResponse;
+	private _lastResponse?: ReplyResponse;
 	private _editCount: number = 0;
 
 	constructor(
@@ -272,7 +271,7 @@ export class LiveStrategy extends EditModeStrategy {
 		this._inlineDiffDecorations.visible = this._diffEnabled;
 	}
 
-	checkChanges(response: EditResponse): boolean {
+	checkChanges(response: ReplyResponse): boolean {
 		this._lastResponse = response;
 		if (response.singleCreateFileEdit) {
 			// preview stategy can handle simple workspace edit (single file create)
@@ -328,8 +327,9 @@ export class LiveStrategy extends EditModeStrategy {
 
 	override async makeProgressiveChanges(edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
 
-		if (opts.round === 0) {
-			this._session.textModelN.pushStackElement();
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			this._editor.pushUndoStop();
 		}
 
 		const durationInSec = opts.duration / 1000;
@@ -341,7 +341,7 @@ export class LiveStrategy extends EditModeStrategy {
 		}
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async renderChanges(response: ReplyResponse) {
 		const diff = await this._editorWorkerService.computeDiff(this._session.textModel0.uri, this._session.textModelN.uri, { ignoreTrimWhitespace: false, maxComputationTimeMs: 5000, computeMoves: false }, 'advanced');
 		this._updateSummaryMessage(diff?.changes ?? []);
 		this._inlineDiffDecorations.update();
@@ -509,7 +509,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 		await this._updateDiffZones();
 	}
 
-	override async renderChanges(response: EditResponse) {
+	override async renderChanges(response: ReplyResponse) {
 
 		await this._updateDiffZones();
 
@@ -525,7 +525,7 @@ export class LivePreviewStrategy extends LiveStrategy {
 	}
 }
 
-function showSingleCreateFile(accessor: ServicesAccessor, edit: EditResponse) {
+function showSingleCreateFile(accessor: ServicesAccessor, edit: ReplyResponse) {
 	const editorService = accessor.get(IEditorService);
 	if (edit.singleCreateFileEdit) {
 		editorService.openEditor({ resource: edit.singleCreateFileEdit.uri }, SIDE_GROUP);
@@ -591,14 +591,16 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 		if (r.isFullString) {
 			clearInterval(handle);
 			stream.resolve();
+			d.dispose();
 		}
 
 	}, 1000 / wordsPerSec);
 
 	// cancel ASAP
-	token.onCancellationRequested(() => {
+	const d = token.onCancellationRequested(() => {
 		clearTimeout(handle);
 		stream.resolve();
+		d.dispose();
 	});
 
 	return {

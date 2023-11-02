@@ -8,14 +8,14 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IPosition, Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
+import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestDynamicReferencePart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, IParsedChatRequest, IParsedChatRequestPart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
-import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { IChatVariablesService, IDynamicReference } from 'vs/workbench/contrib/chat/common/chatVariables';
 
 const agentReg = /^@([\w_\-]+)(?=(\s|$|\b))/i; // An @-agent
 const variableReg = /^#([\w_\-]+)(:\d+)?(?=(\s|$|\b))/i; // A #-variable with an optional numeric : arg (@response:2)
 const slashReg = /\/([\w_\-]+)(?=(\s|$|\b))/i; // A / command
-const dollarSignVarReg = /\$([\w_\-]+):([\w_\-\.]+)(?=(\s|$|\b))/i; // A / command
+const variableWithArgReg = /\#([\w_\-]+):([\w_\-\.]+)(?=(\s|$|\b))/i; // A variable with a string : arg (#file:foo.ts)
 
 export class ChatRequestParser {
 	constructor(
@@ -26,6 +26,7 @@ export class ChatRequestParser {
 
 	async parseChatRequest(sessionId: string, message: string): Promise<IParsedChatRequest> {
 		const parts: IParsedChatRequestPart[] = [];
+		const references = this.variableService.getDynamicReferences(sessionId); // must access this list before any async calls
 
 		let lineNumber = 1;
 		let column = 1;
@@ -35,14 +36,13 @@ export class ChatRequestParser {
 			let newPart: IParsedChatRequestPart | undefined;
 			if (previousChar.match(/\s/) || i === 0) {
 				if (char === chatVariableLeader) {
-					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts);
-				} else if (char === '@') {
+					newPart = this.tryToParseVariable(message.slice(i), i, new Position(lineNumber, column), parts) ||
+						await this.tryToParseDynamicVariable(message.slice(i), i, new Position(lineNumber, column), references);
+				} else if (char === chatAgentLeader) {
 					newPart = this.tryToParseAgent(message.slice(i), message, i, new Position(lineNumber, column), parts);
-				} else if (char === '/') {
+				} else if (char === chatSubcommandLeader) {
 					// TODO try to make this sync
 					newPart = await this.tryToParseSlashCommand(sessionId, message.slice(i), message, i, new Position(lineNumber, column), parts);
-				} else if (char === '$') {
-					newPart = await this.tryToParseDynamicVariable(sessionId, message.slice(i), i, new Position(lineNumber, column), parts);
 				}
 			}
 
@@ -185,8 +185,8 @@ export class ChatRequestParser {
 		return;
 	}
 
-	private async tryToParseDynamicVariable(sessionId: string, message: string, offset: number, position: IPosition, parts: ReadonlyArray<IParsedChatRequestPart>): Promise<ChatRequestDynamicReferencePart | undefined> {
-		const nextVarMatch = message.match(dollarSignVarReg);
+	private async tryToParseDynamicVariable(message: string, offset: number, position: IPosition, references: ReadonlyArray<IDynamicReference>): Promise<ChatRequestDynamicReferencePart | undefined> {
+		const nextVarMatch = message.match(variableWithArgReg);
 		if (!nextVarMatch) {
 			return;
 		}
@@ -200,12 +200,9 @@ export class ChatRequestParser {
 			return;
 		}
 
-		const references = this.variableService.getDynamicReferences(sessionId);
 		const refAtThisPosition = references.find(r =>
 			r.range.startLineNumber === position.lineNumber &&
-			r.range.startColumn === position.column &&
-			r.range.endLineNumber === position.lineNumber &&
-			r.range.endColumn === position.column + full.length);
+			r.range.startColumn === position.column);
 		if (refAtThisPosition) {
 			return new ChatRequestDynamicReferencePart(range, editorRange, name, arg, refAtThisPosition.data);
 		}

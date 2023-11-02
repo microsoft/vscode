@@ -408,7 +408,8 @@ class AiRelatedInformationSearchProvider implements IRemoteSearchProvider {
 }
 
 class TfIdfSearchProvider implements IRemoteSearchProvider {
-	private static readonly TF_IDF_THRESHOLD = 0.5;
+	private static readonly TF_IDF_PRE_NORMALIZE_THRESHOLD = 50;
+	private static readonly TF_IDF_POST_NORMALIZE_THRESHOLD = 0.7;
 	private static readonly TF_IDF_MAX_PICKS = 5;
 
 	private _currentPreferencesModel: ISettingsEditorModel | undefined;
@@ -436,7 +437,6 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 	settingItemToEmbeddingString(item: ISetting): string {
 		let result = `Setting Id: ${item.key}\n`;
 		result += `Label: ${this.keyToLabel(item.key)}\n`;
-		result += `Type: ${Array.isArray(item.type) ? item.type.join(', ') : item.type}\n`;
 		result += `Description: ${item.description}\n`;
 		return result;
 	}
@@ -472,7 +472,7 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		};
 	}
 
-	private async getTfIdfItems(token?: CancellationToken | undefined) {
+	private async getTfIdfItems(token?: CancellationToken | undefined): Promise<ISettingMatch[]> {
 		const filterMatches: ISettingMatch[] = [];
 		const tfIdfCalculator = new TfIdfCalculator();
 		tfIdfCalculator.updateDocuments(this._documents);
@@ -480,8 +480,13 @@ class TfIdfSearchProvider implements IRemoteSearchProvider {
 		tfIdfRankings.sort((a, b) => b.score - a.score);
 		const maxScore = tfIdfRankings[0].score;
 
+		if (maxScore < TfIdfSearchProvider.TF_IDF_PRE_NORMALIZE_THRESHOLD) {
+			// Reject all the matches.
+			return [];
+		}
+
 		for (const info of tfIdfRankings) {
-			if (info.score / maxScore < TfIdfSearchProvider.TF_IDF_THRESHOLD || filterMatches.length === TfIdfSearchProvider.TF_IDF_MAX_PICKS) {
+			if (info.score / maxScore < TfIdfSearchProvider.TF_IDF_POST_NORMALIZE_THRESHOLD || filterMatches.length === TfIdfSearchProvider.TF_IDF_MAX_PICKS) {
 				break;
 			}
 			const pick = info.key;

@@ -506,6 +506,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 	}
 
 	override focus(): void {
+		super.focus();
 		setTimeout(() => this.replInput.focus(), 0);
 	}
 

@@ -87,6 +87,7 @@ export interface IInlineChatMessageResponse {
 export interface IInlineChatProgressItem {
 	markdownFragment?: string;
 	edits?: TextEdit[];
+	editsShouldBeInstant?: boolean;
 	message?: string;
 	slashCommand?: string;
 }
@@ -212,7 +213,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		'inlineChat.showGutterIcon': {
 			description: localize('showGutterIcon', "Show/hide a gutter icon for spawning inline chat on empty lines."),
-			default: true,
+			default: false,
 			type: 'boolean'
 		}
 	}

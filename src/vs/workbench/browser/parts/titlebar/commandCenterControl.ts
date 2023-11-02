@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { reset } from 'vs/base/browser/dom';
+import { isActiveDocument, reset } from 'vs/base/browser/dom';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from 'vs/base/browser/ui/actionbar/actionViewItems';
 import { IHoverDelegate } from 'vs/base/browser/ui/iconLabel/iconHoverDelegate';
 import { setupCustomHover } from 'vs/base/browser/ui/iconLabel/iconLabelHover';
@@ -20,6 +20,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { Verbosity } from 'vs/workbench/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CommandCenterControl {
 
@@ -54,8 +57,8 @@ export class CommandCenterControl {
 			}
 		});
 
-		this._disposables.add(quickInputService.onShow(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
+		this._disposables.add(Event.filter(quickInputService.onHide, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, true)));
 		this._disposables.add(titleToolbar);
 	}
 
@@ -81,6 +84,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions,
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
+		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IEditorService private _editorService: IEditorService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 	}
@@ -157,6 +162,14 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 								hover.update(this.getTooltip());
 								labelElement.innerText = this._getLabel();
 							}));
+
+							// update label & tooltip when tabs visibility changes
+							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
+								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
+									hover.update(this.getTooltip());
+									labelElement.innerText = this._getLabel();
+								}
+							}));
 						}
 
 						protected override getTooltip() {
@@ -165,7 +178,13 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 
 						private _getLabel(): string {
 							const { prefix, suffix } = that._windowTitle.getTitleDecorations();
-							let label = that._windowTitle.isCustomTitleFormat() ? that._windowTitle.getWindowTitle() : that._windowTitle.workspaceName;
+							let label = that._windowTitle.workspaceName;
+							if (that._windowTitle.isCustomTitleFormat()) {
+								label = that._windowTitle.getWindowTitle();
+							} else if (that._editorGroupService.partOptions.showTabs === 'none' && that._editorService.activeEditor) {
+								label = that._editorService.activeEditor.getTitle(Verbosity.SHORT);
+							}
+
 							if (!label) {
 								label = localize('label.dfl', "Search");
 							}

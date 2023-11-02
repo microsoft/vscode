@@ -58,7 +58,7 @@ export class CodeCell extends Disposable {
 
 		const cellEditorOptions = this._register(new CellEditorOptions(this.notebookEditor.getBaseCellEditorOptions(viewCell.language), this.notebookEditor.notebookOptions, this.configurationService));
 		this._outputContainerRenderer = this.instantiationService.createInstance(CellOutputContainer, notebookEditor, viewCell, templateData, { limit: outputDisplayLimit });
-		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer]));
+		this.cellParts = this._register(templateData.cellParts.concatContentPart([cellEditorOptions, this._outputContainerRenderer], DOM.getWindow(notebookEditor.getDomNode())));
 
 		// this.viewCell.layoutInfo.editorHeight or estimation when this.viewCell.layoutInfo.editorHeight === 0
 		const editorHeight = this.calculateInitEditorHeight();
@@ -146,7 +146,7 @@ export class CodeCell extends Disposable {
 		this._pendingLayout?.dispose();
 		this._pendingLayout = DOM.modify(() => {
 			this.cellParts.updateInternalLayoutNow(this.viewCell);
-		});
+		}, DOM.getWindow(this.templateData.container));
 	}
 
 	private updateForOutputHover() {

@@ -30,6 +30,8 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
+import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
+import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -93,6 +95,36 @@ export function registerChatActions() {
 			if (editorUri) {
 				const widgetService = accessor.get(IChatWidgetService);
 				widgetService.getWidgetByInputUri(editorUri)?.acceptInput();
+			}
+		}
+	});
+
+	registerEditorAction(class ChatSubmitSecondaryAgent extends EditorAction {
+		constructor() {
+			super({
+				id: 'chat.action.submitSecondaryAgent',
+				label: localize({ key: 'actions.chat.submitSecondaryAgent', comment: ['Send input from the chat input box to the secondary agent'] }, "Submit to Secondary Agent"),
+				alias: 'Submit to Secondary Agent',
+				precondition: CONTEXT_IN_CHAT_INPUT,
+				kbOpts: {
+					kbExpr: EditorContextKeys.textInputFocus,
+					primary: KeyMod.CtrlCmd | KeyCode.Enter,
+					weight: KeybindingWeight.EditorContrib
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, editor: ICodeEditor): void | Promise<void> {
+			const editorUri = editor.getModel()?.uri;
+			if (editorUri) {
+				const agentService = accessor.get(IChatAgentService);
+				const secondaryAgent = agentService.getSecondaryAgent();
+				if (!secondaryAgent) {
+					return;
+				}
+
+				const widgetService = accessor.get(IChatWidgetService);
+				widgetService.getWidgetByInputUri(editorUri)?.acceptInputWithPrefix(`${chatAgentLeader}${secondaryAgent.id}`);
 			}
 		}
 	});
@@ -211,7 +243,8 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 	},
 	category: CHAT_CATEGORY,
 	icon: Codicon.history,
-	f1: false
+	f1: false,
+	precondition: CONTEXT_PROVIDER_EXISTS
 });
 
 export function getHistoryAction(viewId: string, providerId: string) {

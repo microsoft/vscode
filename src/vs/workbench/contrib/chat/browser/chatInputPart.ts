@@ -160,11 +160,13 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return this._inputEditor.hasWidgetFocus();
 	}
 
-	async acceptInput(query?: string): Promise<void> {
-		const editorValue = this._inputEditor.getValue();
-		if (!query && editorValue) {
-			// Followups and programmatic messages don't go to history
-			this.history.add(editorValue);
+	/**
+	 * Reset the input and update history.
+	 * @param userQuery If provided, this will be added to the history. Followups and programmatic queries should not be passed.
+	 */
+	async acceptInput(userQuery?: string): Promise<void> {
+		if (userQuery) {
+			this.history.add(userQuery);
 		}
 
 		if (this.accessibilityService.isScreenReaderOptimized() && isMacintosh) {

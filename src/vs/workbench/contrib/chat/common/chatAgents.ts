@@ -7,6 +7,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatMessage } from 'vs/workbench/contrib/chat/common/chatProvider';
@@ -15,9 +16,12 @@ import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chat
 
 //#region agent service, commands etc
 
-export interface IChatAgent {
+export interface IChatAgentData {
 	id: string;
 	metadata: IChatAgentMetadata;
+}
+
+export interface IChatAgent extends IChatAgentData {
 	invoke(request: IChatAgentRequest, progress: (part: IChatProgress) => void, history: IChatMessage[], token: CancellationToken): Promise<IChatAgentResult>;
 	provideFollowups?(sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
 	provideSlashCommands(token: CancellationToken): Promise<IChatAgentCommand[]>;
@@ -30,15 +34,33 @@ export interface IChatAgentFragment {
 export interface IChatAgentCommand {
 	name: string;
 	description: string;
+	/**
+	 * Whether the command should execute as soon
+	 * as it is entered. Defaults to `false`.
+	 */
+	executeImmediately?: boolean;
+	/**
+	 * Whether executing the command puts the
+	 * chat into a persistent mode, where the
+	 * slash command is prepended to the chat input.
+	 */
+	shouldRepopulate?: boolean;
+	/**
+	 * Placeholder text to render in the chat input
+	 * when the slash command has been repopulated.
+	 * Has no effect if `shouldRepopulate` is `false`.
+	 */
+	followupPlaceholder?: string;
 }
 
 export interface IChatAgentMetadata {
 	description?: string;
-	// subCommands: IChatAgentCommand[];
-	requireCommand?: boolean; // Do some agents not have a default action?
 	isDefault?: boolean; // The agent invoked when no agent is specified
+	isSecondary?: boolean; // Invoked by ctrl/cmd+enter
 	fullName?: string;
 	icon?: URI;
+	iconDark?: URI;
+	themeIcon?: ThemeIcon;
 }
 
 export interface IChatAgentRequest {
@@ -70,6 +92,7 @@ export interface IChatAgentService {
 	getAgents(): Array<IChatAgent>;
 	getAgent(id: string): IChatAgent | undefined;
 	getDefaultAgent(): IChatAgent | undefined;
+	getSecondaryAgent(): IChatAgent | undefined;
 	hasAgent(id: string): boolean;
 	updateAgent(id: string, updateMetadata: IChatAgentMetadata): void;
 }
@@ -115,6 +138,10 @@ export class ChatAgentService extends Disposable implements IChatAgentService {
 
 	getDefaultAgent(): IChatAgent | undefined {
 		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isDefault)?.agent;
+	}
+
+	getSecondaryAgent(): IChatAgent | undefined {
+		return Iterable.find(this._agents.values(), a => !!a.agent.metadata.isSecondary)?.agent;
 	}
 
 	getAgents(): Array<IChatAgent> {

@@ -225,6 +225,8 @@ export class CommentsPanel extends FilterViewPane implements ICommentsView {
 	}
 
 	public override focus(): void {
+		super.focus();
+
 		const element = this.tree?.getHTMLElement();
 		if (element && dom.isActiveElement(element)) {
 			return;
