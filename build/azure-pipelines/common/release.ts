@@ -146,7 +146,6 @@ interface SubmitReleaseResult {
 }
 
 interface ReleaseDetailsResult {
-
 }
 
 class ESRPClient {
@@ -195,7 +194,7 @@ class ESRPClient {
 		for (let i = 0; i < 10; i++) {
 			const details = await this.ReleaseDetails(releaseId);
 
-			console.log(details);
+			console.log(JSON.stringify(details, undefined, 2));
 
 			await new Promise(c => setTimeout(c, 5000));
 		}
