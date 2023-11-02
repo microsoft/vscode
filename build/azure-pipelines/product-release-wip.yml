@@ -37,6 +37,7 @@ steps:
       $CertStore.Close()
 
   - powershell: node build/npm/setupBuildYarnrc
+  - powershell: npm i -g node-gyp
 
   - powershell: yarn
     workingDirectory: build
