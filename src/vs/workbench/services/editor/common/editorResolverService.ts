@@ -181,7 +181,7 @@ export interface IEditorResolverService {
 	getEditors(): RegisteredEditorInfo[];
 
 	/**
-	 * All editor associations, including user-defined.
+	 * Get a complete list of editor associations.
 	 */
 	getAllUserAssociations(): EditorAssociations;
 }
