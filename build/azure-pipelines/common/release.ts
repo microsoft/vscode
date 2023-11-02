@@ -172,7 +172,7 @@ class ESRPClient {
 		}));
 
 		const policyPath = this.tmp.tmpNameSync();
-		fs.writeFileSync(authPath, JSON.stringify({
+		fs.writeFileSync(policyPath, JSON.stringify({
 			Version: '1.0.0',
 			Audience: 'InternalLimited',
 			Intent: 'distribution',
