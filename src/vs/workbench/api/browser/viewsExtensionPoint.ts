@@ -314,8 +314,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				hoverService.showHover({
 					content: treeItem.tooltip,
 					target: element,
-					hoverPosition: HoverPosition.BELOW,
-					hideOnHover: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					persistence: {
+						hideOnHover: false
+					}
 				}, true);
 			},
 			weight: KeybindingWeight.WorkbenchContrib,

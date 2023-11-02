@@ -44,7 +44,7 @@ export class HoverService implements IHoverService {
 		if (getHoverOptionsIdentity(this._currentHoverOptions) === getHoverOptionsIdentity(options)) {
 			return undefined;
 		}
-		if (this._currentHover && this._currentHoverOptions?.sticky) {
+		if (this._currentHover && this._currentHoverOptions?.persistence?.sticky) {
 			return undefined;
 		}
 		this._currentHoverOptions = options;
@@ -61,7 +61,7 @@ export class HoverService implements IHoverService {
 		}
 		const hoverDisposables = new DisposableStore();
 		const hover = this._instantiationService.createInstance(HoverWidget, options);
-		if (options.sticky) {
+		if (options.persistence?.sticky) {
 			hover.isLocked = true;
 		}
 		hover.onDispose(() => {
@@ -86,7 +86,7 @@ export class HoverService implements IHoverService {
 			options.container
 		);
 		hover.onRequestLayout(() => provider.layout());
-		if (options.sticky) {
+		if (options.persistence?.sticky) {
 			hoverDisposables.add(addDisposableListener(document, EventType.MOUSE_DOWN, e => {
 				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
 					this.doHideHover();
@@ -102,8 +102,8 @@ export class HoverService implements IHoverService {
 			}
 			const focusedElement = getActiveElement();
 			if (focusedElement) {
-				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));
-				hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.hideOnKeyDown)));
+				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.persistence?.hideOnKeyDown)));
+				hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.persistence?.hideOnKeyDown)));
 				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
 				hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			}

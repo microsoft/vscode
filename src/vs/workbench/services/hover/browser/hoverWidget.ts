@@ -108,26 +108,26 @@ export class HoverWidget extends Widget {
 
 		this._target = 'targetElements' in options.target ? options.target : new ElementHoverTarget(options.target);
 
-		this._hoverPointer = options.showPointer ? $('div.workbench-hover-pointer') : undefined;
+		this._hoverPointer = options.appearance?.showPointer ? $('div.workbench-hover-pointer') : undefined;
 		this._hover = this._register(new BaseHoverWidget());
 		this._hover.containerDomNode.classList.add('workbench-hover', 'fadeIn');
-		if (options.compact) {
+		if (options.appearance?.compact) {
 			this._hover.containerDomNode.classList.add('workbench-hover', 'compact');
 		}
-		if (options.skipFadeInAnimation) {
+		if (options.appearance?.skipFadeInAnimation) {
 			this._hover.containerDomNode.classList.add('skip-fade-in');
 		}
 		if (options.additionalClasses) {
 			this._hover.containerDomNode.classList.add(...options.additionalClasses);
 		}
-		if (options.forcePosition) {
+		if (options.position?.forcePosition) {
 			this._forcePosition = true;
 		}
 		if (options.trapFocus) {
 			this._enableFocusTraps = true;
 		}
 
-		this._hoverPosition = options.hoverPosition ?? HoverPosition.ABOVE;
+		this._hoverPosition = options.position?.hoverPosition ?? HoverPosition.ABOVE;
 
 		// Don't allow mousedown out of the widget, otherwise preventDefault will call and text will
 		// not be selected.
@@ -209,19 +209,19 @@ export class HoverWidget extends Widget {
 			// If there are actions, require hover so they can be accessed
 			hideOnHover = false;
 		} else {
-			if (options.hideOnHover === undefined) {
+			if (options.persistence?.hideOnHover === undefined) {
 				// When unset, will default to true when it's a string or when it's markdown that
 				// appears to have a link using a naive check for '](' and '</a>'
 				hideOnHover = typeof options.content === 'string' ||
 					isMarkdownString(options.content) && !options.content.value.includes('](') && !options.content.value.includes('</a>');
 			} else {
 				// It's set explicitly
-				hideOnHover = options.hideOnHover;
+				hideOnHover = options.persistence.hideOnHover;
 			}
 		}
 
 		// Show the hover hint if needed
-		if (hideOnHover && options.showHoverHint) {
+		if (hideOnHover && options.appearance?.showHoverHint) {
 			const statusBarElement = $('div.hover-row.status-bar');
 			const infoElement = $('div.info');
 			infoElement.textContent = localize('hoverhint', 'Hold {0} key to mouse over', isMacintosh ? 'Option' : 'Alt');
