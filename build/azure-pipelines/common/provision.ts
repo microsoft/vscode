@@ -5,14 +5,11 @@
 
 import { ClientSecretCredential } from '@azure/identity';
 import * as https from 'https';
+import * as dotenv from 'dotenv';
 
 export async function main([username, password]: string[]) {
-	console.log('running...');
-
 	const credential = new ClientSecretCredential('72f988bf-86f1-41af-91ab-2d7cd011db47', username, password);
-	const accessToken = await credential.getToken('https://microsoft.onmicrosoft.com/DS.ProvisioningUAT.WebApi/.default');
-
-	console.log('got access token');
+	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
 
 	const body = JSON.stringify({
 		ReleaseId: '36df8da5-4670-4b9f-acd3-c53de62ea93d',
@@ -21,13 +18,11 @@ export async function main([username, password]: string[]) {
 		ProvisionedFilesCollection: [{
 			PublisherKey: '2fa7b08c-d022-4165-846f-6f5bfaab4479',
 			IsStaticFriendlyFileName: true,
-			FriendlyFileName: '/_test/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz',
-			MaxTTL: '31536000',
+			FriendlyFileName: 'test/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz',
+			MaxTTL: '1440',
 			CdnMappings: ['ECN']
 		}]
 	});
-
-	console.log('body', body);
 
 	await new Promise<void>((c, e) => {
 		const req = https.request(`https://dsprovisionapi.microsoft.com/api/v2/ProvisionedFiles/CreateProvisionedFiles`, {
@@ -40,17 +35,15 @@ export async function main([username, password]: string[]) {
 		}, res => {
 			console.log('STATUS', res.statusCode);
 
-			if (res.statusCode !== 200) {
-				return e(new Error(`Unexpected status code: ${res.statusCode}`));
-			}
+			// if (res.statusCode !== 200) {
+			// 	return e(new Error(`Unexpected status code: ${res.statusCode}`));
+			// }
+
+			// https://vscode.download.prss.microsoft.com/dbazure/download/test/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz
 
 			const chunks: Buffer[] = [];
-			res.on('data', chunk => {
-				console.log('data', chunk);
-				chunks.push(chunk);
-			});
+			res.on('data', chunk => chunks.push(chunk));
 			res.on('end', () => {
-				console.log('end', chunks);
 				const body = Buffer.concat(chunks).toString();
 
 				try {
@@ -70,6 +63,15 @@ export async function main([username, password]: string[]) {
 }
 
 if (require.main === module) {
-	main(process.argv.slice(2));
-	process.exit(0);
+	dotenv.config();
+
+	main([
+		process.env['AZURE_CLIENT_ID']!,
+		process.env['AZURE_CLIENT_SECRET']!
+	]).then(() => {
+		process.exit(0);
+	}, err => {
+		console.error(err);
+		process.exit(1);
+	});
 }
