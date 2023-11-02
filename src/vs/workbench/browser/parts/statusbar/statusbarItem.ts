@@ -130,7 +130,7 @@ export class StatusbarEntryItem extends Disposable {
 			});
 			this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, (e) => {
 				EventHelper.stop(e);
-				this.hover?.dispose();
+				this.hover?.hide();
 			});
 		}
 
