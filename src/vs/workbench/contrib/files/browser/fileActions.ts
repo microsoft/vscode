@@ -1093,7 +1093,33 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const dialogService = accessor.get(IDialogService);
 
 	const context = explorerService.getContext(true);
+	const hasNativeFilesToPaste = fileList && fileList.length > 0;
+	const confirmPasteNative = hasNativeFilesToPaste && configurationService.getValue<boolean>('explorer.confirmPasteNative');
+
 	const toPaste = await getFilesToPaste(fileList, clipboardService);
+
+	if (confirmPasteNative) {
+		const message = nls.localize('confirmPasteNativeMultiple', "Are you sure you want to paste the following {0} files", toPaste.length);
+		const detail = getFileNamesMessage(toPaste);
+
+		const confirmation = await dialogService.confirm({
+			message,
+			detail,
+			checkbox: {
+				label: nls.localize('doNotAskAgain', "Do not ask me again")
+			},
+			primaryButton: nls.localize({ key: 'pasteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Paste")
+		});
+
+		if (!confirmation.confirmed) {
+			return;
+		}
+
+		// Check for confirmation checkbox
+		if (confirmation.checkboxChecked === true) {
+			await configurationService.updateValue('explorer.confirmPasteNative', false);
+		}
+	}
 	const element = context.length ? context[0] : explorerService.roots[0];
 	const incrementalNaming = configurationService.getValue<IFilesConfiguration>().explorer.incrementalNaming;
 
