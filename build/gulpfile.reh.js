@@ -21,6 +21,7 @@ const vfs = require('vinyl-fs');
 const packageJson = require('../package.json');
 const flatmap = require('gulp-flatmap');
 const gunzip = require('gulp-gunzip');
+const unzip = require('gulp-unzip');
 const File = require('vinyl');
 const fs = require('fs');
 const glob = require('glob');
@@ -208,8 +209,15 @@ function nodejs(platform, arch) {
 
 	switch (platform) {
 		case 'win32':
-			return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `win-${arch}-node.exe`, checksumSha256 })
-				.pipe(rename('node.exe'));
+			if (product.nodejsRepository === 'Microsoft/vscode-node') {
+				return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `win-${arch}-node.exe`, checksumSha256 })
+					.pipe(rename('node.exe'));
+			} else {
+				return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-${platform}-${arch}.zip`, checksumSha256 })
+					.pipe(unzip())
+					.pipe(filter(['**/node.exe']))
+					.pipe(rename('node.exe'));
+			}
 		case 'darwin':
 		case 'linux':
 			return fetchGithub(product.nodejsRepository, { version: fullVersion, name: `node-v${nodeVersion}-${platform}-${arch}.tar.gz`, checksumSha256 })
