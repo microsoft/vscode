@@ -451,25 +451,37 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// PowerShell
-		const pwshMatch = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/);
-		if (pwshMatch) {
-			let prompt = pwshMatch?.groups?.prompt;
-			if (lineText === prompt && prompt.endsWith('>')) {
-				// Conpty may not 'render' the space at the end of the prompt
-				prompt += ' ';
+		const pwshPrompt = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/)?.groups?.prompt;
+		if (pwshPrompt) {
+			const adjustedPrompt = this._adjustPrompt(pwshPrompt, lineText);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
 			}
-			return prompt;
 		}
 
 		// Custom prompts like starship end in the common \u276f character
-		const customMatch = lineText.match(/.*\u276f(?=[^\u276f]*\s?$)/g);
-		if (customMatch) {
-			return customMatch[0];
+		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
+		if (customPrompt) {
+			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText);
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt
 		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
 		return cmdMatch?.groups?.prompt;
+	}
+
+	private _adjustPrompt(prompt: string | undefined, lineText: string): string | undefined {
+		if (!prompt) {
+			return;
+		}
+		// Conpty may not 'render' the space at the end of the prompt
+		if (lineText === prompt && prompt.endsWith('>')) {
+			prompt += ' ';
+		}
+		return prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
