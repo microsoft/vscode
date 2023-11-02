@@ -12,7 +12,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -1082,6 +1082,22 @@ CommandsRegistry.registerCommand({
 	handler: uploadFileHandler
 });
 
+const getConfirmMessage = (toPaste: readonly URI[], stats: readonly IFileStatWithPartialMetadata[]) => {
+	const isMultiple = toPaste.length > 1;
+	const isAllFolders = stats.every(stat => stat.isDirectory);
+	const isAllFiles = stats.every(stat => stat.isFile);
+	if (isMultiple) {
+		if (isAllFolders) {
+			return nls.localize('confirmMultiPasteNativeFolders', "Are you sure you want to paste the following {0} folders?", toPaste.length);
+		}
+		if (isAllFiles) {
+			return nls.localize('confirmMultiPasteNativeFiles', "Are you sure you want to paste the following {0} files?", toPaste.length);
+		}
+		return nls.localize('confirmMultiPasteNativeItems', "Are you sure you want to paste the following {0} items?", toPaste.length);
+	}
+	return nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));
+};
+
 export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: FileList) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerService = accessor.get(IExplorerService);
@@ -1099,11 +1115,9 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const toPaste = await getFilesToPaste(fileList, clipboardService);
 
 	if (confirmPasteNative) {
-		const message = toPaste.length > 1 ?
-			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} files?", toPaste.length) :
-			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));
+		const stats = await Promise.all(toPaste.map(uri => fileService.stat(uri)));
+		const message = getConfirmMessage(toPaste, stats);
 		const detail = toPaste.length > 1 ? getFileNamesMessage(toPaste) : undefined;
-
 		const confirmation = await dialogService.confirm({
 			message,
 			detail,
