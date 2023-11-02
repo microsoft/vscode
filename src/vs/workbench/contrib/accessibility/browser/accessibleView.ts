@@ -774,5 +774,10 @@ function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService)
 	if (keybindingService.inChordMode || isValidChord) {
 		return false;
 	}
-	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+	return isLetter(event.keyCode) && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
+function isLetter(code: number): boolean {
+	const key = String.fromCharCode(code);
+	return /^\p{L}$/u.test(key);
 }
