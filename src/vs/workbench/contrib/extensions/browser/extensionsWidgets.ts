@@ -209,7 +209,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 
 		if (!this.small) {
 			verifiedPublisher.tabIndex = 0;
-			verifiedPublisher.title = this.extension.publisherDomain.link;
+			verifiedPublisher.title = `Verified Domain: ${this.extension.publisherDomain.link}`;
 			verifiedPublisher.setAttribute('role', 'link');
 
 			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
