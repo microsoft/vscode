@@ -1099,8 +1099,10 @@ export const pasteFileHandler = async (accessor: ServicesAccessor, fileList?: Fi
 	const toPaste = await getFilesToPaste(fileList, clipboardService);
 
 	if (confirmPasteNative) {
-		const message = nls.localize('confirmPasteNativeMultiple', "Are you sure you want to paste the following {0} files", toPaste.length);
-		const detail = getFileNamesMessage(toPaste);
+		const message = toPaste.length > 1 ?
+			nls.localize('confirmMultiPasteNative', "Are you sure you want to paste the following {0} files?", toPaste.length) :
+			nls.localize('confirmPasteNative', "Are you sure you want to paste '{0}'?", basename(toPaste[0].fsPath));
+		const detail = toPaste.length > 1 ? getFileNamesMessage(toPaste) : undefined;
 
 		const confirmation = await dialogService.confirm({
 			message,
