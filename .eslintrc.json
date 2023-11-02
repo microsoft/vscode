@@ -339,14 +339,14 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"xterm",
-							"xterm-addon-canvas",
-							"xterm-addon-image",
-							"xterm-addon-search",
-							"xterm-addon-serialize",
-							"xterm-addon-unicode11",
-							"xterm-addon-webgl",
-							"xterm-headless",
+							"@xterm/addon-canvas",
+							"@xterm/addon-image",
+							"@xterm/addon-search",
+							"@xterm/addon-serialize",
+							"@xterm/addon-unicode11",
+							"@xterm/addon-webgl",
+							"@xterm/headless",
+							"@xterm/xterm",
 							"yauzl",
 							"yazl",
 							"zlib"
@@ -543,11 +543,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
@@ -572,11 +572,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
