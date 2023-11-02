@@ -38,7 +38,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChat);
 
 		this._register(this._chatService.onDidPerformUserAction(e => {
-			this._proxy.$onDidPerformUserAction(e);
+			if (!e.agentId) {
+				this._proxy.$onDidPerformUserAction(e);
+			}
 		}));
 	}
 
@@ -68,9 +70,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 					return undefined;
 				}
 
-				const responderAvatarIconUri = session.responderAvatarIconUri ?
-					URI.revive(session.responderAvatarIconUri) :
-					registration.extensionIcon;
+				const responderAvatarIconUri = session.responderAvatarIconUri &&
+					URI.revive(session.responderAvatarIconUri);
 
 				const emitter = new Emitter<any>();
 				this._stateEmitters.set(session.id, emitter);
@@ -108,6 +109,9 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			},
 			provideWelcomeMessage: (token) => {
 				return this._proxy.$provideWelcomeMessage(handle, token);
+			},
+			provideSampleQuestions: (token) => {
+				return this._proxy.$provideSampleQuestions(handle, token);
 			},
 			provideSlashCommands: (session, token) => {
 				return this._proxy.$provideSlashCommands(handle, session.id, token);
@@ -158,6 +162,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 			revivedProgress = { documents: revive(progress.documents) };
 		} else if ('reference' in progress) {
 			revivedProgress = revive<{ reference: UriComponents | ILocationDto }>(progress);
+		} else if ('inlineReference' in progress) {
+			revivedProgress = revive<{ inlineReference: UriComponents | ILocationDto; name?: string }>(progress);
 		} else {
 			revivedProgress = progress;
 		}

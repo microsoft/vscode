@@ -569,7 +569,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.MoveToEditorActiveTab,
+						id: TerminalCommandId.MoveToEditor,
 						title: terminalStrings.moveToEditor.value
 					},
 					group: ContextMenuGroup.Create,
@@ -610,8 +610,8 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.SizeToContentWidthActiveTab,
-						title: localize('workbench.action.terminal.sizeToContentWidthInstance', "Toggle Size to Content Width")
+						id: TerminalCommandId.SizeToContentWidth,
+						title: terminalStrings.toggleSizeToContentWidth
 					},
 					group: ContextMenuGroup.Edit
 				}
@@ -631,7 +631,7 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
-						id: TerminalCommandId.UnsplitActiveTab,
+						id: TerminalCommandId.Unsplit,
 						title: terminalStrings.unsplit.value
 					},
 					when: ContextKeyExpr.and(TerminalContextKeys.tabsSingularSelection, TerminalContextKeys.splitTerminal),

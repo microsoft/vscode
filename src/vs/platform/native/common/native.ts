@@ -12,7 +12,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -41,13 +41,16 @@ export interface ICommonNativeHostService {
 	readonly windowId: number;
 
 	// Events
-	readonly onDidOpenWindow: Event<number>;
+	readonly onDidOpenMainWindow: Event<number>;
 
-	readonly onDidMaximizeWindow: Event<number>;
-	readonly onDidUnmaximizeWindow: Event<number>;
+	readonly onDidMaximizeMainWindow: Event<number>;
+	readonly onDidUnmaximizeMainWindow: Event<number>;
 
-	readonly onDidFocusWindow: Event<number>;
-	readonly onDidBlurWindow: Event<number>;
+	readonly onDidFocusMainWindow: Event<number>;
+	readonly onDidBlurMainWindow: Event<number>;
+
+	readonly onDidFocusMainOrAuxiliaryWindow: Event<number>;
+	readonly onDidBlurMainOrAuxiliaryWindow: Event<number>;
 
 	readonly onDidChangeDisplay: Event<void>;
 
@@ -57,10 +60,11 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangePassword: Event<{ service: string; account: string }>;
 
-	readonly onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
+	readonly onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }>;
 
 	// Window
-	getWindows(): Promise<IOpenedWindow[]>;
+	getWindows(options: { includeAuxiliaryWindows: true }): Promise<Array<IOpenedMainWindow | IOpenedAuxiliaryWindow>>;
+	getWindows(options: { includeAuxiliaryWindows: false }): Promise<Array<IOpenedMainWindow>>;
 	getWindowCount(): Promise<number>;
 	getActiveWindowId(): Promise<number | undefined>;
 
@@ -75,7 +79,8 @@ export interface ICommonNativeHostService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
-	moveWindowTop(): Promise<void>;
+	moveWindowTop(options?: { targetWindowId?: number }): Promise<void>;
+	positionWindow(position: IRectangle, options?: { targetWindowId?: number }): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
@@ -96,7 +101,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { windowId?: number; force?: boolean }): Promise<void>;
+	focusWindow(options?: { targetWindowId?: number; force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -110,8 +115,8 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string): Promise<void>;
-	setDocumentEdited(edited: boolean): Promise<void>;
+	setRepresentedFilename(path: string, options?: { targetWindowId?: number }): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: { targetWindowId?: number }): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 

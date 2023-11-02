@@ -179,10 +179,14 @@ export class UserConfiguration extends Disposable {
 		this.settingsResource = settingsResource;
 		this.tasksResource = tasksResource;
 		this.configurationParseOptions = configurationParseOptions;
+		return this.doReset();
+	}
+
+	private async doReset(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		const folder = this.uriIdentityService.extUri.dirname(this.settingsResource);
 		const standAloneConfigurationResources: [string, URI][] = this.tasksResource ? [[TASKS_CONFIGURATION_KEY, this.tasksResource]] : [];
 		const fileServiceBasedConfiguration = new FileServiceBasedConfiguration(folder.toString(), this.settingsResource, standAloneConfigurationResources, this.configurationParseOptions, this.fileService, this.uriIdentityService, this.logService);
-		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration();
+		const configurationModel = await fileServiceBasedConfiguration.loadConfiguration(settingsConfiguration);
 		this.userConfiguration.value = fileServiceBasedConfiguration;
 
 		// Check for value because userConfiguration might have been disposed.
@@ -197,11 +201,11 @@ export class UserConfiguration extends Disposable {
 		return this.userConfiguration.value!.loadConfiguration();
 	}
 
-	async reload(): Promise<ConfigurationModel> {
+	async reload(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 		if (this.hasTasksLoaded) {
 			return this.userConfiguration.value!.loadConfiguration();
 		}
-		return this.reset(this.settingsResource, this.tasksResource, this.configurationParseOptions);
+		return this.doReset(settingsConfiguration);
 	}
 
 	reparse(parseOptions?: Partial<ConfigurationParseOptions>): ConfigurationModel {
@@ -254,7 +258,7 @@ class FileServiceBasedConfiguration extends Disposable {
 			), () => undefined, 100)(() => this._onDidChange.fire()));
 	}
 
-	async resolveContents(): Promise<[string | undefined, [string, string | undefined][]]> {
+	async resolveContents(donotResolveSettings?: boolean): Promise<[string | undefined, [string, string | undefined][]]> {
 
 		const resolveContents = async (resources: URI[]): Promise<(string | undefined)[]> => {
 			return Promise.all(resources.map(async resource => {
@@ -273,16 +277,16 @@ class FileServiceBasedConfiguration extends Disposable {
 		};
 
 		const [[settingsContent], standAloneConfigurationContents] = await Promise.all([
-			resolveContents([this.settingsResource]),
+			donotResolveSettings ? Promise.resolve([undefined]) : resolveContents([this.settingsResource]),
 			resolveContents(this.standAloneConfigurationResources.map(([, resource]) => resource)),
 		]);
 
 		return [settingsContent, standAloneConfigurationContents.map((content, index) => ([this.standAloneConfigurationResources[index][0], content]))];
 	}
 
-	async loadConfiguration(): Promise<ConfigurationModel> {
+	async loadConfiguration(settingsConfiguration?: ConfigurationModel): Promise<ConfigurationModel> {
 
-		const [settingsContent, standAloneConfigurationContents] = await this.resolveContents();
+		const [settingsContent, standAloneConfigurationContents] = await this.resolveContents(!!settingsConfiguration);
 
 		// reset
 		this._standAloneConfigurations = [];
@@ -302,7 +306,7 @@ class FileServiceBasedConfiguration extends Disposable {
 		}
 
 		// Consolidate (support *.json files in the workspace settings folder)
-		this.consolidate();
+		this.consolidate(settingsConfiguration);
 
 		return this._cache;
 	}
@@ -321,8 +325,8 @@ class FileServiceBasedConfiguration extends Disposable {
 		return this._cache;
 	}
 
-	private consolidate(): void {
-		this._cache = this._folderSettingsModelParser.configurationModel.merge(...this._standAloneConfigurations);
+	private consolidate(settingsConfiguration?: ConfigurationModel): void {
+		this._cache = (settingsConfiguration ?? this._folderSettingsModelParser.configurationModel).merge(...this._standAloneConfigurations);
 	}
 
 	private handleFileChangesEvent(event: FileChangesEvent): boolean {

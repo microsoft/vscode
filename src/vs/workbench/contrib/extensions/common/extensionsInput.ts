@@ -28,7 +28,7 @@ export class ExtensionsInput extends EditorInput {
 	}
 
 	override get capabilities(): EditorInputCapabilities {
-		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton;
+		return EditorInputCapabilities.Readonly | EditorInputCapabilities.Singleton | EditorInputCapabilities.AuxWindowUnsupported;
 	}
 
 	override get resource() {

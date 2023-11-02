@@ -38,16 +38,64 @@ suite('ChatModel', () => {
 		await timeout(0);
 		assert.strictEqual(hasInitialized, false);
 
+		model.startInitialize();
 		model.initialize({} as any, undefined);
 		await timeout(0);
 		assert.strictEqual(hasInitialized, true);
+	});
+
+	test('must call startInitialize before initialize', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+
+		let hasInitialized = false;
+		model.waitForInitialization().then(() => {
+			hasInitialized = true;
+		});
+
+		await timeout(0);
+		assert.strictEqual(hasInitialized, false);
+
+		assert.throws(() => model.initialize({} as any, undefined));
+		assert.strictEqual(hasInitialized, false);
+	});
+
+	test('deinitialize/reinitialize', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+
+		let hasInitialized = false;
+		model.waitForInitialization().then(() => {
+			hasInitialized = true;
+		});
+
+		model.startInitialize();
+		model.initialize({} as any, undefined);
+		await timeout(0);
+		assert.strictEqual(hasInitialized, true);
+
+		model.deinitialize();
+		let hasInitialized2 = false;
+		model.waitForInitialization().then(() => {
+			hasInitialized2 = true;
+		});
+
+		model.startInitialize();
+		model.initialize({} as any, undefined);
+		await timeout(0);
+		assert.strictEqual(hasInitialized2, true);
+	});
+
+	test('cannot initialize twice', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+
+		model.startInitialize();
+		model.initialize({} as any, undefined);
+		assert.throws(() => model.initialize({} as any, undefined));
 	});
 
 	test('Initialization fails when model is disposed', async () => {
 		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
 		model.dispose();
 
-		await assert.rejects(() => model.waitForInitialization());
+		assert.throws(() => model.initialize({} as any, undefined));
 	});
 });
-

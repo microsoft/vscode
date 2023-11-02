@@ -28,7 +28,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { IExtHostDocumentsAndEditors } from 'vs/workbench/api/common/extHostDocumentsAndEditors';
 import { Extension, IExtHostExtensionService } from 'vs/workbench/api/common/extHostExtensionService';
 import { ExtHostFileSystem } from 'vs/workbench/api/common/extHostFileSystem';
-import { ExtHostFileSystemEventService } from 'vs/workbench/api/common/extHostFileSystemEventService';
+import { ExtHostFileSystemEventService, FileSystemWatcherCreateOptions } from 'vs/workbench/api/common/extHostFileSystemEventService';
 import { ExtHostLanguageFeatures } from 'vs/workbench/api/common/extHostLanguageFeatures';
 import { ExtHostLanguages } from 'vs/workbench/api/common/extHostLanguages';
 import { ExtHostMessageService } from 'vs/workbench/api/common/extHostMessageService';
@@ -104,10 +104,12 @@ import { ExtHostIssueReporter } from 'vs/workbench/api/common/extHostIssueReport
 import { IExtHostManagedSockets } from 'vs/workbench/api/common/extHostManagedSockets';
 import { ExtHostShare } from 'vs/workbench/api/common/extHostShare';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
+import { ExtHostSpeech } from 'vs/workbench/api/common/extHostSpeech';
 import { ExtHostChatVariables } from 'vs/workbench/api/common/extHostChatVariables';
 import { ExtHostRelatedInformation } from 'vs/workbench/api/common/extHostAiRelatedInformation';
 import { ExtHostAiEmbeddingVector } from 'vs/workbench/api/common/extHostEmbeddingVector';
 import { ExtHostChatAgents } from 'vs/workbench/api/common/extHostChatAgents';
+import { ExtHostChatAgents2 } from 'vs/workbench/api/common/extHostChatAgents2';
 
 export interface IExtensionRegistries {
 	mine: ExtensionDescriptionRegistry;
@@ -174,7 +176,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostDocuments = rpcProtocol.set(ExtHostContext.ExtHostDocuments, new ExtHostDocuments(rpcProtocol, extHostDocumentsAndEditors));
 	const extHostDocumentContentProviders = rpcProtocol.set(ExtHostContext.ExtHostDocumentContentProviders, new ExtHostDocumentContentProvider(rpcProtocol, extHostDocumentsAndEditors, extHostLogService));
 	const extHostDocumentSaveParticipant = rpcProtocol.set(ExtHostContext.ExtHostDocumentSaveParticipant, new ExtHostDocumentSaveParticipant(extHostLogService, extHostDocuments, rpcProtocol.getProxy(MainContext.MainThreadBulkEdits)));
-	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem));
+	const extHostNotebook = rpcProtocol.set(ExtHostContext.ExtHostNotebook, new ExtHostNotebookController(rpcProtocol, extHostCommands, extHostDocumentsAndEditors, extHostDocuments, extHostConsumerFileSystem, extHostSearch));
 	const extHostNotebookDocuments = rpcProtocol.set(ExtHostContext.ExtHostNotebookDocuments, new ExtHostNotebookDocuments(extHostNotebook));
 	const extHostNotebookEditors = rpcProtocol.set(ExtHostContext.ExtHostNotebookEditors, new ExtHostNotebookEditors(extHostLogService, extHostNotebook));
 	const extHostNotebookKernels = rpcProtocol.set(ExtHostContext.ExtHostNotebookKernels, new ExtHostNotebookKernels(rpcProtocol, initData, extHostNotebook, extHostCommands, extHostLogService));
@@ -209,12 +211,14 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostInteractiveEditor = rpcProtocol.set(ExtHostContext.ExtHostInlineChat, new ExtHostInteractiveEditor(rpcProtocol, extHostCommands, extHostDocuments, extHostLogService));
 	const extHostChatProvider = rpcProtocol.set(ExtHostContext.ExtHostChatProvider, new ExtHostChatProvider(rpcProtocol, extHostLogService));
 	const extHostChatAgents = rpcProtocol.set(ExtHostContext.ExtHostChatAgents, new ExtHostChatAgents(rpcProtocol, extHostChatProvider, extHostLogService));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostChatProvider, extHostLogService));
 	const extHostChatVariables = rpcProtocol.set(ExtHostContext.ExtHostChatVariables, new ExtHostChatVariables(rpcProtocol));
 	const extHostChat = rpcProtocol.set(ExtHostContext.ExtHostChat, new ExtHostChat(rpcProtocol, extHostLogService));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
 	const extHostAiEmbeddingVector = rpcProtocol.set(ExtHostContext.ExtHostAiEmbeddingVector, new ExtHostAiEmbeddingVector(rpcProtocol));
 	const extHostIssueReporter = rpcProtocol.set(ExtHostContext.ExtHostIssueReporter, new ExtHostIssueReporter(rpcProtocol));
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
+	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 
 	// Check that no named customers are missing
 	const expected = Object.values<ProxyIdentifier<any>>(ExtHostContext);
@@ -406,6 +410,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			registerIssueUriRequestHandler(handler: vscode.IssueUriRequestHandler) {
 				checkProposedApiEnabled(extension, 'handleIssueUri');
 				return extHostIssueReporter.registerIssueUriRequestHandler(extension, handler);
+			},
+			registerIssueDataProvider(handler: vscode.IssueDataProvider) {
+				checkProposedApiEnabled(extension, 'handleIssueUri');
+				return extHostIssueReporter.registerIssueDataProvider(extension, handler);
 			},
 			get appQuality(): string | undefined {
 				checkProposedApiEnabled(extension, 'resolvers');
@@ -938,8 +946,25 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			applyEdit(edit: vscode.WorkspaceEdit, metadata?: vscode.WorkspaceEditMetadata): Thenable<boolean> {
 				return extHostBulkEdits.applyWorkspaceEdit(edit, extension, metadata);
 			},
-			createFileSystemWatcher: (pattern, ignoreCreate, ignoreChange, ignoreDelete): vscode.FileSystemWatcher => {
-				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, ignoreCreate, ignoreChange, ignoreDelete);
+			createFileSystemWatcher: (pattern, optionsOrIgnoreCreate, ignoreChange?, ignoreDelete?): vscode.FileSystemWatcher => {
+				let options: FileSystemWatcherCreateOptions | undefined = undefined;
+
+				if (typeof optionsOrIgnoreCreate === 'boolean') {
+					options = {
+						ignoreCreateEvents: Boolean(optionsOrIgnoreCreate),
+						ignoreChangeEvents: Boolean(ignoreChange),
+						ignoreDeleteEvents: Boolean(ignoreDelete),
+						correlate: false
+					};
+				} else if (optionsOrIgnoreCreate) {
+					checkProposedApiEnabled(extension, 'createFileSystemWatcher');
+					options = {
+						...optionsOrIgnoreCreate,
+						correlate: true
+					};
+				}
+
+				return extHostFileSystemEvent.createFileSystemWatcher(extHostWorkspace, extension, pattern, options);
 			},
 			get textDocuments() {
 				return extHostDocuments.getAllDocumentData().map(data => data.document);
@@ -1353,11 +1378,22 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mappedEditsProvider');
 				return extHostLanguageFeatures.registerMappedEditsProvider(extension, selector, provider);
 			},
+			createChatAgent(name: string, handler: vscode.ChatAgentExtendedHandler) {
+				checkProposedApiEnabled(extension, 'chatAgents2');
+				return extHostChatAgents2.createChatAgent(extension, name, handler);
+			},
 			registerAgent(name: string, agent: vscode.ChatAgent, metadata: vscode.ChatAgentMetadata) {
 				checkProposedApiEnabled(extension, 'chatAgents');
 				return extHostChatAgents.registerAgent(extension.identifier, name, agent, metadata);
 			}
+		};
 
+		// namespace: speech
+		const speech: typeof vscode.speech = {
+			registerSpeechProvider(id: string, provider: vscode.SpeechProvider) {
+				checkProposedApiEnabled(extension, 'speech');
+				return extHostSpeech.registerProvider(extension.identifier, id, provider);
+			}
 		};
 
 		return <typeof vscode>{
@@ -1376,6 +1412,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			languages,
 			notebooks,
 			scm,
+			speech,
 			tasks,
 			tests,
 			window,
@@ -1383,6 +1420,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			TerminalOutputAnchor: extHostTypes.TerminalOutputAnchor,
+			ChatAgentResultFeedbackKind: extHostTypes.ChatAgentResultFeedbackKind,
 			ChatMessage: extHostTypes.ChatMessage,
 			ChatMessageRole: extHostTypes.ChatMessageRole,
 			ChatVariableLevel: extHostTypes.ChatVariableLevel,
@@ -1543,7 +1581,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TestResultState: extHostTypes.TestResultState,
 			TestRunRequest: extHostTypes.TestRunRequest,
 			TestMessage: extHostTypes.TestMessage,
-			TestMessage2: extHostTypes.TestMessage,
+			TestMessage2: extHostTypes.TestMessage, // back compat for Oct 2023
 			TestTag: extHostTypes.TestTag,
 			TestRunProfileKind: extHostTypes.TestRunProfileKind,
 			TextSearchCompleteMessageType: TextSearchCompleteMessageType,
@@ -1575,7 +1613,8 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			StackFrameFocus: extHostTypes.StackFrameFocus,
 			ThreadFocus: extHostTypes.ThreadFocus,
-			RelatedInformationType: extHostTypes.RelatedInformationType
+			RelatedInformationType: extHostTypes.RelatedInformationType,
+			SpeechToTextStatus: extHostTypes.SpeechToTextStatus
 		};
 	};
 }

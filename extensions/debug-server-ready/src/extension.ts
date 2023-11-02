@@ -53,11 +53,12 @@ class ServerReadyDetector extends vscode.Disposable {
 	private static detectors = new Map<vscode.DebugSession, ServerReadyDetector>();
 	private static terminalDataListener: vscode.Disposable | undefined;
 
+	private readonly stoppedEmitter = new vscode.EventEmitter<void>();
+	private readonly onDidSessionStop = this.stoppedEmitter.event;
+	private readonly disposables = new Set<vscode.Disposable>([]);
 	private trigger: Trigger;
 	private shellPid?: number;
 	private regexp: RegExp;
-	private disposables: vscode.Disposable[] = [];
-	private lateDisposables = new Set<vscode.Disposable>([]);
 
 	static start(session: vscode.DebugSession): ServerReadyDetector | undefined {
 		if (session.configuration.serverReadyAction) {
@@ -75,6 +76,7 @@ class ServerReadyDetector extends vscode.Disposable {
 		const detector = ServerReadyDetector.detectors.get(session);
 		if (detector) {
 			ServerReadyDetector.detectors.delete(session);
+			detector.sessionStopped();
 			detector.dispose();
 		}
 	}
@@ -125,12 +127,11 @@ class ServerReadyDetector extends vscode.Disposable {
 
 	private internalDispose() {
 		this.disposables.forEach(d => d.dispose());
-		this.disposables = [];
+		this.disposables.clear();
 	}
 
-	override dispose() {
-		this.lateDisposables.forEach(d => d.dispose());
-		return super.dispose();
+	public sessionStopped() {
+		this.stoppedEmitter.fire();
 	}
 
 	detectPattern(s: string): boolean {
@@ -139,7 +140,6 @@ class ServerReadyDetector extends vscode.Disposable {
 			if (matches && matches.length >= 1) {
 				this.openExternalWithString(this.session, matches.length > 1 ? matches[1] : '');
 				this.trigger.fire();
-				this.internalDispose();
 				return true;
 			}
 		}
@@ -147,7 +147,6 @@ class ServerReadyDetector extends vscode.Disposable {
 	}
 
 	private openExternalWithString(session: vscode.DebugSession, captureString: string) {
-
 		const args: ServerReadyAction = session.configuration.serverReadyAction;
 
 		let uri;
@@ -228,14 +227,12 @@ class ServerReadyDetector extends vscode.Disposable {
 			return;
 		}
 
-		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
-			if (terminated === session) {
-				stopListener.dispose();
-				this.lateDisposables.delete(stopListener);
-				await vscode.debug.stopDebugging(createdSession);
-			}
+		const stopListener = this.onDidSessionStop(async () => {
+			stopListener.dispose();
+			this.disposables.delete(stopListener);
+			await vscode.debug.stopDebugging(createdSession);
 		});
-		this.lateDisposables.add(stopListener);
+		this.disposables.add(stopListener);
 	}
 
 	private startBrowserDebugSession(type: string, session: vscode.DebugSession, uri: string, trackerId?: string) {
@@ -272,14 +269,12 @@ class ServerReadyDetector extends vscode.Disposable {
 			return;
 		}
 
-		const stopListener = vscode.debug.onDidTerminateDebugSession(async (terminated) => {
-			if (terminated === session) {
-				stopListener.dispose();
-				this.lateDisposables.delete(stopListener);
-				await vscode.debug.stopDebugging(createdSession);
-			}
+		const stopListener = this.onDidSessionStop(async () => {
+			stopListener.dispose();
+			this.disposables.delete(stopListener);
+			await vscode.debug.stopDebugging(createdSession);
 		});
-		this.lateDisposables.add(stopListener);
+		this.disposables.add(stopListener);
 	}
 
 	private catchStartedDebugSession(predicate: (session: vscode.DebugSession) => boolean, cancellationToken: vscode.CancellationToken): Promise<vscode.DebugSession | undefined> {
@@ -287,8 +282,8 @@ class ServerReadyDetector extends vscode.Disposable {
 			const done = (value?: vscode.DebugSession) => {
 				listener.dispose();
 				cancellationListener.dispose();
-				this.lateDisposables.delete(listener);
-				this.lateDisposables.delete(cancellationListener);
+				this.disposables.delete(listener);
+				this.disposables.delete(cancellationListener);
 				_resolve(value);
 			};
 
@@ -300,8 +295,8 @@ class ServerReadyDetector extends vscode.Disposable {
 			});
 
 			// In case the debug session of interest was never caught anyhow.
-			this.lateDisposables.add(listener);
-			this.lateDisposables.add(cancellationListener);
+			this.disposables.add(listener);
+			this.disposables.add(cancellationListener);
 		});
 	}
 }

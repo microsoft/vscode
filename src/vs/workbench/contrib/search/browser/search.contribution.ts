@@ -21,7 +21,7 @@ import { Extensions as ViewExtensions, IViewContainersRegistry, IViewDescriptor,
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { AnythingQuickAccessProvider } from 'vs/workbench/contrib/search/browser/anythingQuickAccess';
 import { registerContributions as replaceContributions } from 'vs/workbench/contrib/search/browser/replaceContributions';
-import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearchContributions';
+import { registerContributions as notebookSearchContributions } from 'vs/workbench/contrib/search/browser/notebookSearch/notebookSearchContributions';
 import { searchViewIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
 import { SearchView } from 'vs/workbench/contrib/search/browser/searchView';
 import { registerContributions as searchWidgetContributions } from 'vs/workbench/contrib/search/browser/searchWidget';
@@ -56,7 +56,7 @@ const SEARCH_MODE_CONFIG = 'search.mode';
 
 const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewContainersRegistry).registerViewContainer({
 	id: VIEWLET_ID,
-	title: { value: nls.localize('name', "Search"), original: 'Search' },
+	title: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [VIEWLET_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
 	icon: searchViewIcon,
@@ -66,7 +66,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewExtensions.ViewCo
 const viewDescriptor: IViewDescriptor = {
 	id: VIEW_ID,
 	containerIcon: searchViewIcon,
-	name: nls.localize('search', "Search"),
+	name: nls.localize2('search', "Search"),
 	ctorDescriptor: new SyncDescriptor(SearchView),
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -93,7 +93,7 @@ class RegisterSearchViewContribution implements IWorkbenchContribution {
 	) {
 		const data = configurationService.inspect('search.location');
 		if (data.value === 'panel') {
-			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel);
+			viewDescriptorService.moveViewToLocation(viewDescriptor, ViewContainerLocation.Panel, 'search.location');
 		}
 		Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 			.registerConfigurationMigrations([{ key: 'search.location', migrateFn: (value: any) => ({ value: undefined }) }]);

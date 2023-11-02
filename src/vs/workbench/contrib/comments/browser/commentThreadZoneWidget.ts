@@ -141,8 +141,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			this._commentOptions = controller.options;
 		}
 
-		this._initialCollapsibleState = _commentThread.initialCollapsibleState;
-		this._isExpanded = _commentThread.initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
+		this._initialCollapsibleState = _pendingComment ? languages.CommentThreadCollapsibleState.Expanded : _commentThread.initialCollapsibleState;
+		_commentThread.initialCollapsibleState = this._initialCollapsibleState;
+		this._isExpanded = this._initialCollapsibleState === languages.CommentThreadCollapsibleState.Expanded;
 		this._commentThreadDisposables = [];
 		this.create();
 
@@ -213,6 +214,12 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			newComment: this._commentThreadWidget.getPendingComment(),
 			edits: this._commentThreadWidget.getPendingEdits()
 		};
+	}
+
+	public setPendingComment(comment: string) {
+		this._pendingComment = comment;
+		this.expand();
+		this._commentThreadWidget.setPendingComment(comment);
 	}
 
 	protected _fillContainer(container: HTMLElement): void {
@@ -320,13 +327,9 @@ export class ReviewZoneWidget extends ZoneWidget implements ICommentThreadWidget
 			}
 		}
 
-		if (shouldMoveWidget && this._isExpanded) {
+		if ((shouldMoveWidget && this._isExpanded) || (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded && !this._isExpanded)) {
 			this.show(this.arrowPosition(this._commentThread.range), 2);
-		}
-
-		if (this._commentThread.collapsibleState === languages.CommentThreadCollapsibleState.Expanded) {
-			this.show(this.arrowPosition(this._commentThread.range), 2);
-		} else {
+		} else if (this._commentThread.collapsibleState !== languages.CommentThreadCollapsibleState.Expanded) {
 			this.hide();
 		}
 	}

@@ -545,6 +545,7 @@ export class SelectBoxList extends Disposable implements ISelectBoxDelegate, ILi
 			// Make visible to enable measurements
 			this.selectDropDownContainer.classList.add('visible');
 
+			const window = dom.getWindow(this.selectElement);
 			const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 			const styles = getComputedStyle(this.selectElement);
 			const verticalPadding = parseFloat(styles.getPropertyValue('--dropdown-padding-top')) + parseFloat(styles.getPropertyValue('--dropdown-padding-bottom'));

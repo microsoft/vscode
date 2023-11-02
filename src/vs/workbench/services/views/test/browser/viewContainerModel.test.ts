@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as nls from 'vs/nls';
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { IViewsRegistry, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, ViewContainerLocation, IViewContainerModel, IViewDescriptorService, ViewContainer } from 'vs/workbench/common/views';
@@ -63,13 +64,13 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('empty model', function () {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	});
 
 	test('register/unregister', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -79,7 +80,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1'
+			name: nls.localize2('Test View 1', 'Test View 1')
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
@@ -96,7 +97,7 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('when contexts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
@@ -105,7 +106,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -140,11 +141,11 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('when contexts - multiple', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', when: ContextKeyExpr.equals('showview2', true) };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1') };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2'), when: ContextKeyExpr.equals('showview2', true) };
 
 		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1], 'only view1 should be visible');
@@ -163,11 +164,11 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('when contexts - multiple 2', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', when: ContextKeyExpr.equals('showview1', true) };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1'), when: ContextKeyExpr.equals('showview1', true) };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2') };
 
 		ViewsRegistry.registerViews([view1, view2], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view2], 'only view2 should be visible');
@@ -186,12 +187,12 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('setVisible', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1', canToggleVisibility: true };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2', canToggleVisibility: true };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3', canToggleVisibility: true };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1'), canToggleVisibility: true };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2'), canToggleVisibility: true };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: nls.localize2('Test View 3', 'Test View 3'), canToggleVisibility: true };
 
 		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3]);
@@ -231,12 +232,12 @@ suite('ViewContainerModel', () => {
 	});
 
 	test('move', () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
-		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: 'Test View 1' };
-		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: 'Test View 2' };
-		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: 'Test View 3' };
+		const view1: IViewDescriptor = { id: 'view1', ctorDescriptor: null!, name: nls.localize2('Test View 1', 'Test View 1') };
+		const view2: IViewDescriptor = { id: 'view2', ctorDescriptor: null!, name: nls.localize2('Test View 2', 'Test View 2') };
+		const view3: IViewDescriptor = { id: 'view3', ctorDescriptor: null!, name: nls.localize2('Test View 3', 'Test View 3') };
 
 		ViewsRegistry.registerViews([view1, view2, view3], container);
 		assert.deepStrictEqual(testObject.visibleViewDescriptors, [view1, view2, view3], 'model views should be OK');
@@ -261,7 +262,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -271,7 +272,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1'
+			name: nls.localize2('Test View 1', 'Test View 1')
 		};
 
 		ViewsRegistry.registerViews([viewDescriptor], container);
@@ -281,7 +282,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -291,7 +292,7 @@ suite('ViewContainerModel', () => {
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true)
 		};
 
@@ -311,7 +312,7 @@ suite('ViewContainerModel', () => {
 
 	test('view states and when contexts multiple views', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		storageService.store(`${container.id}.state.hidden`, JSON.stringify([{ id: 'view1', isHidden: true }]), StorageScope.PROFILE, StorageTarget.MACHINE);
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
@@ -321,18 +322,18 @@ suite('ViewContainerModel', () => {
 		const view1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview', true)
 		};
 		const view2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: nls.localize2('Test View 2', 'Test View 2'),
 		};
 		const view3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: nls.localize2('Test View 3', 'Test View 3'),
 			when: ContextKeyExpr.equals('showview', true)
 		};
 
@@ -356,13 +357,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('remove event is not triggered if view was hidden and removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -386,13 +387,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered if view was set visible (when visible) and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -413,13 +414,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('remove event is not triggered if view was hidden and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -440,13 +441,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered if view was set visible (when not visible) and not active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -471,20 +472,20 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('added view descriptors are in ascending order in the event', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 
 		ViewsRegistry.registerViews([{
 			id: 'view5',
 			ctorDescriptor: null!,
-			name: 'Test View 5',
+			name: nls.localize2('Test View 5', 'Test View 5'),
 			canToggleVisibility: true,
 			order: 5
 		}, {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: nls.localize2('Test View 2', 'Test View 2'),
 			canToggleVisibility: true,
 			order: 2
 		}], container);
@@ -496,19 +497,19 @@ suite('ViewContainerModel', () => {
 		ViewsRegistry.registerViews([{
 			id: 'view4',
 			ctorDescriptor: null!,
-			name: 'Test View 4',
+			name: nls.localize2('Test View 4', 'Test View 4'),
 			canToggleVisibility: true,
 			order: 4
 		}, {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: nls.localize2('Test View 3', 'Test View 3'),
 			canToggleVisibility: true,
 			order: 3
 		}, {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true,
 			order: 1
 		}], container);
@@ -522,13 +523,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is triggered only once when view is set visible while it is set active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -553,13 +554,13 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('add event is not triggered only when view is set hidden while it is set active', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			when: ContextKeyExpr.equals('showview1', true),
 			canToggleVisibility: true
 		};
@@ -582,12 +583,12 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('#142087: view descriptor visibility is not reset', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 
@@ -604,26 +605,26 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(testObject.visibleViewDescriptors.length, 0);
 	}));
 
-	test('remove event is triggered properly if mutliple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+	test('remove event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: nls.localize2('Test View 2', 'Test View 2'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: nls.localize2('Test View 3', 'Test View 3'),
 			canToggleVisibility: true
 		};
 
@@ -662,26 +663,26 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[0].id, viewDescriptor1.id);
 	}));
 
-	test('add event is triggered properly if mutliple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+	test('add event is triggered properly if multiple views are hidden at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: nls.localize2('Test View 2', 'Test View 2'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: nls.localize2('Test View 3', 'Test View 3'),
 			canToggleVisibility: true
 		};
 
@@ -730,32 +731,32 @@ suite('ViewContainerModel', () => {
 		assert.strictEqual(target.elements[2].id, viewDescriptor3.id);
 	}));
 
-	test('add and remove events are triggered properly if mutliple views are hidden and added at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+	test('add and remove events are triggered properly if multiple views are hidden and added at the same time', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const testObject = viewDescriptorService.getViewContainerModel(container);
 		const target = disposableStore.add(new ViewDescriptorSequence(testObject));
 		const viewDescriptor1: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor2: IViewDescriptor = {
 			id: 'view2',
 			ctorDescriptor: null!,
-			name: 'Test View 2',
+			name: nls.localize2('Test View 2', 'Test View 2'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor3: IViewDescriptor = {
 			id: 'view3',
 			ctorDescriptor: null!,
-			name: 'Test View 3',
+			name: nls.localize2('Test View 3', 'Test View 3'),
 			canToggleVisibility: true
 		};
 		const viewDescriptor4: IViewDescriptor = {
 			id: 'view4',
 			ctorDescriptor: null!,
-			name: 'Test View 4',
+			name: nls.localize2('Test View 4', 'Test View 4'),
 			canToggleVisibility: true
 		};
 
@@ -808,11 +809,11 @@ suite('ViewContainerModel', () => {
 	}));
 
 	test('newly added view descriptor is hidden if it was toggled hidden in storage before adding', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
-		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: { value: 'test', original: 'test' }, ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
+		container = ViewContainerRegistry.registerViewContainer({ id: 'test', title: nls.localize2('test', 'test'), ctorDescriptor: new SyncDescriptor(<any>{}) }, ViewContainerLocation.Sidebar);
 		const viewDescriptor: IViewDescriptor = {
 			id: 'view1',
 			ctorDescriptor: null!,
-			name: 'Test View 1',
+			name: nls.localize2('Test View 1', 'Test View 1'),
 			canToggleVisibility: true
 		};
 		storageService.store(getViewsStateStorageId('test.state'), JSON.stringify([{

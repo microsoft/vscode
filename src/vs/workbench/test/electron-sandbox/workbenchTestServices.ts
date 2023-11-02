@@ -12,7 +12,7 @@ import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme } from 'vs/platform/window/common/window';
+import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle } from 'vs/platform/window/common/window';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -64,21 +64,23 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onDidOpenWindow: Event<number> = Event.None;
-	onDidMaximizeWindow: Event<number> = Event.None;
-	onDidUnmaximizeWindow: Event<number> = Event.None;
-	onDidFocusWindow: Event<number> = Event.None;
-	onDidBlurWindow: Event<number> = Event.None;
+	onDidOpenMainWindow: Event<number> = Event.None;
+	onDidMaximizeMainWindow: Event<number> = Event.None;
+	onDidUnmaximizeMainWindow: Event<number> = Event.None;
+	onDidFocusMainWindow: Event<number> = Event.None;
+	onDidBlurMainWindow: Event<number> = Event.None;
+	onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
+	onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
-	onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
 
-	async getWindows(): Promise<IOpenedWindow[]> { return []; }
+	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
@@ -93,11 +95,12 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
-	async moveWindowTop(): Promise<void> { }
+	async moveWindowTop(options?: { targetWindowId?: number }): Promise<void> { }
+	async positionWindow(position: IRectangle, options?: { targetWindowId?: number }): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
+	async focusWindow(options?: { targetWindowId?: number | undefined } | undefined): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }

@@ -25,7 +25,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -37,6 +37,7 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	static get(instance: ITerminalInstance): TextAreaSyncContribution | null {
 		return instance.getContribution<TextAreaSyncContribution>(TextAreaSyncContribution.ID);
 	}
+	private _addon: TextAreaSyncAddon | undefined;
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
@@ -45,10 +46,13 @@ class TextAreaSyncContribution extends DisposableStore implements ITerminalContr
 	) {
 		super();
 	}
-	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
-		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
-		xterm.raw.loadAddon(addon);
-		addon.activate(xterm.raw);
+	layout(xterm: IXtermTerminal & { raw: Terminal }): void {
+		if (this._addon) {
+			return;
+		}
+		this._addon = this.add(this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities));
+		xterm.raw.loadAddon(this._addon);
+		this._addon.activate(xterm.raw);
 	}
 }
 registerTerminalContribution(TextAreaSyncContribution.ID, TextAreaSyncContribution);
@@ -213,7 +217,7 @@ class FocusAccessibleBufferAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalCommandId.FocusAccessibleBuffer,
-			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
+			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Terminal View'), original: 'Focus Accessible Terminal View' },
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 			keybinding: [
 				{

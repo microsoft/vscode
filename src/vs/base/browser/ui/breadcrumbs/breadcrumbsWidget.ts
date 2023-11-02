@@ -128,7 +128,7 @@ export class BreadcrumbsWidget {
 			this._domNode.style.width = `${dim.width}px`;
 			this._domNode.style.height = `${dim.height}px`;
 			disposables.add(this._updateScrollbar());
-		}));
+		}, dom.getWindow(this._domNode)));
 		return disposables;
 	}
 
@@ -138,8 +138,8 @@ export class BreadcrumbsWidget {
 				this._scrollable.setRevealOnScroll(false);
 				this._scrollable.scanDomNode();
 				this._scrollable.setRevealOnScroll(true);
-			});
-		});
+			}, dom.getWindow(this._domNode));
+		}, dom.getWindow(this._domNode));
 	}
 
 	private _style(styleElement: HTMLStyleElement, style: IBreadcrumbsWidgetStyles): void {
@@ -177,14 +177,7 @@ export class BreadcrumbsWidget {
 	}
 
 	isDOMFocused(): boolean {
-		let candidate = document.activeElement;
-		while (candidate) {
-			if (this._domNode === candidate) {
-				return true;
-			}
-			candidate = candidate.parentElement;
-		}
-		return false;
+		return dom.isAncestorOfActiveElement(this._domNode);
 	}
 
 	getFocused(): BreadcrumbsItem {

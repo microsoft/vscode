@@ -17,7 +17,7 @@ import { AccessibleViewType, IAccessibleContentProvider, IAccessibleViewOptions 
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 export const enum ClassName {
 	Active = 'active',
@@ -75,7 +75,8 @@ export class TerminalAccessibilityHelpProvider extends Disposable implements IAc
 
 	provideContent(): string {
 		const content = [];
-		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleBuffer', 'The Focus Accessible Buffer ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleBufferNoKb', 'The Focus Accessible Buffer command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
+		content.push(this._descriptionForCommand(TerminalCommandId.FocusAccessibleBuffer, localize('focusAccessibleTerminalView', 'The Focus Accessible Terminal View ({0}) command enables screen readers to read terminal contents.'), localize('focusAccessibleTerminalViewNoKb', 'The Focus Terminal Accessible View command enables screen readers to read terminal contents and is currently not triggerable by a keybinding.')));
+		content.push(localize('preserveCursor', 'Customize the behavior of the cursor when toggling between the terminal and accessible view with `terminal.integrated.accessibleViewPreserveCursorPosition.`'));
 		if (this._instance.shellType === WindowsShellType.CommandPrompt) {
 			content.push(localize('commandPromptMigration', "Consider using powershell instead of command prompt for an improved experience"));
 		}

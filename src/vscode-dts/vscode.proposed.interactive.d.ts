@@ -20,6 +20,7 @@ declare module 'vscode' {
 	// todo@API make classes
 	export interface InteractiveEditorSession {
 		placeholder?: string;
+		input?: string;
 		slashCommands?: InteractiveEditorSlashCommand[];
 		wholeRange?: Range;
 		message?: string;
@@ -51,7 +52,9 @@ declare module 'vscode' {
 	export interface InteractiveEditorProgressItem {
 		message?: string;
 		edits?: TextEdit[];
+		editsShouldBeInstant?: boolean;
 		slashCommand?: InteractiveEditorSlashCommand;
+		content?: string | MarkdownString;
 	}
 
 	export enum InteractiveEditorResponseFeedbackKind {
@@ -108,7 +111,7 @@ declare module 'vscode' {
 
 	export interface InteractiveRequest {
 		session: InteractiveSession;
-		message: string | InteractiveSessionReplyFollowup;
+		message: string;
 	}
 
 	export interface InteractiveResponseErrorDetails {
@@ -123,6 +126,11 @@ declare module 'vscode' {
 
 	export interface InteractiveContentReference {
 		reference: Uri | Location;
+	}
+
+	export interface InteractiveInlineContentReference {
+		inlineReference: Uri | Location;
+		title?: string; // eg symbol name
 	}
 
 	export interface InteractiveProgressContent {
@@ -164,7 +172,8 @@ declare module 'vscode' {
 		| InteractiveProgressTask
 		| InteractiveProgressFileTree
 		| InteractiveProgressUsedContext
-		| InteractiveContentReference;
+		| InteractiveContentReference
+		| InteractiveInlineContentReference;
 
 	export interface InteractiveResponseCommand {
 		commandId: string;
@@ -194,10 +203,11 @@ declare module 'vscode' {
 
 	export type InteractiveSessionFollowup = InteractiveSessionReplyFollowup | InteractiveResponseCommand;
 
-	export type InteractiveWelcomeMessageContent = string | InteractiveSessionReplyFollowup[];
+	export type InteractiveWelcomeMessageContent = string | MarkdownString | InteractiveSessionReplyFollowup[];
 
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
+		provideSampleQuestions?(token: CancellationToken): ProviderResult<InteractiveSessionReplyFollowup[]>;
 		provideFollowups?(session: S, token: CancellationToken): ProviderResult<(string | InteractiveSessionFollowup)[]>;
 		provideSlashCommands?(session: S, token: CancellationToken): ProviderResult<InteractiveSessionSlashCommand[]>;
 

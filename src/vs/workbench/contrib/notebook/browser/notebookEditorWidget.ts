@@ -385,7 +385,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			}
 		}));
 
-		this._register(editorGroupsService.onDidScroll(e => {
+		this._register(editorGroupsService.activePart.onDidScroll(e => {
 			if (!this._shadowElement || !this._isVisible) {
 				return;
 			}
@@ -1454,7 +1454,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			this._localStore.add(DOM.scheduleAtNextAnimationFrame(() => {
 				hasPendingChangeContentHeight = false;
 				this._updateScrollHeight();
-			}, 100));
+			}, DOM.getWindow(this._body), 100));
 		}));
 
 		this._localStore.add(this._list.onDidRemoveOutputs(outputs => {
@@ -1752,7 +1752,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				const element = this.viewModel.cellAt(focusRange.start);
 				if (element) {
 					const itemDOM = this._list.domElementOfElement(element);
-					const editorFocused = element.getEditState() === CellEditState.Editing && !!(document.activeElement && itemDOM && itemDOM.contains(document.activeElement));
+					const editorFocused = element.getEditState() === CellEditState.Editing && !!(itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement));
 
 					state.editorFocused = editorFocused;
 					state.focus = focusRange.start;
@@ -1959,7 +1959,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	private editorHasDomFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.getDomNode());
+		return DOM.isAncestorOfActiveElement(this.getDomNode());
 	}
 
 	updateEditorFocus() {
@@ -1996,7 +1996,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			return false;
 		}
 
-		const windowSelection = window.getSelection();
+		const windowSelection = DOM.getWindow(this.getDomNode()).getSelection();
 		if (windowSelection?.rangeCount !== 1) {
 			return false;
 		}
@@ -2259,7 +2259,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		};
 
 		if (this._list.inRenderingTransaction) {
-			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout);
+			const layoutDisposable = DOM.scheduleAtNextAnimationFrame(doLayout, DOM.getWindow(this._body));
 
 			this._pendingLayouts?.set(cell, toDisposable(() => {
 				layoutDisposable.dispose();
@@ -2370,8 +2370,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		} else {
 			// focus container
 			const itemDOM = this._list.domElementOfElement(cell);
-			if (document.activeElement && itemDOM && itemDOM.contains(document.activeElement)) {
-				(document.activeElement as HTMLElement).blur();
+			if (itemDOM && itemDOM.ownerDocument.activeElement && itemDOM.contains(itemDOM.ownerDocument.activeElement)) {
+				(itemDOM.ownerDocument.activeElement as HTMLElement).blur();
 			}
 
 			cell.updateEditState(CellEditState.Preview, 'focusNotebookCell');
@@ -2949,9 +2949,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cell = this.viewModel?.viewCells.find(vc => vc.handle === cellInfo.cellHandle);
 		if (cell && cell instanceof CodeCellViewModel) {
 			const outputIndex = cell.outputsViewModels.indexOf(output);
-			if (outputHeight !== 0) {
-				cell.updateOutputMinHeight(0);
-			}
 			this._debug('update cell output', cell.handle, outputHeight);
 			cell.updateOutputHeight(outputIndex, outputHeight, source);
 			this.layoutNotebookCell(cell, cell.layoutInfo.totalHeight);
@@ -2976,7 +2973,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				this._webview?.ackHeight([...this._pendingOutputHeightAcks.values()]);
 
 				this._pendingOutputHeightAcks.clear();
-			}, -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
+			}, DOM.getWindow(this._body), -1); // -1 priority because this depends on calls to layoutNotebookCell, and that may be called multiple times before this runs
 		}
 	}
 
