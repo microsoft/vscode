@@ -7,7 +7,7 @@ import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/l
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
-import type { Terminal, ITerminalAddon } from 'xterm';
+import type { Terminal, ITerminalAddon } from '@xterm/xterm';
 import { debounce } from 'vs/base/common/decorators';
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';

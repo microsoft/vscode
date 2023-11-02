@@ -7,17 +7,17 @@ const cp = require('child_process');
 const path = require('path');
 
 const moduleNames = [
-	'xterm',
-	'xterm-addon-canvas',
-	'xterm-addon-image',
-	'xterm-addon-search',
-	'xterm-addon-unicode11',
-	'xterm-addon-webgl'
+	'@xterm/xterm',
+	'@xterm/addon-canvas',
+	'@xterm/addon-image',
+	'@xterm/addon-search',
+	'@xterm/addon-unicode11',
+	'@xterm/addon-webgl',
 ];
 
 const backendOnlyModuleNames = [
-	'xterm-headless',
-	'xterm-addon-serialize'
+	'@xterm/headless',
+	'@xterm/addon-serialize'
 ];
 
 const vscodeDir = process.argv.length >= 3 ? process.argv[2] : process.cwd();
@@ -33,15 +33,9 @@ function getLatestModuleVersion(moduleName) {
 				reject(err);
 			}
 			let versions = JSON.parse(stdout);
-			// HACK: Some bad versions were published as v5 which cannot be unpublished, ignore these
-			if (moduleName === 'xterm-addon-canvas') {
-				versions = versions.filter(e => ![
-					'0.12.0',
-					'5.0.0-beta.1',
-					'5.0.0-beta.2',
-					'5.0.0-beta.3',
-					'5.0.0-beta.4',
-				].includes(e));
+			// Fix format if there is only a single version published
+			if (typeof versions === 'string') {
+				versions = [versions];
 			}
 			resolve(versions[versions.length - 1]);
 		});

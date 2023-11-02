@@ -522,6 +522,20 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	return disposable;
 }
 
+export function disposableInterval(handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
+	let iteration = 0;
+	const timer = setInterval(() => {
+		iteration++;
+		if (iteration >= iterations || handler()) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		clearInterval(timer);
+	});
+	return disposable;
+}
+
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.

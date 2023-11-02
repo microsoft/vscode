@@ -90,7 +90,9 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
 			return this.hoverService.showHover({
 				...options,
-				hideOnKeyDown: true
+				persistence: {
+					hideOnKeyDown: true
+				}
 			}, focus);
 		}
 

@@ -21,7 +21,7 @@ import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/brow
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
