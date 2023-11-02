@@ -23,7 +23,7 @@ import { IDetectedLinks, TerminalLinkManager } from 'vs/workbench/contrib/termin
 import { TerminalLinkProviderService } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkProviderService';
 import { TerminalLinkQuickpick } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkQuickpick';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
-import type { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 registerSingleton(ITerminalLinkProviderService, TerminalLinkProviderService, InstantiationType.Delayed);
 

@@ -14,10 +14,10 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getActiveDocument, getWindowsCount, onDidRegisterWindow, scheduleAtNextAnimationFrame, trackFocus } from 'vs/base/browser/dom';
-import { DomEmitter } from 'vs/base/browser/event';
+import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
+import { disposableInterval } from 'vs/base/common/async';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -36,41 +36,20 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
 	) {
 		super();
 	}
 
 	//#region Focus
 
-	@memoize
-	get onDidChangeFocus(): Event<boolean> {
-		const emitter = this._register(new Emitter<boolean>());
-
-		// Main window: track via native API
-		this._register(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId, this._store)(() => emitter.fire(this.hasFocus)));
-		this._register(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId, this._store)(() => emitter.fire(this.hasFocus)));
-
-		// Aux windows: track via DOM APIs
-		this._register(onDidRegisterWindow(({ window, disposables }) => {
-			const focusTracker = disposables.add(trackFocus(window));
-			const onVisibilityChange = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
-
-			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
-			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
-			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
-
-			// Workaround: the window does not immediately seem to have focus when
-			// opening, so we schedule a check for focus on the next animation frame
-			scheduleAtNextAnimationFrame(() => {
-				if (window.document.hasFocus()) {
-					emitter.fire(true);
-				}
-			}, window);
-		}));
-
-		return emitter.event;
-	}
+	readonly onDidChangeFocus = Event.latch(
+		Event.any(
+			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.getWindowById(id)), this._store), () => this.hasFocus, this._store),
+			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId) || !!this.auxiliaryWindowService.getWindowById(id), this._store), () => this.hasFocus, this._store)
+		), undefined, this._store
+	);
 
 	get hasFocus(): boolean {
 		return getActiveDocument().hasFocus();
@@ -90,6 +69,33 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 
 	//#region Window
+
+	@memoize
+	get onDidChangeActiveWindow(): Event<void> {
+		const emitter = this._register(new Emitter<number>());
+
+		// Emit via native focus tracking
+		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.getWindowById(id), this._store)(id => emitter.fire(id)));
+
+		this._register(onDidRegisterWindow(({ window, disposables }) => {
+
+			// Emit via interval: immediately when opening an auxiliary window,
+			// it is possible that document focus has not yet changed, so we
+			// poll for a while to ensure we catch the event.
+			if (isAuxiliaryWindow(window)) {
+				disposables.add(disposableInterval(() => {
+					const hasFocus = window.document.hasFocus();
+					if (hasFocus) {
+						emitter.fire(window.vscodeWindowId);
+					}
+
+					return hasFocus;
+				}, 100, 20));
+			}
+		}));
+
+		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
+	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;

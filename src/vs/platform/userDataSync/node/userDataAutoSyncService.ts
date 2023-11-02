@@ -31,8 +31,8 @@ export class UserDataAutoSyncService extends BaseUserDataAutoSyncService {
 		super(productService, userDataSyncStoreManagementService, userDataSyncStoreService, userDataSyncEnablementService, userDataSyncService, logService, authTokenService, telemetryService, userDataSyncMachinesService, storageService);
 
 		this._register(Event.debounce<string, string[]>(Event.any<string>(
-			Event.map(nativeHostService.onDidFocusWindow, () => 'windowFocus'),
-			Event.map(nativeHostService.onDidOpenWindow, () => 'windowOpen'),
+			Event.map(nativeHostService.onDidFocusMainWindow, () => 'windowFocus'),
+			Event.map(nativeHostService.onDidOpenMainWindow, () => 'windowOpen'),
 		), (last, source) => last ? [...last, source] : [source], 1000)(sources => this.triggerSync(sources, true, false)));
 	}
 
