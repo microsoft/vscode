@@ -12,7 +12,7 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Action } from 'vs/base/common/actions';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID, IFilesConfiguration, VIEW_ID, UndoConfirmLevel } from 'vs/workbench/contrib/files/common/files';
-import { IFileService, IFileStatWithPartialMetadata } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { EditorResourceAccessor, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IQuickInputService, ItemActivation } from 'vs/platform/quickinput/common/quickInput';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
