@@ -122,8 +122,6 @@ export class StatusbarEntryItem extends Disposable {
 			} else {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
-			this.focusListener.clear();
-			this.focusOutListener.clear();
 			this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, (e) => {
 				EventHelper.stop(e);
 				this.hover?.show(false);
