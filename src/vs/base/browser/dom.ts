@@ -1367,13 +1367,18 @@ export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T)
 	};
 }
 
-export function domContentLoaded(): Promise<unknown> {
-	return new Promise<unknown>(resolve => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
+export function domContentLoaded(targetWindow: Window): Promise<void> {
+	return new Promise<void>(resolve => {
+		const readyState = targetWindow.document.readyState;
+		if (readyState === 'complete' || (targetWindow.document && targetWindow.document.body !== null)) {
 			resolve(undefined);
 		} else {
-			window.addEventListener('DOMContentLoaded', resolve, false);
+			const listener = () => {
+				targetWindow.window.removeEventListener('DOMContentLoaded', listener, false);
+				resolve();
+			};
+
+			targetWindow.window.addEventListener('DOMContentLoaded', listener, false);
 		}
 	});
 }

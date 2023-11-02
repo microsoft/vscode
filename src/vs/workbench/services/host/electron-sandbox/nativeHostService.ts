@@ -147,12 +147,12 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.toggleFullScreen();
 	}
 
-	async moveTop(window: Window): Promise<void> {
+	async moveTop(targetWindow: Window): Promise<void> {
 		if (getWindowsCount() <= 1) {
 			return; // does not apply when only one window is opened
 		}
 
-		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(window) ? { targetWindowId: window.vscodeWindowId } : undefined);
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(targetWindow) ? { targetWindowId: targetWindow.vscodeWindowId } : undefined);
 	}
 
 	//#endregion
@@ -160,10 +160,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Lifecycle
 
-	focus(window: Window, options?: { force: boolean }): Promise<void> {
+	focus(targetWindow: Window, options?: { force: boolean }): Promise<void> {
 		return this.nativeHostService.focusWindow({
 			force: options?.force,
-			targetWindowId: isAuxiliaryWindow(window) ? window.vscodeWindowId : this.nativeHostService.windowId
+			targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : this.nativeHostService.windowId
 		});
 	}
 
