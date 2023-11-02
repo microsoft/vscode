@@ -138,39 +138,75 @@ interface Release {
 	readonly fileId: string;
 }
 
+interface SubmitReleaseResult {
+	submissionResponse: {
+		operationId: string;
+		statusCode: string;
+	};
+}
+
+interface ReleaseDetailsResult {
+
+}
+
 class ESRPClient {
+
+	private readonly authPath: string;
 
 	constructor(
 		private readonly tmp: Temp,
-		private readonly tenantId: string,
-		private readonly clientId: string,
-		private readonly authCertSubjectName: string,
-		private readonly requestSigningCertSubjectName: string,
-	) { }
-
-	async release(
-		version: string,
-		filePath: string
-	): Promise<Release> {
-		const authPath = this.tmp.tmpNameSync();
-		fs.writeFileSync(authPath, JSON.stringify({
+		tenantId: string,
+		clientId: string,
+		authCertSubjectName: string,
+		requestSigningCertSubjectName: string,
+	) {
+		this.authPath = this.tmp.tmpNameSync();
+		fs.writeFileSync(this.authPath, JSON.stringify({
 			Version: '1.0.0',
 			AuthenticationType: 'AAD_CERT',
-			TenantId: this.tenantId,
-			ClientId: this.clientId,
+			TenantId: tenantId,
+			ClientId: clientId,
 			AuthCert: {
-				SubjectName: this.authCertSubjectName,
+				SubjectName: authCertSubjectName,
 				StoreLocation: 'LocalMachine',
 				StoreName: 'My',
 				SendX5c: 'true'
 			},
 			RequestSigningCert: {
-				SubjectName: this.requestSigningCertSubjectName,
+				SubjectName: requestSigningCertSubjectName,
 				StoreLocation: 'LocalMachine',
 				StoreName: 'My'
 			}
 		}));
+	}
 
+	async release(
+		version: string,
+		filePath: string
+	): Promise<Release> {
+		const submitReleaseResult = await this.SubmitRelease(version, filePath);
+
+		if (submitReleaseResult.submissionResponse.statusCode !== 'pass') {
+			throw new Error(`Unexpected status code: ${submitReleaseResult.submissionResponse.statusCode}`);
+		}
+
+		const releaseId = submitReleaseResult.submissionResponse.operationId;
+
+		for (let i = 0; i < 10; i++) {
+			const details = await this.ReleaseDetails(releaseId);
+
+			console.log(details);
+
+			await new Promise(c => setTimeout(c, 5000));
+		}
+
+		return { releaseId, fileId: 'xxx' };
+	}
+
+	private async SubmitRelease(
+		version: string,
+		filePath: string
+	): Promise<SubmitReleaseResult> {
 		const policyPath = this.tmp.tmpNameSync();
 		fs.writeFileSync(policyPath, JSON.stringify({
 			Version: '1.0.0',
@@ -242,17 +278,26 @@ class ESRPClient {
 		}));
 
 		const outputPath = this.tmp.tmpNameSync();
-
-		cp.execSync(`ESRPClient SubmitRelease -l Verbose -a ${authPath} -p ${policyPath} -i ${inputPath} -o ${outputPath}`, {
-			stdio: 'inherit'
-		});
+		cp.execSync(`ESRPClient SubmitRelease -l Verbose -a ${this.authPath} -p ${policyPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
 
 		const output = fs.readFileSync(outputPath, 'utf8');
-		console.log('*************************');
-		console.log(output);
-		console.log('*************************');
+		return JSON.parse(output) as SubmitReleaseResult;
+	}
 
-		return JSON.parse(output);
+	private async ReleaseDetails(
+		releaseId: string
+	): Promise<ReleaseDetailsResult> {
+		const inputPath = this.tmp.tmpNameSync();
+		fs.writeFileSync(inputPath, JSON.stringify({
+			Version: '1.0.0',
+			OperationIds: [releaseId]
+		}));
+
+		const outputPath = this.tmp.tmpNameSync();
+		cp.execSync(`ESRPClient ReleaseDetailsResult -l Verbose -a ${this.authPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
+
+		const output = fs.readFileSync(outputPath, 'utf8');
+		return JSON.parse(output) as ReleaseDetailsResult;
 	}
 }
 
