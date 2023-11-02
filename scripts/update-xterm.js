@@ -62,27 +62,36 @@ async function update() {
 
 	const pkg = require(path.join(vscodeDir, 'package.json'));
 
+	const modulesWithVersion = [];
 	for (const m of moduleNames) {
 		const moduleWithVersion = `${m}@${latestVersions[m]}`;
 		if (pkg.dependencies[m] === latestVersions[m]) {
 			console.log(`Skipping ${moduleWithVersion}, already up to date`);
 			continue;
 		}
+		modulesWithVersion.push(moduleWithVersion);
+	}
+
+	if (modulesWithVersion.length > 0) {
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote'), path.join(vscodeDir, 'remote/web')]) {
-			console.log(`${path.join(cwd, 'package.json')}: Updating ${moduleWithVersion}`);
-			cp.execSync(`yarn add ${moduleWithVersion}`, { cwd });
+			console.log(`${path.join(cwd, 'package.json')}: Updating\n  ${modulesWithVersion.join('\n  ')}`);
+			cp.execSync(`yarn add ${modulesWithVersion.join(' ')}`, { cwd });
 		}
 	}
 
+	const backendOnlyModulesWithVersion = [];
 	for (const m of backendOnlyModuleNames) {
 		const moduleWithVersion = `${m}@${latestVersions[m]}`;
 		if (pkg.dependencies[m] === latestVersions[m]) {
 			console.log(`Skipping ${moduleWithVersion}, already up to date`);
 			continue;
 		}
+		backendOnlyModulesWithVersion.push(moduleWithVersion);
+	}
+	if (backendOnlyModulesWithVersion.length > 0) {
 		for (const cwd of [vscodeDir, path.join(vscodeDir, 'remote')]) {
-			console.log(`${path.join(cwd, 'package.json')}: Updating ${moduleWithVersion}`);
-			cp.execSync(`yarn add ${moduleWithVersion}`, { cwd });
+			console.log(`${path.join(cwd, 'package.json')}: Updating\n  ${backendOnlyModulesWithVersion.join('\n  ')}`);
+			cp.execSync(`yarn add ${backendOnlyModulesWithVersion.join(' ')}`, { cwd });
 		}
 	}
 }
