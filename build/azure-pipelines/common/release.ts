@@ -278,7 +278,7 @@ class ESRPClient {
 		}));
 
 		const outputPath = this.tmp.tmpNameSync();
-		cp.execSync(`ESRPClient SubmitRelease -l Verbose -a ${this.authPath} -p ${policyPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
+		cp.execSync(`ESRPClient SubmitRelease -a ${this.authPath} -p ${policyPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
 
 		const output = fs.readFileSync(outputPath, 'utf8');
 		return JSON.parse(output) as SubmitReleaseResult;
@@ -294,7 +294,7 @@ class ESRPClient {
 		}));
 
 		const outputPath = this.tmp.tmpNameSync();
-		cp.execSync(`ESRPClient ReleaseDetails -l Verbose -a ${this.authPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
+		cp.execSync(`ESRPClient ReleaseDetails -a ${this.authPath} -i ${inputPath} -o ${outputPath}`, { stdio: 'inherit' });
 
 		const output = fs.readFileSync(outputPath, 'utf8');
 		return JSON.parse(output) as ReleaseDetailsResult;
