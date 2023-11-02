@@ -334,12 +334,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			return overflowed ? this.hoverService.showHover({
 				...options,
 				target: indentGuideElement,
-				compact: true,
 				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
-				skipFadeInAnimation: true,
-				showPointer: false,
-				hoverPosition: HoverPosition.RIGHT,
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+				},
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+					showPointer: false,
+				}
 			}, focus) : undefined;
 		}
 

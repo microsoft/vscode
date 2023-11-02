@@ -176,14 +176,14 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
 
 class AnimationFrameQueueItem implements IDisposable {
 
@@ -252,35 +252,35 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner = false;
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
+	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
 		const item = new AnimationFrameQueueItem(runner, priority);
 		NEXT_QUEUE.push(item);
 
 		if (!animFrameRequested) {
 			animFrameRequested = true;
-			requestAnimationFrame(animationFrameRunner);
+			targetWindow.requestAnimationFrame(animationFrameRunner);
 		}
 
 		return item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
+	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
 		if (inAnimationFrameRunner) {
 			const item = new AnimationFrameQueueItem(runner, priority);
 			CURRENT_QUEUE!.push(item);
 			return item;
 		} else {
-			return scheduleAtNextAnimationFrame(runner, priority);
+			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);
 		}
 	};
 })();
 
-export function measure(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+export function measure(callback: () => void, targetWindow: Window): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, targetWindow, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+export function modify(callback: () => void, targetWindow: Window): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, targetWindow, -10000 /* must be late */);
 }
 
 /**
@@ -780,16 +780,15 @@ export function getActiveWindow(): WindowGlobal {
 	return document.defaultView?.window ?? window;
 }
 
-export function getWindow(element: Node): WindowGlobal;
-export function getWindow(event: UIEvent): WindowGlobal;
-export function getWindow(obj: unknown): WindowGlobal;
+export function getWindow(element: Node | undefined | null): WindowGlobal;
+export function getWindow(event: UIEvent | undefined | null): WindowGlobal;
 export function getWindow(e: unknown): WindowGlobal {
-	const candidateNode = e as Node | undefined;
+	const candidateNode = e as Node | undefined | null;
 	if (candidateNode?.ownerDocument?.defaultView) {
 		return candidateNode.ownerDocument.defaultView.window;
 	}
 
-	const candidateEvent = e as UIEvent | undefined;
+	const candidateEvent = e as UIEvent | undefined | null;
 	if (candidateEvent?.view) {
 		return candidateEvent.view.window;
 	}
@@ -996,22 +995,22 @@ function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
+	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
 }
 
 export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
+	return e instanceof KeyboardEvent || e instanceof getWindow(e as UIEvent).KeyboardEvent;
 }
 
 export function isPointerEvent(e: unknown): e is PointerEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
+	return e instanceof PointerEvent || e instanceof getWindow(e as UIEvent).PointerEvent;
 }
 
 export function isDragEvent(e: unknown): e is DragEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
+	return e instanceof DragEvent || e instanceof getWindow(e as UIEvent).DragEvent;
 }
 
 export const EventType = {
@@ -1368,13 +1367,18 @@ export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T)
 	};
 }
 
-export function domContentLoaded(): Promise<unknown> {
-	return new Promise<unknown>(resolve => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
+export function domContentLoaded(targetWindow: Window): Promise<void> {
+	return new Promise<void>(resolve => {
+		const readyState = targetWindow.document.readyState;
+		if (readyState === 'complete' || (targetWindow.document && targetWindow.document.body !== null)) {
 			resolve(undefined);
 		} else {
-			window.addEventListener('DOMContentLoaded', resolve, false);
+			const listener = () => {
+				targetWindow.window.removeEventListener('DOMContentLoaded', listener, false);
+				resolve();
+			};
+
+			targetWindow.window.addEventListener('DOMContentLoaded', listener, false);
 		}
 	});
 }
@@ -1463,13 +1467,13 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	return false;
 }
 
-export function animate(fn: () => void): IDisposable {
+export function animate(fn: () => void, targetWindow: Window): IDisposable {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step);
+		stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step);
+	let stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
 	return toDisposable(() => stepDisposable.dispose());
 }
 

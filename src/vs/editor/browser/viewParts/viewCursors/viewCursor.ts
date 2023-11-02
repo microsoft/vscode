@@ -146,7 +146,7 @@ export class ViewCursor {
 				return null;
 			}
 
-			const window = dom.getWindow(this._domNode);
+			const window = dom.getWindow(this._domNode.domNode);
 			let width: number;
 			if (this._cursorStyle === TextEditorCursorStyle.Line) {
 				width = dom.computeScreenAwareSize(window, this._lineCursorWidth > 0 ? this._lineCursorWidth : 2);

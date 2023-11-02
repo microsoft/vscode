@@ -267,7 +267,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
-						hideOnHover: true
+						persistence: {
+							hideOnHover: true
+						}
 					});
 				}
 			}

@@ -368,8 +368,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
 
-		// Window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+		// Window active / focus changes
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged(focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
@@ -450,15 +451,15 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeFullscreen.fire(this.state.runtime.fullscreen);
 	}
 
-	private onWindowFocusChanged(hasFocus: boolean): void {
-		if (hasFocus) {
-			const activeContainerId = this.getActiveContainerId();
-			if (this.state.runtime.activeContainerId !== activeContainerId) {
-				this.state.runtime.activeContainerId = activeContainerId;
-				this._onDidChangeActiveContainer.fire();
-			}
+	private onActiveWindowChanged(): void {
+		const activeContainerId = this.getActiveContainerId();
+		if (this.state.runtime.activeContainerId !== activeContainerId) {
+			this.state.runtime.activeContainerId = activeContainerId;
+			this._onDidChangeActiveContainer.fire();
 		}
+	}
 
+	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
 			this.updateWindowBorder();

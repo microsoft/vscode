@@ -360,7 +360,7 @@ pub async fn status(ctx: CommandContext) -> Result<i32, AnyError> {
 			service_installed,
 			tunnel: match tunnel {
 				Ok(s) => Some(s),
-				Err(CodeError::NoRunningTunnel) => None,
+				Err(CodeError::NoRunningTunnel | CodeError::AsyncPipeFailed(_)) => None,
 				Err(e) => return Err(e.into()),
 			},
 		})

@@ -754,6 +754,11 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 		this.history.clear();
 	}
 
+	public override setPlaceHolder(placeHolder: string): void {
+		super.setPlaceHolder(placeHolder);
+		this.setTooltip(placeHolder);
+	}
+
 	protected override onBlur(): void {
 		super.onBlur();
 		this._onDidBlur.fire();

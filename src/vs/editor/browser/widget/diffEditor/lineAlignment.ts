@@ -42,14 +42,15 @@ export class ViewZoneManager extends Disposable {
 	private readonly _originalTopPadding = observableValue(this, 0);
 	private readonly _originalScrollTop: IObservable<number>;
 	private readonly _originalScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _originalScrollOffsetAnimated = animatedObservable(this._originalScrollOffset, this._store);
+	private readonly _originalScrollOffsetAnimated = animatedObservable(this._targetWindow, this._originalScrollOffset, this._store);
 
 	private readonly _modifiedTopPadding = observableValue(this, 0);
 	private readonly _modifiedScrollTop: IObservable<number>;
 	private readonly _modifiedScrollOffset = observableValue<number, boolean>(this, 0);
-	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._modifiedScrollOffset, this._store);
+	private readonly _modifiedScrollOffsetAnimated = animatedObservable(this._targetWindow, this._modifiedScrollOffset, this._store);
 
 	constructor(
+		private readonly _targetWindow: Window,
 		private readonly _editors: DiffEditorEditors,
 		private readonly _diffModel: IObservable<DiffEditorViewModel | undefined>,
 		private readonly _options: DiffEditorOptions,
