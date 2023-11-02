@@ -96,6 +96,7 @@ import { fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { CodeDataTransfers } from 'vs/platform/dnd/browser/dnd';
 import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
+import { EditorOption } from 'vs/editor/common/config/editorOptions';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1808,6 +1809,7 @@ class SCMInputWidget {
 	private editorContainer: HTMLElement;
 	private placeholderTextContainer: HTMLElement;
 	private inputEditor: CodeEditorWidget;
+	private toolbarContainer: HTMLElement;
 	private actionBar: ActionBar;
 	private readonly disposables = new DisposableStore();
 
@@ -1837,7 +1839,7 @@ class SCMInputWidget {
 		}
 
 		this.clearValidation();
-		this.editorContainer.classList.remove('synthetic-focus');
+		this.element.classList.remove('synthetic-focus');
 
 		this.repositoryDisposables.clear();
 		this.repositoryIdContextKey.set(input?.repository.id);
@@ -1958,11 +1960,8 @@ class SCMInputWidget {
 		this.repositoryDisposables.add(input.onDidChangeEnablement(enabled => updateEnablement(enabled)));
 		updateEnablement(input.enabled);
 
-		// ActionBar
+		// Toolbar
 		const onDidChangeActionButton = () => {
-			// Update placeholder width to accommodate for the action bar
-			this.placeholderTextContainer.style.width = input.actionButton ? 'calc(100% - 26px)' : '100%';
-
 			this.actionBar.clear();
 			if (!input.actionButton) {
 				return;
@@ -1976,6 +1975,7 @@ class SCMInputWidget {
 				() => this.commandService.executeCommand(input.actionButton!.command.id, ...(input.actionButton!.command.arguments || [])));
 
 			this.actionBar.push(action, { icon: true, label: false });
+			this.layout();
 		};
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
@@ -2027,6 +2027,7 @@ class SCMInputWidget {
 		this.element = append(container, $('.scm-editor'));
 		this.editorContainer = append(this.element, $('.scm-editor-container'));
 		this.placeholderTextContainer = append(this.editorContainer, $('.scm-editor-placeholder'));
+		this.toolbarContainer = append(this.element, $('.scm-editor-toolbar'));
 
 		const fontFamily = this.getInputEditorFontFamily();
 		const fontSize = this.getInputEditorFontSize();
@@ -2049,7 +2050,10 @@ class SCMInputWidget {
 			wrappingIndent: 'none',
 			padding: { top: 2, bottom: 2 },
 			quickSuggestions: false,
-			scrollbar: { alwaysConsumeMouseWheel: false },
+			scrollbar: {
+				alwaysConsumeMouseWheel: false,
+				vertical: 'hidden'
+			},
 			overflowWidgetsDomNode,
 			formatOnType: true,
 			renderWhitespace: 'none',
@@ -2076,9 +2080,6 @@ class SCMInputWidget {
 			])
 		};
 
-		this.actionBar = new ActionBar(append(this.element, $('.actions')));
-		this.disposables.add(this.actionBar);
-
 		const services = new ServiceCollection([IContextKeyService, contextKeyService2]);
 		const instantiationService2 = instantiationService.createChild(services);
 		this.inputEditor = instantiationService2.createInstance(CodeEditorWidget, this.editorContainer, editorOptions, codeEditorWidgetOptions);
@@ -2089,11 +2090,11 @@ class SCMInputWidget {
 				this.scmViewService.focus(this.input.repository);
 			}
 
-			this.editorContainer.classList.add('synthetic-focus');
+			this.element.classList.add('synthetic-focus');
 			this.renderValidation();
 		}));
 		this.disposables.add(this.inputEditor.onDidBlurEditorText(() => {
-			this.editorContainer.classList.remove('synthetic-focus');
+			this.element.classList.remove('synthetic-focus');
 
 			setTimeout(() => {
 				if (!this.validation || !this.validationHasFocus) {
@@ -2112,6 +2113,9 @@ class SCMInputWidget {
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			firstLineKey.set(viewPosition.lineNumber === 1 && viewPosition.column === 1);
 			lastLineKey.set(viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol);
+		}));
+		this.disposables.add(this.inputEditor.onDidScrollChange(e => {
+			this.toolbarContainer.classList.toggle('scroll-decoration', e.scrollTop > 0);
 		}));
 
 		const relevantSettings = [
@@ -2153,16 +2157,23 @@ class SCMInputWidget {
 		}));
 
 		this.onDidChangeContentHeight = Event.signal(Event.filter(this.inputEditor.onDidContentSizeChange, e => e.contentHeightChanged, this.disposables));
+
+		// Toolbar
+		this.actionBar = new ActionBar(this.toolbarContainer);
+		this.disposables.add(this.actionBar);
 	}
 
 	getContentHeight(): number {
 		const editorContentHeight = this.inputEditor.getContentHeight();
-		return Math.min(editorContentHeight, 134);
+		const editorContextHeightMax = this.getInputEditorMaxHeight();
+
+		return Math.min(editorContentHeight, editorContextHeightMax);
 	}
 
 	layout(): void {
 		const editorHeight = this.getContentHeight();
-		const dimension = new Dimension(this.element.clientWidth - 2, editorHeight);
+		const toolbarWidth = this.toolbarContainer.clientWidth;
+		const dimension = new Dimension(this.element.clientWidth - toolbarWidth, editorHeight);
 
 		if (dimension.width < 0) {
 			this.lastLayoutWasTrash = true;
@@ -2171,6 +2182,8 @@ class SCMInputWidget {
 
 		this.lastLayoutWasTrash = false;
 		this.inputEditor.layout(dimension);
+		this.placeholderTextContainer.style.width = `${dimension.width}px`;
+		this.toolbarContainer.classList.toggle('hidden', this.input?.actionButton === undefined);
 		this.renderValidation();
 
 		if (this.shouldFocusAfterLayout) {
@@ -2187,7 +2200,7 @@ class SCMInputWidget {
 		}
 
 		this.inputEditor.focus();
-		this.editorContainer.classList.add('synthetic-focus');
+		this.element.classList.add('synthetic-focus');
 	}
 
 	hasFocus(): boolean {
@@ -2197,9 +2210,9 @@ class SCMInputWidget {
 	private renderValidation(): void {
 		this.clearValidation();
 
-		this.editorContainer.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
-		this.editorContainer.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
-		this.editorContainer.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
+		this.element.classList.toggle('validation-info', this.validation?.type === InputValidationType.Information);
+		this.element.classList.toggle('validation-warning', this.validation?.type === InputValidationType.Warning);
+		this.element.classList.toggle('validation-error', this.validation?.type === InputValidationType.Error);
 
 		if (!this.validation || !this.inputEditor.hasTextFocus()) {
 			return;
@@ -2208,16 +2221,16 @@ class SCMInputWidget {
 		const disposables = new DisposableStore();
 
 		this.validationDisposable = this.contextViewService.showContextView({
-			getAnchor: () => this.editorContainer,
+			getAnchor: () => this.element,
 			render: container => {
-				this.editorContainer.style.borderBottomLeftRadius = '0';
-				this.editorContainer.style.borderBottomRightRadius = '0';
+				this.element.style.borderBottomLeftRadius = '0';
+				this.element.style.borderBottomRightRadius = '0';
 
 				const validationContainer = append(container, $('.scm-editor-validation-container'));
 				validationContainer.classList.toggle('validation-info', this.validation!.type === InputValidationType.Information);
 				validationContainer.classList.toggle('validation-warning', this.validation!.type === InputValidationType.Warning);
 				validationContainer.classList.toggle('validation-error', this.validation!.type === InputValidationType.Error);
-				validationContainer.style.width = `${this.editorContainer.clientWidth + 2}px`;
+				validationContainer.style.width = `${this.element.clientWidth + 2}px`;
 				const element = append(validationContainer, $('.scm-editor-validation'));
 
 				const message = this.validation!.message;
@@ -2229,8 +2242,8 @@ class SCMInputWidget {
 					disposables.add(tracker.onDidFocus(() => (this.validationHasFocus = true)));
 					disposables.add(tracker.onDidBlur(() => {
 						this.validationHasFocus = false;
-						this.editorContainer.style.borderBottomLeftRadius = '2px';
-						this.editorContainer.style.borderBottomRightRadius = '2px';
+						this.element.style.borderBottomLeftRadius = '2px';
+						this.element.style.borderBottomRightRadius = '2px';
 						this.contextViewService.hideContextView();
 					}));
 
@@ -2239,8 +2252,8 @@ class SCMInputWidget {
 						actionHandler: {
 							callback: (link) => {
 								openLinkFromMarkdown(this.openerService, link, message.isTrusted);
-								this.editorContainer.style.borderBottomLeftRadius = '2px';
-								this.editorContainer.style.borderBottomRightRadius = '2px';
+								this.element.style.borderBottomLeftRadius = '2px';
+								this.element.style.borderBottomRightRadius = '2px';
 								this.contextViewService.hideContextView();
 							},
 							disposables: disposables
@@ -2253,8 +2266,8 @@ class SCMInputWidget {
 				const actionbar = new ActionBar(actionsContainer);
 				const action = new Action('scmInputWidget.validationMessage.close', localize('label.close', "Close"), ThemeIcon.asClassName(Codicon.close), true, () => {
 					this.contextViewService.hideContextView();
-					this.editorContainer.style.borderBottomLeftRadius = '2px';
-					this.editorContainer.style.borderBottomRightRadius = '2px';
+					this.element.style.borderBottomLeftRadius = '2px';
+					this.element.style.borderBottomRightRadius = '2px';
 				});
 				disposables.add(actionbar);
 				actionbar.push(action, { icon: true, label: false });
@@ -2263,8 +2276,8 @@ class SCMInputWidget {
 			},
 			onHide: () => {
 				this.validationHasFocus = false;
-				this.editorContainer.style.borderBottomLeftRadius = '2px';
-				this.editorContainer.style.borderBottomRightRadius = '2px';
+				this.element.style.borderBottomLeftRadius = '2px';
+				this.element.style.borderBottomRightRadius = '2px';
 				disposables.dispose();
 			},
 			anchorAlignment: AnchorAlignment.LEFT
@@ -2287,6 +2300,19 @@ class SCMInputWidget {
 
 	private getInputEditorFontSize(): number {
 		return this.configurationService.getValue<number>('scm.inputFontSize');
+	}
+
+	private getInputEditorMaxLines(): number {
+		return this.configurationService.getValue<number>('scm.inputMaxLines');
+	}
+
+	private getInputEditorMaxHeight(): number {
+		const maxLines = this.getInputEditorMaxLines();
+		const fontSize = this.getInputEditorFontSize();
+		const lineHeight = this.computeLineHeight(fontSize);
+		const { top, bottom } = this.inputEditor.getOption(EditorOption.padding);
+
+		return maxLines * lineHeight + top + bottom;
 	}
 
 	private computeLineHeight(fontSize: number): number {

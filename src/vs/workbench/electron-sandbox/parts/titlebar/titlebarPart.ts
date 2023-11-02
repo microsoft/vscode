@@ -198,7 +198,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
 		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
-			this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
+			this._register(this.nativeHostService.onDidTriggerMainWindowSystemContextMenu(({ windowId, x, y }) => {
 				if (this.nativeHostService.windowId !== windowId) {
 					return;
 				}

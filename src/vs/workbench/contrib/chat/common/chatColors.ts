@@ -15,13 +15,13 @@ export const chatRequestBorder = registerColor(
 
 export const chatSlashCommandBackground = registerColor(
 	'chat.slashCommandBackground',
-	{ dark: badgeBackground, light: badgeBackground, hcDark: Color.white, hcLight: badgeBackground },
+	{ dark: '#34414B', light: '#D2ECFF', hcDark: Color.white, hcLight: badgeBackground },
 	localize('chat.slashCommandBackground', 'The background color of a chat slash command.')
 );
 
 export const chatSlashCommandForeground = registerColor(
 	'chat.slashCommandForeground',
-	{ dark: badgeForeground, light: badgeForeground, hcDark: Color.black, hcLight: badgeForeground },
+	{ dark: '#40A6FF', light: '#306CA2', hcDark: Color.black, hcLight: badgeForeground },
 	localize('chat.slashCommandForeground', 'The foreground color of a chat slash command.')
 );
 

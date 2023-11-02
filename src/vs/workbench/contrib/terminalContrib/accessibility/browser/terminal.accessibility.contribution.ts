@@ -25,7 +25,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -217,7 +217,7 @@ class FocusAccessibleBufferAction extends Action2 {
 	constructor() {
 		super({
 			id: TerminalCommandId.FocusAccessibleBuffer,
-			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Buffer'), original: 'Focus Accessible Buffer' },
+			title: { value: localize('workbench.action.terminal.focusAccessibleBuffer', 'Focus Accessible Terminal View'), original: 'Focus Accessible Terminal View' },
 			precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 			keybinding: [
 				{

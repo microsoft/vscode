@@ -176,6 +176,9 @@ class ChatAccessibleViewContribution extends Disposable {
 					}
 					responseContent = welcomeReplyContents.join('\n');
 				}
+				if (!responseContent && 'errorDetails' in focusedItem && focusedItem.errorDetails) {
+					responseContent = focusedItem.errorDetails.message;
+				}
 				if (!responseContent) {
 					return false;
 				}

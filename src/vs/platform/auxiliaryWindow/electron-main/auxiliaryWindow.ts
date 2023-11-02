@@ -6,6 +6,7 @@
 import { BrowserWindow, WebContents } from 'electron';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/environmentMainService';
+import { ILogService } from 'vs/platform/log/common/log';
 import { BaseWindow } from 'vs/platform/windows/electron-main/windowImpl';
 
 export interface IAuxiliaryWindow {
@@ -15,14 +16,24 @@ export interface IAuxiliaryWindow {
 	readonly id: number;
 	readonly win: BrowserWindow | null;
 
+	readonly parentId: number;
+
 	readonly lastFocusTime: number;
 
 	focus(options?: { force: boolean }): void;
+
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 }
 
 export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	readonly id = this.contents.id;
+
+	parentId = -1;
 
 	private readonly _onDidClose = this._register(new Emitter<void>());
 	readonly onDidClose = this._onDidClose.event;
@@ -45,7 +56,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	constructor(
 		private readonly contents: WebContents,
-		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 
@@ -74,6 +86,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		const window = BrowserWindow.fromWebContents(this.contents);
 		if (window) {
+			this.logService.trace('[aux window] Claimed browser window instance');
+
 			this._win = window;
 
 			// Disable Menu
@@ -88,6 +102,8 @@ export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 		// Window Close
 		window.on('closed', () => {
+			this.logService.trace('[aux window] Closed window');
+
 			this._onDidClose.fire();
 
 			this.dispose();

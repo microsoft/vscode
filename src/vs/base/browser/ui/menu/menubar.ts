@@ -630,7 +630,7 @@ export class MenuBar extends Disposable {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = undefined;
-			});
+			}, DOM.getWindow(this.container));
 		}
 
 		this.setUnfocusedState();

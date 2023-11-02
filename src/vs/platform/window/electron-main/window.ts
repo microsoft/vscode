@@ -15,6 +15,12 @@ import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platf
 
 export interface IBaseWindow extends IDisposable {
 	focus(options?: { force: boolean }): void;
+
+	setRepresentedFilename(name: string): void;
+	getRepresentedFilename(): string | undefined;
+
+	setDocumentEdited(edited: boolean): void;
+	isDocumentEdited(): boolean;
 }
 
 export interface ICodeWindow extends IBaseWindow {
@@ -64,12 +70,6 @@ export interface ICodeWindow extends IBaseWindow {
 	toggleFullScreen(): void;
 
 	isMinimized(): boolean;
-
-	setRepresentedFilename(name: string): void;
-	getRepresentedFilename(): string | undefined;
-
-	setDocumentEdited(edited: boolean): void;
-	isDocumentEdited(): boolean;
 
 	handleTitleDoubleClick(): void;
 

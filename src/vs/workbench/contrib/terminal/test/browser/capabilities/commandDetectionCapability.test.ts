@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -62,7 +62,7 @@ suite('CommandDetectionCapability', () => {
 
 	setup(async () => {
 		disposables = new DisposableStore();
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
 		instantiationService = disposables.add(new TestInstantiationService());
