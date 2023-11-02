@@ -42,7 +42,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { isCancellationError } from 'vs/base/common/errors';
 import { toAction } from 'vs/base/common/actions';
-import { EditorOpenSource, EditorResolution } from 'vs/platform/editor/common/editor';
+import { EditorOpenSource, IResourceEditorInput } from 'vs/platform/editor/common/editor';
 import { hash } from 'vs/base/common/hash';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
@@ -51,6 +51,8 @@ import { OPEN_TO_SIDE_COMMAND_ID, COMPARE_WITH_SAVED_COMMAND_ID, SELECT_FOR_COMP
 import { IFileDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { RemoveRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { OpenEditorsView } from 'vs/workbench/contrib/files/browser/views/openEditorsView';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export const openWindowCommand = (accessor: ServicesAccessor, toOpen: IWindowOpenable[], options?: IOpenWindowOptions) => {
 	if (Array.isArray(toOpen)) {
@@ -348,10 +350,18 @@ CommandsRegistry.registerCommand({
 	id: OPEN_WITH_EXPLORER_COMMAND_ID,
 	handler: async (accessor, resource: URI | object) => {
 		const editorService = accessor.get(IEditorService);
+		const editorResolverService = accessor.get(IEditorResolverService);
+		const quickInputService = accessor.get(IQuickInputService);
 
 		const uri = getResourceForCommand(resource, accessor.get(IListService), accessor.get(IEditorService));
 		if (uri) {
-			return editorService.openEditor({ resource: uri, options: { override: EditorResolution.PICK, source: EditorOpenSource.USER } });
+			const untypedEditor: IResourceEditorInput = { resource: uri, options: { source: EditorOpenSource.USER } };
+			const pickedEditor = await editorResolverService.showEditorPicker(quickInputService, untypedEditor);
+			if (!pickedEditor) {
+				return;
+			}
+			untypedEditor.options = pickedEditor;
+			return editorService.openEditor(untypedEditor);
 		}
 
 		return undefined;
