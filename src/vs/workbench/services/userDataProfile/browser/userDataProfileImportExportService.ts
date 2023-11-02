@@ -389,7 +389,7 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 				target: profileIconElement,
 				hoverPosition: HoverPosition.BELOW,
 				showPointer: true,
-				hideOnHover: false,
+				sticky: true,
 			}, true);
 			if (hoverWidget) {
 				iconSelectBox.layout(dimension);
