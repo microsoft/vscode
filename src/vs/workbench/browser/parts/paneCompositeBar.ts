@@ -17,8 +17,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { ToggleCompositePinnedAction, ICompositeBarColors, IActivityHoverOptions, ToggleCompositeBadgeAction, CompositeBarAction, ICompositeBar, ICompositeBarActionItem } from 'vs/workbench/browser/parts/compositeBarActions';
 import { IViewDescriptorService, ViewContainer, IViewContainerModel, ViewContainerLocation } from 'vs/workbench/common/views';
-import { getEnabledViewContainerContextKey } from 'vs/workbench/common/contextkeys';
-import { IContextKeyService, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isString } from 'vs/base/common/types';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { isNative } from 'vs/base/common/platform';
@@ -88,7 +87,6 @@ export class PaneCompositeBar extends Disposable {
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
 	private readonly location: ViewContainerLocation;
-	private readonly enabledViewContainersContextKeys: Map<string, IContextKey<boolean>> = new Map<string, IContextKey<boolean>>();
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -378,16 +376,9 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private showOrHideViewContainer(viewContainer: ViewContainer): void {
-		let contextKey = this.enabledViewContainersContextKeys.get(viewContainer.id);
-		if (!contextKey) {
-			contextKey = this.contextKeyService.createKey(getEnabledViewContainerContextKey(viewContainer.id), false);
-			this.enabledViewContainersContextKeys.set(viewContainer.id, contextKey);
-		}
 		if (this.shouldBeHidden(viewContainer)) {
-			contextKey.set(false);
 			this.hideComposite(viewContainer.id);
 		} else {
-			contextKey.set(true);
 			this.addComposite(viewContainer);
 		}
 	}
