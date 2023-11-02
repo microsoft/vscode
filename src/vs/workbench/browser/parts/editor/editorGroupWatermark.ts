@@ -34,6 +34,7 @@ const toggleTerminal: WatermarkEntry = { text: localize({ key: 'watermark.toggle
 const startDebugging: WatermarkEntry = { text: localize('watermark.startDebugging', "Start Debugging"), id: 'workbench.action.debug.start', when: ContextKeyExpr.equals('terminalProcessSupported', true) };
 const toggleFullscreen: WatermarkEntry = { text: localize({ key: 'watermark.toggleFullscreen', comment: ['toggle is a verb here'] }, "Toggle Full Screen"), id: 'workbench.action.toggleFullScreen', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
 const showSettings: WatermarkEntry = { text: localize('watermark.showSettings', "Show Settings"), id: 'workbench.action.openSettings', when: ContextKeyExpr.equals('terminalProcessSupported', true).negate() };
+const quickChat: WatermarkEntry = { text: localize('watermark.quickChat', "Toggle Quick Chat"), id: 'workbench.action.quickchat.toggle' };
 
 const noFolderEntries = [
 	showCommands,
@@ -41,7 +42,8 @@ const noFolderEntries = [
 	openFolderNonMacOnly,
 	openFileOrFolderMacOnly,
 	openRecent,
-	newUntitledFileMacOnly
+	newUntitledFileMacOnly,
+	quickChat
 ];
 
 const folderEntries = [
@@ -51,7 +53,8 @@ const folderEntries = [
 	startDebugging,
 	toggleTerminal,
 	toggleFullscreen,
-	showSettings
+	showSettings,
+	quickChat
 ];
 
 export class EditorGroupWatermark extends Disposable {
