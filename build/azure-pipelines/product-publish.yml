@@ -4,6 +4,9 @@ steps:
       versionSource: fromFile
       versionFilePath: .nvmrc
 
+  - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
+    displayName: "Use EsrpClient"
+
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
     inputs:
