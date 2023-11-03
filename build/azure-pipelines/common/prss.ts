@@ -198,10 +198,10 @@ class ESRPClient {
 		const releaseId = submitReleaseResult.submissionResponse.operationId;
 		console.log(`Successfully submitted release ${releaseId}`);
 
-		let details: ReleaseDetailsResult;
+		let details!: ReleaseDetailsResult;
 
-		// Poll every 5 seconds, wait 6 minutes max -> poll 60/5*6=72 times
-		for (let i = 0; i < 72; i++) {
+		// Poll every 5 seconds, wait 20 minutes max -> poll 60/5*20=240 times
+		for (let i = 0; i < 240; i++) {
 			details = await this.ReleaseDetails(releaseId);
 
 			console.log(`Release status code (${i + 1}/72): ${details.releaseDetails[0].statusCode}`);
@@ -216,7 +216,12 @@ class ESRPClient {
 			await new Promise(c => setTimeout(c, 5000));
 		}
 
-		const fileId = details!.releaseDetails[0].fileDetails[0].publisherKey;
+		if (details.releaseDetails[0].statusCode !== 'pass') {
+			console.error(details);
+			throw new Error('Timed out waiting for release');
+		}
+
+		const fileId = details.releaseDetails[0].fileDetails[0].publisherKey;
 		console.log('Release completed successfully with fileId: ', fileId);
 
 		return { releaseId, fileId };
