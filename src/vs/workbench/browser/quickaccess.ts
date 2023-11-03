@@ -48,7 +48,8 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 	};
 }
 
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | '' {
+// TODO: Find a better place for this function since it's shared between quick access and the search view
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string {
 
 	let editor = activeEditor;
 
