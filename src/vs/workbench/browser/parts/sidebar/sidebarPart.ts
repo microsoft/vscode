@@ -33,6 +33,7 @@ import { ACCOUNTS_ACTIVITY_ID, GLOBAL_ACTIVITY_ID } from 'vs/workbench/common/ac
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Separator } from 'vs/base/common/actions';
+import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -112,6 +113,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			}
 		}));
 
+		this.registerActions();
 		this.registerGlobalActions();
 
 		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
@@ -260,6 +262,25 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			}
 			this.acitivityBarPart.show(true);
 		}
+	}
+
+	private registerActions(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ToggleActivityBarVisibilityActionId,
+					title: {
+						value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
+						original: 'Toggle Activity Bar Visibility'
+					},
+				});
+			}
+			run(): Promise<void> {
+				const value = that.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN ? that.getRememberedActivityBarVisiblePosition() : ActivityBarPosition.HIDDEN;
+				return that.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value);
+			}
+		}));
 	}
 
 	private registerGlobalActions() {
