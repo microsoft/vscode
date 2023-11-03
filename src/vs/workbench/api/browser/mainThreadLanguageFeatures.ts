@@ -317,6 +317,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 							result.set(model.uri, data);
 						}
 
+						if (model.isDisposed()) {
+							return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
+						}
+
 						const word = model.getWordAtPosition({
 							lineNumber: position.lineNumber,
 							column: position.column
