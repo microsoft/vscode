@@ -419,6 +419,8 @@ export interface ISearchConfigurationProperties {
 			preserveInput: boolean;
 		};
 	};
+	// As IWorkbenchSearchConfiguration is present in the contrib folder, we can not import it in quickAccessActions.ts
+	// Hence this property is added here again, so that it can be used in the quickAccessActions.ts
 	quickOpen: {
 		seedStringFromSelection: boolean;
 	};
