@@ -8,12 +8,12 @@ steps:
   - task: SFP.build-tasks.esrpclient-tools-task.EsrpClientTool@2
     displayName: "Use EsrpClient"
 
-  - task: AzureKeyVault@1
-    displayName: "Azure Key Vault: Get Secrets"
-    inputs:
-      azureSubscription: "vscode-builds-subscription"
-      KeyVaultName: vscode-build-secrets
-      SecretsFilter: "esrp-aad-username,esrp-aad-password"
+  # - task: AzureKeyVault@1
+  #   displayName: "Azure Key Vault: Get Secrets"
+  #   inputs:
+  #     azureSubscription: "vscode-builds-subscription"
+  #     KeyVaultName: vscode-build-secrets
+  #     SecretsFilter: "esrp-aad-username,esrp-aad-password"
 
   - task: AzureKeyVault@1
     displayName: "Azure Key Vault: Get Secrets"
@@ -26,20 +26,28 @@ steps:
       $ErrorActionPreference = "Stop"
       Invoke-WebRequest -Uri https://az764295.vo.msecnd.net/stable/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz -OutFile $(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz
 
-      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
-      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
       $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
+
+      $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
       $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+
+      $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
       $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
+
       $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
       $CertStore.Open("ReadWrite")
       $CertStore.AddRange($CertCollection)
       $CertStore.Close()
 
-  - powershell: node build/npm/setupBuildYarnrc
-  - powershell: npm i -g node-gyp
+      Write-Host $CertCollection[0].Subject
+      Write-Host $CertCollection[1].Subject
 
-  - powershell: yarn
-    workingDirectory: build
 
-  - powershell: node build/azure-pipelines/common/release "975f013f-7f24-47e8-a7d3-abc4752bf346" "c24324f7-e65f-4c45-8702-ed2d4c35df99" "CN=vscode-esrp" "CN=c24324f7-e65f-4c45-8702-ed2d4c35df99" "72f988bf-86f1-41af-91ab-2d7cd011db47" "$(esrp-aad-username)" "$(esrp-aad-password)" "e7e037083ff4455cf320e344325dacb480062c3c" "stable" "$(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz"
+
+  # - powershell: node build/npm/setupBuildYarnrc
+  # - powershell: npm i -g node-gyp
+
+  # - powershell: yarn
+  #   workingDirectory: build
+
+  # - powershell: node build/azure-pipelines/common/release "975f013f-7f24-47e8-a7d3-abc4752bf346" "c24324f7-e65f-4c45-8702-ed2d4c35df99" "CN=vscode-esrp" "CN=c24324f7-e65f-4c45-8702-ed2d4c35df99" "72f988bf-86f1-41af-91ab-2d7cd011db47" "$(esrp-aad-username)" "$(esrp-aad-password)" "e7e037083ff4455cf320e344325dacb480062c3c" "stable" "$(Build.ArtifactStagingDirectory)\vscode_cli_linux_x64_cli.tar.gz"
