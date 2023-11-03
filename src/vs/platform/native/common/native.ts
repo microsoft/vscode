@@ -33,6 +33,10 @@ export interface IOSStatistics {
 	loadavg: number[];
 }
 
+export interface INativeOptions {
+	readonly targetWindowId?: number;
+}
+
 export interface ICommonNativeHostService {
 
 	readonly _serviceBrand: undefined;
@@ -71,7 +75,7 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
 	handleTitleDoubleClick(): Promise<void>;
 
@@ -79,8 +83,8 @@ export interface ICommonNativeHostService {
 	maximizeWindow(): Promise<void>;
 	unmaximizeWindow(): Promise<void>;
 	minimizeWindow(): Promise<void>;
-	moveWindowTop(options?: { targetWindowId?: number }): Promise<void>;
-	positionWindow(position: IRectangle, options?: { targetWindowId?: number }): Promise<void>;
+	moveWindowTop(options?: INativeOptions): Promise<void>;
+	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
@@ -101,7 +105,7 @@ export interface ICommonNativeHostService {
 	 * should only be used if it is necessary to steal focus from the current
 	 * focused application which may not be VSCode.
 	 */
-	focusWindow(options?: { targetWindowId?: number; force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeOptions & { force?: boolean }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions): Promise<MessageBoxReturnValue>;
@@ -115,8 +119,8 @@ export interface ICommonNativeHostService {
 
 	// OS
 	showItemInFolder(path: string): Promise<void>;
-	setRepresentedFilename(path: string, options?: { targetWindowId?: number }): Promise<void>;
-	setDocumentEdited(edited: boolean, options?: { targetWindowId?: number }): Promise<void>;
+	setRepresentedFilename(path: string, options?: INativeOptions): Promise<void>;
+	setDocumentEdited(edited: boolean, options?: INativeOptions): Promise<void>;
 	openExternal(url: string): Promise<boolean>;
 	moveItemToTrash(fullPath: string): Promise<void>;
 

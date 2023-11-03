@@ -309,7 +309,7 @@ class ToggleFullScreenAction extends Action2 {
 	override run(accessor: ServicesAccessor): Promise<void> {
 		const hostService = accessor.get(IHostService);
 
-		return hostService.toggleFullScreen();
+		return hostService.toggleFullScreen(getActiveWindow());
 	}
 }
 

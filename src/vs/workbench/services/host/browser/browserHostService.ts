@@ -504,12 +504,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.container;
+	async toggleFullScreen(targetWindow: Window): Promise<void> {
+		const target = this.layoutService.getContainer(targetWindow);
 
 		// Chromium
-		if (document.fullscreen !== undefined) {
-			if (!document.fullscreen) {
+		if (targetWindow.document.fullscreen !== undefined) {
+			if (!targetWindow.document.fullscreen) {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
@@ -517,7 +517,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			} else {
 				try {
-					return await document.exitFullscreen();
+					return await targetWindow.document.exitFullscreen();
 				} catch (error) {
 					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
 				}
@@ -525,12 +525,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>document).webkitIsFullScreen !== undefined) {
+		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
 			try {
-				if (!(<any>document).webkitIsFullScreen) {
+				if (!(<any>targetWindow.document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
 				} else {
-					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
