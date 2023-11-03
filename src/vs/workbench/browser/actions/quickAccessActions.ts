@@ -151,13 +151,13 @@ registerAction2(class QuickAccessAction extends Action2 {
 
 	run(accessor: ServicesAccessor, prefix: undefined): void {
 		const quickInputService = accessor.get(IQuickInputService);
-		const searchText = getFileSearchText(accessor) ?? '';
+		const searchText = getFileSearchText(accessor);
 		quickInputService.quickAccess.show(typeof prefix === 'string' ? prefix : searchText, { preserveValue: typeof prefix === 'string' /* preserve as is if provided */ });
 	}
 });
 
 
-function getFileSearchText(accessor: ServicesAccessor): string | '' {
+function getFileSearchText(accessor: ServicesAccessor): string {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
