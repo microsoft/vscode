@@ -7,30 +7,10 @@ import { ClientSecretCredential } from '@azure/identity';
 import * as https from 'https';
 import * as cp from 'child_process';
 import * as fs from 'fs';
-import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { Readable } from 'stream';
-
-class Temp {
-	private _files: string[] = [];
-
-	tmpNameSync(): string {
-		const file = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
-		this._files.push(file);
-		return file;
-	}
-
-	dispose(): void {
-		for (const file of this._files) {
-			try {
-				fs.unlinkSync(file);
-			} catch (err) {
-				// noop
-			}
-		}
-	}
-}
+import { Temp } from '../../lib/util';
 
 interface RequestOptions {
 	readonly body?: string;
@@ -343,7 +323,11 @@ export async function main([
 	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
 	const service = new ProvisionService(accessToken.token);
+
+	const fileName = `_${quality}/${version}/${path.basename(filePath)}`;
 	await service.provision(release.releaseId, release.fileId, `_${quality}/${version}/${path.basename(filePath)}`);
+
+	console.log(`Done: https://vscode.download.prss.microsoft.com/dbazure/download/${fileName}`);
 }
 
 if (require.main === module) {
