@@ -11,12 +11,14 @@ import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
 import { ClientSecretCredential } from '@azure/identity';
 import { retry } from './retry';
+import { releaseAndProvision } from './prss';
 
 interface Asset {
 	platform: string;
 	type: string;
 	url: string;
 	mooncakeUrl?: string;
+	prssUrl?: string;
 	hash: string;
 	sha256hash: string;
 	size: number;
@@ -260,6 +262,24 @@ async function main(): Promise<void> {
 		sha256hash,
 		size
 	};
+
+	if (quality === 'insider') {
+		await releaseAndProvision(
+			process.env['RELEASE_TENANT_ID']!,
+			process.env['RELEASE_CLIENT_ID']!,
+			process.env['RELEASE_AUTH_CERT_SUBJECT_NAME']!,
+			process.env['RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME']!,
+			process.env['PROVISION_TENAND_ID']!,
+			process.env['PROVISION_AAD_USERNAME']!,
+			process.env['PROVISION_AAD_PASSWORD']!,
+			commit,
+			quality,
+			filePath
+		);
+
+		asset.prssUrl = `${process.env['PRSS_CDN_URL']}/${quality}/${blobName}`;
+		console.log(`Successfully released on PRSS: ${asset.prssUrl}`);
+	}
 
 	// Remove this if we ever need to rollback fast updates for windows
 	if (/win32/.test(platform)) {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { main } from './esrp';
+import { main } from './sign';
 import * as path from 'path';
 
 main([

@@ -4,9 +4,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 Object.defineProperty(exports, "__esModule", { value: true });
-const esrp_1 = require("./esrp");
+const sign_1 = require("./sign");
 const path = require("path");
-(0, esrp_1.main)([
+(0, sign_1.main)([
     process.env['EsrpCliDllPath'],
     'sign-windows',
     process.env['ESRPPKI'],

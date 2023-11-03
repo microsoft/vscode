@@ -79,8 +79,6 @@ class ProvisionService {
 					return e(new Error(`Unexpected status code: ${res.statusCode}`));
 				}
 
-				// https://vscode.download.prss.microsoft.com/dbazure/download/test/e7e037083ff4455cf320e344325dacb480062c3c/vscode_cli_linux_x64_cli.tar.gz
-
 				const chunks: Buffer[] = [];
 				res.on('data', chunk => chunks.push(chunk));
 				res.on('end', () => {
@@ -302,20 +300,31 @@ class ESRPClient {
 	}
 }
 
-export async function main([
-	releaseTenantId,
-	releaseClientId,
-	releaseAuthCertSubjectName,
-	releaseRequestSigningCertSubjectName,
-	provisionTenantId,
-	provisionAADUsername,
-	provisionAADPassword,
-	version,
-	quality,
-	filePath
-]: string[]) {
+export async function releaseAndProvision(
+	releaseTenantId: string,
+	releaseClientId: string,
+	releaseAuthCertSubjectName: string,
+	releaseRequestSigningCertSubjectName: string,
+	provisionTenantId: string,
+	provisionAADUsername: string,
+	provisionAADPassword: string,
+	version: string,
+	quality: string,
+	filePath: string
+) {
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
+
+	console.log('### Release and provision');
+	console.log('  releaseTenantId:', releaseTenantId);
+	console.log('  releaseClientId:', releaseClientId);
+	console.log('  releaseAuthCertSubjectName:', releaseAuthCertSubjectName);
+	console.log('  releaseRequestSigningCertSubjectName:', releaseRequestSigningCertSubjectName);
+	console.log('  provisionTenantId:', provisionTenantId);
+	console.log('  provisionAADUsername:', provisionAADUsername);
+	console.log('  version:', version);
+	console.log('  quality:', quality);
+	console.log('  filePath:', filePath);
 
 	const esrpclient = new ESRPClient(tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
@@ -324,14 +333,34 @@ export async function main([
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
 	const service = new ProvisionService(accessToken.token);
 
-	const fileName = `_${quality}/${version}/${path.basename(filePath)}`;
-	await service.provision(release.releaseId, release.fileId, `_${quality}/${version}/${path.basename(filePath)}`);
-
-	console.log(`Done: https://vscode.download.prss.microsoft.com/dbazure/download/${fileName}`);
+	await service.provision(release.releaseId, release.fileId, `${quality}/${version}/${path.basename(filePath)}`);
 }
 
 if (require.main === module) {
-	main(process.argv.slice(2)).then(() => {
+	const [
+		releaseTenantId,
+		releaseClientId,
+		releaseAuthCertSubjectName,
+		releaseRequestSigningCertSubjectName,
+		provisionTenantId,
+		provisionAADUsername,
+		provisionAADPassword,
+		version,
+		quality,
+		filePath
+	] = process.argv.slice(2);
+
+	releaseAndProvision(releaseTenantId,
+		releaseClientId,
+		releaseAuthCertSubjectName,
+		releaseRequestSigningCertSubjectName,
+		provisionTenantId,
+		provisionAADUsername,
+		provisionAADPassword,
+		version,
+		quality,
+		filePath
+	).then(() => {
 		process.exit(0);
 	}, err => {
 		console.error(err);
