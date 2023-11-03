@@ -41,7 +41,7 @@ import {
 	ReOpenInTextEditorAction, DuplicateGroupDownAction, DuplicateGroupLeftAction, DuplicateGroupRightAction, DuplicateGroupUpAction, ToggleEditorTypeAction, SplitEditorToAboveGroupAction, SplitEditorToBelowGroupAction,
 	SplitEditorToFirstGroupAction, SplitEditorToLastGroupAction, SplitEditorToLeftGroupAction, SplitEditorToNextGroupAction, SplitEditorToPreviousGroupAction, SplitEditorToRightGroupAction, NavigateForwardInEditsAction,
 	NavigateBackwardsInEditsAction, NavigateForwardInNavigationsAction, NavigateBackwardsInNavigationsAction, NavigatePreviousInNavigationsAction, NavigatePreviousInEditsAction, NavigateToLastNavigationLocationAction,
-	MaximizeGroupHideSidebarAction, ExperimentalMoveEditorIntoNewWindowAction, ToggleMaximizeEditorGroupAction
+	MaximizeGroupHideSidebarAction, ExperimentalMoveEditorIntoNewWindowAction, ToggleMaximizeEditorGroupAction, MinimizeOtherGroupsHideSidebarAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import {
 	CLOSE_EDITORS_AND_GROUP_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_EDITOR_GROUP_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID,
@@ -217,6 +217,7 @@ registerAction2(ToggleGroupSizesAction);
 registerAction2(MaximizeGroupHideSidebarAction);
 registerAction2(ToggleMaximizeEditorGroupAction);
 registerAction2(MinimizeOtherGroupsAction);
+registerAction2(MinimizeOtherGroupsHideSidebarAction);
 
 registerAction2(MoveEditorLeftInGroupAction);
 registerAction2(MoveEditorRightInGroupAction);

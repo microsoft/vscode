@@ -13,7 +13,7 @@ import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/termin
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -451,19 +451,37 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// PowerShell
-		const pwshMatch = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/);
-		if (pwshMatch) {
-			let prompt = pwshMatch?.groups?.prompt;
-			if (lineText === prompt && prompt.endsWith('>')) {
-				// Conpty may not 'render' the space at the end of the prompt
-				prompt += ' ';
+		const pwshPrompt = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/)?.groups?.prompt;
+		if (pwshPrompt) {
+			const adjustedPrompt = this._adjustPrompt(pwshPrompt, lineText, '>');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
 			}
-			return prompt;
+		}
+
+		// Custom prompts like starship end in the common \u276f character
+		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
+		if (customPrompt) {
+			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
 		}
 
 		// Command Prompt
 		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
 		return cmdMatch?.groups?.prompt;
+	}
+
+	private _adjustPrompt(prompt: string | undefined, lineText: string, char: string): string | undefined {
+		if (!prompt) {
+			return;
+		}
+		// Conpty may not 'render' the space at the end of the prompt
+		if (lineText === prompt && prompt.endsWith(char)) {
+			prompt += ' ';
+		}
+		return prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {

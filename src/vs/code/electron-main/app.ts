@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { stripComments } from 'vs/base/common/json';
 import { getPathLabel } from 'vs/base/common/labels';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Schemas, VSCODE_AUTHORITY } from 'vs/base/common/network';
+import { Schemas } from 'vs/base/common/network';
 import { isAbsolute, join, posix } from 'vs/base/common/path';
 import { IProcessEnvironment, isLinux, isLinuxSnap, isMacintosh, isWindows, OS } from 'vs/base/common/platform';
 import { assertType } from 'vs/base/common/types';
@@ -118,7 +118,7 @@ import { ElectronPtyHostStarter } from 'vs/platform/terminal/electron-main/elect
 import { PtyHostService } from 'vs/platform/terminal/node/ptyHostService';
 import { NODE_REMOTE_RESOURCE_CHANNEL_NAME, NODE_REMOTE_RESOURCE_IPC_METHOD_NAME, NodeRemoteResourceResponse, NodeRemoteResourceRouter } from 'vs/platform/remote/common/electronRemoteResources';
 import { Lazy } from 'vs/base/common/lazy';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { AuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindowsMainService';
 
 /**
@@ -373,9 +373,10 @@ export class CodeApplication extends Disposable {
 		//
 		app.on('web-contents-created', (event, contents) => {
 
-			// Child Window: delegate to `AuxiliaryWindow` class
-			const isChildWindow = contents?.opener?.url.startsWith(`${Schemas.vscodeFileResource}://${VSCODE_AUTHORITY}/`);
-			if (isChildWindow) {
+			// Auxiliary Window: delegate to `AuxiliaryWindow` class
+			if (isAuxiliaryWindow(contents)) {
+				this.logService.trace('[aux window]  app.on("web-contents-created"): Registering auxiliary window');
+
 				this.auxiliaryWindowsMainService?.registerWindow(contents);
 			}
 
@@ -386,13 +387,13 @@ export class CodeApplication extends Disposable {
 				event.preventDefault();
 			});
 
-			// All Windows: only allow about:blank child windows to open
+			// All Windows: only allow about:blank auxiliary windows to open
 			// For all other URLs, delegate to the OS.
 			contents.setWindowOpenHandler(handler => {
 
 				// about:blank windows can open as window witho our default options
 				if (handler.url === 'about:blank') {
-					this.logService.trace('webContents#setWindowOpenHandler: Allowing about:blank window to open');
+					this.logService.trace('[aux window] webContents#setWindowOpenHandler: Allowing auxiliary window to open on about:blank');
 
 					return {
 						action: 'allow',
@@ -646,8 +647,8 @@ export class CodeApplication extends Disposable {
 		});
 
 		const activeWindowManager = this._register(new ActiveWindowManager({
-			onDidOpenWindow: nativeHostMainService.onDidOpenWindow,
-			onDidFocusWindow: nativeHostMainService.onDidFocusWindow,
+			onDidOpenMainWindow: nativeHostMainService.onDidOpenMainWindow,
+			onDidFocusMainWindow: nativeHostMainService.onDidFocusMainWindow,
 			getActiveWindowId: () => nativeHostMainService.getActiveWindowId(-1)
 		}));
 		const activeWindowRouter = new StaticRouter(ctx => activeWindowManager.getActiveClientId().then(id => ctx === id));

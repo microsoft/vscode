@@ -50,33 +50,33 @@ suite('Notebook Statusbar', () => {
 
 					viewType = editor.textModel.viewType;
 				});
-				const providePromise1 = asPromise(provider.onProvideCalled);
+				const providePromise1 = asPromise(provider.onProvideCalled, 'registering provider');
 				testDisposables.add(cellStatusbarSvc.registerCellStatusBarItemProvider(provider));
 				assert.strictEqual(await providePromise1, 1, 'should call provider on registration');
 
-				const providePromise2 = asPromise(provider.onProvideCalled);
+				const providePromise2 = asPromise(provider.onProvideCalled, 'updating metadata');
 				const cell0 = editor.textModel.cells[0];
 				cell0.metadata = { ...cell0.metadata, ...{ newMetadata: true } };
-				assert.strictEqual(await providePromise2, 2, 'should call provider on registration');
+				assert.strictEqual(await providePromise2, 2, 'should call provider on updating metadata');
 
-				const providePromise3 = asPromise(provider.onProvideCalled);
+				const providePromise3 = asPromise(provider.onProvideCalled, 'changing cell language');
 				cell0.language = 'newlanguage';
-				assert.strictEqual(await providePromise3, 3, 'should call provider on registration');
+				assert.strictEqual(await providePromise3, 3, 'should call provider on changing language');
 
-				const providePromise4 = asPromise(provider.onProvideCalled);
+				const providePromise4 = asPromise(provider.onProvideCalled, 'manually firing change event');
 				provider._onDidChangeStatusBarItems.fire();
-				assert.strictEqual(await providePromise4, 4, 'should call provider on registration');
+				assert.strictEqual(await providePromise4, 4, 'should call provider on manually firing change event');
 			});
 	});
 });
 
-async function asPromise<T>(event: Event<T>, timeout = 5000): Promise<T> {
-	const error = new Error('asPromise TIMEOUT reached');
+async function asPromise<T>(event: Event<T>, message: string): Promise<T> {
+	const error = new Error('asPromise TIMEOUT reached: ' + message);
 	return new Promise<T>((resolve, reject) => {
 		const handle = setTimeout(() => {
 			sub.dispose();
 			reject(error);
-		}, timeout);
+		}, 1000);
 
 		const sub = event(e => {
 			clearTimeout(handle);

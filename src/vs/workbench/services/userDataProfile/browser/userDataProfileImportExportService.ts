@@ -387,9 +387,15 @@ export class UserDataProfileImportExportService extends Disposable implements IU
 			hoverWidget = this.hoverService.showHover({
 				content: iconSelectBox.domNode,
 				target: profileIconElement,
-				hoverPosition: HoverPosition.BELOW,
-				showPointer: true,
-				hideOnHover: false,
+				position: {
+					hoverPosition: HoverPosition.BELOW,
+				},
+				persistence: {
+					sticky: true,
+				},
+				appearance: {
+					showPointer: true,
+				},
 			}, true);
 			if (hoverWidget) {
 				iconSelectBox.layout(dimension);

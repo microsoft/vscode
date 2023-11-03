@@ -109,7 +109,7 @@ export class DesktopMain extends Disposable {
 	async open(): Promise<void> {
 
 		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
+		const [services] = await Promise.all([this.initServices(), domContentLoaded(window)]);
 
 		// Apply zoom level early once we have a configuration service
 		// and before the workbench is created to prevent flickering.
