@@ -7,7 +7,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IActiveCodeEditor, ICodeEditor, IEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { GlyphMarginLane, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationsChangeAccessor, TrackedRangeStickiness } from 'vs/editor/common/model';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { localize } from 'vs/nls';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
@@ -30,8 +30,9 @@ const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, loc
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
 	private _gutterDecorationID: string | undefined;
+	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
-	private readonly _gutterDecoration: ModelDecorationOptions;
+	private readonly _gutterDecoration: IModelDecorationOptions;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
@@ -41,14 +42,12 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IKeybindingService readonly _keybindingService: IKeybindingService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		const keybindings = _keybindingService.lookupKeybinding('inlineChat.start')?.getLabel();
 		this._gutterDecoration = ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
 			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
-			glyphMarginHoverMessage: new MarkdownString(LOCALIZED_START_INLINE_CHAT_STRING + (keybindings ? ` [${keybindings}]` : '')),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
@@ -60,7 +59,21 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
+			this._updateDecorationHover();
+			this._onEnablementOrModelChanged();
+		}));
+		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
+	}
+
+	private _updateDecorationHover(): void {
+		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
+		if (this._inlineChatKeybinding === keybinding) {
+			return;
+		}
+		this._inlineChatKeybinding = keybinding;
+		this._gutterDecoration.glyphMarginHoverMessage = new MarkdownString(keybinding ? localize('runWithKeybinding', 'Start Inline Chat [{0}]', keybinding) : LOCALIZED_START_INLINE_CHAT_STRING);
 	}
 
 	private _onEnablementOrModelChanged(): void {
@@ -145,6 +158,11 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 }
 
 GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, accessor }, result) => {
+	const inlineChatService = accessor.get(IInlineChatService);
+	const noProviders = Iterable.isEmpty(inlineChatService.getAllProvider());
+	if (noProviders) {
+		return;
+	}
 	const configurationService = accessor.get(IConfigurationService);
 	result.push(new Action(
 		'inlineChat.toggleShowGutterIcon',

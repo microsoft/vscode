@@ -14,7 +14,7 @@ import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/edito
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, getActiveDocument, getActiveWindow, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, getActiveDocument, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -37,6 +37,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
+import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { disposableInterval } from 'vs/base/common/async';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -183,11 +185,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
 			const focusTracker = disposables.add(trackFocus(window));
-			const onVisibilityChange = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
+			const visibilityTracker = disposables.add(new DomEmitter(window.document, 'visibilitychange'));
 
-			disposables.add(focusTracker.onDidFocus(() => emitter.fire(this.hasFocus)));
-			disposables.add(focusTracker.onDidBlur(() => emitter.fire(this.hasFocus)));
-			disposables.add(onVisibilityChange.event(() => emitter.fire(this.hasFocus)));
+			Event.latch(Event.any(
+				Event.map(focusTracker.onDidFocus, () => this.hasFocus, disposables),
+				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
+				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
+			), undefined, disposables)(focus => emitter.fire(focus));
 		}, { window, disposables: this._store }));
 
 		return emitter.event;
@@ -201,14 +205,43 @@ export class BrowserHostService extends Disposable implements IHostService {
 		return true;
 	}
 
-	async focus(): Promise<void> {
-		getActiveWindow().focus();
+	async focus(targetWindow: Window): Promise<void> {
+		targetWindow.focus();
 	}
 
 	//#endregion
 
 
 	//#region Window
+
+	@memoize
+	get onDidChangeActiveWindow(): Event<void> {
+		const emitter = this._register(new Emitter<number>());
+
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			const windowId = isAuxiliaryWindow(window) ? window.vscodeWindowId : -1;
+
+			// Emit via focus tracking
+			const focusTracker = disposables.add(trackFocus(window));
+			disposables.add(focusTracker.onDidFocus(() => emitter.fire(windowId)));
+
+			// Emit via interval: immediately when opening an auxiliary window,
+			// it is possible that document focus has not yet changed, so we
+			// poll for a while to ensure we catch the event.
+			if (windowId !== -1) {
+				disposables.add(disposableInterval(() => {
+					const hasFocus = window.document.hasFocus();
+					if (hasFocus) {
+						emitter.fire(windowId);
+					}
+
+					return hasFocus;
+				}, 100, 20));
+			}
+		}, { window, disposables: this._store }));
+
+		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
+	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -471,12 +504,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async toggleFullScreen(): Promise<void> {
-		const target = this.layoutService.container;
+	async toggleFullScreen(targetWindow: Window): Promise<void> {
+		const target = this.layoutService.getContainer(targetWindow);
 
 		// Chromium
-		if (document.fullscreen !== undefined) {
-			if (!document.fullscreen) {
+		if (targetWindow.document.fullscreen !== undefined) {
+			if (!targetWindow.document.fullscreen) {
 				try {
 					return await target.requestFullscreen();
 				} catch (error) {
@@ -484,7 +517,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				}
 			} else {
 				try {
-					return await document.exitFullscreen();
+					return await targetWindow.document.exitFullscreen();
 				} catch (error) {
 					this.logService.warn('toggleFullScreen(): exitFullscreen failed');
 				}
@@ -492,12 +525,12 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 
 		// Safari and Edge 14 are all using webkit prefix
-		if ((<any>document).webkitIsFullScreen !== undefined) {
+		if ((<any>targetWindow.document).webkitIsFullScreen !== undefined) {
 			try {
-				if (!(<any>document).webkitIsFullScreen) {
+				if (!(<any>targetWindow.document).webkitIsFullScreen) {
 					(<any>target).webkitRequestFullscreen(); // it's async, but doesn't return a real promise.
 				} else {
-					(<any>document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
+					(<any>targetWindow.document).webkitExitFullscreen(); // it's async, but doesn't return a real promise.
 				}
 			} catch {
 				this.logService.warn('toggleFullScreen(): requestFullscreen/exitFullscreen failed');
@@ -505,7 +538,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 		}
 	}
 
-	async moveTop(window: Window & typeof globalThis): Promise<void> {
+	async moveTop(targetWindow: Window): Promise<void> {
 		// There seems to be no API to bring a window to front in browsers
 	}
 

@@ -16,6 +16,7 @@ import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 import { IRectangle } from 'vs/platform/window/common/window';
+import { DeepPartial } from 'vs/base/common/types';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -396,7 +397,7 @@ export interface IEditorGroupsContainer {
 	/**
 	 * Enforce editor part options temporarily.
 	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 
 	/**
 	 * Allows to register a drag and drop target for editors
@@ -492,6 +493,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Get the editor part that contains the group with the provided identifier.
 	 */
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
+
+	/**
+	 * Get the editor part that is rooted in the provided container.
+	 */
+	getPart(container: unknown /* HTMLElement */): IEditorPart | undefined;
 
 	/**
 	 * Opens a new window with a full editor part instantiated

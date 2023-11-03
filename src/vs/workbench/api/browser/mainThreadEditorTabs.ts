@@ -25,6 +25,7 @@ import { InteractiveEditorInput } from 'vs/workbench/contrib/interactive/browser
 import { MergeEditorInput } from 'vs/workbench/contrib/mergeEditor/browser/mergeEditorInput';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICustomTabLabelService, TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
+import { ChatEditorInput } from 'vs/workbench/contrib/chat/browser/chatEditorInput';
 
 interface TabInfo {
 	tab: IEditorTabDto;
@@ -195,6 +196,13 @@ export class MainThreadEditorTabs implements MainThreadEditorTabsShape {
 				kind: TabInputKind.InteractiveEditorInput,
 				uri: editor.resource,
 				inputBoxUri: editor.inputResource
+			};
+		}
+
+		if (editor instanceof ChatEditorInput) {
+			return {
+				kind: TabInputKind.ChatEditorInput,
+				providerId: editor.providerId ?? 'unknown',
 			};
 		}
 

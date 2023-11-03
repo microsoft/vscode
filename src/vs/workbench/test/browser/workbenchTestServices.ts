@@ -11,7 +11,7 @@ import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/t
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection } from 'vs/workbench/common/editor';
-import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight, DEFAULT_EDITOR_PART_OPTIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
@@ -591,8 +591,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 
 	openedDefaultEditors = false;
 
-	dimension: IDimension = { width: 800, height: 600 };
-	offset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	mainContainerDimension: IDimension = { width: 800, height: 600 };
+	activeContainerDimension: IDimension = { width: 800, height: 600 };
+	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
+	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	hasContainer = true;
 	container: HTMLElement = window.document.body;
@@ -606,10 +608,12 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangePanelPosition: Event<string> = Event.None;
 	onDidChangePanelAlignment: Event<PanelAlignment> = Event.None;
 	onDidChangePartVisibility: Event<void> = Event.None;
-	onDidLayout = Event.None;
+	onDidLayoutMainContainer = Event.None;
+	onDidLayoutActiveContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
 	onDidRemoveContainer = Event.None;
+	onDidChangeActiveContainer = Event.None;
 
 	layout(): void { }
 	isRestored(): boolean { return true; }
@@ -622,7 +626,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
-	getContainer(_part: Parts): HTMLElement { return null!; }
+	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
@@ -958,11 +962,12 @@ export class TestEditorGroupView implements IEditorGroupView {
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
+	isAuxiliary: boolean = false;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;
 
-	partOptions: IEditorPartOptions = {};
+	partOptions: IEditorPartOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
 	onDidChangeEditorPartOptions = Event.None;
 	onDidVisibilityChange = Event.None;
@@ -1473,6 +1478,9 @@ export class TestHostService implements IHostService {
 	private _onDidChangeFocus = new Emitter<boolean>();
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
 
+	private _onDidChangeWindow = new Emitter<void>();
+	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
+
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;
 		this._onDidChangeFocus.fire(this._hasFocus);
@@ -1485,7 +1493,7 @@ export class TestHostService implements IHostService {
 		return await expectedShutdownTask();
 	}
 
-	async focus(options?: { force: boolean }): Promise<void> { }
+	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }

@@ -463,7 +463,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 						return diffElement.original;
 					}, DiffSide.Original);
 				}
-			});
+			}, DOM.getWindow(this._listViewContainer));
 		};
 
 		this._localStore.add(this._list.onDidChangeContentHeight(() => {
@@ -763,7 +763,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 		DOM.scheduleAtNextAnimationFrame(() => {
 			webview?.ackHeight([{ cellId: cellInfo.cellId, outputId, height }]);
-		}, 10);
+		}, DOM.getWindow(this._listViewContainer), 10);
 	}
 
 	private pendingLayouts = new WeakMap<DiffElementViewModelBase, IDisposable>();
@@ -784,7 +784,7 @@ export class NotebookTextDiffEditor extends EditorPane implements INotebookTextD
 
 			relayout(cell, height);
 			r();
-		});
+		}, DOM.getWindow(this._listViewContainer));
 
 		this.pendingLayouts.set(cell, toDisposable(() => {
 			layoutDisposable.dispose();

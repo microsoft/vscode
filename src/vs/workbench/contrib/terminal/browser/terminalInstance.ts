@@ -63,7 +63,7 @@ import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
 import { TerminalExtensionsRegistry } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { getColorClass, getColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
+import { getColorClass, createColorStyleElement, getStandardColors } from 'vs/workbench/contrib/terminal/browser/terminalIcon';
 import { TerminalProcessManager } from 'vs/workbench/contrib/terminal/browser/terminalProcessManager';
 import { showRunRecentQuickPick } from 'vs/workbench/contrib/terminal/browser/terminalRunRecentQuickPick';
 import { ITerminalStatusList, TerminalStatus, TerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
@@ -85,7 +85,7 @@ import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { importAMDNodeModule } from 'vs/amdX';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, Terminal as XTermTerminal } from 'xterm';
+import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
 
@@ -693,7 +693,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return xtermConstructor;
 		}
 		xtermConstructor = Promises.withAsyncBody<typeof XTermTerminal>(async (resolve) => {
-			const Terminal = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+			const Terminal = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 			// Localize strings
 			Terminal.strings.promptLabel = nls.localize('terminal.integrated.a11yPromptLabel', 'Terminal input');
 			Terminal.strings.tooMuchOutput = keybinding ? nls.localize('terminal.integrated.useAccessibleBuffer', 'Use the accessible buffer {0} to manually review output', keybinding.getLabel()) : nls.localize('terminal.integrated.useAccessibleBufferNoKb', 'Use the Terminal: Focus Accessible Buffer command to manually review output');
@@ -2200,7 +2200,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		const colorTheme = this._themeService.getColorTheme();
 		const standardColors: string[] = getStandardColors(colorTheme);
-		const styleElement = getColorStyleElement(colorTheme);
+		const colorStyleDisposable = createColorStyleElement(colorTheme);
 		const items: QuickPickItem[] = [];
 		for (const colorKey of standardColors) {
 			const colorClass = getColorClass(colorKey);
@@ -2211,7 +2211,6 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		items.push({ type: 'separator' });
 		const showAllColorsItem = { label: 'Reset to default' };
 		items.push(showAllColorsItem);
-		document.body.appendChild(styleElement);
 
 		const quickPick = this._quickInputService.createQuickPick();
 		quickPick.items = items;
@@ -2231,7 +2230,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 
 		quickPick.hide();
-		document.body.removeChild(styleElement);
+		colorStyleDisposable.dispose();
 	}
 
 	selectPreviousSuggestion(): void {

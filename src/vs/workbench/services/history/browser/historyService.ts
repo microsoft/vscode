@@ -1060,7 +1060,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	//#region Last Active Workspace/File
 
-	getLastActiveWorkspaceRoot(schemeFilter?: string): URI | undefined {
+	getLastActiveWorkspaceRoot(schemeFilter?: string, authorityFilter?: string): URI | undefined {
 
 		// No Folder: return early
 		const folders = this.contextService.getWorkspace().folders;
@@ -1071,7 +1071,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Single Folder: return early
 		if (folders.length === 1) {
 			const resource = folders[0].uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
+			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
 				return resource;
 			}
 
@@ -1088,6 +1088,10 @@ export class HistoryService extends Disposable implements IHistoryService {
 				continue;
 			}
 
+			if (authorityFilter && input.resource.authority !== authorityFilter) {
+				continue;
+			}
+
 			const resourceWorkspace = this.contextService.getWorkspaceFolder(input.resource);
 			if (resourceWorkspace) {
 				return resourceWorkspace.uri;
@@ -1097,7 +1101,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		// Fallback to first workspace matching scheme filter if any
 		for (const folder of folders) {
 			const resource = folder.uri;
-			if (!schemeFilter || resource.scheme === schemeFilter) {
+			if ((!schemeFilter || resource.scheme === schemeFilter) && (!authorityFilter || resource.authority === authorityFilter)) {
 				return resource;
 			}
 		}
@@ -1105,7 +1109,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 		return undefined;
 	}
 
-	getLastActiveFile(filterByScheme: string): URI | undefined {
+	getLastActiveFile(filterByScheme: string, filterByAuthority?: string): URI | undefined {
 		for (const input of this.getHistory()) {
 			let resource: URI | undefined;
 			if (isEditorInput(input)) {
@@ -1114,7 +1118,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 				resource = input.resource;
 			}
 
-			if (resource?.scheme === filterByScheme) {
+			if (resource && resource.scheme === filterByScheme && (!filterByAuthority || resource.authority === filterByAuthority)) {
 				return resource;
 			}
 		}

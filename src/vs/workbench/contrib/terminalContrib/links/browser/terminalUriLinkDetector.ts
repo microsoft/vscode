@@ -11,7 +11,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { ITerminalLinkDetector, ITerminalLinkResolver, ITerminalSimpleLink, TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { convertLinkRangeToBuffer, getXtermLineContent } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkHelpers';
 import { ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { IBufferLine, Terminal } from 'xterm';
+import type { IBufferLine, Terminal } from '@xterm/xterm';
 import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
 
 const enum Constants {

@@ -256,7 +256,7 @@ export class SimpleSuggestWidget implements IDisposable {
 			this._layout(this.element.size);
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
-		});
+		}, dom.getWindow(this.element.domNode));
 	}
 
 	setLineContext(lineContext: LineContext): void {

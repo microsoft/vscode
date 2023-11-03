@@ -1928,7 +1928,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				[extension] = await this.getExtensions([{ id: extensionId }], { source: 'uri' }, CancellationToken.None);
 			}
 			if (extension) {
-				await this.hostService.focus();
+				await this.hostService.focus(window);
 				await this.open(extension);
 			}
 		}).then(undefined, error => this.onError(error));
