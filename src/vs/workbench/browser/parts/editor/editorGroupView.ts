@@ -117,6 +117,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly scopedInstantiationService: IInstantiationService;
 
+	private readonly resourceContext: ResourceContextKey;
+
 	private readonly titleContainer: HTMLElement;
 	private readonly titleControl: EditorTitleControl;
 
@@ -133,8 +135,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private readonly whenRestoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.whenRestoredPromise.p;
-
-	private readonly resourceContext = this._register(this.instantiationService.createInstance(ResourceContextKey));
 
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
@@ -197,6 +197,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			));
 
 			// Context keys
+			this.resourceContext = this._register(this.scopedInstantiationService.createInstance(ResourceContextKey));
 			this.handleGroupContextKeys();
 
 			// Title container
