@@ -102,7 +102,7 @@ export class EmbeddedDiffEditorWidget extends DiffEditorWidget {
 		super.updateOptions(this._overwriteOptions);
 	}
 
-	override updateOptions(newOptions: IEditorOptions): void {
+	override updateOptions(newOptions: IDiffEditorOptions): void {
 		objects.mixin(this._overwriteOptions, newOptions, true);
 		super.updateOptions(this._overwriteOptions);
 	}

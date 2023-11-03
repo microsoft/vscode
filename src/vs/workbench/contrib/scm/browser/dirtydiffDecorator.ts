@@ -192,7 +192,8 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IThemeService private readonly themeService: IThemeService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IMenuService private readonly menuService: IMenuService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true, className: 'dirty-diff' }, instantiationService);
 
@@ -391,6 +392,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(container: HTMLElement): void {
+		const ignoreTrimWhitespaceKey = 'diffEditor.ignoreTrimWhitespace';
 		const options: IDiffEditorOptions = {
 			scrollBeyondLastLine: true,
 			scrollbar: {
@@ -407,10 +409,16 @@ class DirtyDiffWidget extends PeekViewWidget {
 			readOnly: false,
 			renderIndicators: false,
 			diffAlgorithm: 'advanced',
+			ignoreTrimWhitespace: this.configurationService.getValue<boolean>(ignoreTrimWhitespaceKey),
 			stickyScroll: { enabled: false }
 		};
 
 		this.diffEditor = this.instantiationService.createInstance(EmbeddedDiffEditorWidget, container, options, {}, this.editor);
+		this._disposables.add(this.configurationService.onDidChangeConfiguration(e => {
+			if (!e.affectsConfiguration(ignoreTrimWhitespaceKey)) { return; }
+			const ignoreTrimWhitespace = this.configurationService.getValue<boolean>(ignoreTrimWhitespaceKey);
+			this.diffEditor?.updateOptions({ ignoreTrimWhitespace });
+		}));
 		this._disposables.add(this.diffEditor);
 	}
 
