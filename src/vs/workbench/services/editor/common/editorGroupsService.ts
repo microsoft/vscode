@@ -10,7 +10,7 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
@@ -511,6 +511,11 @@ export const enum OpenEditorContext {
 	COPY_EDITOR = 3
 }
 
+export interface IActiveEditorActions {
+	readonly actions: IToolbarActions;
+	readonly onDidChange: Event<IMenuChangeEvent>;
+}
+
 export interface IEditorGroup {
 
 	/**
@@ -813,9 +818,9 @@ export interface IEditorGroup {
 	focus(): void;
 
 	/**
-	 * Get the editor actions for the group.
+	 * Create the editor actions for the current active editor.
 	 */
-	createEditorActions(menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> };
+	createEditorActions(disposables: DisposableStore): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

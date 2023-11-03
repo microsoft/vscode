@@ -11,7 +11,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -97,7 +97,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	};
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
-	private editorActionsChangeDisposable = this._register(new DisposableStore());
+	private editorActionsDisposables = this._register(new DisposableStore());
 
 	private resourceContext: ResourceContextKey;
 
@@ -202,15 +202,13 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const menuDisposable = Disposable.None;
-		const editorActions = this.groupView.createEditorActions(menuDisposable);
-		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
+		this.editorActionsDisposables.clear();
 
-		this.editorActionsChangeDisposable.clear();
-		this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
-		this.editorActionsChangeDisposable.add(menuDisposable);
+		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
+		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
 

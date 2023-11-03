@@ -12,7 +12,7 @@ import { MenuBarVisibility, getTitleBarStyle, getMenuBarVisibility } from 'vs/pl
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -429,14 +429,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 				const activeGroup = this.editorGroupService.activeGroup;
 				if (activeGroup) { // Can be undefined on startup
-					const menuDisposable = Disposable.None;
-					const editorActions = activeGroup.createEditorActions(menuDisposable);
+					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable);
 
 					actions.primary.push(...editorActions.actions.primary);
 					actions.secondary.push(...editorActions.actions.secondary);
 
 					this.editorActionsChangeDisposable.add(editorActions.onDidChange(() => updateToolBarActions()));
-					this.editorActionsChangeDisposable.add(menuDisposable);
 				}
 			}
 
