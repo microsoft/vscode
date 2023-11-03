@@ -460,7 +460,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
 	group: '3_workbench_layout_move',
-	order: 1
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
