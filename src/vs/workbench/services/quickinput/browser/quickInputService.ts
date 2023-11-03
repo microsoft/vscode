@@ -68,13 +68,21 @@ class QuickInputHoverDelegate implements IHoverDelegate {
 	) { }
 
 	showHover(options: IHoverDelegateOptions, focus?: boolean): IHoverWidget | undefined {
+		// Only show the hover hint if the content is of a decent size
+		const showHoverHint = (
+			options.content instanceof HTMLElement
+				? options.content.textContent ?? ''
+				: typeof options.content === 'string'
+					? options.content
+					: options.content.value
+		).length > 20;
 		return this.hoverService.showHover({
 			...options,
 			persistence: {
 				hideOnKeyDown: false,
 			},
 			appearance: {
-				showHoverHint: true,
+				showHoverHint,
 				skipFadeInAnimation: true,
 			},
 		}, focus);
