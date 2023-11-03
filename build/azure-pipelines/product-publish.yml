@@ -87,8 +87,10 @@ steps:
       $CertStore.Open("ReadWrite")
       $CertStore.AddRange($CertCollection)
       $CertStore.Close()
-      Write-Host "##vso[task.setvariable variable=RELEASE_AUTH_CERT_SUBJECT_NAME]$CertCollection[0].Subject"
-      Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$CertCollection[$RequestSigningCertIndex].Subject"
+      $AuthCertSubjectName = $CertCollection[0].Subject
+      $RequestSigningCertSubjectName = $CertCollection[$RequestSigningCertIndex].Subject
+      Write-Host "##vso[task.setvariable variable=RELEASE_AUTH_CERT_SUBJECT_NAME]$AuthCertSubjectName"
+      Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$RequestSigningCertSubjectName"
     displayName: Import certificates
 
   - pwsh: build/azure-pipelines/product-publish.ps1
