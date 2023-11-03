@@ -216,8 +216,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
-	private _persistentTasks: LRUCache<string, string> | undefined;
-
 	protected _taskRunningState: IContextKey<boolean>;
 
 	protected _outputChannel: IOutputChannel;
@@ -299,7 +297,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			if (e.affectsConfiguration(TaskSettingId.Reconnection)) {
 				if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
-					this._persistentTasks?.clear();
 					this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 				}
 			}
@@ -387,15 +384,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private _attemptTaskReconnection(): void {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
+			this._outputChannel.append(nls.localize('TaskService.skippingReconnection', '#taskService startup kind not window reload, setting connected and removing persistent tasks\n'));
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		}
 		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
+			this._outputChannel.append(nls.localize('TaskService.notConnecting', '#taskService Setting tasks connected configured value {0}, tasks were already reconnected {1}\n', this._configurationService.getValue(TaskSettingId.Reconnection), this._tasksReconnected));
 			this._tasksReconnected = true;
 			return;
 		}
+		this._outputChannel.append(nls.localize('TaskService.reconnecting', '#taskService Reconnecting to running tasks...\n'));
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
+			this._outputChannel.append(nls.localize('TaskService.reconnected', '#taskService Reconnected to running tasks.\n'));
 			this._onDidReconnectToTasks.fire();
 		});
 	}
@@ -403,8 +404,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async _reconnectTasks(): Promise<boolean> {
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
+			this._outputChannel.append(nls.localize('TaskService.noTasks', '#taskService No persistent tasks to reconnect.\n'));
 			return true;
 		}
+		const taskLabels = tasks.map(task => task._label).join(', ');
+		this._outputChannel.append(nls.localize('TaskService.reconnectingTasks', '#taskService Reconnecting to {0} tasks...\n', taskLabels));
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -964,25 +968,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _getPersistentTasks(): LRUCache<string, string> {
-		if (this._persistentTasks) {
-			return this._persistentTasks;
-		}
+		// if (this._persistentTasks) {
+		// 	this._outputChannel.append(nls.localize('taskService.gettingCachedTasks', 'Returning cached tasks {0}\n', this._persistentTasks.size));
+		// 	return this._persistentTasks;
+		// }
 		//TODO: should this # be configurable?
-		this._persistentTasks = new LRUCache<string, string>(10);
+		const persistentTasks = new LRUCache<string, string>(10);
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
 				const values: [string, string][] = JSON.parse(storageValue);
 				if (Array.isArray(values)) {
 					for (const value of values) {
-						this._persistentTasks.set(value[0], value[1]);
+						persistentTasks.set(value[0], value[1]);
 					}
 				}
 			} catch (error) {
 				// Ignore. We use the empty result
 			}
 		}
-		return this._persistentTasks;
+		return persistentTasks;
 	}
 
 	private _getFolderFromTaskKey(key: string): { folder: string | undefined; isWorkspaceFile: boolean | undefined } {
@@ -1001,7 +1006,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const workspaceToTaskMap: Map<string, any> = new Map();
 		const storedTasks = this._getTasksFromStorage(type);
 		const tasks: (Task | ConfiguringTask)[] = [];
-
+		this._outputChannel.append(nls.localize('taskService.getSavedTasks', '#taskService Fetching tasks from task storage.'));
 		function addTaskToMap(map: Map<string, any>, folder: string | undefined, task: any) {
 			if (folder && !map.has(folder)) {
 				map.set(folder, []);
@@ -1010,10 +1015,12 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				map.get(folder).push(task);
 			}
 		}
+
 		for (const entry of storedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
 			const folderInfo = this._getFolderFromTaskKey(key);
+			this._outputChannel.append(nls.localize('taskService.getSavedTasks.reading', '#taskService Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder));
 			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
 		}
 
@@ -1050,6 +1057,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of storedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
+				this._outputChannel.append(nls.localize('taskService.getSavedTasks.resolved', '#taskService Resolved task {0}', key));
+			} else {
+				this._outputChannel.append(nls.localize('taskService.getSavedTasks.unresolved', '#taskService Unable to resolve task {0}', key));
 			}
 		}
 		return tasks;
@@ -1143,14 +1153,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _savePersistentTasks(): void {
-		if (!this._persistentTasks) {
-			return;
-		}
-		const keys = [...this._persistentTasks.keys()];
+		const persistentTasks = this._getTasksFromStorage('persistent');
+		const keys = [...persistentTasks.keys()];
 		const keyValues: [string, string][] = [];
 		for (const key of keys) {
-			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
+			keyValues.push([key, persistentTasks.get(key, Touch.None)!]);
 		}
+		this._outputChannel.append(nls.localize('savePersistentTask', 'Saving persistent tasks: {0}', keyValues.length));
 		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
