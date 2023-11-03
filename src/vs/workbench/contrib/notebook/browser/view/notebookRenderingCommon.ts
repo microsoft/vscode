@@ -16,7 +16,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchListOptionsUpdate } from 'vs/platform/list/browser/listService';
-import { CellRevealRangeType, CellRevealSyncType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellRevealRangeType, CellRevealType, ICellOutputViewModel, ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { ICellRange } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -65,10 +65,10 @@ export interface INotebookCellList {
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
-	revealCellsInView(range: ICellRange): void;
+	revealCells(range: ICellRange): void;
 	scrollToBottom(): void;
-	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType): void;
-	revealCellAsync(cell: ICellViewModel, revealType: CellRevealType): Promise<void>;
+	revealCell(cell: ICellViewModel, revealType: CellRevealType): void;
+
 	revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
