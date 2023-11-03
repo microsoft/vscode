@@ -46,8 +46,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	readonly onDidChangeFocus = Event.latch(
 		Event.any(
-			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.getWindowById(id)), this._store), () => this.hasFocus, this._store),
-			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId) || !!this.auxiliaryWindowService.getWindowById(id), this._store), () => this.hasFocus, this._store)
+			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id)), this._store), () => this.hasFocus, this._store),
+			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId) || !!this.auxiliaryWindowService.hasWindow(id), this._store), () => this.hasFocus, this._store)
 		), undefined, this._store
 	);
 
@@ -75,7 +75,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		const emitter = this._register(new Emitter<number>());
 
 		// Emit via native focus tracking
-		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.getWindowById(id), this._store)(id => emitter.fire(id)));
+		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id), this._store)(id => emitter.fire(id)));
 
 		this._register(onDidRegisterWindow(({ window, disposables }) => {
 
@@ -143,8 +143,8 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.openWindow(options);
 	}
 
-	toggleFullScreen(): Promise<void> {
-		return this.nativeHostService.toggleFullScreen();
+	toggleFullScreen(targetWindow: Window): Promise<void> {
+		return this.nativeHostService.toggleFullScreen({ targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : undefined });
 	}
 
 	async moveTop(targetWindow: Window): Promise<void> {

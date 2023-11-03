@@ -30,7 +30,7 @@ export interface IAuxiliaryWindowService {
 
 	readonly onDidOpenAuxiliaryWindow: Event<IAuxiliaryWindowOpenEvent>;
 
-	getWindowById(windowId: number): IAuxiliaryWindow | undefined;
+	hasWindow(windowId: number): boolean;
 
 	open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow>;
 }
@@ -313,8 +313,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didPatchMethods');
 	}
 
-	getWindowById(windowId: number): IAuxiliaryWindow | undefined {
-		return this.windows.get(windowId);
+	hasWindow(windowId: number): boolean {
+		return this.windows.has(windowId);
 	}
 }
 

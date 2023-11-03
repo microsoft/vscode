@@ -28,7 +28,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { ICommonNativeHostService, INativeOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -198,8 +198,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async toggleFullScreen(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async toggleFullScreen(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
 	}
 
@@ -238,14 +238,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async moveWindowTop(windowId: number | undefined, options?: { targetWindowId?: number }): Promise<void> {
+	async moveWindowTop(windowId: number | undefined, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
 			window.win.moveTop();
 		}
 	}
 
-	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: { targetWindowId?: number | undefined } | undefined): Promise<void> {
+	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(firstArg);
 		if (window?.win) {
 			if (window.win.isFullScreen()) {
@@ -265,7 +265,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { targetWindowId?: number; force?: boolean }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: INativeOptions & { force?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.focus({ force: options?.force ?? false });
 	}
@@ -460,12 +460,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string, options?: { targetWindowId?: number }): Promise<void> {
+	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setRepresentedFilename(path);
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: { targetWindowId?: number }): Promise<void> {
+	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
 	}
