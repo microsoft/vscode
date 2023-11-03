@@ -326,23 +326,19 @@ export interface INotebookDeltaCellStatusBarItems {
 	readonly items: readonly INotebookCellStatusBarItem[];
 }
 
-export const enum CellRevealSyncType {
+export const enum CellRevealType {
 	Default = 1,
 	Top = 2,
 	Center = 3,
 	CenterIfOutsideViewport = 4,
-	FirstLineIfOutsideViewport = 5
+	NearTopIfOutsideViewport = 5,
+	FirstLineIfOutsideViewport = 6
 }
 
 export enum CellRevealRangeType {
 	Default = 1,
 	Center = 2,
 	CenterIfOutsideViewport = 3,
-}
-
-export enum CellRevealType {
-	NearTopIfOutsideViewport,
-	CenterIfOutsideViewport
 }
 
 export interface INotebookEditorOptions extends ITextEditorOptions {

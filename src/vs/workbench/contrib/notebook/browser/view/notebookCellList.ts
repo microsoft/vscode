@@ -18,7 +18,7 @@ import { PrefixSumComputer } from 'vs/editor/common/model/prefixSumComputer';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IListService, IWorkbenchListOptions, WorkbenchList } from 'vs/platform/list/browser/listService';
-import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealSyncType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CursorAtBoundary, ICellViewModel, CellEditState, CellFocusMode, ICellOutputViewModel, CellRevealType, CellRevealRangeType, CursorAtLineBoundary } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModel, NotebookViewModel } from 'vs/workbench/contrib/notebook/browser/viewModel/notebookViewModelImpl';
 import { diff, NOTEBOOK_EDITOR_CURSOR_BOUNDARY, CellKind, SelectionStateType, NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellRange, cellRangesToIndexes, reduceCellRanges, cellRangesEqual } from 'vs/workbench/contrib/notebook/common/notebookRange';
@@ -785,7 +785,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	/**
 	 * The range will be revealed with as little scrolling as possible.
 	 */
-	revealCellsInView(range: ICellRange) {
+	revealCells(range: ICellRange) {
 		const startIndex = this._getViewIndexUpperBound2(range.start);
 
 		if (startIndex < 0) {
@@ -848,8 +848,12 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		this.view.setScrollTop(scrollHeight - (wrapperBottom - scrollTop));
 	}
 
-	//#region Reveal Cell synchronously
-	revealCell(cell: ICellViewModel, revealType: CellRevealSyncType) {
+	/**
+	 * Reveals the given cell in the notebook cell list. The cell will come into view syncronously
+	 * but the cell's editor will be attached asyncronously if it was previously out of view.
+	 * @returns The promise to await for the cell editor to be attached
+	 */
+	async revealCell(cell: ICellViewModel, revealType: CellRevealType): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index < 0) {
@@ -857,22 +861,32 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 		}
 
 		switch (revealType) {
-			case CellRevealSyncType.Top:
+			case CellRevealType.Top:
 				this._revealInternal(index, false, CellRevealPosition.Top);
 				break;
-			case CellRevealSyncType.Center:
+			case CellRevealType.Center:
 				this._revealInternal(index, false, CellRevealPosition.Center);
 				break;
-			case CellRevealSyncType.CenterIfOutsideViewport:
+			case CellRevealType.CenterIfOutsideViewport:
 				this._revealInternal(index, true, CellRevealPosition.Center);
 				break;
-			case CellRevealSyncType.FirstLineIfOutsideViewport:
+			case CellRevealType.NearTopIfOutsideViewport:
+				this._revealInternal(index, true, CellRevealPosition.NearTop);
+				break;
+			case CellRevealType.FirstLineIfOutsideViewport:
 				this._revealInViewWithMinimalScrolling(index, true);
 				break;
-			case CellRevealSyncType.Default:
+			case CellRevealType.Default:
 				this._revealInViewWithMinimalScrolling(index);
 				break;
 		}
+
+		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
+		if (cell.getEditState() === CellEditState.Editing && !cell.editorAttached) {
+			return getEditorAttachedPromise(cell);
+		}
+
+		return;
 	}
 
 	private _revealInternal(viewIndex: number, ignoreIfInsideViewport: boolean, revealPosition: CellRevealPosition, firstLine?: boolean) {
@@ -936,29 +950,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 				break;
 		}
 	}
-
-	//#endregion
-
-	//#region Reveal Cell asynchronously
-	async revealCellAsync(cell: ICellViewModel, revealType: CellRevealType) {
-		const viewIndex = this._getViewIndexUpperBound(cell);
-
-		if (viewIndex < 0) {
-			return;
-		}
-
-		const revealPosition = revealType === CellRevealType.NearTopIfOutsideViewport ? CellRevealPosition.NearTop : CellRevealPosition.Center;
-		this._revealInternal(viewIndex, true, revealPosition);
-
-		// wait for the editor to be created only if the cell is in editing mode (meaning it has an editor and will focus the editor)
-		if (cell.getEditState() === CellEditState.Editing && !cell.editorAttached) {
-			return getEditorAttachedPromise(cell);
-		}
-
-		return;
-	}
-
-	//#endregion
 
 	//#region Reveal Cell Editor Range asynchronously
 	async revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void> {
