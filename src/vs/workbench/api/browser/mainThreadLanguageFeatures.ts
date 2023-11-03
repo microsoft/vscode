@@ -306,6 +306,11 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
 					}
 
+					const word = model.getWordAtPosition({
+						lineNumber: position.lineNumber,
+						column: position.column
+					});
+
 					const res = this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 					if (!res) {
 						return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
@@ -317,17 +322,8 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 							result.set(model.uri, data);
 						}
 
-						if (model.isDisposed()) {
-							return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
-						}
-
-						const word = model.getWordAtPosition({
-							lineNumber: position.lineNumber,
-							column: position.column
-						});
-
 						if (!word) {
-							return new Map<URI, languages.DocumentHighlight[]>();
+							return result;
 						}
 
 						for (const otherModel of otherModels) {
