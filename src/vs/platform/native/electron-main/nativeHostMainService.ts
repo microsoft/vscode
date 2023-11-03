@@ -28,7 +28,7 @@ import { IEnvironmentMainService } from 'vs/platform/environment/electron-main/e
 import { createDecorator, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILifecycleMainService, IRelaunchOptions } from 'vs/platform/lifecycle/electron-main/lifecycleMainService';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ICommonNativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { ICommonNativeHostService, INativeOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
@@ -41,7 +41,7 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { hasWSLFeatureInstalled } from 'vs/platform/remote/node/wsl';
 import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfiling';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
-import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
+import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
@@ -77,16 +77,25 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	//#region Events
 
-	readonly onDidOpenWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
-	readonly onDidTriggerSystemContextMenu = Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidOpenMainWindow = Event.map(this.windowsMainService.onDidOpenWindow, window => window.id);
+	readonly onDidTriggerMainWindowSystemContextMenu = Event.filter(Event.map(this.windowsMainService.onDidTriggerSystemContextMenu, ({ window, x, y }) => { return { windowId: window.id, x, y }; }), ({ windowId }) => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onDidMaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidUnmaximizeWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidMaximizeMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-maximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidUnmaximizeMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-unmaximize', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
 
-	readonly onDidBlurWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
-	readonly onDidFocusWindow = Event.any(
+	readonly onDidBlurMainWindow = Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId));
+	readonly onDidFocusMainWindow = Event.any(
 		Event.map(Event.filter(Event.map(this.windowsMainService.onDidChangeWindowsCount, () => this.windowsMainService.getLastActiveWindow()), window => !!window), window => window!.id),
 		Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window.id), windowId => !!this.windowsMainService.getWindowById(windowId))
+	);
+
+	readonly onDidBlurMainOrAuxiliaryWindow = Event.any(
+		this.onDidBlurMainWindow,
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-blur', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
+	);
+	readonly onDidFocusMainOrAuxiliaryWindow = Event.any(
+		this.onDidFocusMainWindow,
+		Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => window), window => isAuxiliaryWindow(window.webContents)), window => window.id)
 	);
 
 	readonly onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
@@ -189,8 +198,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async toggleFullScreen(windowId: number | undefined): Promise<void> {
-		const window = this.codeWindowById(windowId);
+	async toggleFullScreen(windowId: number | undefined, options?: INativeOptions): Promise<void> {
+		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.toggleFullScreen();
 	}
 
@@ -229,14 +238,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async moveWindowTop(windowId: number | undefined, options?: { targetWindowId?: number }): Promise<void> {
+	async moveWindowTop(windowId: number | undefined, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		if (window?.win) {
 			window.win.moveTop();
 		}
 	}
 
-	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: { targetWindowId?: number | undefined } | undefined): Promise<void> {
+	async positionWindow(firstArg: number | undefined, position: IRectangle, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId) ?? this.codeWindowById(firstArg);
 		if (window?.win) {
 			if (window.win.isFullScreen()) {
@@ -256,7 +265,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async focusWindow(windowId: number | undefined, options?: { targetWindowId?: number; force?: boolean }): Promise<void> {
+	async focusWindow(windowId: number | undefined, options?: INativeOptions & { force?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.focus({ force: options?.force ?? false });
 	}
@@ -451,12 +460,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		shell.showItemInFolder(path);
 	}
 
-	async setRepresentedFilename(windowId: number | undefined, path: string, options?: { targetWindowId?: number }): Promise<void> {
+	async setRepresentedFilename(windowId: number | undefined, path: string, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setRepresentedFilename(path);
 	}
 
-	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: { targetWindowId?: number }): Promise<void> {
+	async setDocumentEdited(windowId: number | undefined, edited: boolean, options?: INativeOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.setDocumentEdited(edited);
 	}

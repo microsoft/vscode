@@ -25,7 +25,7 @@ import { Color } from 'vs/base/common/color';
 import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Parts, IWorkbenchLayoutService, Position } from 'vs/workbench/services/layout/browser/layoutService';
-import { assertIsDefined, assertType } from 'vs/base/common/types';
+import { DeepPartial, assertIsDefined, assertType } from 'vs/base/common/types';
 import { CompositeDragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { DeferredPromise, Promises } from 'vs/base/common/async';
 import { findGroup } from 'vs/workbench/services/editor/common/editorGroupFinder';
@@ -193,12 +193,12 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this._onDidChangeEditorPartOptions.fire({ oldPartOptions, newPartOptions });
 	}
 
-	private enforcedPartOptions: IEditorPartOptions[] = [];
+	private enforcedPartOptions: DeepPartial<IEditorPartOptions>[] = [];
 
 	private _partOptions = getEditorPartOptions(this.configurationService, this.themeService);
 	get partOptions(): IEditorPartOptions { return this._partOptions; }
 
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable {
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
 

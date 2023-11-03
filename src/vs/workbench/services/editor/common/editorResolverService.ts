@@ -179,6 +179,11 @@ export interface IEditorResolverService {
 	 * A set of all the editors that are registered to the editor resolver.
 	 */
 	getEditors(): RegisteredEditorInfo[];
+
+	/**
+	 * Get a complete list of editor associations.
+	 */
+	getAllUserAssociations(): EditorAssociations;
 }
 
 //#endregion

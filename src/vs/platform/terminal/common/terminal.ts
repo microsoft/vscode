@@ -616,6 +616,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	cwd?: string | URI;
 }
 
 export enum TerminalLocation {

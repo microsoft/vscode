@@ -4078,6 +4078,10 @@ export class TerminalEditorTabInput {
 export class InteractiveWindowInput {
 	constructor(readonly uri: URI, readonly inputBoxUri: URI) { }
 }
+
+export class ChatEditorTabInput {
+	constructor(readonly providerId: string) { }
+}
 //#endregion
 
 //#region Interactive session

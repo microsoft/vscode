@@ -423,12 +423,18 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		const hoverPosition = this.options.hoverOptions!.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
-			hoverPosition,
 			content: this.computeTitle(),
-			showPointer: true,
-			compact: true,
-			hideOnKeyDown: true,
-			skipFadeInAnimation,
+			position: {
+				hoverPosition,
+			},
+			persistence: {
+				hideOnKeyDown: true,
+			},
+			appearance: {
+				showPointer: true,
+				compact: true,
+				skipFadeInAnimation,
+			}
 		});
 	}
 

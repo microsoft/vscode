@@ -113,7 +113,7 @@ function matchesToSearchResultFormat(resource: URI, sortedMatches: Match[], matc
 }
 
 function cellMatchToSearchResultFormat(cellMatch: CellMatch, labelFormatter: (x: URI) => string, shouldUseHeader: boolean): SearchResultSerialization {
-	return matchesToSearchResultFormat(cellMatch.cell.uri, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
+	return matchesToSearchResultFormat(cellMatch.cell?.uri ?? cellMatch.parent.resource, cellMatch.contentMatches.sort(searchMatchComparer), cellMatch.context, labelFormatter, shouldUseHeader);
 }
 
 const contentPatternToSearchConfiguration = (pattern: ITextQuery, includes: string, excludes: string, contextLines: number): SearchConfiguration => {
