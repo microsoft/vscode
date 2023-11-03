@@ -2103,8 +2103,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
-	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this._list.revealCellOffsetInCenterAsync(cell, offset);
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
+		return this._list.revealCellOffsetInCenter(cell, offset);
 	}
 
 	getViewIndexByModelIndex(index: number): number {

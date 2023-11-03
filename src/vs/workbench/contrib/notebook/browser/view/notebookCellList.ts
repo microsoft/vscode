@@ -1105,8 +1105,13 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 	//#endregion
 
-	//#region Reveal Cell offset
-	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
+
+
+	/**
+	 * Reveals the specified offset of the given cell in the center of the viewport.
+	 * This enables revealing locations in the output as well as the input.
+	 */
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
 		const viewIndex = this._getViewIndexUpperBound(cell);
 
 		if (viewIndex >= 0) {
@@ -1125,8 +1130,6 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	private _revealInCenterIfOutsideViewport(viewIndex: number) {
 		this._revealInternal(viewIndex, true, CellRevealPosition.Center);
 	}
-
-	//#endregion
 
 	domElementOfElement(element: ICellViewModel): HTMLElement | null {
 		const index = this._getViewIndexUpperBound(element);
