@@ -778,5 +778,5 @@ function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService)
 }
 
 function shouldHandleKey(event: KeyboardEvent): boolean {
-	return !!event.code.match(/^Key{A-Z}|Digit{0-9}|Equal|Comma|Period|Slash|Quote|Backquote|Backslash|Minus|Semicolon|Space$/);
+	return !!event.code.match(/[Key{A-Z}Digit{0-9}EqualCommaPeriodSlashQuoteBackquoteBackslashMinusSemicolonSpaceEnter]/);
 }
