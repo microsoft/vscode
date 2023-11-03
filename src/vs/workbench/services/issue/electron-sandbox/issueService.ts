@@ -58,9 +58,10 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			ipcRenderer.send(request.replyChannel, result);
 		});
 		ipcRenderer.on('vscode:sendReporterStatus', async (event, arg) => {
-			const extension = arg.extensionId;
-			await this.extensionService.activateByEvent(`onIssueReporterOpened`);
-			const result = [this._providers.has(extension.toLowerCase()), this._handlers.has(extension.toLowerCase())];
+			const extensionId = arg.extensionId;
+			const extensionName = arg.extensionName;
+			await this.extensionService.activateByEvent(`onIssueReporterOpened:${extensionName}`);
+			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
 			ipcRenderer.send('vscode:sendReporterStatus1', result);
 		});
 	}

@@ -442,13 +442,13 @@ export class IssueMainService implements IIssueMainService {
 		});
 	}
 
-	async $sendReporterStatus(extensionId: string): Promise<boolean[]> {
+	async $sendReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
 		const window = this.issueReporterWindowCheck();
 		const replyChannel = `vscode:sendReporterStatus`;
 		return Promises.withAsyncBody<boolean[]>(async (resolve) => {
 			const cts = new CancellationTokenSource();
 			let result = [false, false];
-			window.sendWhenReady('vscode:sendReporterStatus', cts.token, { replyChannel, extensionId });
+			window.sendWhenReady('vscode:sendReporterStatus', cts.token, { replyChannel, extensionId, extensionName });
 			validatedIpcMain.on('vscode:sendReporterStatus1', (_: unknown, data: boolean[]) => {
 				result = data;
 				resolve(data);

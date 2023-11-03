@@ -279,7 +279,7 @@ export class IssueReporter extends Disposable {
 
 	private async sendReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
 		try {
-			const data = await this.issueMainService.$sendReporterStatus(extension.id);
+			const data = await this.issueMainService.$sendReporterStatus(extension.id, extension.name);
 			return data;
 		} catch (e) {
 			throw e;
