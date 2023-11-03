@@ -30,7 +30,7 @@ export interface IHoverService {
 	 * });
 	 * ```
 	 */
-	showHover(options: Readonly<IHoverOptions>, focus?: boolean): IHoverWidget | undefined;
+	showHover(options: IHoverOptions, focus?: boolean): IHoverWidget | undefined;
 
 	/**
 	 * Hides the hover if it was visible. This call will be ignored if the the hover is currently
@@ -64,6 +64,14 @@ export interface IHoverOptions {
 	 */
 	target: IHoverTarget | HTMLElement;
 
+	/*
+	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
+	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
+	 * created as the next tab index after the element being hovered and/or to workaround the
+	 * element's container hiding on `focusout`.
+	 */
+	container?: HTMLElement;
+
 	/**
 	 * An ID to associate with the hover to be used as an equality check. Normally when calling
 	 * {@link IHoverService.showHover} the options object itself is used to determine if the hover
@@ -88,30 +96,30 @@ export interface IHoverOptions {
 	linkHandler?(url: string): void;
 
 	/**
-	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
-	 * This is false by default when text is an `IMarkdownString` and true when `text` is a
-	 * `string`. Note that this will be ignored if any `actions` are provided as hovering is
-	 * required to make them accessible.
-	 *
-	 * In general hiding on hover is desired for:
-	 * - Regular text where selection is not important
-	 * - Markdown that contains no links where selection is not important
+	 * Whether to trap focus in the following ways:
+	 * - When the hover closes, focus goes to the element that had focus before the hover opened
+	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
+	 * Note that this is overridden to true when in screen reader optimized mode.
 	 */
-	hideOnHover?: boolean;
+	trapFocus?: boolean;
 
 	/**
-	 * When {@link hideOnHover} is explicitly true or undefined and its auto value is detected to
-	 * hide, show a hint at the bottom of the hover explaining how to mouse over the widget. This
-	 * should be used in the cases where despite the hover having no interactive content, it's
-	 * likely the user may want to interact with it somehow.
+	 * Options that defines where the hover is positioned.
 	 */
-	showHoverHint?: boolean;
+	position?: IHoverPositionOptions;
 
 	/**
-	 * Whether to hide the hover when a key is pressed.
+	 * Options that defines how long the hover is shown and when it hides.
 	 */
-	hideOnKeyDown?: boolean;
+	persistence?: IHoverPersistenceOptions;
 
+	/**
+	 * Options that define how the hover looks.
+	 */
+	appearance?: IHoverAppearanceOptions;
+}
+
+export interface IHoverPositionOptions {
 	/**
 	 * Position of the hover. The default is to show above the target. This option will be ignored
 	 * if there is not enough room to layout the hover in the specified position, unless the
@@ -124,38 +132,57 @@ export interface IHoverOptions {
 	 * position.
 	 */
 	forcePosition?: boolean;
+}
+
+export interface IHoverPersistenceOptions {
+	/**
+	 * Whether to hide the hover when the mouse leaves the `target` and enters the actual hover.
+	 * This is false by default when text is an `IMarkdownString` and true when `text` is a
+	 * `string`. Note that this will be ignored if any `actions` are provided as hovering is
+	 * required to make them accessible.
+	 *
+	 * In general hiding on hover is desired for:
+	 * - Regular text where selection is not important
+	 * - Markdown that contains no links where selection is not important
+	 */
+	hideOnHover?: boolean;
 
 	/**
-	 * Whether to show the hover pointer
+	 * Whether to hide the hover when a key is pressed.
+	 */
+	hideOnKeyDown?: boolean;
+
+	/**
+	 * Whether to make the hover sticky, this means it will not be hidden when the mouse leaves the
+	 * hover.
+	 */
+	sticky?: boolean;
+}
+
+export interface IHoverAppearanceOptions {
+	/**
+	 * Whether to show the hover pointer, a little arrow that connects the target and the hover.
 	 */
 	showPointer?: boolean;
 
 	/**
-	 * Whether to show a compact hover
+	 * Whether to show a compact hover, reducing the font size and padding of the hover.
 	 */
 	compact?: boolean;
+
+	/**
+	 * When {@link hideOnHover} is explicitly true or undefined and its auto value is detected to
+	 * hide, show a hint at the bottom of the hover explaining how to mouse over the widget. This
+	 * should be used in the cases where despite the hover having no interactive content, it's
+	 * likely the user may want to interact with it somehow.
+	 */
+	showHoverHint?: boolean;
 
 	/**
 	 * Whether to skip the fade in animation, this should be used when hovering from one hover to
 	 * another in the same group so it looks like the hover is moving from one element to the other.
 	 */
 	skipFadeInAnimation?: boolean;
-
-	/**
-	 * Whether to trap focus in the following ways:
-	 * - When the hover closes, focus goes to the element that had focus before the hover opened
-	 * - If there are elements in the hover to focus, focus stays inside of the hover when tabbing
-	 * Note that this is overridden to true when in screen reader optimized mode.
-	 */
-	trapFocus?: boolean;
-
-	/*
-	 * The container to pass to {@link IContextViewProvider.showContextView} which renders the hover
-	 * in. This is particularly useful for more natural tab focusing behavior, where the hover is
-	 * created as the next tab index after the element being hovered and/or to workaround the
-	 * element's container hiding on `focusout`.
-	 */
-	container?: HTMLElement;
 }
 
 export interface IHoverAction {

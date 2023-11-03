@@ -6,6 +6,7 @@
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Emitter, Event } from 'vs/base/common/event';
+import { getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 
 export class ElementSizeObserver extends Disposable {
 
@@ -65,10 +66,10 @@ export class ElementSizeObserver extends Disposable {
 						alreadyObservedThisAnimationFrame = true;
 						observeNow();
 					} finally {
-						requestAnimationFrame(() => {
+						scheduleAtNextAnimationFrame(() => {
 							alreadyObservedThisAnimationFrame = false;
 							update();
-						});
+						}, getWindow(this._referenceDomElement));
 					}
 				}
 			};

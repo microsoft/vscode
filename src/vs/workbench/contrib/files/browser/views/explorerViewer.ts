@@ -334,12 +334,16 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			return overflowed ? this.hoverService.showHover({
 				...options,
 				target: indentGuideElement,
-				compact: true,
 				container: listRow,
 				additionalClasses: ['explorer-item-hover'],
-				skipFadeInAnimation: true,
-				showPointer: false,
-				hoverPosition: HoverPosition.RIGHT,
+				position: {
+					hoverPosition: HoverPosition.RIGHT,
+				},
+				appearance: {
+					compact: true,
+					skipFadeInAnimation: true,
+					showPointer: false,
+				}
 			}, focus) : undefined;
 		}
 
@@ -1260,7 +1264,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 				// Use local file import when supported
 				if (!isWeb || (isTemporaryWorkspace(this.contextService.getWorkspace()) && WebFileSystemAccess.supported(window))) {
 					const fileImport = this.instantiationService.createInstance(ExternalFileImport);
-					await fileImport.import(resolvedTarget, originalEvent);
+					await fileImport.import(resolvedTarget, originalEvent, window);
 				}
 				// Otherwise fallback to browser based file upload
 				else {

@@ -110,11 +110,11 @@ export class GlobalCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
-		// Extension registration
-		const disposables = this._register(new DisposableStore());
-		this._register(this.extensionService.onDidRegisterExtensions(() => {
-			this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, disposables)(() => this.toggleAccountsActivity(), this, disposables);
-		}));
+		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+			if (!this._store.isDisposed) {
+				this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, AccountsActivityActionViewItem.ACCOUNTS_VISIBILITY_PREFERENCE_KEY, this._store)(() => this.toggleAccountsActivity()));
+			}
+		});
 	}
 
 	create(parent: HTMLElement): void {

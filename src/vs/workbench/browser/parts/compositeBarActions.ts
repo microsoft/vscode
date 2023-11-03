@@ -415,7 +415,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	private showHover(skipFadeInAnimation: boolean = false): void {
+	showHover(skipFadeInAnimation: boolean = false): void {
 		if (this.lastHover && !this.lastHover.isDisposed) {
 			return;
 		}
@@ -423,12 +423,18 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		const hoverPosition = this.options.hoverOptions!.position();
 		this.lastHover = this.hoverService.showHover({
 			target: this.container,
-			hoverPosition,
 			content: this.computeTitle(),
-			showPointer: true,
-			compact: true,
-			hideOnKeyDown: true,
-			skipFadeInAnimation,
+			position: {
+				hoverPosition,
+			},
+			persistence: {
+				hideOnKeyDown: true,
+			},
+			appearance: {
+				showPointer: true,
+				compact: true,
+				skipFadeInAnimation,
+			}
 		});
 	}
 

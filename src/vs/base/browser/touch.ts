@@ -93,7 +93,7 @@ export class Gesture extends Disposable {
 
 		this._register(EventUtils.runAndSubscribe(DomUtils.onDidRegisterWindow, ({ window, disposables }) => {
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
-			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(e)));
+			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(window, e)));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
 		}, { window, disposables: this._store }));
 	}
@@ -173,7 +173,7 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private onTouchEnd(e: TouchEvent): void {
+	private onTouchEnd(targetWindow: Window, e: TouchEvent): void {
 		const timestamp = Date.now(); // use Date.now() because on FF e.timeStamp is not epoch based.
 
 		const activeTouchCount = Object.keys(this.activeTouches).length;
@@ -218,13 +218,13 @@ export class Gesture extends Disposable {
 
 				// We need to get all the dispatch targets on the start of the inertia event
 				const dispatchTo = [...this.targets].filter(t => data.initialTarget instanceof Node && t.contains(data.initialTarget));
-				this.inertia(dispatchTo, timestamp,		// time now
-					Math.abs(deltaX) / deltaT,	// speed
-					deltaX > 0 ? 1 : -1,		// x direction
-					finalX,						// x now
-					Math.abs(deltaY) / deltaT,  // y speed
-					deltaY > 0 ? 1 : -1,		// y direction
-					finalY						// y now
+				this.inertia(targetWindow, dispatchTo, timestamp,	// time now
+					Math.abs(deltaX) / deltaT,						// speed
+					deltaX > 0 ? 1 : -1,							// x direction
+					finalX,											// x now
+					Math.abs(deltaY) / deltaT,  					// y speed
+					deltaY > 0 ? 1 : -1,							// y direction
+					finalY											// y now
 				);
 			}
 
@@ -282,7 +282,7 @@ export class Gesture extends Disposable {
 		}
 	}
 
-	private inertia(dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
+	private inertia(targetWindow: Window, dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
 		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
 			const now = Date.now();
 
@@ -311,9 +311,9 @@ export class Gesture extends Disposable {
 			dispatchTo.forEach(d => d.dispatchEvent(evt));
 
 			if (!stopped) {
-				this.inertia(dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
+				this.inertia(targetWindow, dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
-		});
+		}, targetWindow);
 	}
 
 	private onTouchMove(e: TouchEvent): void {

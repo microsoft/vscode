@@ -5991,6 +5991,7 @@ declare namespace monaco.editor {
 		updateOptions(newOptions: IDiffEditorOptions): void;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
+		handleInitialized(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -7649,7 +7650,7 @@ declare namespace monaco.languages {
 
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
 		owner: string;
 		isReply: boolean;

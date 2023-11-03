@@ -998,7 +998,7 @@ export class DeletedElement extends SingleSideDiffElement {
 			}
 
 			this.layoutNotebookCell();
-		});
+		}, DOM.getWindow(this._diffEditorContainer));
 	}
 
 	_buildOutputRendererContainer() {
@@ -1201,7 +1201,7 @@ export class InsertElement extends SingleSideDiffElement {
 			if (this._diagonalFill) {
 				this._diagonalFill.style.height = `${this.cell.layoutInfo.editorHeight + this.cell.layoutInfo.editorMargin + this.cell.layoutInfo.metadataStatusHeight + this.cell.layoutInfo.metadataHeight + this.cell.layoutInfo.outputTotalHeight + this.cell.layoutInfo.outputStatusHeight}px`;
 			}
-		});
+		}, DOM.getWindow(this._diffEditorContainer));
 	}
 
 	override dispose() {
@@ -1626,7 +1626,7 @@ export class ModifiedElement extends AbstractElementRenderer {
 			}
 
 			this.layoutNotebookCell();
-		});
+		}, DOM.getWindow(this._diffEditorContainer));
 	}
 
 	override dispose() {

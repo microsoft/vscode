@@ -128,18 +128,19 @@ export class CellPartsCollection extends Disposable {
 	private _scheduledOverlayUpdateExecutionState = this._register(new MutableDisposable());
 
 	constructor(
+		private readonly targetWindow: Window,
 		private readonly contentParts: readonly CellContentPart[],
 		private readonly overlayParts: readonly CellOverlayPart[]
 	) {
 		super();
 	}
 
-	concatContentPart(other: readonly CellContentPart[]): CellPartsCollection {
-		return new CellPartsCollection(this.contentParts.concat(other), this.overlayParts);
+	concatContentPart(other: readonly CellContentPart[], targetWindow: Window): CellPartsCollection {
+		return new CellPartsCollection(targetWindow, this.contentParts.concat(other), this.overlayParts);
 	}
 
-	concatOverlayPart(other: readonly CellOverlayPart[]): CellPartsCollection {
-		return new CellPartsCollection(this.contentParts, this.overlayParts.concat(other));
+	concatOverlayPart(other: readonly CellOverlayPart[], targetWindow: Window): CellPartsCollection {
+		return new CellPartsCollection(targetWindow, this.contentParts, this.overlayParts.concat(other));
 	}
 
 	scheduleRenderCell(element: ICellViewModel): void {
@@ -161,7 +162,7 @@ export class CellPartsCollection extends Disposable {
 			for (const part of this.overlayParts) {
 				part.renderCell(element);
 			}
-		});
+		}, this.targetWindow);
 	}
 
 	unrenderCell(element: ICellViewModel): void {
@@ -203,7 +204,7 @@ export class CellPartsCollection extends Disposable {
 			for (const part of this.overlayParts) {
 				part.updateState(viewCell, e);
 			}
-		});
+		}, this.targetWindow);
 	}
 
 	updateForExecutionState(viewCell: ICellViewModel, e: ICellExecutionStateChangedEvent) {
@@ -215,6 +216,6 @@ export class CellPartsCollection extends Disposable {
 			for (const part of this.overlayParts) {
 				part.updateForExecutionState(viewCell, e);
 			}
-		});
+		}, this.targetWindow);
 	}
 }

@@ -233,9 +233,9 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
-				this._register(disposableTimeout(() => {
+				disposableTimeout(() => {
 					deferredUpdate?.();
-				}));
+				}, 0, this._store);
 
 				deferredUpdate = undefined;
 			}

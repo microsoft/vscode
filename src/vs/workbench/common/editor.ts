@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
+import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -1096,24 +1096,30 @@ export interface IWorkbenchEditorConfiguration {
 	};
 }
 
-export interface IEditorPartLimitConfiguration {
+interface IEditorPartLimitConfiguration {
 	enabled?: boolean;
 	excludeDirty?: boolean;
 	value?: number;
 	perEditorGroup?: boolean;
 }
 
-export interface IEditorPartDecorationsConfiguration {
+export interface IEditorPartLimitOptions extends Required<IEditorPartLimitConfiguration> { }
+
+interface IEditorPartDecorationsConfiguration {
 	badges?: boolean;
 	colors?: boolean;
 }
+
+export interface IEditorPartDecorationOptions extends Required<IEditorPartDecorationsConfiguration> { }
 
 interface IEditorPartConfiguration {
 	showTabs?: 'multiple' | 'single' | 'none';
 	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
-	tabCloseButton?: 'left' | 'right' | 'off';
+	tabActionLocation?: 'left' | 'right';
+	tabActionCloseVisibility?: boolean;
+	tabActionUnpinVisibility?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
@@ -1145,8 +1151,8 @@ interface IEditorPartConfiguration {
 	decorations?: IEditorPartDecorationsConfiguration;
 }
 
-export interface IEditorPartOptions extends IEditorPartConfiguration {
-	hasIcons?: boolean;
+export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
+	hasIcons: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {

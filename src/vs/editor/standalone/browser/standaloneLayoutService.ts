@@ -54,6 +54,10 @@ class StandaloneLayoutService implements ILayoutService {
 		return activeCodeEditor?.getContainerDomNode() ?? this.container;
 	}
 
+	getContainer() {
+		return this.activeContainer;
+	}
+
 	focus(): void {
 		this._codeEditorService.getFocusedCodeEditor()?.focus();
 	}

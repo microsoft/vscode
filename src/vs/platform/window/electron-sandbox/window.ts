@@ -13,7 +13,7 @@ import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
  * browser helper so that it can be accessed in non-electron layers.
  */
 export function applyZoom(zoomLevel: number): void {
-	for (const window of getWindows()) {
+	for (const { window } of getWindows()) {
 		getGlobals(window)?.webFrame?.setZoomLevel(zoomLevel);
 	}
 	setZoomFactor(zoomLevelToZoomFactor(zoomLevel));

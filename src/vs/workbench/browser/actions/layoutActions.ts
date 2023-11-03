@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { MenuId, MenuRegistry, registerAction2, Action2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
+import { IWorkbenchLayoutService, Parts, Position, positionToString } from 'vs/workbench/services/layout/browser/layoutService';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isLinux, isWeb, isMacintosh, isNative } from 'vs/base/common/platform';
@@ -67,30 +67,7 @@ registerAction2(class extends Action2 {
 	}
 });
 
-// --- Toggle Activity Bar
-
-export class ToggleActivityBarVisibilityAction extends Action2 {
-
-	static readonly ID = 'workbench.action.toggleActivityBarVisibility';
-
-	constructor() {
-		super({
-			id: ToggleActivityBarVisibilityAction.ID,
-			title: {
-				value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
-				original: 'Toggle Activity Bar Visibility'
-			},
-		});
-	}
-
-	run(accessor: ServicesAccessor): void {
-		const configurationService = accessor.get(IConfigurationService);
-		const value = configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION);
-		configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value === ActivityBarPosition.HIDDEN ? undefined : ActivityBarPosition.HIDDEN);
-	}
-}
-
-registerAction2(ToggleActivityBarVisibilityAction);
+export const ToggleActivityBarVisibilityActionId = 'workbench.action.toggleActivityBarVisibility';
 
 // --- Toggle Centered Layout
 
@@ -1223,7 +1200,7 @@ if (!isMacintosh || !isNative) {
 }
 
 ToggleVisibilityActions.push(...[
-	CreateToggleLayoutItem(ToggleActivityBarVisibilityAction.ID, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
+	CreateToggleLayoutItem(ToggleActivityBarVisibilityActionId, ContextKeyExpr.equals('config.workbench.activityBar.visible', true), localize('activityBar', "Activity Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: activityBarLeftIcon, iconB: activityBarRightIcon }),
 	CreateToggleLayoutItem(ToggleSidebarVisibilityAction.ID, SideBarVisibleContext, localize('sideBar', "Primary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelLeftIcon, iconB: panelRightIcon }),
 	CreateToggleLayoutItem(ToggleAuxiliaryBarAction.ID, AuxiliaryBarVisibleContext, localize('secondarySideBar', "Secondary Side Bar"), { whenA: ContextKeyExpr.equals('config.workbench.sideBar.location', 'left'), iconA: panelRightIcon, iconB: panelLeftIcon }),
 	CreateToggleLayoutItem(TogglePanelAction.ID, PanelVisibleContext, localize('panel', "Panel"), panelIcon),
