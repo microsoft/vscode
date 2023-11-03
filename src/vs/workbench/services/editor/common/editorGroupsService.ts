@@ -815,7 +815,7 @@ export interface IEditorGroup {
 	/**
 	 * Get the editor actions for the group.
 	 */
-	getEditorActions(): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent>; menuDisposable: IDisposable };
+	createEditorActions(menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> };
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

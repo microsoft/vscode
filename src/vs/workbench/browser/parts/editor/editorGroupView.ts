@@ -13,7 +13,7 @@ import { Emitter, Relay, Event } from 'vs/base/common/event';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Dimension, trackFocus, addDisposableListener, EventType, EventHelper, findParentWithClass, isAncestor, IDomNodePagePosition, isMouseEvent, isActiveElement, focusWindow } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -24,7 +24,7 @@ import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 import { EditorProgressIndicator } from 'vs/workbench/services/progress/browser/progressIndicator';
 import { localize } from 'vs/nls';
 import { coalesce, firstOrDefault } from 'vs/base/common/arrays';
-import { Disposable, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DeferredPromise, Promises, RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
@@ -137,20 +137,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	// Editor Group Context
 	private resourceContext!: ResourceContextKey;
 
-	private groupActiveEditorDirtyContext!: IContextKey<boolean>;
-	private groupActiveEditorPinnedContext!: IContextKey<boolean>;
-	private groupActiveEditorFirstContext!: IContextKey<boolean>;
-	private groupActiveEditorLastContext!: IContextKey<boolean>;
-	private groupActiveEditorStickyContext!: IContextKey<boolean>;
-	private groupEditorsCountContext!: IContextKey<number>;
-	private groupActiveEditorAvailableEditorIds!: IContextKey<string>;
-	private groupHasPinnedAndUnpinnedContext!: IContextKey<boolean>;
-
-	private groupActiveEditorCanSplitInGroupContext!: IContextKey<boolean>;
-	private sideBySideEditorContext!: IContextKey<boolean>;
-
-	private groupLockedContext!: IContextKey<boolean>;
-
 	constructor(
 		from: IEditorGroupView | ISerializedEditorGroupModel | null,
 		private readonly editorPartsView: IEditorPartsView,
@@ -258,18 +244,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private handleGroupContextKeys(): void {
 		this.resourceContext = this._register(this.instantiationService.createInstance(ResourceContextKey));
 
-		this.groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
-		this.groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
-		this.groupActiveEditorFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.scopedContextKeyService);
-		this.groupActiveEditorLastContext = ActiveEditorLastInGroupContext.bindTo(this.scopedContextKeyService);
-		this.groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
-		this.groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
-		this.groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
-		this.groupHasPinnedAndUnpinnedContext = EditorPinnedAndUnpinnedTabsContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorDirtyContext = ActiveEditorDirtyContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorPinnedContext = ActiveEditorPinnedContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorFirstContext = ActiveEditorFirstInGroupContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorLastContext = ActiveEditorLastInGroupContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorStickyContext = ActiveEditorStickyContext.bindTo(this.scopedContextKeyService);
+		const groupEditorsCountContext = EditorGroupEditorsCountContext.bindTo(this.scopedContextKeyService);
+		const groupLockedContext = ActiveEditorGroupLockedContext.bindTo(this.scopedContextKeyService);
+		const groupHasPinnedAndUnpinnedContext = EditorPinnedAndUnpinnedTabsContext.bindTo(this.scopedContextKeyService);
 
-		this.groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
-		this.groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
-		this.sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorAvailableEditorIds = ActiveEditorAvailableEditorIdsContext.bindTo(this.scopedContextKeyService);
+		const groupActiveEditorCanSplitInGroupContext = ActiveEditorCanSplitInGroupContext.bindTo(this.scopedContextKeyService);
+		const sideBySideEditorContext = SideBySideEditorActiveContext.bindTo(this.scopedContextKeyService);
 
 		const activeEditorListener = this._register(new MutableDisposable());
 
@@ -281,18 +267,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 				this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
 
-				applyAvailableEditorIds(this.groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
+				applyAvailableEditorIds(groupActiveEditorAvailableEditorIds, activeEditor, this.editorResolverService);
 
-				this.groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-				this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
+				groupActiveEditorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
+				sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
 
 				if (activeEditor) {
-					this.groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+					groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					activeEditorListener.value = activeEditor.onDidChangeDirty(() => {
-						this.groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
+						groupActiveEditorDirtyContext.set(activeEditor.isDirty() && !activeEditor.isSaving());
 					});
 				} else {
-					this.groupActiveEditorDirtyContext.set(false);
+					groupActiveEditorDirtyContext.set(false);
 				}
 			});
 		};
@@ -301,31 +287,31 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(this.onDidModelChange(e => {
 			switch (e.kind) {
 				case GroupModelChangeKind.GROUP_LOCKED:
-					this.groupLockedContext.set(this.isLocked);
+					groupLockedContext.set(this.isLocked);
 					break;
 				case GroupModelChangeKind.EDITOR_CLOSE:
 				case GroupModelChangeKind.EDITOR_OPEN:
-					this.groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
+					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 				case GroupModelChangeKind.EDITOR_ACTIVE:
 				case GroupModelChangeKind.EDITOR_MOVE:
-					this.groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
-					this.groupActiveEditorLastContext.set(this.model.isLast(this.model.activeEditor));
+					groupActiveEditorFirstContext.set(this.model.isFirst(this.model.activeEditor));
+					groupActiveEditorLastContext.set(this.model.isLast(this.model.activeEditor));
 					break;
 				case GroupModelChangeKind.EDITOR_PIN:
 					if (e.editor && e.editor === this.model.activeEditor) {
-						this.groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
+						groupActiveEditorPinnedContext.set(this.model.isPinned(this.model.activeEditor));
 					}
 					break;
 				case GroupModelChangeKind.EDITOR_STICKY:
 					if (e.editor && e.editor === this.model.activeEditor) {
-						this.groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
+						groupActiveEditorStickyContext.set(this.model.isSticky(this.model.activeEditor));
 					}
-					this.groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
+					groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 					break;
 			}
 
 			// Group editors count context
-			this.groupEditorsCountContext.set(this.count);
+			groupEditorsCountContext.set(this.count);
 		}));
 
 		// Track the active editor and update context key that reflects
@@ -336,7 +322,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update context keys on startup
 		observeActiveEditor();
-		this.groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
+		groupHasPinnedAndUnpinnedContext.set(this.hasPinnedAndUnpinnedEditors());
 	}
 
 	private hasPinnedAndUnpinnedEditors(): boolean {
@@ -1927,11 +1913,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region Editor Actions
 
-	getEditorActions(): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent>; menuDisposable: IDisposable } {
+	createEditorActions(menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
-		let menuDisposable = Disposable.None;
 		let onDidChangeActionsEvent = Event.None;
 
 		// Editor actions require the editor control to be there, so we retrieve it via service
@@ -1953,7 +1938,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			);
 		}
 
-		return { actions: { primary, secondary }, onDidChange: onDidChangeActionsEvent, menuDisposable };
+		return { actions: { primary, secondary }, onDidChange: onDidChangeActionsEvent };
 	}
 
 	//#endregion

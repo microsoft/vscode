@@ -953,7 +953,7 @@ export class TestEditorGroupView implements IEditorGroupView {
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
 	relayout() { }
-	getEditorActions(): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent>; menuDisposable: IDisposable } { throw new Error('not implemented'); }
+	createEditorActions(_menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } { throw new Error('not implemented'); }
 }
 
 export class TestEditorGroupAccessor implements IEditorGroupsView {
