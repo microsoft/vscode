@@ -323,6 +323,10 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 						}
 
 						for (const otherModel of otherModels) {
+							if (otherModel.isDisposed()) {
+								continue;
+							}
+
 							const matches = otherModel.findMatches(word.word, true, false, true, USUAL_WORD_SEPARATORS, false);
 							const highlights = matches.map(m => ({
 								range: m.range,
