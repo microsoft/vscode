@@ -3939,7 +3939,7 @@ declare module 'vscode' {
 		has(uri: Uri): boolean;
 
 		/**
-		 * Set (and replace) text edits or snippet edits for a resource.
+		 * Set (or append) text edits or snippet edits for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
@@ -3947,7 +3947,7 @@ declare module 'vscode' {
 		set(uri: Uri, edits: ReadonlyArray<TextEdit | SnippetTextEdit>): void;
 
 		/**
-		 * Set (and replace) text edits or snippet edits with metadata for a resource.
+		 * Set (or append) text edits or snippet edits with metadata for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
@@ -3955,7 +3955,7 @@ declare module 'vscode' {
 		set(uri: Uri, edits: ReadonlyArray<[TextEdit | SnippetTextEdit, WorkspaceEditEntryMetadata]>): void;
 
 		/**
-		 * Set (and replace) notebook edits for a resource.
+		 * Set (or append) notebook edits for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
@@ -3963,12 +3963,20 @@ declare module 'vscode' {
 		set(uri: Uri, edits: readonly NotebookEdit[]): void;
 
 		/**
-		 * Set (and replace) notebook edits with metadata for a resource.
+		 * Set (or append) notebook edits with metadata for a resource.
 		 *
 		 * @param uri A resource identifier.
 		 * @param edits An array of edits.
 		 */
 		set(uri: Uri, edits: ReadonlyArray<[NotebookEdit, WorkspaceEditEntryMetadata]>): void;
+
+		/**
+		 * Remove edits for a resource
+		 *
+		 * @param uri A resource identifier.
+		 * @param edits null | undefined is used to indicate that the resource edits should be removed.
+		 */
+		set(uri: Uri, edits: null | undefined): void;
 
 		/**
 		 * Get the text edits for a resource.
