@@ -226,7 +226,7 @@ async function main() {
         size
     };
     if (quality === 'insider') {
-        await (0, prss_1.releaseAndProvision)(process.env['RELEASE_TENANT_ID'], process.env['RELEASE_CLIENT_ID'], process.env['RELEASE_AUTH_CERT_SUBJECT_NAME'], process.env['RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'], process.env['PROVISION_TENAND_ID'], process.env['PROVISION_AAD_USERNAME'], process.env['PROVISION_AAD_PASSWORD'], commit, quality, filePath);
+        await (0, prss_1.releaseAndProvision)(process.env['RELEASE_TENANT_ID'], process.env['RELEASE_CLIENT_ID'], process.env['RELEASE_AUTH_CERT_SUBJECT_NAME'], process.env['RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME'], process.env['PROVISION_TENANT_ID'], process.env['PROVISION_AAD_USERNAME'], process.env['PROVISION_AAD_PASSWORD'], commit, quality, filePath);
         asset.prssUrl = `${process.env['PRSS_CDN_URL']}/${quality}/${blobName}`;
         console.log(`Successfully released on PRSS: ${asset.prssUrl}`);
     }
