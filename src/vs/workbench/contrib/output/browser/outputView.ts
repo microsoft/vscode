@@ -28,12 +28,15 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { Dimension } from 'vs/base/browser/dom';
+import * as dom from 'vs/base/browser/dom';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/splitview';
+import { createOutlineTree } from 'vs/workbench/contrib/output/browser/outputOutline';
+import { Event } from 'vs/base/common/event';
 
 export class OutputViewPane extends ViewPane {
 
@@ -42,6 +45,8 @@ export class OutputViewPane extends ViewPane {
 	private editorPromise: CancelablePromise<OutputEditor> | null = null;
 
 	private readonly scrollLockContextKey: IContextKey<boolean>;
+	private _splitView!: SplitView;
+	private _dim!: dom.Dimension;
 	get scrollLock(): boolean { return !!this.scrollLockContextKey.get(); }
 	set scrollLock(scrollLock: boolean) { this.scrollLockContextKey.set(scrollLock); }
 
@@ -85,7 +90,9 @@ export class OutputViewPane extends ViewPane {
 
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
-		this.editor.create(container);
+		this._splitView = new SplitView(container, { orientation: Orientation.VERTICAL });
+		const editorContainer = dom.append(container, dom.$('.ouput-editor-container'));
+		this.editor.create(editorContainer);
 		container.classList.add('output-view');
 		const codeEditor = <ICodeEditor>this.editor.getControl();
 		codeEditor.setAriaOptions({ role: 'document', activeDescendant: undefined });
@@ -110,13 +117,37 @@ export class OutputViewPane extends ViewPane {
 				this.scrollLock = lastLine !== newPositionLine;
 			}
 		}));
+
+		const treeContainer = dom.append(container, dom.$('.ouput-outline-tree'));
+		const tree = this._register(createOutlineTree(this.instantiationService, treeContainer, this.getBackgroundColor()));
+
+		// split stuff
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: editorContainer,
+			minimumSize: 200,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				this.editor.layout(new dom.Dimension(width, this._dim?.height ?? 0));
+			}
+		}, Sizing.Distribute);
+
+		this._splitView.addView({
+			onDidChange: Event.None,
+			element: treeContainer,
+			minimumSize: 100,
+			maximumSize: Number.MAX_VALUE,
+			layout: (width) => {
+				tree.layout(width, this._dim?.height ?? 0);
+			}
+		}, Sizing.Distribute);
 	}
 
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
-		this.editor.layout(new Dimension(width, height));
+		this._dim = new dom.Dimension(width, height);
+		this._splitView.layout(width);
 	}
-
 
 	private onDidChangeVisibility(visible: boolean): void {
 		this.editor.setVisible(visible);
