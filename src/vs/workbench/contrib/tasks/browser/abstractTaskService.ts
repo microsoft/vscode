@@ -216,9 +216,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private _recentlyUsedTasksV1: LRUCache<string, string> | undefined;
 	private _recentlyUsedTasks: LRUCache<string, string> | undefined;
 
-	protected _taskRunningState: IContextKey<boolean>;
-
 	private _persistentTasks: LRUCache<string, string> | undefined;
+
+	protected _taskRunningState: IContextKey<boolean>;
 
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
@@ -299,6 +299,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 			if (e.affectsConfiguration(TaskSettingId.Reconnection)) {
 				if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
+					this._persistentTasks?.clear();
 					this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 				}
 			}
@@ -978,6 +979,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._log(nls.localize('taskService.gettingCachedTasks', 'Returning cached tasks {0}', this._persistentTasks.size), true);
 			return this._persistentTasks;
 		}
+		//TODO: should this # be configurable?
 		this._persistentTasks = new LRUCache<string, string>(10);
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
@@ -1020,7 +1022,6 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				map.get(folder).push(task);
 			}
 		}
-
 		for (const entry of storedTasks.entries()) {
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
@@ -2353,7 +2354,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private _log(value: string, verbose?: boolean): void {
 		if (verbose && this._configurationService.getValue(TaskSettingId.VerboseLogging) || !verbose) {
-			this._outputChannel.append(value);
+			this._outputChannel.append(value + '\n');
 		}
 	}
 
