@@ -1800,7 +1800,7 @@ export interface Comment {
 
 export interface PendingCommentThread {
 	body: string;
-	range: IRange;
+	range: IRange | undefined;
 	uri: URI;
 	owner: string;
 	isReply: boolean;

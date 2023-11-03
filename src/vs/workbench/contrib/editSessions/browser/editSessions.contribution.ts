@@ -788,8 +788,8 @@ export class EditSessionsContribution extends Disposable implements IWorkbenchCo
 	}
 
 	private getChangedResources(repository: ISCMRepository) {
-		return repository.provider.groups.elements.reduce((resources, resourceGroups) => {
-			resourceGroups.elements.forEach((resource) => resources.add(resource.sourceUri));
+		return repository.provider.groups.reduce((resources, resourceGroups) => {
+			resourceGroups.resources.forEach((resource) => resources.add(resource.sourceUri));
 			return resources;
 		}, new Set<URI>()); // A URI might appear in more than one resource group
 	}
