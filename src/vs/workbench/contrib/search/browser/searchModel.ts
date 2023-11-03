@@ -817,6 +817,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					existingCell = existingRawCell;
 				}
 			}
+			existingCell?.clearAllMatches();
 			const cell = existingCell ?? new CellMatch(this, match.cell, match.index);
 			cell.addContentMatches(contentMatchesToTextSearchMatches(match.contentMatches, match.cell));
 			cell.addWebviewMatches(webviewMatchesToTextSearchMatches(match.webviewMatches));

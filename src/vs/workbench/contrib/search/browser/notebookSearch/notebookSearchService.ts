@@ -15,10 +15,10 @@ import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatche
 import { ITextQuery, QueryType, ISearchProgressItem, ISearchComplete, ISearchConfigurationProperties } from 'vs/workbench/services/search/common/search';
 import * as arrays from 'vs/base/common/arrays';
 import { isNumber } from 'vs/base/common/types';
-import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
-import { priorityToRank } from 'vs/workbench/services/editor/common/editorResolverService';
+import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
+import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
 
 interface IOpenNotebookSearchResults {
 	results: ResourceMap<INotebookFileMatchWithModel | null>;
@@ -36,6 +36,7 @@ export class NotebookSearchService implements INotebookSearchService {
 		@ILogService private readonly logService: ILogService,
 		@INotebookService private readonly notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
 	) {
 	}
 
@@ -110,15 +111,43 @@ export class NotebookSearchService implements INotebookSearchService {
 
 	private async getClosedNotebookResults(textQuery: ITextQuery, scannedFiles: ResourceSet, token: CancellationToken): Promise<IClosedNotebookSearchResults> {
 
-		const sortedContributedTypes = [...this.notebookService.getContributedNotebookTypes()].sort((a, b) => priorityToRank(b.priority) - priorityToRank(a.priority));
+		const userAssociations = this.editorResolverService.getAllUserAssociations();
+		const allPriorityInfo: Map<string, NotebookPriorityInfo[]> = new Map();
+		const contributedNotebookTypes = this.notebookService.getContributedNotebookTypes();
 
-		const getResultsFromProviderInfo = async (providerInfo: NotebookProviderInfo) => {
-			const serializer = (await this.notebookService.withNotebookDataProvider(providerInfo.id)).serializer;
-			return await serializer.searchInNotebooks(textQuery, token);
-		};
+		userAssociations.forEach(association => {
+
+			if (!association.filenamePattern) {
+				return;
+			}
+
+			const info = <NotebookPriorityInfo>{
+				isFromSettings: true,
+				filenamePatterns: [association.filenamePattern]
+			};
+
+			const existingEntry = allPriorityInfo.get(association.viewType);
+			if (existingEntry) {
+				allPriorityInfo.set(association.viewType, existingEntry.concat(info));
+			} else {
+				allPriorityInfo.set(association.viewType, [info]);
+			}
+		});
+
+		const promises: Promise<{
+			results: INotebookFileMatchNoModel<URI>[];
+			limitHit: boolean;
+		}>[] = [];
+
+		contributedNotebookTypes.forEach((notebook) => {
+			promises.push((async () => {
+				const serializer = (await this.notebookService.withNotebookDataProvider(notebook.id)).serializer;
+				return await serializer.searchInNotebooks(textQuery, token, allPriorityInfo);
+			})());
+		});
 
 		const start = Date.now();
-		const searchComplete = (await Promise.all(sortedContributedTypes.map(async e => await getResultsFromProviderInfo(e))));
+		const searchComplete = (await Promise.all(promises));
 		const results = searchComplete.flatMap(e => e.results);
 		let limitHit = searchComplete.some(e => e.limitHit);
 

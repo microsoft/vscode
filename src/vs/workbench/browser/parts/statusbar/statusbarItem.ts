@@ -38,6 +38,8 @@ export class StatusbarEntryItem extends Disposable {
 	private readonly commandMouseListener = this._register(new MutableDisposable());
 	private readonly commandTouchListener = this._register(new MutableDisposable());
 	private readonly commandKeyboardListener = this._register(new MutableDisposable());
+	private readonly focusListener = this._register(new MutableDisposable());
+	private readonly focusOutListener = this._register(new MutableDisposable());
 
 	private hover: ICustomHover | undefined = undefined;
 
@@ -80,7 +82,6 @@ export class StatusbarEntryItem extends Disposable {
 		this.container.appendChild(this.beakContainer);
 
 		this.update(entry);
-		addDisposableListener(this.labelContainer, EventType.FOCUS, () => this.hover?.show(false));
 	}
 
 	update(entry: IStatusbarEntry): void {
@@ -121,6 +122,14 @@ export class StatusbarEntryItem extends Disposable {
 			} else {
 				this.hover = this._register(setupCustomHover(this.hoverDelegate, this.container, hoverContents));
 			}
+			this.focusListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS, (e) => {
+				EventHelper.stop(e);
+				this.hover?.show(false);
+			});
+			this.focusOutListener.value = addDisposableListener(this.labelContainer, EventType.FOCUS_OUT, (e) => {
+				EventHelper.stop(e);
+				this.hover?.hide();
+			});
 		}
 
 		// Update: Command

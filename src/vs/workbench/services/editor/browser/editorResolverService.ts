@@ -263,7 +263,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		return matchingAssociations.filter(association => allEditors.find(c => c.editorInfo.id === association.viewType));
 	}
 
-	private getAllUserAssociations(): EditorAssociations {
+	getAllUserAssociations(): EditorAssociations {
 		const inspectedEditorAssociations = this.configurationService.inspect<{ [fileNamePattern: string]: string }>(editorsAssociationsSettingId) || {};
 		const workspaceAssociations = inspectedEditorAssociations.workspaceValue ?? {};
 		const userAssociations = inspectedEditorAssociations.userValue ?? {};

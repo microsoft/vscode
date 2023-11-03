@@ -1322,6 +1322,8 @@ class ErrorRenderer implements ITreeRenderer<TestTreeErrorMessage, FuzzyScore, I
 	}
 
 	renderElement({ element }: ITreeNode<TestTreeErrorMessage, FuzzyScore>, _: number, data: IErrorTemplateData): void {
+		dom.clearNode(data.label);
+
 		if (typeof element.message === 'string') {
 			data.label.innerText = element.message;
 		} else {

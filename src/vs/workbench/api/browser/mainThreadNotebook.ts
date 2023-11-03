@@ -20,8 +20,10 @@ import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/ext
 import { SerializableObjectWithBuffers } from 'vs/workbench/services/extensions/common/proxyIdentifier';
 import { ExtHostContext, ExtHostNotebookShape, MainContext, MainThreadNotebookShape } from '../common/extHost.protocol';
 import { IRelativePattern } from 'vs/base/common/glob';
-import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { revive } from 'vs/base/common/marshalling';
+import { INotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
+import { NotebookPriorityInfo } from 'vs/workbench/contrib/search/common/search';
+import { coalesce } from 'vs/base/common/arrays';
 
 @extHostNamedCustomer(MainContext.MainThreadNotebook)
 export class MainThreadNotebooks implements MainThreadNotebookShape {
@@ -84,7 +86,7 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					resource: uri
 				};
 			},
-			searchInNotebooks: async (textQuery, token): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
+			searchInNotebooks: async (textQuery, token, allPriorityInfo): Promise<{ results: INotebookFileMatchNoModel<URI>[]; limitHit: boolean }> => {
 				const contributedType = this._notebookService.getContributedNotebookType(viewType);
 				if (!contributedType) {
 					return { results: [], limitHit: false };
@@ -96,7 +98,22 @@ export class MainThreadNotebooks implements MainThreadNotebookShape {
 					return globPattern.toString();
 				});
 
-				const searchComplete = await this._proxy.$searchInNotebooks(handle, includes, textQuery, token);
+				if (!includes.length) {
+					return {
+						results: [], limitHit: false
+					};
+				}
+
+				const thisPriorityInfo = coalesce([<NotebookPriorityInfo>{ isFromSettings: false, filenamePatterns: includes }, ...allPriorityInfo.get(viewType) ?? []]);
+				const otherEditorsPriorityInfo = Array.from(allPriorityInfo.keys())
+					.flatMap(key => {
+						if (key !== viewType) {
+							return allPriorityInfo.get(key) ?? [];
+						}
+						return [];
+					});
+
+				const searchComplete = await this._proxy.$searchInNotebooks(handle, textQuery, thisPriorityInfo, otherEditorsPriorityInfo, token);
 				const revivedResults: INotebookFileMatchNoModel<URI>[] = searchComplete.results.map(result => {
 					const resource = URI.revive(result.resource);
 					return {

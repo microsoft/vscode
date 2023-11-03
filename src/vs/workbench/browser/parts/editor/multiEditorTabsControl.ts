@@ -1328,22 +1328,20 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
 		const hasAction = hasUnpinAction || hasCloseAction;
 
-		// If no action is visible, ensure to clear it
-		if (!hasAction) {
+		let tabAction;
+		if (hasAction) {
+			tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+		} else {
+			// Even if the action is not visible, add it as it contains the dirty indicator
+			tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
+		}
+
+		if (!tabActionBar.hasAction(tabAction)) {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
 			}
-		}
-		// If action is visible, ensure it is showing
-		else {
-			const tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
-			if (!tabActionBar.hasAction(tabAction)) {
-				if (!tabActionBar.isEmpty()) {
-					tabActionBar.clear();
-				}
 
-				tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
-			}
+			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
 
 		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);

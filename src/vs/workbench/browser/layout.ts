@@ -1404,7 +1404,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (toggleFullScreen) {
-			this.hostService.toggleFullScreen();
+			this.hostService.toggleFullScreen(getActiveWindow());
 		}
 
 		// Event
