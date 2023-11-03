@@ -28,14 +28,12 @@ steps:
 
       $CertCollection = New-Object System.Security.Cryptography.X509Certificates.X509Certificate2Collection
 
-      Write-Host $CertCollection.Count
       $AuthCertBytes = [System.Convert]::FromBase64String("$(vscode-esrp)")
       $CertCollection.Import($AuthCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      Write-Host $CertCollection.Count
 
+      $RequestSigningCertIndex = $CertCollection.Count
       $RequestSigningCertBytes = [System.Convert]::FromBase64String("$(c24324f7-e65f-4c45-8702-ed2d4c35df99)")
       $CertCollection.Import($RequestSigningCertBytes, $null, [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::Exportable -bxor [System.Security.Cryptography.X509Certificates.X509KeyStorageFlags]::PersistKeySet)
-      Write-Host $CertCollection.Count
 
       $CertStore = New-Object System.Security.Cryptography.X509Certificates.X509Store("My","LocalMachine")
       $CertStore.Open("ReadWrite")
@@ -44,7 +42,7 @@ steps:
 
 
       Write-Host $CertCollection[0].Subject
-      Write-Host $CertCollection[1].Subject
+      Write-Host $CertCollection[$RequestSigningCertIndex].Subject
 
 
 
