@@ -10,7 +10,27 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { Readable } from 'stream';
-import { Temp } from '../../lib/util';
+import * as os from 'os';
+
+export class Temp {
+	private _files: string[] = [];
+
+	tmpNameSync(): string {
+		const file = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
+		this._files.push(file);
+		return file;
+	}
+
+	dispose(): void {
+		for (const file of this._files) {
+			try {
+				fs.unlinkSync(file);
+			} catch (err) {
+				// noop
+			}
+		}
+	}
+}
 
 interface RequestOptions {
 	readonly body?: string;

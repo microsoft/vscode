@@ -68,11 +68,11 @@ do {
 			try {
 				Invoke-RestMethod $_.resource.downloadUrl -OutFile $extractPath -Headers @{
 					Authorization = "Bearer $env:SYSTEM_ACCESSTOKEN"
-				} -MaximumRetryCount 5 -RetryIntervalSec 1 -TimeoutSec 300 #| Out-Null
+				} -MaximumRetryCount 5 -RetryIntervalSec 1 -TimeoutSec 300 | Out-Null
 
 				Write-Host "Extracting artifact: '$extractPath'"
 
-				Expand-Archive -Path $extractPath -DestinationPath $env:AGENT_TEMPDIRECTORY #| Out-Null
+				Expand-Archive -Path $extractPath -DestinationPath $env:AGENT_TEMPDIRECTORY | Out-Null
 			} catch {
 				Write-Warning $_
 				$set.Remove($artifactName) | Out-Null

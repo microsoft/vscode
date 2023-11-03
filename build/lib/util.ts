@@ -15,8 +15,6 @@ import { ThroughStream } from 'through';
 import * as sm from 'source-map';
 import { pathToFileURL } from 'url';
 import * as ternaryStream from 'ternary-stream';
-import * as os from 'os';
-import * as crypto from 'crypto';
 
 const root = path.dirname(path.dirname(__dirname));
 
@@ -492,24 +490,4 @@ export function buildWebNodePaths(outDir: string) {
 	});
 	result.taskName = 'build-web-node-paths';
 	return result;
-}
-
-export class Temp {
-	private _files: string[] = [];
-
-	tmpNameSync(): string {
-		const file = path.join(os.tmpdir(), crypto.randomBytes(20).toString('hex'));
-		this._files.push(file);
-		return file;
-	}
-
-	dispose(): void {
-		for (const file of this._files) {
-			try {
-				fs.unlinkSync(file);
-			} catch (err) {
-				// noop
-			}
-		}
-	}
 }
