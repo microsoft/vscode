@@ -33,7 +33,6 @@ import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/brow
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
 import { EditorExtensions } from 'vs/workbench/common/editor';
@@ -225,7 +224,7 @@ export function registerChatActions() {
 					original: 'Undock the panel chat (experimental)'
 				},
 				category: Categories.View,
-				precondition: ActiveEditorContext,
+				precondition: undefined,
 				f1: true
 			});
 		}
