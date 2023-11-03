@@ -366,7 +366,7 @@
 }
 
 .monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off:not(.dirty) > .tab-actions,
-.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.close-action-off.sticky-compact > .tab-actions {
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.sticky-compact > .tab-actions {
 	display: none; /* hide the tab actions when we are configured to hide it (unless dirty, but always when sticky-compact) */
 }
 
