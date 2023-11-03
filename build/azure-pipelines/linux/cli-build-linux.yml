@@ -15,11 +15,10 @@ parameters:
     type: string
 
 steps:
-  - task: NodeTool@0
-    inputs:
-      versionSource: fromFile
-      versionFilePath: .nvmrc
-      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+  # note: Node is on the `vscode-linux-build-agent` image and doesn't require extra setup
+
+  - bash: sudo yum install -y epel-release libicu
+    displayName: Install EPEL repo
 
   - ${{ if ne(parameters.VSCODE_QUALITY, 'oss') }}:
     - template: ../cli/cli-apply-patches.yml
@@ -40,11 +39,11 @@ steps:
     displayName: Extract openssl prebuilt
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true) }}:
-    - bash: sudo apt-get install -yq gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf binutils-arm-linux-gnueabihf
+    - bash: sudo yum install -y gcc-arm-linux-gnu gcc-c++-arm-linux-gnu binutils-arm-linux-gnu
       displayName: Install arm32 toolchains
 
   - ${{ if eq(parameters.VSCODE_BUILD_LINUX_ARM64, true) }}:
-    - bash: sudo apt-get install -yq gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+    - bash: sudo yum install -y gcc-aarch64-linux-gnu gcc-c++-aarch64-linux-gnu binutils-aarch64-linux-gnu
       displayName: Install arm64 toolchains
 
   - template: ../cli/install-rust-posix.yml

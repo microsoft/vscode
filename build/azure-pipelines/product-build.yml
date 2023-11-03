@@ -171,6 +171,7 @@ stages:
       - ${{ if eq(parameters.VSCODE_BUILD_LINUX, true) }}:
         - job: CLILinuxX64
           pool: 1es-ubuntu-20.04-x64
+          container: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
@@ -181,6 +182,7 @@ stages:
       - ${{ if and(eq(variables['VSCODE_CIBUILD'], false), or(eq(parameters.VSCODE_BUILD_LINUX_ARMHF, true), eq(parameters.VSCODE_BUILD_LINUX_ARM64, true))) }}:
         - job: CLILinuxGnuARM
           pool: 1es-ubuntu-20.04-x64
+          container: vscodehub.azurecr.io/vscode-linux-build-agent:centos7-devtoolset8-x64
           steps:
             - template: ./linux/cli-build-linux.yml
               parameters:
