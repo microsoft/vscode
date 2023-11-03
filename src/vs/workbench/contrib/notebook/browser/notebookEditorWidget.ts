@@ -1232,7 +1232,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					cell.focusMode = CellFocusMode.Editor;
 					await this.revealRangeInCenterIfOutsideViewportAsync(cell, new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber || selection.startLineNumber, selection.endColumn || selection.startColumn));
 				} else {
-					await this._list.revealCell(cell, options?.cellRevealType ?? CellRevealType.CenterIfOutsideViewport);
+					this._list.revealCell(cell, options?.cellRevealType ?? CellRevealType.CenterIfOutsideViewport);
 				}
 
 				const editor = this._renderedEditors.get(cell)!;
@@ -2339,9 +2339,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					const selectionsStartPosition = cell.getSelectionsStartPosition();
 					if (selectionsStartPosition?.length) {
 						const firstSelectionPosition = selectionsStartPosition[0];
-						await this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+						await this.revealRangeInViewAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
 					} else {
-						this.revealInCenterIfOutsideViewport(cell);
+						this.revealInView(cell);
 					}
 				}
 
