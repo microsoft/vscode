@@ -1266,7 +1266,8 @@ export const enum TaskSettingId {
 	QuickOpenSkip = 'task.quickOpen.skip',
 	QuickOpenShowAll = 'task.quickOpen.showAll',
 	AllowAutomaticTasks = 'task.allowAutomaticTasks',
-	Reconnection = 'task.reconnection'
+	Reconnection = 'task.reconnection',
+	VerboseLogging = 'task.verboseLogging'
 }
 
 export const enum TasksSchemaProperties {
