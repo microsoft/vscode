@@ -204,7 +204,7 @@ class ESRPClient {
 		for (let i = 0; i < 240; i++) {
 			details = await this.ReleaseDetails(releaseId);
 
-			console.log(`Release status code (${i + 1}/72): ${details.releaseDetails[0].statusCode}`);
+			console.log(`Release status code (${i + 1}/240): ${details.releaseDetails[0].statusCode}`);
 
 			if (details.releaseDetails[0].statusCode === 'pass') {
 				break;
