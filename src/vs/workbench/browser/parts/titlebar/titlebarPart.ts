@@ -96,10 +96,8 @@ export class TitlebarPart extends Part implements ITitleService {
 	private actionToolBarElement!: HTMLElement;
 
 	private layoutToolbarMenu: IMenu | undefined;
-	private activityToolbarMenu: IMenu | undefined;
 	private readonly editorToolbarMenuDisposables = this._register(new DisposableStore());
 	private readonly layoutToolbarMenuDisposables = this._register(new DisposableStore());
-	private readonly activityToolbarMenuDisposables = this._register(new DisposableStore());
 
 	private hoverDelegate: IHoverDelegate;
 
@@ -449,13 +447,9 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 
 			// --- Activity Actions
-			if (this.activityToolbarMenu) {
-				createAndFillInActionBarActions(
-					this.activityToolbarMenu,
-					{},
-					actions,
-					() => true
-				);
+			if (this.activityActionsEnabled) {
+				actions.primary.push(ACCOUNTS_ACTIVITY_TILE_ACTION);
+				actions.primary.push(GLOBAL_ACTIVITY_TITLE_ACTION);
 			}
 
 			this.actionToolBar.setActions(prepareActions(actions.primary), prepareActions(actions.secondary));
@@ -492,19 +486,6 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.layoutToolbarMenuDisposables.add(this.layoutToolbarMenu.onDidChange(() => updateToolBarActions()));
 			} else {
 				this.layoutToolbarMenu = undefined;
-			}
-		}
-
-		if (update.activityActions) {
-			this.activityToolbarMenuDisposables.clear();
-
-			if (this.activityActionsEnabled) {
-				this.activityToolbarMenu = this.menuService.createMenu(MenuId.TitleBarGlobalControlMenu, this.contextKeyService);
-
-				this.activityToolbarMenuDisposables.add(this.activityToolbarMenu);
-				this.activityToolbarMenuDisposables.add(this.activityToolbarMenu.onDidChange(() => updateToolBarActions()));
-			} else {
-				this.activityToolbarMenu = undefined;
 			}
 		}
 
@@ -655,3 +636,21 @@ registerAction2(class ToogleEditorActionsControl extends ToogleConfigAction {
 		super('workbench.editor.showEditorActionsInTitleBar', localize('toggle.editorActions', 'Editor Actions'), 2, ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none'));
 	}
 });
+
+const ACCOUNTS_ACTIVITY_TILE_ACTION: IAction = {
+	id: ACCOUNTS_ACTIVITY_ID,
+	label: localize('accounts', "Accounts"),
+	tooltip: localize('accounts', "Accounts"),
+	class: undefined,
+	enabled: true,
+	run: function (): void { }
+};
+
+const GLOBAL_ACTIVITY_TITLE_ACTION: IAction = {
+	id: GLOBAL_ACTIVITY_ID,
+	label: localize('manage', "Manage"),
+	tooltip: localize('manage', "Manage"),
+	class: undefined,
+	enabled: true,
+	run: function (): void { }
+};
