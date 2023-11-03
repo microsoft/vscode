@@ -5,7 +5,7 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { equals, mixin } from 'vs/base/common/objects';
-import type * as vscode from 'vscode';
+import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol, SemanticTokensEdits, SemanticTokens, SemanticTokensEdit, Location, InlineCompletionTriggerKind, InternalDataTransferItem, SyntaxTokenType } from 'vs/workbench/api/common/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
@@ -1164,6 +1164,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		items: readonly vscode.InlineCompletionItem[];
 	}>();
 
+
 	private readonly _isAdditionsProposedApiEnabled = isProposedApiEnabled(this._extension, 'inlineCompletionsAdditions');
 
 	constructor(
@@ -1171,6 +1172,7 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.InlineCompletionItemProvider,
 		private readonly _commands: CommandsConverter,
+		private readonly _onDidReceiveInlineCodeCompleteSuggestions: vscode.EventEmitter<vscode.InlineCodeCompleteSuggestionsEvent>,
 	) {
 		super();
 	}
@@ -1215,6 +1217,10 @@ class InlineCompletionAdapter extends InlineCompletionAdapterBase {
 		const normalizedResult = Array.isArray(result) ? result : result.items;
 		const commands = this._isAdditionsProposedApiEnabled ? Array.isArray(result) ? [] : result.commands || [] : [];
 		const enableForwardStability = this._isAdditionsProposedApiEnabled && !Array.isArray(result) ? result.enableForwardStability : undefined;
+
+		this._onDidReceiveInlineCodeCompleteSuggestions.fire({
+			normalizedResult
+		});
 
 		let disposableStore: DisposableStore | undefined = undefined;
 		const pid = this._references.createReferenceId({
@@ -1872,10 +1878,15 @@ class AdapterData {
 
 export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageFeaturesShape {
 
+
 	private static _handlePool: number = 0;
 
 	private readonly _proxy: extHostProtocol.MainThreadLanguageFeaturesShape;
 	private readonly _adapter = new Map<number, AdapterData>();
+
+
+	private _onDidReceiveInlineCodeCompleteSuggestions = new vscode.EventEmitter<vscode.InlineCodeCompleteSuggestionsEvent>();
+	readonly onDidReceiveInlineCodeCompleteSuggestions: vscode.Event<vscode.InlineCodeCompleteSuggestionsEvent> = this._onDidReceiveInlineCodeCompleteSuggestions.event;
 
 	constructor(
 		mainContext: extHostProtocol.IMainContext,
@@ -2287,11 +2298,10 @@ export class ExtHostLanguageFeatures implements extHostProtocol.ExtHostLanguageF
 	$releaseCompletionItems(handle: number, id: number): void {
 		this._withAdapter(handle, CompletionsAdapter, adapter => adapter.releaseCompletionItems(id), undefined, undefined);
 	}
-
 	// --- ghost test
 
 	registerInlineCompletionsProvider(extension: IExtensionDescription, selector: vscode.DocumentSelector, provider: vscode.InlineCompletionItemProvider, metadata: vscode.InlineCompletionItemProviderMetadata | undefined): vscode.Disposable {
-		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter);
+		const adapter = new InlineCompletionAdapter(extension, this._documents, provider, this._commands.converter, this._onDidReceiveInlineCodeCompleteSuggestions);
 		const handle = this._addNewAdapter(adapter, extension);
 		this._proxy.$registerInlineCompletionsSupport(handle, this._transformDocumentSelector(selector, extension), adapter.supportsHandleEvents,
 			ExtensionIdentifier.toKey(extension.identifier.value), metadata?.yieldTo?.map(extId => ExtensionIdentifier.toKey(extId)) || []);

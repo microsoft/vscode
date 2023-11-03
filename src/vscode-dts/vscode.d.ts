@@ -12928,6 +12928,20 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * An event that is emitted for inline code complete suggestions.
+	 */
+	/**
+	 * An event that is emitted for inline code complete suggestions.
+	 */
+	export interface InlineCodeCompleteSuggestionsEvent {
+		/**
+		 * The normalized result of inline code complete suggestions.
+		 */
+		normalizedResult: InlineCompletionItem[];
+	}
+
+
+	/**
 	 * An event describing a change to the set of {@link workspace.workspaceFolders workspace folders}.
 	 */
 	export interface WorkspaceFoldersChangeEvent {
@@ -13066,7 +13080,6 @@ declare module 'vscode' {
 		 * to point to the first workspace folder.
 		 */
 		export const onDidChangeWorkspaceFolders: Event<WorkspaceFoldersChangeEvent>;
-
 		/**
 		 * Returns the {@link WorkspaceFolder workspace folder} that contains a given uri.
 		 * * returns `undefined` when the given uri doesn't match any workspace folder
@@ -13793,6 +13806,10 @@ declare module 'vscode' {
 		 * @returns An array of {@link Diagnostic diagnostics} objects or an empty array.
 		 */
 		export function getDiagnostics(resource: Uri): Diagnostic[];
+		/**
+		 * An event that is emitted when inline code complete suggestions are received.
+		 */
+		export const onDidReceiveInlineCodeCompleteSuggestions: Event<InlineCodeCompleteSuggestionsEvent>;
 
 		/**
 		 * Get all diagnostics.

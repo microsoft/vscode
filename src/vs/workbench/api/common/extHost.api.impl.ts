@@ -504,6 +504,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			createDiagnosticCollection(name?: string): vscode.DiagnosticCollection {
 				return extHostDiagnostics.createDiagnosticCollection(extension.identifier, name);
 			},
+
 			get onDidChangeDiagnostics() {
 				return extHostDiagnostics.onDidChangeDiagnostics;
 			},
@@ -604,6 +605,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					checkProposedApiEnabled(extension, 'inlineCompletionsAdditions');
 				}
 				return extHostLanguageFeatures.registerInlineCompletionsProvider(extension, checkSelector(selector), provider, metadata);
+			},
+			onDidReceiveInlineCodeCompleteSuggestions(listener, thisArg?, disposables?) {
+				return extHostLanguageFeatures.onDidReceiveInlineCodeCompleteSuggestions(listener, thisArg, disposables);
 			},
 			registerDocumentLinkProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentLinkProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerDocumentLinkProvider(extension, checkSelector(selector), provider);
