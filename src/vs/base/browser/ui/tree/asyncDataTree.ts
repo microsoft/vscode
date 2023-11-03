@@ -645,6 +645,28 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.expandAll();
 	}
 
+	async expandTo(element: T): Promise<void> {
+		if (!this.dataSource.getParent) {
+			throw new Error('Can\'t expand to element without getParent method');
+		}
+
+		const elements: T[] = [];
+
+		while (!this.hasNode(element)) {
+			element = this.dataSource.getParent(element) as T;
+
+			if (element !== this.root.element) {
+				elements.push(element);
+			}
+		}
+
+		for (const element of Iterable.reverse(elements)) {
+			await this.expand(element);
+		}
+
+		this.tree.expandTo(this.getDataNode(element));
+	}
+
 	collapseAll(): void {
 		this.tree.collapseAll();
 	}

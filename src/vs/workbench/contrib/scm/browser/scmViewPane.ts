@@ -2217,7 +2217,7 @@ export class SCMViewPane extends ViewPane {
 						: groupItem.resources.find(r => this.uriIdentityService.extUri.isEqual(r.sourceUri, uri));
 
 					if (resource) {
-						this.tree.reveal(resource);
+						await this.tree.expandTo(resource);
 						this.tree.setSelection([resource]);
 						this.tree.setFocus([resource]);
 						return;
@@ -2569,6 +2569,32 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		return [];
 	}
 
+	getParent(element: TreeElement): ISCMViewService | TreeElement {
+		if (ResourceTree.isResourceNode(element)) {
+			if (element.parent === element.context.resourceTree.root) {
+				return element.context;
+			} else if (!element.parent) {
+				throw new Error('Invalid element passed to getParent');
+			} else {
+				return element.parent;
+			}
+		} else if (isSCMResource(element)) {
+			if (this.viewMode() === ViewMode.List) {
+				return element.resourceGroup;
+			}
+
+			const node = element.resourceGroup.resourceTree.getNode(element.sourceUri);
+			const result = node?.parent;
+
+			if (!result) {
+				throw new Error('Invalid element passed to getParent');
+			}
+
+			return result;
+		} else {
+			throw new Error('Unexpected call to getParent');
+		}
+	}
 }
 
 export class SCMActionButton implements IDisposable {
