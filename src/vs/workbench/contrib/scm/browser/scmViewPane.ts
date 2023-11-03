@@ -2117,7 +2117,7 @@ export class SCMViewPane extends ViewPane {
 		this.tree.onDidOpen(this.open, this, this.disposables);
 		this.tree.onContextMenu(this.onListContextMenu, this, this.disposables);
 		this.tree.onDidScroll(this.inputRenderer.clearValidation, this.inputRenderer, this.disposables);
-		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
+		Event.filter(this.tree.onDidChangeCollapseState, e => isSCMRepository(e.node.element?.element), this.disposables)(this.updateRepositoryCollapseAllContextKeys, this, this.disposables);
 
 		append(container, overflowWidgetsDomNode);
 	}
