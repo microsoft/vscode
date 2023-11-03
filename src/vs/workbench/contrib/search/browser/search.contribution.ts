@@ -222,6 +222,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('search.quickOpen.includeHistory', "Whether to include results from recently opened files in the file results for Quick Open."),
 			default: true
 		},
+		'search.quickOpen.seedStringFromSelection': {
+			'type': 'boolean',
+			'description': nls.localize('search.quickOpen.seedStringFromSelection', "Controls whether the search string in the Quick Open is seeded from the editor selection."),
+			'default': false
+		},
 		'search.quickOpen.history.filterSortOrder': {
 			'type': 'string',
 			'enum': ['default', 'recency'],
@@ -380,11 +385,6 @@ configurationRegistry.registerConfiguration({
 		'search.experimental.quickAccess.preserveInput': {
 			'type': 'boolean',
 			'description': nls.localize('search.experimental.quickAccess.preserveInput', "Controls whether the last typed input to Quick Search should be restored when opening it the next time."),
-			'default': false
-		},
-		'search.quickOpen.seedStringFromSelection': {
-			'type': 'boolean',
-			'description': nls.localize('search.quickOpen.seedStringFromSelection', "Controls whether the search string in the Quick Open is seeded from the editor selection."),
 			'default': false
 		},
 	}

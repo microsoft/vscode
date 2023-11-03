@@ -157,22 +157,22 @@ registerAction2(class QuickAccessAction extends Action2 {
 });
 
 
-function getFileSearchText(accessor: ServicesAccessor): string | null {
+function getFileSearchText(accessor: ServicesAccessor): string | '' {
 	const editorService = accessor.get(IEditorService);
 	const configurationService = accessor.get(IConfigurationService);
 
 	const activeEditor: IEditor = editorService.activeTextEditorControl as IEditor;
 	if (!activeEditor) {
-		return null;
+		return '';
 	}
 	if (!activeEditor.hasTextFocus()) {
-		return null;
+		return '';
 	}
 
 	const seedStringFromSelection = configurationService.getValue<ISearchConfigurationProperties>('search').quickOpen.seedStringFromSelection ?? false;
 
 	if (!seedStringFromSelection) {
-		return null;
+		return '';
 	}
 
 	return getSelectionTextFromEditor(seedStringFromSelection, activeEditor);

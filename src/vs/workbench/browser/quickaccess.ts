@@ -48,7 +48,7 @@ export function getQuickNavigateHandler(id: string, next?: boolean): ICommandHan
 	};
 }
 
-export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | null {
+export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeEditor: IEditor): string | '' {
 
 	let editor = activeEditor;
 
@@ -61,20 +61,20 @@ export function getSelectionTextFromEditor(allowUnselectedWord: boolean, activeE
 	}
 
 	if (!isCodeEditor(editor) || !editor.hasModel()) {
-		return null;
+		return '';
 	}
 
 	const range = editor.getSelection();
 	if (!range) {
-		return null;
+		return '';
 	}
 
 	if (range.isEmpty()) {
 		if (allowUnselectedWord) {
 			const wordAtPosition = editor.getModel().getWordAtPosition(range.getStartPosition());
-			return wordAtPosition?.word ?? null;
+			return wordAtPosition?.word ?? '';
 		} else {
-			return null;
+			return '';
 		}
 	}
 
