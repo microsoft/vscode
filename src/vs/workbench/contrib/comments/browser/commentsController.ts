@@ -465,7 +465,7 @@ export class CommentController implements IEditorContribution {
 					for (const zone of this._commentWidgets) {
 						const zonePendingComments = zone.getPendingComments();
 						const pendingNewComment = zonePendingComments.newComment;
-						if (!pendingNewComment || !zone.commentThread.range) {
+						if (!pendingNewComment) {
 							continue;
 						}
 						let lastCommentBody;
@@ -842,7 +842,13 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => Range.lift(pending.range).equalsRange(thread.range));
+				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => {
+					if (pending.range === undefined) {
+						return thread.range === undefined;
+					} else {
+						return Range.lift(pending.range).equalsRange(thread.range);
+					}
+				});
 				let continueOnCommentText: string | undefined;
 				if ((continueOnCommentIndex !== undefined) && continueOnCommentIndex >= 0) {
 					continueOnCommentText = this._inProcessContinueOnComments.get(e.owner)?.splice(continueOnCommentIndex, 1)[0].body;
@@ -892,7 +898,7 @@ export class CommentController implements IEditorContribution {
 				this._inProcessContinueOnComments.set(thread.owner, []);
 			}
 			this._inProcessContinueOnComments.get(thread.owner)?.push(thread);
-			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
+			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, thread.range ? Range.lift(thread.range) : undefined);
 		}
 	}
 
