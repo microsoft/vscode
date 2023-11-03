@@ -72,12 +72,15 @@ class ProvisionService {
 			}]
 		});
 
+		console.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
 		const res = await this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body });
 
 		if (!res.IsSuccess) {
 			console.error(res.ErrorDetails);
 			throw new Error(res.ErrorDetails.Message);
 		}
+
+		console.log(`Successfully provisioned ${fileName}`);
 	}
 
 	private async request<T>(method: string, url: string, options?: RequestOptions): Promise<T> {
@@ -146,6 +149,10 @@ interface SubmitReleaseResult {
 }
 
 interface ReleaseDetailsResult {
+	releaseDetails: [{
+		fileDetails: [{ publisherKey: string }];
+		statusCode: 'inprogress' | 'pass';
+	}];
 }
 
 class ESRPClient {
@@ -183,6 +190,7 @@ class ESRPClient {
 		version: string,
 		filePath: string
 	): Promise<Release> {
+		console.log(`Submitting release for ${version}: ${filePath}`);
 		const submitReleaseResult = await this.SubmitRelease(version, filePath);
 
 		if (submitReleaseResult.submissionResponse.statusCode !== 'pass') {
@@ -190,16 +198,30 @@ class ESRPClient {
 		}
 
 		const releaseId = submitReleaseResult.submissionResponse.operationId;
+		console.log(`Successfully submitted release ${releaseId}`);
 
-		for (let i = 0; i < 10; i++) {
-			const details = await this.ReleaseDetails(releaseId);
+		let details: ReleaseDetailsResult;
 
-			console.log(JSON.stringify(details, undefined, 2));
+		// Poll every 5 seconds, wait 6 minutes max -> poll 60/5*6=72 times
+		for (let i = 0; i < 72; i++) {
+			details = await this.ReleaseDetails(releaseId);
+
+			console.log(`Release status code (${i + 1}/72): ${details.releaseDetails[0].statusCode}`);
+
+			if (details.releaseDetails[0].statusCode === 'pass') {
+				break;
+			} else if (details.releaseDetails[0].statusCode !== 'inprogress') {
+				console.error(details);
+				throw new Error('Failed to submit release');
+			}
 
 			await new Promise(c => setTimeout(c, 5000));
 		}
 
-		return { releaseId, fileId: 'xxx' };
+		const fileId = details!.releaseDetails[0].fileDetails[0].publisherKey;
+		console.log('Release completed successfully with fileId: ', fileId);
+
+		return { releaseId, fileId };
 	}
 
 	private async SubmitRelease(
@@ -315,11 +337,9 @@ export async function main([
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
-	console.log('Creating release...');
 	const esrpclient = new ESRPClient(tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
 
-	console.log('Provisioning file...');
 	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
 	const service = new ProvisionService(accessToken.token);
