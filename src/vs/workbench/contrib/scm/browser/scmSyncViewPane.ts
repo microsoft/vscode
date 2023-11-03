@@ -117,7 +117,7 @@ const ContextKeys = {
 	ViewMode: new RawContextKey<ViewMode>('scmSyncViewMode', ViewMode.List),
 };
 
-interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly description?: string;
 	readonly ancestor?: string;
 	readonly count?: number;
@@ -125,12 +125,12 @@ interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly type: 'historyItemGroup';
 }
 
-interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
+export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
 	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
 	readonly type: 'historyItem';
 }
 
-interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
+export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
 	readonly historyItem: SCMHistoryItemTreeElement;
 	readonly type: 'historyItemChange';
 }
