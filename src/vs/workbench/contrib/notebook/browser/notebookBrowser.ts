@@ -638,7 +638,7 @@ export interface INotebookEditor {
 	/**
 	 * Reveal a position with `offset` in a cell into viewport center.
 	 */
-	revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void>;
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number): void;
 
 	/**
 	 * Convert the view range to model range
