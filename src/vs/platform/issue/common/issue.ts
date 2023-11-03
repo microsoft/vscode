@@ -135,5 +135,4 @@ export interface IIssueMainService {
 	$getIssueReporterTemplate(extensionId: string): Promise<string>;
 	$sendReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]>;
 	$closeReporter(): Promise<void>;
-	$closeReporter(): Promise<void>;
 }
