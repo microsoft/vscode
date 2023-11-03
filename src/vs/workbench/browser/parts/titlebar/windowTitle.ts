@@ -52,8 +52,9 @@ export class WindowTitle extends Disposable {
 		if (!activeEditor) {
 			return undefined;
 		}
+		const fileName = activeEditor.getTitle(Verbosity.SHORT);
 		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
-		return `${dirty}${activeEditor.getTitle(Verbosity.SHORT)}`;
+		return `${dirty}${fileName}`;
 	}
 
 	private title: string | undefined;
