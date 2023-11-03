@@ -984,11 +984,11 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 			const elementHeight = this.view.elementHeight(viewIndex);
 			let upwards = false;
 
-			if (elementTop + elementHeight < scrollTop) {
+			if (elementTop + elementHeight <= scrollTop) {
 				// scroll downwards
 				this.view.setScrollTop(elementTop);
 				upwards = false;
-			} else if (elementTop > wrapperBottom) {
+			} else if (elementTop >= wrapperBottom) {
 				// scroll upwards
 				this.view.setScrollTop(elementTop - this.view.renderHeight / 2);
 				upwards = true;
