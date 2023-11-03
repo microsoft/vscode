@@ -2353,7 +2353,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _log(value: string, verbose?: boolean): void {
-		if (verbose && this._configurationService.getValue(TaskSettingId.VerboseLogging) || !verbose) {
+		if (!verbose || this._configurationService.getValue(TaskSettingId.VerboseLogging)) {
 			this._outputChannel.append(value + '\n');
 		}
 	}
