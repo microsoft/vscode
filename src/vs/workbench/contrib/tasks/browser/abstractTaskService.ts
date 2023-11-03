@@ -218,6 +218,8 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	protected _taskRunningState: IContextKey<boolean>;
 
+	private _persistentTasks: LRUCache<string, string> | undefined;
+
 	protected _outputChannel: IOutputChannel;
 	protected readonly _onDidStateChange: Emitter<ITaskEvent>;
 	private _waitForAllSupportedExecutions: Promise<void>;
@@ -334,11 +336,14 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			this._willRestart = e.reason !== ShutdownReason.RELOAD;
 		});
 		this._register(this.onDidStateChange(e => {
-			this._logService.debug('Task Event kind: ', e.kind);
+			this._log(nls.localize('taskEvent', 'Task Event kind: {0}', e.kind), true);
 			if (e.kind === TaskEventKind.Changed) {
 				// no-op
 			} else if ((this._willRestart || (e.kind === TaskEventKind.Terminated && e.exitReason === TerminalExitReason.User)) && e.taskId) {
-				this.removePersistentTask(e.taskId);
+				const key = e.__task.getKey();
+				if (key) {
+					this.removePersistentTask(key);
+				}
 			} else if (e.kind === TaskEventKind.Start && e.__task && e.__task.getWorkspaceFolder()) {
 				this._setPersistentTask(e.__task);
 			}
@@ -385,19 +390,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 
 	private _attemptTaskReconnection(): void {
 		if (this._lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			this._log(nls.localize('TaskService.skippingReconnection', '#taskService startup kind not window reload, setting connected and removing persistent tasks\n'), true);
+			this._log(nls.localize('TaskService.skippingReconnection', 'Startup kind not window reload, setting connected and removing persistent tasks'), true);
 			this._tasksReconnected = true;
 			this._storageService.remove(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		}
 		if (!this._configurationService.getValue(TaskSettingId.Reconnection) || this._tasksReconnected) {
-			this._log(nls.localize('TaskService.notConnecting', '#taskService Setting tasks connected configured value {0}, tasks were already reconnected {1}\n', this._configurationService.getValue(TaskSettingId.Reconnection), this._tasksReconnected), true);
+			this._log(nls.localize('TaskService.notConnecting', 'Setting tasks connected configured value {0}, tasks were already reconnected {1}', this._configurationService.getValue(TaskSettingId.Reconnection), this._tasksReconnected), true);
 			this._tasksReconnected = true;
 			return;
 		}
-		this._log(nls.localize('TaskService.reconnecting', '#taskService Reconnecting to running tasks...\n'), true);
+		this._log(nls.localize('TaskService.reconnecting', 'Reconnecting to running tasks...'), true);
 		this.getWorkspaceTasks(TaskRunSource.Reconnect).then(async () => {
 			this._tasksReconnected = await this._reconnectTasks();
-			this._log(nls.localize('TaskService.reconnected', '#taskService Reconnected to running tasks.\n'), true);
+			this._log(nls.localize('TaskService.reconnected', 'Reconnected to running tasks.'), true);
 			this._onDidReconnectToTasks.fire();
 		});
 	}
@@ -405,11 +410,11 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	private async _reconnectTasks(): Promise<boolean> {
 		const tasks = await this.getSavedTasks('persistent');
 		if (!tasks.length) {
-			this._log(nls.localize('TaskService.noTasks', '#taskService No persistent tasks to reconnect.\n'), true);
+			this._log(nls.localize('TaskService.noTasks', 'No persistent tasks to reconnect.'), true);
 			return true;
 		}
 		const taskLabels = tasks.map(task => task._label).join(', ');
-		this._log(nls.localize('TaskService.reconnectingTasks', '#taskService Reconnecting to {0} tasks...\n', taskLabels), true);
+		this._log(nls.localize('TaskService.reconnectingTasks', 'Reconnecting to {0} tasks...', taskLabels), true);
 		for (const task of tasks) {
 			if (ConfiguringTask.is(task)) {
 				const resolved = await this.tryResolveTask(task);
@@ -819,7 +824,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			if (matchingProviderUnavailable) {
 				this._log(nls.localize(
 					'TaskService.providerUnavailable',
-					'Warning: {0} tasks are unavailable in the current environment.\n',
+					'Warning: {0} tasks are unavailable in the current environment.',
 					configuringTask.configures.type
 				));
 			}
@@ -969,26 +974,25 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _getPersistentTasks(): LRUCache<string, string> {
-		// if (this._persistentTasks) {
-		// 	this._log(nls.localize('taskService.gettingCachedTasks', 'Returning cached tasks {0}\n', this._persistentTasks.size));
-		// 	return this._persistentTasks;
-		// }
-		//TODO: should this # be configurable?
-		const persistentTasks = new LRUCache<string, string>(10);
+		if (this._persistentTasks) {
+			this._log(nls.localize('taskService.gettingCachedTasks', 'Returning cached tasks {0}', this._persistentTasks.size), true);
+			return this._persistentTasks;
+		}
+		this._persistentTasks = new LRUCache<string, string>(10);
 		const storageValue = this._storageService.get(AbstractTaskService.PersistentTasks_Key, StorageScope.WORKSPACE);
 		if (storageValue) {
 			try {
 				const values: [string, string][] = JSON.parse(storageValue);
 				if (Array.isArray(values)) {
 					for (const value of values) {
-						persistentTasks.set(value[0], value[1]);
+						this._persistentTasks.set(value[0], value[1]);
 					}
 				}
 			} catch (error) {
 				// Ignore. We use the empty result
 			}
 		}
-		return persistentTasks;
+		return this._persistentTasks;
 	}
 
 	private _getFolderFromTaskKey(key: string): { folder: string | undefined; isWorkspaceFile: boolean | undefined } {
@@ -1007,7 +1011,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const workspaceToTaskMap: Map<string, any> = new Map();
 		const storedTasks = this._getTasksFromStorage(type);
 		const tasks: (Task | ConfiguringTask)[] = [];
-		this._log(nls.localize('taskService.getSavedTasks', '#taskService Fetching tasks from task storage.\n'), true);
+		this._log(nls.localize('taskService.getSavedTasks', 'Fetching tasks from task storage.'), true);
 		function addTaskToMap(map: Map<string, any>, folder: string | undefined, task: any) {
 			if (folder && !map.has(folder)) {
 				map.set(folder, []);
@@ -1021,7 +1025,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			const key = entry[0];
 			const task = JSON.parse(entry[1]);
 			const folderInfo = this._getFolderFromTaskKey(key);
-			this._log(nls.localize('taskService.getSavedTasks.reading', '#taskService Reading tasks from task storage, {0}, {1}, {2}\n', key, task, folderInfo.folder), true);
+			this._log(nls.localize('taskService.getSavedTasks.reading', 'Reading tasks from task storage, {0}, {1}, {2}', key, task, folderInfo.folder), true);
 			addTaskToMap(folderInfo.isWorkspaceFile ? workspaceToTaskMap : folderToTasksMap, folderInfo.folder, task);
 		}
 
@@ -1040,13 +1044,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: map.get(key)
 				}, TaskRunSource.System, custom, customized, taskConfigSource, true);
 				custom.forEach(task => {
-					const taskKey = task.getRecentlyUsedKey();
+					const taskKey = task.getKey();
 					if (taskKey) {
 						readTasksMap.set(taskKey, task);
 					}
 				});
 				for (const configuration in customized) {
-					const taskKey = customized[configuration].getRecentlyUsedKey();
+					const taskKey = customized[configuration].getKey();
 					if (taskKey) {
 						readTasksMap.set(taskKey, customized[configuration]);
 					}
@@ -1058,9 +1062,9 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		for (const key of storedTasks.keys()) {
 			if (readTasksMap.has(key)) {
 				tasks.push(readTasksMap.get(key)!);
-				this._log(nls.localize('taskService.getSavedTasks.resolved', '#taskService Resolved task {0}\n', key, true));
+				this._log(nls.localize('taskService.getSavedTasks.resolved', 'Resolved task {0}', key), true);
 			} else {
-				this._log(nls.localize('taskService.getSavedTasks.unresolved', '#taskService Unable to resolve task {0} \n', key, true));
+				this._log(nls.localize('taskService.getSavedTasks.unresolved', 'Unable to resolve task {0} ', key), true);
 			}
 		}
 		return tasks;
@@ -1074,7 +1078,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	public removePersistentTask(key: string) {
-		this._log(nls.localize('taskService.removePersistentTask', '#taskService Removing persistent task {0}\n', key), true);
+		this._log(nls.localize('taskService.removePersistentTask', 'Removing persistent task {0}', key), true);
 		if (this._getTasksFromStorage('persistent').has(key)) {
 			this._getTasksFromStorage('persistent').delete(key);
 			this._savePersistentTasks();
@@ -1089,7 +1093,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private async _setRecentlyUsedTask(task: Task): Promise<void> {
-		let key = task.getRecentlyUsedKey();
+		let key = task.getKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
@@ -1100,7 +1104,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getRecentlyUsedKey()!;
+					key = customized[configuration].getKey()!;
 				}
 			}
 			this._getTasksFromStorage('historical').set(key, JSON.stringify(customizations));
@@ -1132,7 +1136,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		if (!this._configurationService.getValue(TaskSettingId.Reconnection)) {
 			return;
 		}
-		let key = task.getRecentlyUsedKey();
+		let key = task.getKey();
 		if (!InMemoryTask.is(task) && key) {
 			const customizations = this._createCustomizableTask(task);
 			if (ContributedTask.is(task) && customizations) {
@@ -1143,26 +1147,26 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					tasks: [customizations]
 				}, TaskRunSource.System, custom, customized, TaskConfig.TaskConfigSource.TasksJson, true);
 				for (const configuration in customized) {
-					key = customized[configuration].getRecentlyUsedKey()!;
+					key = customized[configuration].getKey()!;
 				}
 			}
 			if (!task.configurationProperties.isBackground) {
 				return;
 			}
-			this._log(nls.localize('taskService.setPersistentTask', '#taskService Setting persistent task {0}\n', key), true);
+			this._log(nls.localize('taskService.setPersistentTask', 'Setting persistent task {0}', key), true);
 			this._getTasksFromStorage('persistent').set(key, JSON.stringify(customizations));
 			this._savePersistentTasks();
 		}
 	}
 
 	private _savePersistentTasks(): void {
-		const persistentTasks = this._getTasksFromStorage('persistent');
-		const keys = [...persistentTasks.keys()];
+		this._persistentTasks = this._getTasksFromStorage('persistent');
+		const keys = [...this._persistentTasks.keys()];
 		const keyValues: [string, string][] = [];
 		for (const key of keys) {
-			keyValues.push([key, persistentTasks.get(key, Touch.None)!]);
+			keyValues.push([key, this._persistentTasks.get(key, Touch.None)!]);
 		}
-		this._log(nls.localize('savePersistentTask', 'Saving persistent tasks: {0}\n', keys.join(', ')), true);
+		this._log(nls.localize('savePersistentTask', 'Saving persistent tasks: {0}', keys.join(', ')), true);
 		this._storageService.store(AbstractTaskService.PersistentTasks_Key, JSON.stringify(keyValues), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
@@ -1716,7 +1720,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		};
 		if (workspaceTasks.length > 0) {
 			if (workspaceTasks.length > 1) {
-				this._log(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.\n'));
+				this._log(nls.localize('moreThanOneBuildTask', 'There are many build tasks defined in the tasks.json. Executing the first one.'));
 			}
 			return { task: workspaceTasks[0], resolver };
 		}
@@ -2010,7 +2014,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						this._log(`Error: ${error.message}\n`);
 						this._showOutput();
 					} else {
-						this._log('Unknown error received while collecting tasks from providers.\n');
+						this._log('Unknown error received while collecting tasks from providers.');
 						this._showOutput();
 					}
 				} finally {
@@ -2163,13 +2167,13 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 							if (requiredTaskProviderUnavailable) {
 								this._log(nls.localize(
 									'TaskService.providerUnavailable',
-									'Warning: {0} tasks are unavailable in the current environment.\n',
+									'Warning: {0} tasks are unavailable in the current environment.',
 									configuringTask.configures.type
 								));
 							} else {
 								this._log(nls.localize(
 									'TaskService.noConfiguration',
-									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.\n',
+									'Error: The {0} task detection didn\'t contribute a task for the following configuration:\n{1}\nThe task will be ignored.',
 									configuringTask.configures.type,
 									JSON.stringify(configuringTask._source.config.element, undefined, 4)
 								));
@@ -2339,7 +2343,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			if (isAffected) {
-				this._log(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.\n', location));
+				this._log(nls.localize({ key: 'TaskSystem.invalidTaskJsonOther', comment: ['Message notifies of an error in one of several places there is tasks related json, not necessarily in a file named tasks.json'] }, 'Error: The content of the tasks json in {0} has syntax errors. Please correct them before executing a task.', location));
 				this._showOutput();
 				return { config, hasParseErrors: true };
 			}
@@ -2348,7 +2352,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 	}
 
 	private _log(value: string, verbose?: boolean): void {
-		if (!verbose || verbose && this._configurationService.getValue(TaskSettingId.VerboseLogging)) {
+		if (verbose && this._configurationService.getValue(TaskSettingId.VerboseLogging) || !verbose) {
 			this._outputChannel.append(value);
 		}
 	}
@@ -2466,7 +2470,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 					ignoredWorkspaceFolders.push(workspaceFolder);
 					this._log(nls.localize(
 						'taskService.ignoreingFolder',
-						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
+						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0',
 						workspaceFolder.uri.fsPath));
 				}
 			}
@@ -2527,7 +2531,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 				}
 			}
 			if (isAffected) {
-				this._log(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.\n'));
+				this._log(nls.localize('TaskSystem.invalidTaskJson', 'Error: The content of the tasks.json file has syntax errors. Please correct them before executing a task.'));
 				this._showOutput();
 				return { config: undefined, hasParseErrors: true };
 			}
@@ -2739,7 +2743,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		const recentlyUsedTasks = this.getRecentlyUsedTasksV1();
 		const taskMap: IStringDictionary<Task> = Object.create(null);
 		tasks.forEach(task => {
-			const key = task.getRecentlyUsedKey();
+			const key = task.getKey();
 			if (key) {
 				taskMap[key] = task;
 			}

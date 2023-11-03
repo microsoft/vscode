@@ -149,11 +149,11 @@ export class TaskQuickPick extends Disposable {
 			const definition = configuredTasks[j].getDefinition()?._key;
 			const type = configuredTasks[j].type;
 			const label = configuredTasks[j]._label;
-			const recentKey = configuredTasks[j].getRecentlyUsedKey();
+			const recentKey = configuredTasks[j].getKey();
 			const findIndex = recentTasks.findIndex((value) => {
 				return (workspaceFolder && definition && value.getWorkspaceFolder()?.uri.toString() === workspaceFolder
 					&& ((value.getDefinition()?._key === definition) || (value.type === type && value._label === label)))
-					|| (recentKey && value.getRecentlyUsedKey() === recentKey);
+					|| (recentKey && value.getKey() === recentKey);
 			});
 			if (findIndex === -1) {
 				dedupedConfiguredTasks.push(configuredTasks[j]);
@@ -231,7 +231,7 @@ export class TaskQuickPick extends Disposable {
 		picker.onDidTriggerItemButton(async (context) => {
 			const task = context.item.task;
 			if (context.button.iconClass === ThemeIcon.asClassName(removeTaskIcon)) {
-				const key = (task && !Types.isString(task)) ? task.getRecentlyUsedKey() : undefined;
+				const key = (task && !Types.isString(task)) ? task.getKey() : undefined;
 				if (key) {
 					this._taskService.removeRecentlyUsedTask(key);
 				}
