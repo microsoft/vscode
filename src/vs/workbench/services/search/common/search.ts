@@ -419,6 +419,9 @@ export interface ISearchConfigurationProperties {
 			preserveInput: boolean;
 		};
 	};
+	quickOpen: {
+		seedStringFromSelection: boolean;
+	};
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {
