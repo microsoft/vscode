@@ -7650,7 +7650,7 @@ declare namespace monaco.languages {
 
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
 		owner: string;
 		isReply: boolean;
