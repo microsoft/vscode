@@ -65,11 +65,10 @@ export interface INotebookCellList {
 	selectElements(elements: ICellViewModel[]): void;
 	getFocusedElements(): ICellViewModel[];
 	getSelectedElements(): ICellViewModel[];
-	revealCells(range: ICellRange): void;
 	scrollToBottom(): void;
 	revealCell(cell: ICellViewModel, revealType: CellRevealType): void;
-
-	revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
+	revealCells(range: ICellRange): void;
+	revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void>;
 	revealCellOffsetInCenterAsync(element: ICellViewModel, offset: number): Promise<void>;
 	setHiddenAreas(_ranges: ICellRange[], triggerViewUpdate: boolean): boolean;
 	domElementOfElement(element: ICellViewModel): HTMLElement | null;

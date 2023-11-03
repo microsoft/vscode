@@ -952,7 +952,7 @@ export class NotebookCellList extends WorkbenchList<CellViewModel> implements ID
 	}
 
 	//#region Reveal Cell Editor Range asynchronously
-	async revealCellRangeAsync(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void> {
+	async revealRangeInCell(cell: ICellViewModel, range: Selection | Range, revealType: CellRevealRangeType): Promise<void> {
 		const index = this._getViewIndexUpperBound(cell);
 
 		if (index < 0) {

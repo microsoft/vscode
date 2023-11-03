@@ -2080,27 +2080,27 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
 	}
 
 	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.Center);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Center);
 	}
 
 	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
 	async revealRangeInViewAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Default);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.Default);
 	}
 
 	async revealRangeInCenterAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Center);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.Center);
 	}
 
 	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
 	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
