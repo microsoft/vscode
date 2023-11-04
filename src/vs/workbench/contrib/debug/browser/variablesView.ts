@@ -37,7 +37,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IViewDescriptorService } from 'vs/workbench/common/views';
 import { AbstractExpressionsRenderer, IExpressionTemplateData, IInputBoxOptions, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
-import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { CONTEXT_BREAK_WHEN_VALUE_CHANGES_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_ACCESSED_SUPPORTED, CONTEXT_BREAK_WHEN_VALUE_IS_READ_SUPPORTED, CONTEXT_CAN_VIEW_MEMORY, CONTEXT_DEBUG_PROTOCOL_VARIABLE_MENU_CONTEXT, CONTEXT_VARIABLES_FOCUSED, CONTEXT_VARIABLE_EVALUATE_NAME_PRESENT, CONTEXT_VARIABLE_IS_READONLY, IDataBreakpointInfoResponse, IDebugService, IExpression, IScope, IStackFrame, VARIABLES_VIEW_ID, IDebugConfiguration } from 'vs/workbench/contrib/debug/common/debug';
 import { ErrorScope, Expression, getUriForDebugMemory, Scope, StackFrame, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -525,9 +525,6 @@ CommandsRegistry.registerCommand({
 
 export const VIEW_MEMORY_ID = 'workbench.debug.viewlet.action.viewMemory';
 
-const HEX_EDITOR_EXTENSION_ID = 'ms-vscode.hexeditor';
-const HEX_EDITOR_EDITOR_ID = 'hexEditor.hexedit';
-
 CommandsRegistry.registerCommand({
 	id: VIEW_MEMORY_ID,
 	handler: async (accessor: ServicesAccessor, arg: IVariablesContext | IExpression, ctx?: (Variable | Expression)[]) => {
@@ -559,9 +556,11 @@ CommandsRegistry.registerCommand({
 		const progressService = accessor.get(IProgressService);
 		const extensionService = accessor.get(IExtensionService);
 		const telemetryService = accessor.get(ITelemetryService);
+		const configurationService = accessor.get(IConfigurationService);
 
-		const ext = await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID);
-		if (ext || await tryInstallHexEditor(notifications, progressService, extensionService, commandService)) {
+		const extensionId = configurationService.getValue<IDebugConfiguration>('debug').variableEditorExtensionId;
+		const ext = await extensionService.getExtension(extensionId);
+		if (ext || await tryInstallVariableEditor(notifications, progressService, extensionService, commandService, configurationService)) {
 			/* __GDPR__
 				"debug/didViewMemory" : {
 					"owner": "connor4312",
@@ -572,24 +571,25 @@ CommandsRegistry.registerCommand({
 				debugType: debugService.getModel().getSession(sessionId)?.configuration.type,
 			});
 
+			const editorId = configurationService.getValue<IDebugConfiguration>('debug').variableEditorEditorId;
 			await editorService.openEditor({
 				resource: getUriForDebugMemory(sessionId, memoryReference),
 				options: {
 					revealIfOpened: true,
-					override: HEX_EDITOR_EDITOR_ID,
+					override: editorId,
 				},
 			}, SIDE_GROUP);
 		}
 	}
 });
 
-function tryInstallHexEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService) {
+function tryInstallVariableEditor(notifications: INotificationService, progressService: IProgressService, extensionService: IExtensionService, commandService: ICommandService, configurationService: IConfigurationService) {
 	return new Promise<boolean>(resolve => {
 		let installing = false;
 
 		const handle = notifications.prompt(
 			Severity.Info,
-			localize("viewMemory.prompt", "Inspecting binary data requires the Hex Editor extension. Would you like to install it now?"), [
+			localize("viewMemory.prompt", "Inspecting binary data requires an appropiate extension. Would you like to install one now?"), [
 			{
 				label: localize("cancel", "Cancel"),
 				run: () => resolve(false),
@@ -602,13 +602,14 @@ function tryInstallHexEditor(notifications: INotificationService, progressServic
 						await progressService.withProgress(
 							{
 								location: ProgressLocation.Notification,
-								title: localize("viewMemory.install.progress", "Installing the Hex Editor..."),
+								title: localize("viewMemory.install.progress", "Installing..."),
 							},
 							async () => {
-								await commandService.executeCommand('workbench.extensions.installExtension', HEX_EDITOR_EXTENSION_ID);
+								const extensionId = configurationService.getValue<IDebugConfiguration>('debug').variableEditorExtensionId;
+								await commandService.executeCommand('workbench.extensions.installExtension', extensionId);
 								// it seems like the extension is not registered immediately on install --
 								// wait for it to appear before returning.
-								while (!(await extensionService.getExtension(HEX_EDITOR_EXTENSION_ID))) {
+								while (!(await extensionService.getExtension(extensionId))) {
 									await timeout(30);
 								}
 							},

@@ -595,6 +595,16 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			markdownDescription: nls.localize({ comment: ['This is the description for a setting'], key: 'debug.hideLauncherWhileDebugging' }, "Hide 'Start Debugging' control in title bar of 'Run and Debug' view while debugging is active. Only relevant when `{0}` is not `docked`.", '#debug.toolBarLocation#'),
 			default: false
-		}
+		},
+		'debug.variableEditorExtensionId': {
+			type: 'string',
+			description: nls.localize('debug.variableEditorExtensionId', "ID of extension to use for viewing debug variables."),
+			default: 'ms-vscode.hexeditor'
+		},
+		'debug.variableEditorEditorId': {
+			type: 'string',
+			description: nls.localize('debug.variableEditorEditorId', "ID of editor to use for viewing debug variables."),
+			default: 'hexEditor.hexedit'
+		},
 	}
 });

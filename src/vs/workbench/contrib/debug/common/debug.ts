@@ -707,6 +707,8 @@ export interface IDebugConfiguration {
 	};
 	autoExpandLazyVariables: boolean;
 	enableStatusBarColor: boolean;
+	variableEditorExtensionId: string;
+	variableEditorEditorId: string;
 }
 
 export interface IGlobalConfig {
