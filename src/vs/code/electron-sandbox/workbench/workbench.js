@@ -77,6 +77,7 @@
 	/**
 	 * @typedef {import('../../../platform/window/common/window').INativeWindowConfiguration} INativeWindowConfiguration
 	 * @typedef {import('../../../platform/environment/common/argv').NativeParsedArgs} NativeParsedArgs
+	 * @typedef {import('../../../base/parts/sandbox/common/sandboxTypes').ISandboxConfiguration} ISandboxConfiguration
 	 *
 	 * @returns {{
 	 *   load: (
@@ -91,7 +92,7 @@
 	 * 		 },
 	 * 	     canModifyDOM?: (config: INativeWindowConfiguration & NativeParsedArgs) => void,
 	 * 	     beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *       beforeRequire?: () => void
+	 *       beforeRequire?: (config: ISandboxConfiguration) => void
 	 *     }
 	 *   ) => Promise<unknown>
 	 * }}

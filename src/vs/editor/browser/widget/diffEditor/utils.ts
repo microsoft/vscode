@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDimension, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { IDimension } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -131,7 +131,7 @@ export function animatedObservable(targetWindow: Window, base: IObservable<numbe
 
 	let animationStartMs: number = -1;
 	const durationMs = 300;
-	let animationFrameDisposable: IDisposable | undefined = undefined;
+	let animationFrame: number | undefined = undefined;
 
 	store.add(autorunHandleChanges({
 		createEmptyChangeSummary: () => ({ animate: false }),
@@ -143,9 +143,9 @@ export function animatedObservable(targetWindow: Window, base: IObservable<numbe
 		}
 	}, (reader, s) => {
 		/** @description update value */
-		if (animationFrameDisposable !== undefined) {
-			animationFrameDisposable.dispose();
-			animationFrameDisposable = undefined;
+		if (animationFrame !== undefined) {
+			targetWindow.cancelAnimationFrame(animationFrame);
+			animationFrame = undefined;
 		}
 
 		startVal = curVal;
@@ -160,7 +160,7 @@ export function animatedObservable(targetWindow: Window, base: IObservable<numbe
 		curVal = Math.floor(easeOutExpo(passedMs, startVal, targetVal - startVal, durationMs));
 
 		if (passedMs < durationMs) {
-			animationFrameDisposable = scheduleAtNextAnimationFrame(update, targetWindow);
+			animationFrame = targetWindow.requestAnimationFrame(update);
 		} else {
 			curVal = targetVal;
 		}
