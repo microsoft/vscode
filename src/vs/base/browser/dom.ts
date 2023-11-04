@@ -22,13 +22,12 @@ export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
 
+interface IRegisteredCodeWindow {
+	readonly window: CodeWindow;
+	readonly disposables: DisposableStore;
+}
+
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-
-	interface IRegisteredCodeWindow {
-		readonly window: CodeWindow;
-		readonly disposables: DisposableStore;
-	}
-
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	const mainWindow = window as CodeWindow;
