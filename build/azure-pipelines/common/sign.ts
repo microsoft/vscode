@@ -107,7 +107,7 @@ function getParams(type: string): Params[] {
 				toolName: 'sign',
 				toolVersion: '1.0'
 			}];
-		case 'sign-darwin-notarize':
+		case 'notarize-darwin':
 			return [{
 				keyCode: 'CP-401337-Apple',
 				operationSetCode: 'MacAppNotarize',
