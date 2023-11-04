@@ -18,17 +18,18 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
-interface ICodeWindow {
-	readonly window: CodeWindow;
-	readonly disposables: DisposableStore;
-}
-
 export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
 
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-	const windows = new Map<number, ICodeWindow>();
+
+	interface IRegisteredCodeWindow {
+		readonly window: CodeWindow;
+		readonly disposables: DisposableStore;
+	}
+
+	const windows = new Map<number, IRegisteredCodeWindow>();
 
 	const mainWindow = window as CodeWindow;
 	if (typeof mainWindow.vscodeWindowId !== 'number') {
@@ -38,7 +39,7 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 	}
 	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
 
-	const onDidRegisterWindow = new event.Emitter<ICodeWindow>();
+	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
 	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
 	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
 
@@ -72,7 +73,7 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 
 			return disposables;
 		},
-		getWindows(): Iterable<ICodeWindow> {
+		getWindows(): Iterable<IRegisteredCodeWindow> {
 			return windows.values();
 		},
 		getWindowsCount(): number {
