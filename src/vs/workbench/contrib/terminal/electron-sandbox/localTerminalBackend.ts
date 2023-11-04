@@ -26,6 +26,7 @@ import * as terminalEnvironment from 'vs/workbench/contrib/terminal/common/termi
 import { IProductService } from 'vs/platform/product/common/productService';
 import { IEnvironmentVariableService } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { BaseTerminalBackend } from 'vs/workbench/contrib/terminal/browser/baseTerminalBackend';
+import { INativeHostService } from 'vs/platform/native/common/native';
 import { Client as MessagePortClient } from 'vs/base/parts/ipc/common/ipc.mp';
 import { acquirePort } from 'vs/base/parts/ipc/electron-sandbox/ipc.mp';
 import { getDelayedChannel, ProxyChannel } from 'vs/base/parts/ipc/common/ipc';
@@ -36,7 +37,6 @@ import { IStatusbarService } from 'vs/workbench/services/statusbar/browser/statu
 import { memoize } from 'vs/base/common/decorators';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { IRemoteAgentService } from 'vs/workbench/services/remote/common/remoteAgentService';
-import { INativeHostService } from 'vs/platform/native/common/native';
 
 export class LocalTerminalBackendContribution implements IWorkbenchContribution {
 	constructor(
@@ -85,9 +85,9 @@ class LocalTerminalBackend extends BaseTerminalBackend implements ITerminalBacke
 		@ITerminalProfileResolverService private readonly _terminalProfileResolverService: ITerminalProfileResolverService,
 		@IEnvironmentVariableService private readonly _environmentVariableService: IEnvironmentVariableService,
 		@IHistoryService historyService: IHistoryService,
+		@INativeHostService private readonly _nativeHostService: INativeHostService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
-		@INativeHostService private readonly _nativeHostService: INativeHostService
 	) {
 		super(_localPtyService, logService, historyService, _configurationResolverService, statusBarService, workspaceContextService);
 
