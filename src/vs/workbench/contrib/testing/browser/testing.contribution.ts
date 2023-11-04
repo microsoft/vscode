@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { EditorContributionInstantiation, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize, localize2 } from 'vs/nls';
 import { registerAction2 } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
@@ -74,7 +74,7 @@ const viewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensio
 
 const testResultsViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer({
 	id: Testing.ResultsPanelId,
-	title: { value: localize('testResultsPanelName', "Test Results"), original: 'Test Results' },
+	title: localize2('testResultsPanelName', "Test Results"),
 	icon: testingResultsIcon,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [Testing.ResultsPanelId, { mergeViewWithContainerWhenSingleView: true }]),
 	hideIfEmpty: true,
@@ -86,7 +86,7 @@ const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsR
 
 viewsRegistry.registerViews([{
 	id: Testing.ResultsViewId,
-	name: localize('testResultsPanelName', "Test Results"),
+	name: localize2('testResultsPanelName', "Test Results"),
 	containerIcon: testingResultsIcon,
 	canToggleVisibility: false,
 	canMoveView: true,
@@ -105,7 +105,7 @@ viewsRegistry.registerViewWelcomeContent(Testing.ExplorerViewId, {
 
 viewsRegistry.registerViews([{
 	id: Testing.ExplorerViewId,
-	name: localize('testExplorer', "Test Explorer"),
+	name: localize2('testExplorer', "Test Explorer"),
 	ctorDescriptor: new SyncDescriptor(TestingExplorerView),
 	canToggleVisibility: true,
 	canMoveView: true,

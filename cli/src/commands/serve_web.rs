@@ -15,7 +15,6 @@ use hyper::service::{make_service_fn, service_fn};
 use hyper::{Body, Request, Response, Server};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::pin;
-use tokio::process::Command;
 
 use crate::async_pipe::{
 	get_socket_name, get_socket_rw_stream, listen_socket_rw_stream, AsyncPipe,
@@ -29,6 +28,7 @@ use crate::tunnels::shutdown_signal::ShutdownRequest;
 use crate::update_service::{
 	unzip_downloaded_release, Platform, Release, TargetKind, UpdateService,
 };
+use crate::util::command::new_script_command;
 use crate::util::errors::AnyError;
 use crate::util::http::{self, ReqwestSimpleHttp};
 use crate::util::io::SilentCopyProgress;
@@ -679,17 +679,7 @@ impl ConnectionManager {
 
 		let socket_path = get_socket_name();
 
-		#[cfg(not(windows))]
-		let mut cmd = Command::new(&executable);
-		#[cfg(windows)]
-		let mut cmd = {
-			let mut cmd = Command::new("cmd");
-			cmd.arg("/Q");
-			cmd.arg("/C");
-			cmd.arg(&executable);
-			cmd
-		};
-
+		let mut cmd = new_script_command(&executable);
 		cmd.stdin(std::process::Stdio::null());
 		cmd.stderr(std::process::Stdio::piped());
 		cmd.stdout(std::process::Stdio::piped());

@@ -911,7 +911,10 @@ export class SearchResultModel extends SettingsTreeModel {
 				return compareTwoNullableNumbers(a.setting.internalOrder, b.setting.internalOrder);
 			}
 		});
-		return filterMatches;
+
+		// Remove duplicates, which sometimes occur with settings
+		// such as the experimental toggle setting.
+		return arrays.distinct(filterMatches, (match) => match.setting.key);
 	}
 
 	getUniqueResults(): ISearchResult | null {

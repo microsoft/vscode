@@ -166,9 +166,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	override focus(): void {
-		this.container?.focus();
-
 		super.focus();
+
+		this.container?.focus();
 	}
 
 	override dispose(): void {

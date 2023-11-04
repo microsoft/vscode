@@ -145,6 +145,7 @@ export class MenuBar extends Disposable {
 			}
 		}));
 
+		const window = DOM.getWindow(this.container);
 		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_DOWN, () => {
 			// This mouse event is outside the menubar so it counts as a focus out
 			if (this.isFocused) {
@@ -629,7 +630,7 @@ export class MenuBar extends Disposable {
 			this.overflowLayoutScheduled = DOM.scheduleAtNextAnimationFrame(() => {
 				this.updateOverflowAction();
 				this.overflowLayoutScheduled = undefined;
-			});
+			}, DOM.getWindow(this.container));
 		}
 
 		this.setUnfocusedState();

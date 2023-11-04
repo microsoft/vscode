@@ -29,7 +29,9 @@ function withNodeDefaults(/**@type WebpackConfig & { context: string }*/extConfi
 		node: {
 			__dirname: false // leave the __dirname-behaviour intact
 		},
+
 		resolve: {
+			conditionNames: ['import', 'require'],
 			mainFields: ['module', 'main'],
 			extensions: ['.ts', '.js'] // support ts-files and js-files
 		},

@@ -115,7 +115,7 @@ export class NotebookEditorContextKeys {
 
 				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
 					recomputeOutputsExistence();
-				}));
+				}, DOM.getWindow(this._editor.getDomNode())));
 			});
 		};
 
