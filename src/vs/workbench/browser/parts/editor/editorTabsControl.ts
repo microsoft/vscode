@@ -9,11 +9,11 @@ import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
 import { addDisposableListener, Dimension, EventType, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IAction, SubmenuAction, ActionRunner } from 'vs/base/common/actions';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
-import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
+import { createActionViewItem } from 'vs/platform/actions/browser/menuEntryActionViewItem';
+import { MenuId } from 'vs/platform/actions/common/actions';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,9 +25,9 @@ import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
 import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorLastInGroupContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds } from 'vs/workbench/common/contextkeys';
+import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
 import { assertIsDefined } from 'vs/base/common/types';
 import { isFirefox } from 'vs/base/browser/browser';
@@ -40,11 +40,6 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-
-export interface IToolbarActions {
-	readonly primary: IAction[];
-	readonly secondary: IAction[];
-}
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -102,6 +97,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	};
 
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
+	private editorActionsDisposables = this._register(new DisposableStore());
 
 	private resourceContext: ResourceContextKey;
 
@@ -116,8 +112,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 
 	private groupLockedContext: IContextKey<boolean>;
 
-	private readonly editorToolBarMenuDisposables = this._register(new DisposableStore());
-
 	private renderDropdownAsChildElement: boolean;
 
 	constructor(
@@ -131,7 +125,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IContextKeyService protected readonly contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IMenuService private readonly menuService: IMenuService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
@@ -209,63 +202,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const { primary, secondary } = this.prepareEditorActions(this.getEditorActions());
+		this.editorActionsDisposables.clear();
+
+		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
+		this.editorActionsDisposables.add(editorActions.onDidChange(() => this.updateEditorActionsToolbar()));
 
 		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		const { primary, secondary } = this.prepareEditorActions(editorActions.actions);
 		editorActionsToolbar.setActions(prepareActions(primary), prepareActions(secondary));
 	}
 
 	protected abstract prepareEditorActions(editorActions: IToolbarActions): IToolbarActions;
-
-	private getEditorActions(): IToolbarActions {
-		const primary: IAction[] = [];
-		const secondary: IAction[] = [];
-
-		// Dispose previous listeners
-		this.editorToolBarMenuDisposables.clear();
-
-		// Update contexts
-		this.contextKeyService.bufferChangeEvents(() => {
-			const activeEditor = this.groupView.activeEditor;
-
-			this.resourceContext.set(EditorResourceAccessor.getOriginalUri(activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY } ?? null));
-
-			this.editorPinnedContext.set(activeEditor ? this.groupView.isPinned(activeEditor) : false);
-			this.editorIsFirstContext.set(activeEditor ? this.groupView.isFirst(activeEditor) : false);
-			this.editorIsLastContext.set(activeEditor ? this.groupView.isLast(activeEditor) : false);
-			this.editorStickyContext.set(activeEditor ? this.groupView.isSticky(activeEditor) : false);
-			applyAvailableEditorIds(this.editorAvailableEditorIds, activeEditor, this.editorResolverService);
-
-			this.editorCanSplitInGroupContext.set(activeEditor ? activeEditor.hasCapability(EditorInputCapabilities.CanSplitInGroup) : false);
-			this.sideBySideEditorContext.set(activeEditor?.typeId === SideBySideEditorInput.ID);
-
-			this.groupLockedContext.set(this.groupView.isLocked);
-		});
-
-		// Editor actions require the editor control to be there, so we retrieve it via service
-		const activeEditorPane = this.groupView.activeEditorPane;
-		if (activeEditorPane instanceof EditorPane) {
-			const scopedContextKeyService = this.getEditorPaneAwareContextKeyService();
-			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService, { emitEventsForSubmenuChanges: true, eventDebounceDelay: 0 });
-			this.editorToolBarMenuDisposables.add(titleBarMenu);
-			this.editorToolBarMenuDisposables.add(titleBarMenu.onDidChange(() => {
-				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
-			}));
-
-			const shouldInlineGroup = (action: SubmenuAction, group: string) => group === 'navigation' && action.actions.length <= 1;
-
-			createAndFillInActionBarActions(
-				titleBarMenu,
-				{ arg: this.resourceContext.get(), shouldForwardArgs: true },
-				{ primary, secondary },
-				'navigation',
-				shouldInlineGroup
-			);
-		}
-
-		return { primary, secondary };
-	}
-
 	private getEditorPaneAwareContextKeyService(): IContextKeyService {
 		return this.groupView.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 	}

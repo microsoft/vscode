@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from 'vs/platform/log/common/log';
@@ -119,7 +119,7 @@ export class BrowserMain extends Disposable {
 	async open(): Promise<IWorkbench> {
 
 		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
+		const [services] = await Promise.all([this.initServices(), domContentLoaded(getWindow(this.domElement))]);
 
 		// Create Workbench
 		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);

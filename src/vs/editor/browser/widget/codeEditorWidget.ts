@@ -345,6 +345,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
+				action.metadata,
 				action.precondition ?? undefined,
 				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
@@ -1648,7 +1649,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			model,
 			DOMLineBreaksComputerFactory.create(),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
-			(callback) => dom.scheduleAtNextAnimationFrame(callback),
+			(callback) => dom.scheduleAtNextAnimationFrame(callback, dom.getWindow(this._domElement)),
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,

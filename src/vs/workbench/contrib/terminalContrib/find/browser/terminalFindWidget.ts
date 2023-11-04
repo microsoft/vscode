@@ -12,7 +12,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Event } from 'vs/base/common/event';
-import type { ISearchOptions } from 'xterm-addon-search';
+import type { ISearchOptions } from '@xterm/addon-search';
 import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 
 const TERMINAL_FIND_WIDGET_INITIAL_WIDTH = 419;

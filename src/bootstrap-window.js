@@ -39,7 +39,7 @@
 	 * 	},
 	 * 	canModifyDOM?: (config: ISandboxConfiguration) => void,
 	 * 	beforeLoaderConfig?: (loaderConfig: object) => void,
-	 *  beforeRequire?: () => void
+	 *  beforeRequire?: (config: ISandboxConfiguration) => void
 	 * }} [options]
 	 */
 	async function load(modulePaths, resultCallback, options) {
@@ -112,13 +112,13 @@
 			'vscode-textmate': `${baseNodeModulesPath}/vscode-textmate/release/main.js`,
 			'vscode-oniguruma': `${baseNodeModulesPath}/vscode-oniguruma/release/main.js`,
 			'vsda': `${baseNodeModulesPath}/vsda/index.js`,
-			'xterm': `${baseNodeModulesPath}/xterm/lib/xterm.js`,
-			'xterm-addon-canvas': `${baseNodeModulesPath}/xterm-addon-canvas/lib/xterm-addon-canvas.js`,
-			'xterm-addon-image': `${baseNodeModulesPath}/xterm-addon-image/lib/xterm-addon-image.js`,
-			'xterm-addon-search': `${baseNodeModulesPath}/xterm-addon-search/lib/xterm-addon-search.js`,
-			'xterm-addon-serialize': `${baseNodeModulesPath}/xterm-addon-serialize/lib/xterm-addon-serialize.js`,
-			'xterm-addon-unicode11': `${baseNodeModulesPath}/xterm-addon-unicode11/lib/xterm-addon-unicode11.js`,
-			'xterm-addon-webgl': `${baseNodeModulesPath}/xterm-addon-webgl/lib/xterm-addon-webgl.js`,
+			'@xterm/xterm': `${baseNodeModulesPath}/@xterm/xterm/lib/xterm.js`,
+			'@xterm/addon-canvas': `${baseNodeModulesPath}/@xterm/addon-canvas/lib/addon-canvas.js`,
+			'@xterm/addon-image': `${baseNodeModulesPath}/@xterm/addon-image/lib/addon-image.js`,
+			'@xterm/addon-search': `${baseNodeModulesPath}/@xterm/addon-search/lib/addon-search.js`,
+			'@xterm/addon-serialize': `${baseNodeModulesPath}/@xterm/addon-serialize/lib/addon-serialize.js`,
+			'@xterm/addon-unicode11': `${baseNodeModulesPath}/@xterm/addon-unicode11/lib/addon-unicode11.js`,
+			'@xterm/addon-webgl': `${baseNodeModulesPath}/@xterm/addon-webgl/lib/addon-webgl.js`,
 			'@vscode/iconv-lite-umd': `${baseNodeModulesPath}/@vscode/iconv-lite-umd/lib/iconv-lite-umd.js`,
 			'jschardet': `${baseNodeModulesPath}/jschardet/dist/jschardet.min.js`,
 			'@vscode/vscode-languagedetection': `${baseNodeModulesPath}/@vscode/vscode-languagedetection/dist/lib/index.js`,
@@ -143,7 +143,7 @@
 
 		// Signal before require()
 		if (typeof options?.beforeRequire === 'function') {
-			options.beforeRequire();
+			options.beforeRequire(configuration);
 		}
 
 		// Actually require the main module as specified

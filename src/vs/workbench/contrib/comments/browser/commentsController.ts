@@ -465,7 +465,7 @@ export class CommentController implements IEditorContribution {
 					for (const zone of this._commentWidgets) {
 						const zonePendingComments = zone.getPendingComments();
 						const pendingNewComment = zonePendingComments.newComment;
-						if (!pendingNewComment || !zone.commentThread.range) {
+						if (!pendingNewComment) {
 							continue;
 						}
 						let lastCommentBody;
@@ -842,7 +842,13 @@ export class CommentController implements IEditorContribution {
 					return;
 				}
 
-				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => Range.lift(pending.range).equalsRange(thread.range));
+				const continueOnCommentIndex = this._inProcessContinueOnComments.get(e.owner)?.findIndex(pending => {
+					if (pending.range === undefined) {
+						return thread.range === undefined;
+					} else {
+						return Range.lift(pending.range).equalsRange(thread.range);
+					}
+				});
 				let continueOnCommentText: string | undefined;
 				if ((continueOnCommentIndex !== undefined) && continueOnCommentIndex >= 0) {
 					continueOnCommentText = this._inProcessContinueOnComments.get(e.owner)?.splice(continueOnCommentIndex, 1)[0].body;
@@ -869,8 +875,20 @@ export class CommentController implements IEditorContribution {
 		const matchedZones = this._commentWidgets.filter(zoneWidget => zoneWidget.owner === thread.owner && Range.lift(zoneWidget.commentThread.range)?.equalsRange(thread.range));
 		if (thread.isReply && matchedZones.length) {
 			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: true });
-			const matchedZone = matchedZones[0];
-			matchedZone.setPendingComment(thread.body);
+			matchedZones[0].setPendingComment(thread.body);
+		} else if (matchedZones.length) {
+			this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
+			const existingPendingComment = matchedZones[0].getPendingComments().newComment;
+			// We need to try to reconcile the existing pending comment with the incoming pending comment
+			let pendingComment: string;
+			if (!existingPendingComment || thread.body.includes(existingPendingComment)) {
+				pendingComment = thread.body;
+			} else if (existingPendingComment.includes(thread.body)) {
+				pendingComment = existingPendingComment;
+			} else {
+				pendingComment = `${existingPendingComment}\n${thread.body}`;
+			}
+			matchedZones[0].setPendingComment(pendingComment);
 		} else if (!thread.isReply) {
 			const threadStillAvailable = this.commentService.removeContinueOnComment({ owner: thread.owner, uri: editorURI, range: thread.range, isReply: false });
 			if (!threadStillAvailable) {
@@ -880,7 +898,7 @@ export class CommentController implements IEditorContribution {
 				this._inProcessContinueOnComments.set(thread.owner, []);
 			}
 			this._inProcessContinueOnComments.get(thread.owner)?.push(thread);
-			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, Range.lift(thread.range));
+			await this.commentService.createCommentThreadTemplate(thread.owner, thread.uri, thread.range ? Range.lift(thread.range) : undefined);
 		}
 	}
 

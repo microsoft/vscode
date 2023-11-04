@@ -33,8 +33,9 @@ import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/
 import { IWorkbenchExtensionEnablementService, IWorkbenchExtensionManagementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { ExtensionDescriptionRegistryLock, ExtensionDescriptionRegistrySnapshot, IActivationEventsReader, LockableExtensionDescriptionRegistry } from 'vs/workbench/services/extensions/common/extensionDescriptionRegistry';
 import { parseExtensionDevOptions } from 'vs/workbench/services/extensions/common/extensionDevOptions';
-import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker, extensionHostKindToString } from 'vs/workbench/services/extensions/common/extensionHostKind';
-import { IExtensionHostManager, createExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { ExtensionHostKind, ExtensionRunningPreference, IExtensionHostKindPicker } from 'vs/workbench/services/extensions/common/extensionHostKind';
+import { ExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManager';
+import { IExtensionHostManager } from 'vs/workbench/services/extensions/common/extensionHostManagers';
 import { IResolveAuthorityErrorResult } from 'vs/workbench/services/extensions/common/extensionHostProxy';
 import { IExtensionManifestPropertiesService } from 'vs/workbench/services/extensions/common/extensionManifestPropertiesService';
 import { ExtensionRunningLocation, LocalProcessRunningLocation, LocalWebWorkerRunningLocation, RemoteRunningLocation } from 'vs/workbench/services/extensions/common/extensionRunningLocation';
@@ -42,6 +43,7 @@ import { ExtensionRunningLocationTracker, filterExtensionIdentifiers } from 'vs/
 import { ActivationKind, ActivationTimes, ExtensionActivationReason, ExtensionHostStartup, ExtensionPointContribution, IExtensionHost, IExtensionService, IExtensionsStatus, IInternalExtensionService, IMessage, IResponsiveStateChangeEvent, IWillActivateEvent, WillStopExtensionHostsEvent, toExtension } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtensionsProposedApi } from 'vs/workbench/services/extensions/common/extensionsProposedApi';
 import { ExtensionMessageCollector, ExtensionPoint, ExtensionsRegistry, IExtensionPoint, IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { LazyCreateExtensionHostManager } from 'vs/workbench/services/extensions/common/lazyCreateExtensionHostManager';
 import { ResponsiveState } from 'vs/workbench/services/extensions/common/rpcProtocol';
 import { IExtensionActivationHost as IWorkspaceContainsActivationHost, checkActivateWorkspaceContainsExtension, checkGlobFileExists } from 'vs/workbench/services/extensions/common/workspaceContains';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -371,12 +373,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let shouldActivateReason: string | null = null;
 		let hasWorkspaceContains = false;
 		const activationEvents = this._activationEventReader.readActivationEvents(extensionDescription);
-		for (let activationEvent of activationEvents) {
-			// TODO@joao: there's no easy way to contribute this
-			if (activationEvent === 'onUri') {
-				activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
-			}
-
+		for (const activationEvent of activationEvents) {
 			if (this._allRequestedActivateEvents.has(activationEvent)) {
 				// This activation event was fired before the extension was added
 				shouldActivate = true;
@@ -753,6 +750,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
 		processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 		processManager.onDidChangeResponsiveState((responsiveState) => {
+			this._logService.info(`Extension host (${processManager.friendyName}) is ${responsiveState === ResponsiveState.Responsive ? 'responsive' : 'unresponsive'}.`);
 			this._onDidChangeResponsiveChange.fire({
 				extensionHostKind: processManager.kind,
 				isResponsive: responsiveState === ResponsiveState.Responsive,
@@ -765,7 +763,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _doCreateExtensionHostManager(extensionHost: IExtensionHost, initialActivationEvents: string[]): IExtensionHostManager {
-		return createExtensionHostManager(this._instantiationService, extensionHost, initialActivationEvents, this._acquireInternalAPI(extensionHost));
+		const internalExtensionService = this._acquireInternalAPI(extensionHost);
+		if (extensionHost.startup === ExtensionHostStartup.Lazy && initialActivationEvents.length === 0) {
+			return this._instantiationService.createInstance(LazyCreateExtensionHostManager, extensionHost, internalExtensionService);
+		}
+		return this._instantiationService.createInstance(ExtensionHostManager, extensionHost, initialActivationEvents, internalExtensionService);
 	}
 
 	private _onExtensionHostCrashOrExit(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
@@ -781,7 +783,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 	}
 
 	protected _onExtensionHostCrashed(extensionHost: IExtensionHostManager, code: number, signal: string | null): void {
-		console.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. Code: ${code}, Signal: ${signal}`);
+		console.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly. Code: ${code}, Signal: ${signal}`);
 		if (extensionHost.kind === ExtensionHostKind.LocalProcess) {
 			this._doStopExtensionHosts();
 		} else if (extensionHost.kind === ExtensionHostKind.Remote) {
@@ -817,7 +819,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		try {
 			const info = await this._getExtensionHostExitInfoWithTimeout(reconnectionToken);
 			if (info) {
-				this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly with code ${info.code}.`);
+				this._logService.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly with code ${info.code}.`);
 			}
 
 			this._logExtensionHostCrash(extensionHost);
@@ -852,9 +854,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		if (activatedExtensions.length > 0) {
-			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
+			this._logService.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
 		} else {
-			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
+			this._logService.error(`Extension host (${extensionHost.friendyName}) terminated unexpectedly. No extensions were activated.`);
 		}
 	}
 

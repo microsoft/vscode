@@ -407,7 +407,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				dom.scheduleAtNextAnimationFrame(() => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
-				}, 0);
+				}, dom.getWindow(this.listContainer), 0);
 			}
 		}
 
@@ -531,7 +531,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._onDidAcceptInput.fire();
 
 			const editorValue = this.getInput();
-			this._chatAccessibilityService.acceptRequest();
+			const requestId = this._chatAccessibilityService.acceptRequest();
 			const input = !opts ? editorValue :
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
@@ -544,10 +544,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this._chatAccessibilityService.acceptResponse(lastResponse);
+					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
 			} else {
-				this._chatAccessibilityService.acceptResponse();
+				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}
@@ -640,7 +640,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
-			});
+			}, dom.getWindow(this.listContainer));
 		}));
 	}
 

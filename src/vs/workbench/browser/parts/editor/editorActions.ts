@@ -33,7 +33,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, MaximizedEditorGroupContext, MultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
 
@@ -1017,13 +1017,36 @@ export class MinimizeOtherGroupsAction extends Action2 {
 			id: 'workbench.action.minimizeOtherEditors',
 			title: { value: localize('minimizeOtherEditorGroups', "Expand Editor Group"), original: 'Expand Editor Group' },
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: MultipleEditorGroupsContext
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
+		editorGroupService.arrangeGroups(GroupsArrangement.EXPAND);
+	}
+}
+
+export class MinimizeOtherGroupsHideSidebarAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.minimizeOtherEditorsHideSidebar',
+			title: { value: localize('minimizeOtherEditorGroupsHideSidebar', "Expand Editor Group and Hide Side Bars"), original: 'Expand Editor Group and Hide Side Bars' },
+			f1: true,
+			category: Categories.View,
+			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, SideBarVisibleContext, AuxiliaryBarVisibleContext)
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		editorGroupService.arrangeGroups(GroupsArrangement.EXPAND);
 	}
 }
@@ -1073,7 +1096,7 @@ export class MaximizeGroupHideSidebarAction extends Action2 {
 			title: { value: localize('maximizeEditorHideSidebar', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(MaximizedEditorGroupContext.negate(), MultipleEditorGroupsContext)
+			precondition: ContextKeyExpr.or(ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext), SideBarVisibleContext, AuxiliaryBarVisibleContext)
 		});
 	}
 
@@ -1098,7 +1121,7 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 			title: { value: localize('toggleMaximizeEditorGroup', "Toggle Maximize Editor Group"), original: 'Toggle Maximize Editor Group' },
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, MaximizedEditorGroupContext),
+			precondition: ContextKeyExpr.or(EditorPartMultipleEditorGroupsContext, EditorPartMaximizedEditorGroupContext),
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyMod.CtrlCmd | KeyCode.KeyM),
@@ -1107,16 +1130,16 @@ export class ToggleMaximizeEditorGroupAction extends Action2 {
 				id: MenuId.EditorTitle,
 				order: -10000, // towards the front
 				group: 'navigation',
-				when: MaximizedEditorGroupContext
+				when: EditorPartMaximizedEditorGroupContext
 			},
 			{
 				id: MenuId.EmptyEditorGroup,
 				order: -10000, // towards the front
 				group: 'navigation',
-				when: MaximizedEditorGroupContext
+				when: EditorPartMaximizedEditorGroupContext
 			}],
 			icon: Codicon.screenFull,
-			toggled: MaximizedEditorGroupContext,
+			toggled: EditorPartMaximizedEditorGroupContext,
 		});
 	}
 
@@ -1600,7 +1623,7 @@ export class ClearRecentFilesAction extends Action2 {
 	constructor() {
 		super({
 			id: ClearRecentFilesAction.ID,
-			title: { value: localize('clearRecentFiles', "Clear Recently Opened"), original: 'Clear Recently Opened' },
+			title: { value: localize('clearRecentFiles', "Clear Recently Opened..."), original: 'Clear Recently Opened...' },
 			f1: true,
 			category: Categories.File
 		});

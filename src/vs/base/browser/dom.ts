@@ -12,30 +12,55 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
+import { hash } from 'vs/base/common/hash';
 
-export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-	const windows = new Set([window]);
-	const onDidRegisterWindow = new event.Emitter<{ window: Window & typeof globalThis; disposables: DisposableStore }>();
-	const onDidUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
-	const onWillUnregisterWindow = new event.Emitter<Window & typeof globalThis>();
+export type CodeWindow = Window & typeof globalThis & {
+	readonly vscodeWindowId: number;
+};
+
+interface IRegisteredCodeWindow {
+	readonly window: CodeWindow;
+	readonly disposables: DisposableStore;
+}
+
+export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+	const windows = new Map<number, IRegisteredCodeWindow>();
+
+	const mainWindow = window as CodeWindow;
+	if (typeof mainWindow.vscodeWindowId !== 'number') {
+		Object.defineProperty(window, 'vscodeWindowId', {
+			get: () => -1
+		});
+	}
+	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+
+	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
+	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
+	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
+
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
 		onWillUnregisterWindow: onWillUnregisterWindow.event,
 		onDidUnregisterWindow: onDidUnregisterWindow.event,
-		registerWindow(window: Window & typeof globalThis): IDisposable {
-			if (windows.has(window)) {
+		registerWindow(window: CodeWindow): IDisposable {
+			if (windows.has(window.vscodeWindowId)) {
 				return Disposable.None;
 			}
 
-			windows.add(window);
-
 			const disposables = new DisposableStore();
+
+			const registeredWindow = {
+				window,
+				disposables: disposables.add(new DisposableStore())
+			};
+			windows.set(window.vscodeWindowId, registeredWindow);
+
 			disposables.add(toDisposable(() => {
-				windows.delete(window);
+				windows.delete(window.vscodeWindowId);
 				onDidUnregisterWindow.fire(window);
 			}));
 
@@ -43,17 +68,18 @@ export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow,
 				onWillUnregisterWindow.fire(window);
 			}));
 
-			const eventDisposables = new DisposableStore();
-			disposables.add(eventDisposables);
-			onDidRegisterWindow.fire({ window, disposables: eventDisposables });
+			onDidRegisterWindow.fire(registeredWindow);
 
 			return disposables;
 		},
-		getWindows(): Iterable<Window & typeof globalThis> {
-			return windows;
+		getWindows(): Iterable<IRegisteredCodeWindow> {
+			return windows.values();
 		},
 		getWindowsCount(): number {
 			return windows.size;
+		},
+		getWindowId(targetWindow: Window): number {
+			return (targetWindow as CodeWindow).vscodeWindowId;
 		}
 	};
 })();
@@ -162,14 +188,14 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
 
 class AnimationFrameQueueItem implements IDisposable {
 
@@ -209,64 +235,78 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the next animation frame
 	 */
-	let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
-	let animFrameRequested = false;
+	const animFrameRequested = new Map<number /* window ID */, boolean>();
 	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
-	let inAnimationFrameRunner = false;
+	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
-	const animationFrameRunner = () => {
-		animFrameRequested = false;
+	const animationFrameRunner = (targetWindowId: number) => {
+		animFrameRequested.set(targetWindowId, false);
 
-		CURRENT_QUEUE = NEXT_QUEUE;
-		NEXT_QUEUE = [];
+		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
+		CURRENT_QUEUE.set(targetWindowId, currentQueue);
+		NEXT_QUEUE.set(targetWindowId, []);
 
-		inAnimationFrameRunner = true;
-		while (CURRENT_QUEUE.length > 0) {
-			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			const top = CURRENT_QUEUE.shift()!;
+		inAnimationFrameRunner.set(targetWindowId, true);
+		while (currentQueue.length > 0) {
+			currentQueue.sort(AnimationFrameQueueItem.sort);
+			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner = false;
+		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, priority: number = 0) => {
+	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
+		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
-		NEXT_QUEUE.push(item);
 
-		if (!animFrameRequested) {
-			animFrameRequested = true;
-			requestAnimationFrame(animationFrameRunner);
+		let nextQueue = NEXT_QUEUE.get(targetWindowId);
+		if (!nextQueue) {
+			nextQueue = [];
+			NEXT_QUEUE.set(targetWindowId, nextQueue);
+		}
+		nextQueue.push(item);
+
+		if (!animFrameRequested.get(targetWindowId)) {
+			animFrameRequested.set(targetWindowId, true);
+			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 
 		return item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, priority?: number) => {
-		if (inAnimationFrameRunner) {
+	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
+		const targetWindowId = getWindowId(targetWindow);
+		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE!.push(item);
+			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
+			if (!currentQueue) {
+				currentQueue = [];
+				CURRENT_QUEUE.set(targetWindowId, currentQueue);
+			}
+			currentQueue.push(item);
 			return item;
 		} else {
-			return scheduleAtNextAnimationFrame(runner, priority);
+			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);
 		}
 	};
 })();
 
-export function measure(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, 10000 /* must be early */);
+export function measure(callback: () => void, targetWindow: Window): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, targetWindow, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, -10000 /* must be late */);
+export function modify(callback: () => void, targetWindow: Window): IDisposable {
+	return scheduleAtNextAnimationFrame(callback, targetWindow, -10000 /* must be late */);
 }
 
 /**
@@ -749,33 +789,37 @@ export function isActiveDocument(element: Element): boolean {
 
 /**
  * Returns the active document across all child windows.
- * Use this instead of `document` when reacting to dom events to handle multiple windows.
+ * Use this instead of `document` when reacting to dom
+ * events to handle multiple windows.
  */
 export function getActiveDocument(): Document {
-	const documents = Array.from(getWindows()).map(window => window.document);
-	return documents.find(doc => doc.hasFocus()) ?? document;
+	if (getWindowsCount() <= 1) {
+		return document;
+	}
+
+	const documents = Array.from(getWindows()).map(({ window }) => window.document);
+	return documents.find(document => document.hasFocus()) ?? document;
 }
 
-export function getActiveWindow(): Window & typeof globalThis {
+export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
-	return document.defaultView?.window ?? window;
+	return (document.defaultView?.window ?? window) as CodeWindow;
 }
 
-export function getWindow(element: Node): Window & typeof globalThis;
-export function getWindow(event: UIEvent): Window & typeof globalThis;
-export function getWindow(obj: unknown): Window & typeof globalThis;
-export function getWindow(e: unknown): Window & typeof globalThis {
-	const candidateNode = e as Node | undefined;
+export function getWindow(element: Node | undefined | null): CodeWindow;
+export function getWindow(event: UIEvent | undefined | null): CodeWindow;
+export function getWindow(e: unknown): CodeWindow {
+	const candidateNode = e as Node | undefined | null;
 	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window;
+		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
 	}
 
-	const candidateEvent = e as UIEvent | undefined;
+	const candidateEvent = e as UIEvent | undefined | null;
 	if (candidateEvent?.view) {
-		return candidateEvent.view.window;
+		return candidateEvent.view.window as CodeWindow;
 	}
 
-	return window;
+	return window as CodeWindow;
 }
 
 export function focusWindow(element: Node): void {
@@ -785,44 +829,41 @@ export function focusWindow(element: Node): void {
 	}
 }
 
-const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
-
-export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
 	beforeAppend?.(style);
 	container.appendChild(style);
 
+	if (disposableStore) {
+		disposableStore.add(toDisposable(() => container.removeChild(style)));
+	}
+
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
 	if (container === document.head) {
-		const clonedGlobalStylesheets = new Set<HTMLStyleElement>();
-		globalStylesheets.set(style, clonedGlobalStylesheets);
-
-		for (const targetWindow of getWindows()) {
+		for (const { window: targetWindow, disposables } of getWindows()) {
 			if (targetWindow === window) {
 				continue; // main window is already tracked
 			}
 
-			const disposable = cloneGlobalStyleSheet(style, targetWindow);
-
-			event.Event.once(onDidUnregisterWindow)(unregisteredWindow => {
-				if (unregisteredWindow === targetWindow) {
-					disposable.dispose();
-				}
-			});
+			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, targetWindow));
+			disposableStore?.add(cloneDisposable);
 		}
+
 	}
 
 	return style;
 }
 
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
+
 export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
-export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis): IDisposable {
+export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
 	const disposables = new DisposableStore();
 
 	for (const [globalStylesheet] of globalStylesheets) {
@@ -832,28 +873,84 @@ export function cloneGlobalStylesheets(targetWindow: Window & typeof globalThis)
 	return disposables;
 }
 
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window & typeof globalThis): IDisposable {
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window): IDisposable {
+	const disposables = new DisposableStore();
+
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
 	targetWindow.document.head.appendChild(clone);
+	disposables.add(toDisposable(() => targetWindow.document.head.removeChild(clone)));
 
 	for (const rule of getDynamicStyleSheetRules(globalStylesheet)) {
 		clone.sheet?.insertRule(rule.cssText, clone.sheet?.cssRules.length);
 	}
 
-	const observer = new MutationObserver(() => {
+	disposables.add(sharedMutationObserver.observe(globalStylesheet, disposables, { childList: true })(() => {
 		clone.textContent = globalStylesheet.textContent;
-	});
-	observer.observe(globalStylesheet, { childList: true });
+	}));
 
-	globalStylesheets.get(globalStylesheet)?.add(clone);
+	let clonedGlobalStylesheets = globalStylesheets.get(globalStylesheet);
+	if (!clonedGlobalStylesheets) {
+		clonedGlobalStylesheets = new Set<HTMLStyleElement>();
+		globalStylesheets.set(globalStylesheet, clonedGlobalStylesheets);
+	}
+	clonedGlobalStylesheets.add(clone);
+	disposables.add(toDisposable(() => clonedGlobalStylesheets?.delete(clone)));
 
-	return toDisposable(() => {
-		observer.disconnect();
-		targetWindow.document.head.removeChild(clone);
-
-		globalStylesheets.get(globalStylesheet)?.delete(clone);
-	});
+	return disposables;
 }
+
+interface IMutationObserver {
+	users: number;
+	readonly observer: MutationObserver;
+	readonly onDidMutate: event.Event<MutationRecord[]>;
+}
+
+export const sharedMutationObserver = new class {
+
+	readonly mutationObservers = new Map<Node, Map<number, IMutationObserver>>();
+
+	observe(target: Node, disposables: DisposableStore, options?: MutationObserverInit): event.Event<MutationRecord[]> {
+		let mutationObserversPerTarget = this.mutationObservers.get(target);
+		if (!mutationObserversPerTarget) {
+			mutationObserversPerTarget = new Map<number, IMutationObserver>();
+			this.mutationObservers.set(target, mutationObserversPerTarget);
+		}
+
+		const optionsHash = hash(options);
+		let mutationObserverPerOptions = mutationObserversPerTarget.get(optionsHash);
+		if (!mutationObserverPerOptions) {
+			const onDidMutate = new event.Emitter<MutationRecord[]>();
+			const observer = new MutationObserver(mutations => onDidMutate.fire(mutations));
+			observer.observe(target, options);
+
+			const resolvedMutationObserverPerOptions = mutationObserverPerOptions = {
+				users: 1,
+				observer,
+				onDidMutate: onDidMutate.event
+			};
+
+			disposables.add(toDisposable(() => {
+				resolvedMutationObserverPerOptions.users -= 1;
+
+				if (resolvedMutationObserverPerOptions.users === 0) {
+					onDidMutate.dispose();
+					observer.disconnect();
+
+					mutationObserversPerTarget?.delete(optionsHash);
+					if (mutationObserversPerTarget?.size === 0) {
+						this.mutationObservers.delete(target);
+					}
+				}
+			}));
+
+			mutationObserversPerTarget.set(optionsHash, mutationObserverPerOptions);
+		} else {
+			mutationObserverPerOptions.users += 1;
+		}
+
+		return mutationObserverPerOptions.onDidMutate;
+	}
+};
 
 export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
@@ -924,22 +1021,22 @@ function isCSSStyleRule(rule: CSSRule): rule is CSSStyleRule {
 
 export function isMouseEvent(e: unknown): e is MouseEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof MouseEvent || e instanceof getWindow(e).MouseEvent;
+	return e instanceof MouseEvent || e instanceof getWindow(e as UIEvent).MouseEvent;
 }
 
 export function isKeyboardEvent(e: unknown): e is KeyboardEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof KeyboardEvent || e instanceof getWindow(e).KeyboardEvent;
+	return e instanceof KeyboardEvent || e instanceof getWindow(e as UIEvent).KeyboardEvent;
 }
 
 export function isPointerEvent(e: unknown): e is PointerEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof PointerEvent || e instanceof getWindow(e).PointerEvent;
+	return e instanceof PointerEvent || e instanceof getWindow(e as UIEvent).PointerEvent;
 }
 
 export function isDragEvent(e: unknown): e is DragEvent {
 	// eslint-disable-next-line no-restricted-syntax
-	return e instanceof DragEvent || e instanceof getWindow(e).DragEvent;
+	return e instanceof DragEvent || e instanceof getWindow(e as UIEvent).DragEvent;
 }
 
 export const EventType = {
@@ -971,6 +1068,7 @@ export const EventType = {
 	UNLOAD: 'unload',
 	PAGE_SHOW: 'pageshow',
 	PAGE_HIDE: 'pagehide',
+	PASTE: 'paste',
 	ABORT: 'abort',
 	ERROR: 'error',
 	RESIZE: 'resize',
@@ -1296,13 +1394,18 @@ export function finalHandler<T extends Event>(fn: (event: T) => any): (event: T)
 	};
 }
 
-export function domContentLoaded(): Promise<unknown> {
-	return new Promise<unknown>(resolve => {
-		const readyState = document.readyState;
-		if (readyState === 'complete' || (document && document.body !== null)) {
+export function domContentLoaded(targetWindow: Window): Promise<void> {
+	return new Promise<void>(resolve => {
+		const readyState = targetWindow.document.readyState;
+		if (readyState === 'complete' || (targetWindow.document && targetWindow.document.body !== null)) {
 			resolve(undefined);
 		} else {
-			window.addEventListener('DOMContentLoaded', resolve, false);
+			const listener = () => {
+				targetWindow.window.removeEventListener('DOMContentLoaded', listener, false);
+				resolve();
+			};
+
+			targetWindow.window.addEventListener('DOMContentLoaded', listener, false);
 		}
 	});
 }
@@ -1391,13 +1494,13 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	return false;
 }
 
-export function animate(fn: () => void): IDisposable {
+export function animate(fn: () => void, targetWindow: Window): IDisposable {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step);
+		stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step);
+	let stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
 	return toDisposable(() => stepDisposable.dispose());
 }
 
@@ -2092,35 +2195,6 @@ function camelCaseToHyphenCase(str: string) {
 	return str.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 }
 
-interface IObserver extends IDisposable {
-	readonly onDidChangeAttribute: event.Event<string>;
-}
-
-function observeAttributes(element: Element, filter?: string[]): IObserver {
-	const onDidChangeAttribute = new event.Emitter<string>();
-
-	const observer = new MutationObserver(mutations => {
-		for (const mutation of mutations) {
-			if (mutation.type === 'attributes' && mutation.attributeName) {
-				onDidChangeAttribute.fire(mutation.attributeName);
-			}
-		}
-	});
-
-	observer.observe(element, {
-		attributes: true,
-		attributeFilter: filter
-	});
-
-	return {
-		onDidChangeAttribute: onDidChangeAttribute.event,
-		dispose: () => {
-			observer.disconnect();
-			onDidChangeAttribute.dispose();
-		}
-	};
-}
-
 export function copyAttributes(from: Element, to: Element): void {
 	for (const { name, value } of from.attributes) {
 		to.setAttribute(name, value);
@@ -2139,10 +2213,15 @@ function copyAttribute(from: Element, to: Element, name: string): void {
 export function trackAttributes(from: Element, to: Element, filter?: string[]): IDisposable {
 	copyAttributes(from, to);
 
-	const observer = observeAttributes(from, filter);
+	const disposables = new DisposableStore();
 
-	return combinedDisposable(
-		observer,
-		observer.onDidChangeAttribute(name => copyAttribute(from, to, name))
-	);
+	disposables.add(sharedMutationObserver.observe(from, disposables, { attributes: true, attributeFilter: filter })(mutations => {
+		for (const mutation of mutations) {
+			if (mutation.type === 'attributes' && mutation.attributeName) {
+				copyAttribute(from, to, mutation.attributeName);
+			}
+		}
+	}));
+
+	return disposables;
 }

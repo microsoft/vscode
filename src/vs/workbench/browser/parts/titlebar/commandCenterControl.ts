@@ -20,9 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
-import { Verbosity } from 'vs/workbench/common/editor';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class CommandCenterControl {
 
@@ -85,7 +83,6 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
-		@IEditorService private _editorService: IEditorService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 	}
@@ -181,8 +178,8 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							let label = that._windowTitle.workspaceName;
 							if (that._windowTitle.isCustomTitleFormat()) {
 								label = that._windowTitle.getWindowTitle();
-							} else if (that._editorGroupService.partOptions.showTabs === 'none' && that._editorService.activeEditor) {
-								label = that._editorService.activeEditor.getTitle(Verbosity.SHORT);
+							} else if (that._editorGroupService.partOptions.showTabs === 'none') {
+								label = that._windowTitle.fileName ?? label;
 							}
 
 							if (!label) {

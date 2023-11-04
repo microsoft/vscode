@@ -774,5 +774,9 @@ function shouldHide(event: KeyboardEvent, keybindingService: IKeybindingService)
 	if (keybindingService.inChordMode || isValidChord) {
 		return false;
 	}
-	return event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+	return shouldHandleKey(event) && !event.ctrlKey && !event.altKey && !event.metaKey && !event.shiftKey;
+}
+
+function shouldHandleKey(event: KeyboardEvent): boolean {
+	return !!event.code.match(/^(Key[A-Z]|Digit[0-9]|Equal|Comma|Period|Slash|Quote|Backquote|Backslash|Minus|Semicolon|Space|Enter)$/);
 }

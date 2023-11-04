@@ -10,8 +10,8 @@ import { URI } from 'vs/base/common/uri';
 import { ITelemetryData, ITelemetryService, TelemetryLevel } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
-import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection } from 'vs/workbench/common/editor';
-import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorInputWithOptions, IEditorIdentifier, IUntitledTextResourceEditorInput, IResourceDiffEditorInput, IEditorPane, IEditorCloseEvent, IEditorPartOptions, IRevertOptions, GroupIdentifier, EditorsOrder, IFileEditorInput, IEditorFactoryRegistry, IEditorSerializer, EditorExtensions, ISaveOptions, IMoveResult, ITextDiffEditorPane, IVisibleEditorPane, IEditorOpenContext, EditorExtensions as Extensions, EditorInputCapabilities, IUntypedEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IActiveEditorChangeEvent, EditorPaneSelectionChangeReason, IEditorPaneSelection, IToolbarActions } from 'vs/workbench/common/editor';
+import { EditorServiceImpl, IEditorGroupView, IEditorGroupsView, IEditorGroupTitleHeight, DEFAULT_EDITOR_PART_OPTIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IResolvedWorkingCopyBackup, IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 'vs/platform/configuration/common/configuration';
@@ -40,7 +40,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { ITextResourceConfigurationService, ITextResourcePropertiesService } from 'vs/editor/common/services/textResourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, IMenuChangeEvent } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference, ITextSnapshot } from 'vs/editor/common/model';
@@ -623,7 +623,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
 	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
-	getContainer(_part: Parts): HTMLElement { return null!; }
+	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
 	isActivityBarHidden(): boolean { return false; }
@@ -953,16 +953,18 @@ export class TestEditorGroupView implements IEditorGroupView {
 	toJSON(): object { return Object.create(null); }
 	layout(_width: number, _height: number): void { }
 	relayout() { }
+	createEditorActions(_menuDisposable: IDisposable): { actions: IToolbarActions; onDidChange: Event<IMenuChangeEvent> } { throw new Error('not implemented'); }
 }
 
 export class TestEditorGroupAccessor implements IEditorGroupsView {
 
 	label: string = '';
+	isAuxiliary: boolean = false;
 
 	groups: IEditorGroupView[] = [];
 	activeGroup!: IEditorGroupView;
 
-	partOptions: IEditorPartOptions = {};
+	partOptions: IEditorPartOptions = { ...DEFAULT_EDITOR_PART_OPTIONS };
 
 	onDidChangeEditorPartOptions = Event.None;
 	onDidVisibilityChange = Event.None;
@@ -1473,6 +1475,9 @@ export class TestHostService implements IHostService {
 	private _onDidChangeFocus = new Emitter<boolean>();
 	readonly onDidChangeFocus = this._onDidChangeFocus.event;
 
+	private _onDidChangeWindow = new Emitter<void>();
+	readonly onDidChangeActiveWindow = this._onDidChangeWindow.event;
+
 	setFocus(focus: boolean) {
 		this._hasFocus = focus;
 		this._onDidChangeFocus.fire(this._hasFocus);
@@ -1485,7 +1490,7 @@ export class TestHostService implements IHostService {
 		return await expectedShutdownTask();
 	}
 
-	async focus(options?: { force: boolean }): Promise<void> { }
+	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }

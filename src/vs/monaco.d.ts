@@ -1434,6 +1434,13 @@ declare namespace monaco.editor {
 	export interface ICommandHandler {
 		(...args: any[]): void;
 	}
+	export interface ILocalizedString {
+		original: string;
+		value: string;
+	}
+	export interface ICommandMetadata {
+		readonly description: ILocalizedString | string;
+	}
 
 	export interface IContextKey<T extends ContextKeyValue = ContextKeyValue> {
 		set(value: T): void;
@@ -2469,6 +2476,7 @@ declare namespace monaco.editor {
 		readonly id: string;
 		readonly label: string;
 		readonly alias: string;
+		readonly metadata: ICommandMetadata | undefined;
 		isSupported(): boolean;
 		run(args?: unknown): Promise<void>;
 	}
@@ -5991,6 +5999,7 @@ declare namespace monaco.editor {
 		updateOptions(newOptions: IDiffEditorOptions): void;
 		accessibleDiffViewerNext(): void;
 		accessibleDiffViewerPrev(): void;
+		handleInitialized(): void;
 	}
 
 	export class FontInfo extends BareFontInfo {
@@ -7649,7 +7658,7 @@ declare namespace monaco.languages {
 
 	export interface PendingCommentThread {
 		body: string;
-		range: IRange;
+		range: IRange | undefined;
 		uri: Uri;
 		owner: string;
 		isReply: boolean;
