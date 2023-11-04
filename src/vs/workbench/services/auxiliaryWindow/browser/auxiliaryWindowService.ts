@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { CodeWindow, Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -40,18 +40,18 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly onDidLayout: Event<Dimension>;
 	readonly onDidClose: Event<void>;
 
-	readonly window: AuxiliaryWindow;
+	readonly window: CodeWindow;
 	readonly container: HTMLElement;
 
 	layout(): void;
 }
 
-export type AuxiliaryWindow = Window & typeof globalThis & {
-	readonly vscodeWindowId: number;
-};
+export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
+	if (obj === window) {
+		return false;
+	}
 
-export function isAuxiliaryWindow(obj: Window): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
+	const candidate = obj as CodeWindow | undefined;
 
 	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
 }
@@ -113,7 +113,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return result;
 	}
 
-	private async doOpen(options?: { position?: IRectangle }): Promise<AuxiliaryWindow | undefined> {
+	private async doOpen(options?: { position?: IRectangle }): Promise<CodeWindow | undefined> {
 		let position: IRectangle | undefined = options?.position;
 		if (!position) {
 			const activeWindow = getActiveWindow();
@@ -141,10 +141,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			})).result;
 		}
 
-		return auxiliaryWindow?.window as AuxiliaryWindow | undefined;
+		return auxiliaryWindow?.window as CodeWindow | undefined;
 	}
 
-	protected async create(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore) {
+	protected async create(auxiliaryWindow: CodeWindow, disposables: DisposableStore) {
 		await this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
@@ -157,7 +157,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return { container, onDidLayout, onDidClose };
 	}
 
-	private applyMeta(auxiliaryWindow: AuxiliaryWindow): void {
+	private applyMeta(auxiliaryWindow: CodeWindow): void {
 		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
@@ -173,7 +173,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore): void {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -239,7 +239,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyCSS');
 	}
 
-	private applyHTML(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes
@@ -256,7 +256,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return container;
 	}
 
-	private registerListeners(auxiliaryWindow: AuxiliaryWindow, container: HTMLElement, disposables: DisposableStore) {
+	private registerListeners(auxiliaryWindow: CodeWindow, container: HTMLElement, disposables: DisposableStore) {
 		const onDidClose = disposables.add(new Emitter<void>());
 		disposables.add(addDisposableListener(auxiliaryWindow, 'unload', () => {
 			onDidClose.fire();
@@ -290,11 +290,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return { onDidLayout, onDidClose };
 	}
 
-	protected async resolveWindowId(auxiliaryWindow: AuxiliaryWindow): Promise<number> {
+	protected async resolveWindowId(auxiliaryWindow: CodeWindow): Promise<number> {
 		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
 	}
 
-	protected async patchMethods(auxiliaryWindow: AuxiliaryWindow): Promise<void> {
+	protected async patchMethods(auxiliaryWindow: CodeWindow): Promise<void> {
 		mark('code/auxiliaryWindow/willPatchMethods');
 
 		// Add a `vscodeWindowId` property to identify auxiliary windows

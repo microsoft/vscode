@@ -18,27 +18,36 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
-type WindowGlobal = Window & typeof globalThis;
+export type CodeWindow = Window & typeof globalThis & {
+	readonly vscodeWindowId: number;
+};
 
-interface IWindow {
-	readonly window: WindowGlobal;
+interface IRegisteredCodeWindow {
+	readonly window: CodeWindow;
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-	const windows = new Map<WindowGlobal, IWindow>();
-	windows.set(window, { window, disposables: new DisposableStore() });
+export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+	const windows = new Map<number, IRegisteredCodeWindow>();
 
-	const onDidRegisterWindow = new event.Emitter<IWindow>();
-	const onDidUnregisterWindow = new event.Emitter<WindowGlobal>();
-	const onWillUnregisterWindow = new event.Emitter<WindowGlobal>();
+	const mainWindow = window as CodeWindow;
+	if (typeof mainWindow.vscodeWindowId !== 'number') {
+		Object.defineProperty(window, 'vscodeWindowId', {
+			get: () => -1
+		});
+	}
+	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+
+	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
+	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
+	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
 		onWillUnregisterWindow: onWillUnregisterWindow.event,
 		onDidUnregisterWindow: onDidUnregisterWindow.event,
-		registerWindow(window: WindowGlobal): IDisposable {
-			if (windows.has(window)) {
+		registerWindow(window: CodeWindow): IDisposable {
+			if (windows.has(window.vscodeWindowId)) {
 				return Disposable.None;
 			}
 
@@ -48,10 +57,10 @@ export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow,
 				window,
 				disposables: disposables.add(new DisposableStore())
 			};
-			windows.set(window, registeredWindow);
+			windows.set(window.vscodeWindowId, registeredWindow);
 
 			disposables.add(toDisposable(() => {
-				windows.delete(window);
+				windows.delete(window.vscodeWindowId);
 				onDidUnregisterWindow.fire(window);
 			}));
 
@@ -63,11 +72,14 @@ export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow,
 
 			return disposables;
 		},
-		getWindows(): Iterable<IWindow> {
+		getWindows(): Iterable<IRegisteredCodeWindow> {
 			return windows.values();
 		},
 		getWindowsCount(): number {
 			return windows.size;
+		},
+		getWindowId(targetWindow: Window): number {
+			return (targetWindow as CodeWindow).vscodeWindowId;
 		}
 	};
 })();
@@ -223,51 +235,65 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the next animation frame
 	 */
-	let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
-	let animFrameRequested = false;
+	const animFrameRequested = new Map<number /* window ID */, boolean>();
 	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
-	let inAnimationFrameRunner = false;
+	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
-	const animationFrameRunner = () => {
-		animFrameRequested = false;
+	const animationFrameRunner = (targetWindowId: number) => {
+		animFrameRequested.set(targetWindowId, false);
 
-		CURRENT_QUEUE = NEXT_QUEUE;
-		NEXT_QUEUE = [];
+		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
+		CURRENT_QUEUE.set(targetWindowId, currentQueue);
+		NEXT_QUEUE.set(targetWindowId, []);
 
-		inAnimationFrameRunner = true;
-		while (CURRENT_QUEUE.length > 0) {
-			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			const top = CURRENT_QUEUE.shift()!;
+		inAnimationFrameRunner.set(targetWindowId, true);
+		while (currentQueue.length > 0) {
+			currentQueue.sort(AnimationFrameQueueItem.sort);
+			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner = false;
+		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
 	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
+		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
-		NEXT_QUEUE.push(item);
 
-		if (!animFrameRequested) {
-			animFrameRequested = true;
-			targetWindow.requestAnimationFrame(animationFrameRunner);
+		let nextQueue = NEXT_QUEUE.get(targetWindowId);
+		if (!nextQueue) {
+			nextQueue = [];
+			NEXT_QUEUE.set(targetWindowId, nextQueue);
+		}
+		nextQueue.push(item);
+
+		if (!animFrameRequested.get(targetWindowId)) {
+			animFrameRequested.set(targetWindowId, true);
+			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 
 		return item;
 	};
 
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
-		if (inAnimationFrameRunner) {
+		const targetWindowId = getWindowId(targetWindow);
+		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE!.push(item);
+			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
+			if (!currentQueue) {
+				currentQueue = [];
+				CURRENT_QUEUE.set(targetWindowId, currentQueue);
+			}
+			currentQueue.push(item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);
@@ -775,25 +801,25 @@ export function getActiveDocument(): Document {
 	return documents.find(document => document.hasFocus()) ?? document;
 }
 
-export function getActiveWindow(): WindowGlobal {
+export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
-	return document.defaultView?.window ?? window;
+	return (document.defaultView?.window ?? window) as CodeWindow;
 }
 
-export function getWindow(element: Node | undefined | null): WindowGlobal;
-export function getWindow(event: UIEvent | undefined | null): WindowGlobal;
-export function getWindow(e: unknown): WindowGlobal {
+export function getWindow(element: Node | undefined | null): CodeWindow;
+export function getWindow(event: UIEvent | undefined | null): CodeWindow;
+export function getWindow(e: unknown): CodeWindow {
 	const candidateNode = e as Node | undefined | null;
 	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window;
+		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
 	}
 
 	const candidateEvent = e as UIEvent | undefined | null;
 	if (candidateEvent?.view) {
-		return candidateEvent.view.window;
+		return candidateEvent.view.window as CodeWindow;
 	}
 
-	return window;
+	return window as CodeWindow;
 }
 
 export function focusWindow(element: Node): void {

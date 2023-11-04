@@ -144,7 +144,7 @@ export function animatedObservable(targetWindow: Window, base: IObservable<numbe
 	}, (reader, s) => {
 		/** @description update value */
 		if (animationFrame !== undefined) {
-			cancelAnimationFrame(animationFrame);
+			targetWindow.cancelAnimationFrame(animationFrame);
 			animationFrame = undefined;
 		}
 

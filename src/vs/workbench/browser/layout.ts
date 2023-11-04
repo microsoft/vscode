@@ -47,12 +47,12 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
-	activeContainerId: 'main' | number /* window ID */;
+	activeContainerId: number;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -466,16 +466,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private getActiveContainerId(): 'main' | number {
+	private getActiveContainerId(): number {
 		const activeContainer = this.activeContainer;
-		if (activeContainer !== this.container) {
-			const containerWindow = getWindow(activeContainer);
-			if (isAuxiliaryWindow(containerWindow)) {
-				return containerWindow.vscodeWindowId;
-			}
-		}
 
-		return 'main';
+		return getWindow(activeContainer).vscodeWindowId;
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
