@@ -687,6 +687,10 @@ export class DefaultSettings extends Disposable {
 					}
 				}
 
+				if (!enumToUse && (prop.enumItemLabels || enumDescriptions || enumDescriptionsAreMarkdown)) {
+					console.error(`The setting ${key} has enum-related fields, but doesn't have an enum field. This setting may render improperly in the Settings editor.`);
+				}
+
 				result.push({
 					key,
 					value,
@@ -706,6 +710,7 @@ export class DefaultSettings extends Disposable {
 					enum: enumToUse,
 					enumDescriptions: enumDescriptions,
 					enumDescriptionsAreMarkdown: enumDescriptionsAreMarkdown,
+					enumItemLabels: prop.enumItemLabels,
 					uniqueItems: prop.uniqueItems,
 					tags: prop.tags,
 					disallowSyncIgnore: prop.disallowSyncIgnore,
@@ -714,7 +719,6 @@ export class DefaultSettings extends Disposable {
 					deprecationMessage: prop.markdownDeprecationMessage || prop.deprecationMessage,
 					deprecationMessageIsMarkdown: !!prop.markdownDeprecationMessage,
 					validator: createValidator(prop),
-					enumItemLabels: prop.enumItemLabels,
 					allKeysAreBoolean,
 					editPresentation: prop.editPresentation,
 					order: prop.order,
@@ -1058,7 +1062,7 @@ class SettingsContentBuilder {
 			setting.descriptionRanges.push({ startLineNumber: this.lineCountWithOffset, startColumn: this.lastLine.indexOf(line) + 1, endLineNumber: this.lineCountWithOffset, endColumn: this.lastLine.length });
 		}
 
-		if (setting.enumDescriptions && setting.enumDescriptions.some(desc => !!desc)) {
+		if (setting.enum && setting.enumDescriptions?.some(desc => !!desc)) {
 			setting.enumDescriptions.forEach((desc, i) => {
 				const displayEnum = escapeInvisibleChars(String(setting.enum![i]));
 				const line = desc ?

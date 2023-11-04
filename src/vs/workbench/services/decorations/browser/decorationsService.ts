@@ -158,16 +158,15 @@ class DecorationRule {
 
 class DecorationStyles {
 
-	private readonly _styleElement = createStyleSheet();
-	private readonly _decorationRules = new Map<string, DecorationRule>();
 	private readonly _dispoables = new DisposableStore();
+	private readonly _styleElement = createStyleSheet(undefined, undefined, this._dispoables);
+	private readonly _decorationRules = new Map<string, DecorationRule>();
 
 	constructor(private readonly _themeService: IThemeService) {
 	}
 
 	dispose(): void {
 		this._dispoables.dispose();
-		this._styleElement.remove();
 	}
 
 	asDecoration(data: IDecorationData[], onlyChildren: boolean): IDecoration {

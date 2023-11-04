@@ -120,7 +120,7 @@ suite('diffing fixtures', () => {
 	}
 
 	test(`test`, () => {
-		runTest('false-positive-move', 'advanced');
+		runTest('shifting-twice', 'advanced');
 	});
 
 	for (const folder of folders) {

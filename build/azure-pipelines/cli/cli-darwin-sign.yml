@@ -41,4 +41,5 @@ steps:
       displayName: Set asset id variable
 
     - publish: $(Build.ArtifactStagingDirectory)/pkg/${{ target }}/$(ASSET_ID).zip
+      displayName: Publish signed artifact with ID $(ASSET_ID)
       artifact: $(ASSET_ID)

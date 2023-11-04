@@ -21,6 +21,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/browser/toggleTabFocusMode';
+import { getActiveElement } from 'vs/base/browser/dom';
 
 Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
 	id: 'comments',
@@ -118,7 +119,7 @@ export class CommentsAccessibilityHelpProvider implements IAccessibleContentProv
 		return strings.format(noKbMsg, commandId);
 	}
 	provideContent(): string {
-		this._element = document.activeElement as HTMLElement;
+		this._element = getActiveElement() as HTMLElement;
 		const content: string[] = [];
 		content.push(this._descriptionForCommand(ToggleTabFocusModeAction.ID, CommentAccessibilityHelpNLS.introWidget, CommentAccessibilityHelpNLS.introWidgetNoKb) + '\n');
 		content.push(CommentAccessibilityHelpNLS.commentCommands);

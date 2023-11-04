@@ -25,7 +25,7 @@ import { terminalDecorationError, terminalDecorationIncomplete, terminalDecorati
 import { DecorationSelector, TerminalDecorationHoverManager, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
 import { TERMINAL_COMMAND_DECORATION_DEFAULT_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_ERROR_BACKGROUND_COLOR, TERMINAL_COMMAND_DECORATION_SUCCESS_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
-import type { IDecoration, ITerminalAddon, Terminal } from 'xterm';
+import type { IDecoration, ITerminalAddon, Terminal } from '@xterm/xterm';
 
 interface IDisposableDecoration { decoration: IDecoration; disposables: IDisposable[]; exitCode?: number; markProperties?: IMarkProperties }
 
@@ -134,9 +134,11 @@ export class DecorationAddon extends Disposable implements ITerminalAddon {
 	}
 
 	private _updateGutterDecorationVisibility(): void {
-		const commandDecorationElements = document.querySelectorAll(DecorationSelector.CommandDecoration);
-		for (const commandDecorationElement of commandDecorationElements) {
-			this._updateCommandDecorationVisibility(commandDecorationElement);
+		const commandDecorationElements = this._terminal?.element?.querySelectorAll(DecorationSelector.CommandDecoration);
+		if (commandDecorationElements) {
+			for (const commandDecorationElement of commandDecorationElements) {
+				this._updateCommandDecorationVisibility(commandDecorationElement);
+			}
 		}
 	}
 

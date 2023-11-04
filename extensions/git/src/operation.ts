@@ -7,7 +7,6 @@ import { LogOutputChannel } from 'vscode';
 
 export const enum OperationKind {
 	Add = 'Add',
-	AddNoProgress = 'AddNoProgress',
 	Apply = 'Apply',
 	Blame = 'Blame',
 	Branch = 'Branch',
@@ -16,7 +15,6 @@ export const enum OperationKind {
 	CheckoutTracking = 'CheckoutTracking',
 	CherryPick = 'CherryPick',
 	Clean = 'Clean',
-	CleanNoProgress = 'CleanNoProgress',
 	Commit = 'Commit',
 	Config = 'Config',
 	DeleteBranch = 'DeleteBranch',
@@ -25,7 +23,6 @@ export const enum OperationKind {
 	DeleteTag = 'DeleteTag',
 	Diff = 'Diff',
 	Fetch = 'Fetch',
-	FetchNoProgress = 'FetchNoProgress',
 	FindTrackingBranches = 'GetTracking',
 	GetBranch = 'GetBranch',
 	GetBranches = 'GetBranches',
@@ -52,7 +49,6 @@ export const enum OperationKind {
 	RebaseAbort = 'RebaseAbort',
 	RebaseContinue = 'RebaseContinue',
 	RevertFiles = 'RevertFiles',
-	RevertFilesNoProgress = 'RevertFilesNoProgress',
 	RevList = 'RevList',
 	RevParse = 'RevParse',
 	SetBranchUpstream = 'SetBranchUpstream',

@@ -45,6 +45,19 @@ function getIconResource(decorations?: vscode.SourceControlResourceThemableDecor
 	}
 }
 
+function getInputBoxActionButtonIcon(actionButton?: vscode.SourceControlInputBoxActionButton): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
+	if (!actionButton?.icon) {
+		return undefined;
+	} else if (URI.isUri(actionButton.icon)) {
+		return actionButton.icon;
+	} else if (ThemeIcon.isThemeIcon(actionButton.icon)) {
+		return actionButton.icon;
+	} else {
+		const icon = actionButton.icon as { light: URI; dark: URI };
+		return { light: icon.light, dark: icon.dark };
+	}
+}
+
 function getHistoryItemIconDto(historyItem: vscode.SourceControlHistoryItem): UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon | undefined {
 	if (!historyItem.icon) {
 		return undefined;
@@ -313,13 +326,36 @@ export class ExtHostSCMInputBox implements vscode.SourceControlInputBox {
 		this.#proxy.$setInputBoxVisibility(this._sourceControlHandle, visible);
 	}
 
+	private _actionButton: vscode.SourceControlInputBoxActionButton | undefined;
+	private _actionButtonDisposables = new MutableDisposable<DisposableStore>();
+
+	get actionButton(): vscode.SourceControlInputBoxActionButton | undefined {
+		checkProposedApiEnabled(this._extension, 'scmInputBoxActionButton');
+		return this._actionButton;
+	}
+
+	set actionButton(actionButton: vscode.SourceControlInputBoxActionButton | undefined) {
+		checkProposedApiEnabled(this._extension, 'scmInputBoxActionButton');
+		this._actionButtonDisposables.value = new DisposableStore();
+
+		this._actionButton = actionButton;
+
+		const internal = actionButton !== undefined ?
+			{
+				command: this._commands.converter.toInternal(actionButton.command, this._actionButtonDisposables.value),
+				icon: getInputBoxActionButtonIcon(actionButton),
+				enabled: actionButton.enabled
+			} : undefined;
+		this.#proxy.$setInputBoxActionButton(this._sourceControlHandle, internal ?? null);
+	}
+
 	get document(): vscode.TextDocument {
 		checkProposedApiEnabled(this._extension, 'scmTextDocument');
 
 		return this.#extHostDocuments.getDocument(this._documentUri);
 	}
 
-	constructor(private _extension: IExtensionDescription, _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
+	constructor(private _extension: IExtensionDescription, private _commands: ExtHostCommands, _extHostDocuments: ExtHostDocuments, proxy: MainThreadSCMShape, private _sourceControlHandle: number, private _documentUri: URI) {
 		this.#extHostDocuments = _extHostDocuments;
 		this.#proxy = proxy;
 	}
@@ -680,7 +716,7 @@ class ExtHostSourceControl implements vscode.SourceControl {
 			query: _rootUri ? `rootUri=${encodeURIComponent(_rootUri.toString())}` : undefined
 		});
 
-		this._inputBox = new ExtHostSCMInputBox(_extension, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
+		this._inputBox = new ExtHostSCMInputBox(_extension, _commands, _extHostDocuments, this.#proxy, this.handle, inputBoxDocumentUri);
 		this.#proxy.$registerSourceControl(this.handle, _id, _label, _rootUri, inputBoxDocumentUri);
 	}
 

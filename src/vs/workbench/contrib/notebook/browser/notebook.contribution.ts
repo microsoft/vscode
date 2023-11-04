@@ -180,7 +180,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI; viewType: string; options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -189,6 +189,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		assertType(input instanceof NotebookEditorInput);
 		const data: SerializedNotebookEditorData = {
 			resource: input.resource,
+			preferredResource: input.preferredResource,
 			viewType: input.viewType,
 			options: input.options
 		};
@@ -199,12 +200,12 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, viewType, options } = data;
+		const { resource, preferredResource, viewType, options } = data;
 		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
 		return input;
 	}
 }
@@ -639,7 +640,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
+		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -946,7 +947,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
-			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit"),
+			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit."),
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
@@ -964,7 +965,7 @@ configurationRegistry.registerConfiguration({
 			default: false
 		},
 		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
+			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
 			type: 'object',
 			additionalProperties: {
 				type: ['string', 'boolean'],

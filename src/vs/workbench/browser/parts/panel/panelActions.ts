@@ -407,7 +407,7 @@ class MoveViewsBetweenPanelsAction extends Action2 {
 		if (srcContainers.length) {
 			const activeViewContainer = viewsService.getVisibleViewContainer(this.source);
 
-			srcContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, this.destination));
+			srcContainers.forEach(viewContainer => viewDescriptorService.moveViewContainerToLocation(viewContainer, this.destination, undefined, this.desc.id));
 			layoutService.setPartHidden(false, this.destination === ViewContainerLocation.Panel ? Parts.PANEL_PART : Parts.AUXILIARYBAR_PART);
 
 			if (activeViewContainer && destContainers.length === 0) {

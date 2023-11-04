@@ -41,6 +41,9 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { CommentContextKeys } from 'vs/workbench/contrib/comments/common/commentContextKeys';
 import { CommentAccessibilityHelpNLS } from 'vs/workbench/contrib/comments/browser/comments.contribution';
 import { CommentCommandId } from 'vs/workbench/contrib/comments/common/commentCommandIds';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AudioCue } from 'vs/platform/audioCues/browser/audioCueService';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export class EditorAccessibilityHelpContribution extends Disposable {
 	static ID: 'editorAccessibilityHelpContribution';
@@ -71,7 +74,8 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 	constructor(
 		private readonly _editor: ICodeEditor,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) {
 	}
 
@@ -91,6 +95,30 @@ class EditorAccessibilityHelpProvider implements IAccessibleContentProvider {
 			} else {
 				content.push(AccessibilityHelpNLS.editableEditor);
 			}
+		}
+		const saveAudioCue = this._configurationService.getValue(AudioCue.save.settingsKey);
+		switch (saveAudioCue) {
+			case 'never':
+				content.push(AccessibilityHelpNLS.saveAudioCueDisabled);
+				break;
+			case 'always':
+				content.push(AccessibilityHelpNLS.saveAudioCueAlways);
+				break;
+			case 'userGesture':
+				content.push(AccessibilityHelpNLS.saveAudioCueUserGesture);
+				break;
+		}
+		const formatAudioCue = this._configurationService.getValue(AudioCue.format.settingsKey);
+		switch (formatAudioCue) {
+			case 'never':
+				content.push(AccessibilityHelpNLS.formatAudioCueDisabled);
+				break;
+			case 'always':
+				content.push(AccessibilityHelpNLS.formatAudioCueAlways);
+				break;
+			case 'userGesture':
+				content.push(AccessibilityHelpNLS.formatAudioCueUserGesture);
+				break;
 		}
 
 		const commentCommandInfo = getCommentCommandInfo(this._keybindingService, this._contextKeyService, this._editor);
@@ -196,6 +224,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 			const accessibleViewService = accessor.get(IAccessibleViewService);
 			const listService = accessor.get(IListService);
 			const commandService = accessor.get(ICommandService);
+			const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 			function renderAccessibleView(): boolean {
 				const notification = getNotificationFromContext(listService);
@@ -256,7 +285,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 					},
 					verbositySettingKey: AccessibilityVerbositySettingId.Notification,
 					options: { type: AccessibleViewType.View },
-					actions: getActionsFromNotification(notification)
+					actions: getActionsFromNotification(notification, accessibleNotificationService)
 				});
 				return true;
 			}
@@ -265,7 +294,7 @@ export class NotificationAccessibleViewContribution extends Disposable {
 	}
 }
 
-function getActionsFromNotification(notification: INotificationViewItem): IAction[] | undefined {
+function getActionsFromNotification(notification: INotificationViewItem, accessibleNotificationService: IAccessibleNotificationService): IAction[] | undefined {
 	let actions = undefined;
 	if (notification.actions) {
 		actions = [];
@@ -291,7 +320,12 @@ function getActionsFromNotification(notification: INotificationViewItem): IActio
 		manageExtension.class = ThemeIcon.asClassName(Codicon.gear);
 	}
 	if (actions) {
-		actions.push({ id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => notification.close(), enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll) });
+		actions.push({
+			id: 'clearNotification', label: localize('clearNotification', "Clear Notification"), tooltip: localize('clearNotification', "Clear Notification"), run: () => {
+				notification.close();
+				accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
+			}, enabled: true, class: ThemeIcon.asClassName(Codicon.clearAll)
+		});
 	}
 	return actions;
 }

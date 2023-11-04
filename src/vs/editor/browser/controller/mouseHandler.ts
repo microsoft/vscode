@@ -682,7 +682,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		this._position = position;
 		this._mouseEvent = mouseEvent;
 		this._lastTime = Date.now();
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute(), dom.getWindow(mouseEvent.browserEvent));
 	}
 
 	public override dispose(): void {
@@ -752,7 +752,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		}
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute(), dom.getWindow(mouseTarget.element));
 	}
 }
 

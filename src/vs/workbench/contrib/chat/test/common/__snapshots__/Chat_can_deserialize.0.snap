@@ -26,19 +26,13 @@
           }
         ]
       },
-      response: [
-        {
-          value: "",
-          isTrusted: false,
-          supportThemeIcons: false,
-          supportHtml: false
-        }
-      ],
+      response: [  ],
       responseErrorDetails: undefined,
       followups: undefined,
       isCanceled: false,
       vote: undefined,
       agent: undefined,
+      slashCommand: undefined,
       usedContext: { documents: [
           {
             uri: {
@@ -60,7 +54,8 @@
               }
             ]
           }
-        ] }
+        ] },
+      contentReferences: [  ]
     }
   ],
   providerId: "ChatProviderWithUsedContext",

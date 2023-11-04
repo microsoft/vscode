@@ -571,7 +571,7 @@ export class SuggestWidget implements IDisposable {
 			this._layout(this.element.size);
 			// Reset focus border
 			this._details.widget.domNode.classList.remove('focused');
-		});
+		}, dom.getWindow(this.element.domNode));
 	}
 
 	focusSelected(): void {
@@ -721,7 +721,7 @@ export class SuggestWidget implements IDisposable {
 			this._positionDetails();
 			this.editor.focus();
 			this.element.domNode.classList.add('shows-details');
-		});
+		}, dom.getWindow(this.element.domNode));
 	}
 
 	toggleExplainMode(): void {

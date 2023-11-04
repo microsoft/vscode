@@ -818,7 +818,7 @@ export class TextAreaHandler extends ViewPart {
 
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
 
-		if (platform.isMacintosh) {
+		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._doRender({

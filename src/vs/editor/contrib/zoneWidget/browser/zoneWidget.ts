@@ -321,6 +321,19 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		this._positionMarkerId.set([{ range, options: ModelDecorationOptions.EMPTY }]);
 	}
 
+	updatePositionAndHeight(rangeOrPos: IRange | IPosition, heightInLines?: number): void {
+		if (this._viewZone) {
+			rangeOrPos = Range.isIRange(rangeOrPos) ? Range.getStartPosition(rangeOrPos) : rangeOrPos;
+			this._viewZone.afterLineNumber = rangeOrPos.lineNumber;
+			this._viewZone.afterColumn = rangeOrPos.column;
+			this._viewZone.heightInLines = heightInLines ?? this._viewZone.heightInLines;
+
+			this.editor.changeViewZones(accessor => {
+				accessor.layoutZone(this._viewZone!.id);
+			});
+		}
+	}
+
 	hide(): void {
 		if (this._viewZone) {
 			this.editor.changeViewZones(accessor => {

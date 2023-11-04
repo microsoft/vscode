@@ -522,6 +522,20 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	return disposable;
 }
 
+export function disposableInterval(handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
+	let iteration = 0;
+	const timer = setInterval(() => {
+		iteration++;
+		if (iteration >= iterations || handler()) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		clearInterval(timer);
+	});
+	return disposable;
+}
+
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
@@ -1885,6 +1899,63 @@ export function createCancelableAsyncIterable<T>(callback: (token: CancellationT
 			emitter.reject(err);
 		}
 	});
+}
+
+export class AsyncIterableSource<T> {
+
+	private readonly _deferred = new DeferredPromise<void>();
+	private readonly _asyncIterable: AsyncIterableObject<T>;
+
+	private _errorFn: (error: Error) => void;
+	private _emitFn: (item: T) => void;
+
+	constructor() {
+		this._asyncIterable = new AsyncIterableObject(emitter => {
+
+			if (earlyError) {
+				emitter.reject(earlyError);
+				return;
+			}
+			if (earlyItems) {
+				emitter.emitMany(earlyItems);
+			}
+			this._errorFn = (error: Error) => emitter.reject(error);
+			this._emitFn = (item: T) => emitter.emitOne(item);
+			return this._deferred.p;
+		});
+
+		let earlyError: Error | undefined;
+		let earlyItems: T[] | undefined;
+
+		this._emitFn = (item: T) => {
+			if (!earlyItems) {
+				earlyItems = [];
+			}
+			earlyItems.push(item);
+		};
+		this._errorFn = (error: Error) => {
+			if (!earlyError) {
+				earlyError = error;
+			}
+		};
+	}
+
+	get asyncIterable(): AsyncIterableObject<T> {
+		return this._asyncIterable;
+	}
+
+	resolve(): void {
+		this._deferred.complete();
+	}
+
+	reject(error: Error): void {
+		this._errorFn(error);
+		this._deferred.complete();
+	}
+
+	emitOne(item: T): void {
+		this._emitFn(item);
+	}
 }
 
 //#endregion

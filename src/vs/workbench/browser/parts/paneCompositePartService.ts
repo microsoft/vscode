@@ -14,9 +14,8 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { IPaneComposite } from 'vs/workbench/common/panecomposite';
 import { ViewContainerLocation, ViewContainerLocations } from 'vs/workbench/common/views';
-import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
-import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IPaneCompositePart } from 'vs/workbench/browser/parts/paneCompositePart';
 
 export class PaneCompositePartService extends Disposable implements IPaneCompositePartService {
@@ -80,10 +79,6 @@ export class PaneCompositePartService extends Disposable implements IPaneComposi
 
 	getLastActivePaneCompositeId(viewContainerLocation: ViewContainerLocation): string {
 		return this.getPartByLocation(viewContainerLocation).getLastActivePaneCompositeId();
-	}
-
-	showActivity(id: string, viewContainerLocation: ViewContainerLocation, badge: IBadge, clazz?: string, priority?: number): IDisposable {
-		return this.getPartByLocation(viewContainerLocation).showActivity(id, badge, clazz, priority);
 	}
 
 	private getPartByLocation(viewContainerLocation: ViewContainerLocation): IPaneCompositePart {
