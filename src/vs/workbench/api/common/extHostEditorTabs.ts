@@ -10,6 +10,7 @@ import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorTabDto, IEditorTabGroupDto, IExtHostEditorTabsShape, MainContext, MainThreadEditorTabsShape, TabInputKind, TabModelOperationKind, TabOperation } from 'vs/workbench/api/common/extHost.protocol';
 import { IExtHostRpcService } from 'vs/workbench/api/common/extHostRpcService';
+import { TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 import * as typeConverters from 'vs/workbench/api/common/extHostTypeConverters';
 import { ChatEditorTabInput, CustomEditorTabInput, InteractiveWindowInput, NotebookDiffEditorTabInput, NotebookEditorTabInput, TerminalEditorTabInput, TextDiffTabInput, TextMergeTabInput, TextTabInput, WebviewEditorTabInput } from 'vs/workbench/api/common/extHostTypes';
 import type * as vscode from 'vscode';
@@ -47,6 +48,9 @@ class ExtHostEditorTab {
 				},
 				get label() {
 					return that._dto.label;
+				},
+				get isLabelChanged() {
+					return that._dto.isLabelChanged;
 				},
 				get input() {
 					return that._input;
@@ -249,6 +253,9 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 					const activeTabGroup = assertIsDefined(that._extHostTabGroups.find(candidate => candidate.groupId === activeTabGroupId)?.apiObject);
 					return activeTabGroup;
 				},
+				renameTab: (tab: vscode.Tab, input: TabLabelInput) => {
+					return this._renameTab(tab, input);
+				},
 				close: async (tabOrTabGroup: vscode.Tab | readonly vscode.Tab[] | vscode.TabGroup | readonly vscode.TabGroup[], preserveFocus?: boolean) => {
 					const tabsOrTabGroups = Array.isArray(tabOrTabGroup) ? tabOrTabGroup : [tabOrTabGroup];
 					if (!tabsOrTabGroups.length) {
@@ -364,6 +371,14 @@ export class ExtHostEditorTabs implements IExtHostEditorTabs {
 
 	private _findExtHostTabGroupFromApi(apiTabGroup: vscode.TabGroup): ExtHostEditorTabGroup | undefined {
 		return this._extHostTabGroups.find(candidate => candidate.apiObject === apiTabGroup);
+	}
+
+	private _renameTab(tab: vscode.Tab, input: TabLabelInput): void {
+		const extHostTab = this._findExtHostTabFromApi(tab);
+		if (!extHostTab) {
+			throw new Error('Tab rename: Invalid tab not found!');
+		}
+		return this._proxy.$renameTab(extHostTab?.tabId, input);
 	}
 
 	private async _closeTabs(tabs: vscode.Tab[], preserveFocus?: boolean): Promise<boolean> {

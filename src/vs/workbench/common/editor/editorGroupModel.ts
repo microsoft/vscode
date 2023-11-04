@@ -12,6 +12,7 @@ import { IConfigurationChangeEvent, IConfigurationService } from 'vs/platform/co
 import { dispose, Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
+import { ICustomTabLabelService, TabLabelInput } from 'vs/workbench/services/label/common/customTabLabels';
 
 const EditorOpenPositioning = {
 	LEFT: 'left',
@@ -190,6 +191,7 @@ interface IEditorGroupModel extends IReadonlyEditorGroupModel {
 	openEditor(editor: EditorInput, options?: IEditorOpenOptions): IEditorOpenResult;
 	closeEditor(editor: EditorInput, context?: EditorCloseContext, openNext?: boolean): IEditorCloseResult | undefined;
 	moveEditor(editor: EditorInput, toIndex: number): EditorInput | undefined;
+	provideEditorTabLabel(editor: EditorInput, input: TabLabelInput): void;
 	setActive(editor: EditorInput | undefined): EditorInput | undefined;
 }
 
@@ -224,7 +226,8 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 	constructor(
 		labelOrSerializedGroup: ISerializedEditorGroupModel | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICustomTabLabelService private readonly customTabLabelService: ICustomTabLabelService,
 	) {
 		super();
 
@@ -621,6 +624,17 @@ export class EditorGroupModel extends Disposable implements IEditorGroupModel {
 		}
 
 		return editor;
+	}
+
+	provideEditorTabLabel(editor: EditorInput, input: TabLabelInput) {
+		this.customTabLabelService.setCustomTabLabelForEditor(editor, this.id, input);
+
+		const event: IGroupModelChangeEvent = {
+			kind: GroupModelChangeKind.EDITOR_LABEL,
+			editor,
+			editorIndex: this.editors.indexOf(editor)
+		};
+		this._onDidModelChange.fire(event);
 	}
 
 	setActive(candidate: EditorInput | undefined): EditorInput | undefined {
