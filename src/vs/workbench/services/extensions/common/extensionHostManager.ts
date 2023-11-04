@@ -38,6 +38,7 @@ export interface IExtensionHostManager {
 	readonly pid: number | null;
 	readonly kind: ExtensionHostKind;
 	readonly startup: ExtensionHostStartup;
+	readonly friendyName: string;
 	readonly onDidExit: Event<[number, string | null]>;
 	readonly onDidChangeResponsiveState: Event<ResponsiveState>;
 	dispose(): void;
@@ -114,6 +115,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 
 	public get startup(): ExtensionHostStartup {
 		return this._extensionHost.startup;
+	}
+
+	public get friendyName(): string {
+		return friendlyExtHostName(this.kind, this.pid);
 	}
 
 	constructor(
@@ -518,6 +523,10 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 		return this._extensionHost.startup;
 	}
 
+	public get friendyName(): string {
+		return friendlyExtHostName(this.kind, this.pid);
+	}
+
 	constructor(
 		extensionHost: IExtensionHost,
 		private readonly _internalExtensionService: IInternalExtensionService,
@@ -533,7 +542,7 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 	}
 
 	private _createActual(reason: string): ExtensionHostManager {
-		this._logService.info(`Creating lazy extension host: ${reason}`);
+		this._logService.info(`Creating lazy extension host (${this.friendyName}): ${reason}`);
 		this._actual = this._register(this._instantiationService.createInstance(ExtensionHostManager, this._extensionHost, [], this._internalExtensionService));
 		this._register(this._actual.onDidChangeResponsiveState((e) => this._onDidChangeResponsiveState.fire(e)));
 		return this._actual;
@@ -653,6 +662,13 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 			return this._actual.setRemoteEnvironment(env);
 		}
 	}
+}
+
+function friendlyExtHostName(kind: ExtensionHostKind, pid: number | null) {
+	if (pid) {
+		return `${extensionHostKindToString(kind)} pid: ${pid}`;
+	}
+	return `${extensionHostKindToString(kind)}`;
 }
 
 const colorTables = [
