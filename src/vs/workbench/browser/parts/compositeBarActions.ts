@@ -415,7 +415,7 @@ export class CompoisteBarActionViewItem extends BaseActionViewItem {
 		}));
 	}
 
-	private showHover(skipFadeInAnimation: boolean = false): void {
+	showHover(skipFadeInAnimation: boolean = false): void {
 		if (this.lastHover && !this.lastHover.isDisposed) {
 			return;
 		}

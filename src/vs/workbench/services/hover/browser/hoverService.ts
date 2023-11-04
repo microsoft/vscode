@@ -37,7 +37,7 @@ export class HoverService implements IHoverService {
 		@ILayoutService private readonly _layoutService: ILayoutService,
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
 	) {
-		contextMenuService.onDidShowContextMenu(() => this.doHideHover());
+		contextMenuService.onDidShowContextMenu(() => this.hideHover());
 	}
 
 	showHover(options: IHoverOptions, focus?: boolean, skipLastFocusedUpdate?: boolean): IHoverWidget | undefined {

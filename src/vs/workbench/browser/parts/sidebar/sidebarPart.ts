@@ -7,7 +7,7 @@ import 'vs/css!./media/sidebarpart';
 import 'vs/workbench/browser/parts/sidebar/sidebarActions';
 import { ActivityBarPosition, IWorkbenchLayoutService, LayoutSettings, Parts, Position as SideBarPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { SidebarFocusContext, ActiveViewletContext } from 'vs/workbench/common/contextkeys';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -27,10 +27,12 @@ import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HoverPosition } from 'vs/base/browser/ui/hover/hoverWidget';
 import { IPaneCompositeBarOptions } from 'vs/workbench/browser/parts/paneCompositeBar';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IMenuService } from 'vs/platform/actions/common/actions';
+import { Action2, IMenuService, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { Separator } from 'vs/base/common/actions';
+import { ToggleActivityBarVisibilityActionId } from 'vs/workbench/browser/actions/layoutActions';
+import { localize } from 'vs/nls';
 
 export class SidebarPart extends AbstractPaneCompositePart {
 
@@ -103,16 +105,14 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		);
 
 		this.acitivityBarPart = this._register(instantiationService.createInstance(ActivitybarPart, this));
+		this.rememberActivityBarVisiblePosition();
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION)) {
-				this.updateTitleArea();
-				const id = this.getActiveComposite()?.getId();
-				if (id) {
-					this.onTitleAreaUpdate(id!);
-				}
-				this.updateActivityBarVisiblity();
+				this.onDidChangeActivityBarLocation();
 			}
 		}));
+
+		this.registerActions();
 
 		lifecycleService.when(LifecyclePhase.Eventually).then(() => {
 			telemetryService.publicLog2<{ location: string }, {
@@ -121,6 +121,16 @@ export class SidebarPart extends AbstractPaneCompositePart {
 				comment: 'This is used to know where activity bar is shown in the workbench.';
 			}>('activityBar:location', { location: configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) });
 		});
+	}
+
+	private onDidChangeActivityBarLocation(): void {
+		this.updateTitleArea();
+		const id = this.getActiveComposite()?.getId();
+		if (id) {
+			this.onTitleAreaUpdate(id!);
+		}
+		this.updateActivityBarVisiblity();
+		this.rememberActivityBarVisiblePosition();
 	}
 
 	override updateStyles(): void {
@@ -206,6 +216,21 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) !== ActivityBarPosition.HIDDEN;
 	}
 
+	private rememberActivityBarVisiblePosition(): void {
+		const activityBarPosition = this.configurationService.getValue<string>(LayoutSettings.ACTIVITY_BAR_LOCATION);
+		if (activityBarPosition !== ActivityBarPosition.HIDDEN) {
+			this.storageService.store(LayoutSettings.ACTIVITY_BAR_LOCATION, activityBarPosition, StorageScope.PROFILE, StorageTarget.USER);
+		}
+	}
+
+	private getRememberedActivityBarVisiblePosition(): ActivityBarPosition {
+		const activityBarPosition = this.storageService.get(LayoutSettings.ACTIVITY_BAR_LOCATION, StorageScope.PROFILE);
+		switch (activityBarPosition) {
+			case ActivityBarPosition.SIDE: return ActivityBarPosition.SIDE;
+			default: return ActivityBarPosition.TOP;
+		}
+	}
+
 	private updateActivityBarVisiblity(): void {
 		if (this.shouldShowActivityBar()) {
 			this.acitivityBarPart.show();
@@ -222,15 +247,38 @@ export class SidebarPart extends AbstractPaneCompositePart {
 		return this.shouldShowCompositeBar() ? super.getVisiblePaneCompositeIds() : this.acitivityBarPart.getVisiblePaneCompositeIds();
 	}
 
-	focusActivityBar(): void {
+	async focusActivityBar(): Promise<void> {
+		if (this.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN) {
+			await this.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, this.getRememberedActivityBarVisiblePosition());
+			this.onDidChangeActivityBarLocation();
+		}
 		if (this.shouldShowCompositeBar()) {
 			this.focusComositeBar();
 		} else {
 			if (!this.layoutService.isVisible(Parts.ACTIVITYBAR_PART)) {
 				this.layoutService.setPartHidden(false, Parts.ACTIVITYBAR_PART);
 			}
-			this.acitivityBarPart.focus();
+			this.acitivityBarPart.show(true);
 		}
+	}
+
+	private registerActions(): void {
+		const that = this;
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: ToggleActivityBarVisibilityActionId,
+					title: {
+						value: localize('toggleActivityBar', "Toggle Activity Bar Visibility"),
+						original: 'Toggle Activity Bar Visibility'
+					},
+				});
+			}
+			run(): Promise<void> {
+				const value = that.configurationService.getValue(LayoutSettings.ACTIVITY_BAR_LOCATION) === ActivityBarPosition.HIDDEN ? that.getRememberedActivityBarVisiblePosition() : ActivityBarPosition.HIDDEN;
+				return that.configurationService.updateValue(LayoutSettings.ACTIVITY_BAR_LOCATION, value);
+			}
+		}));
 	}
 
 	toJSON(): object {
