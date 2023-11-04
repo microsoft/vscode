@@ -35,6 +35,7 @@ const LOG_EXTENSION_HOST_COMMUNICATION = false;
 const LOG_USE_COLORS = true;
 
 export interface IExtensionHostManager {
+	readonly pid: number | null;
 	readonly kind: ExtensionHostKind;
 	readonly startup: ExtensionHostStartup;
 	readonly onDidExit: Event<[number, string | null]>;
@@ -102,6 +103,10 @@ class ExtensionHostManager extends Disposable implements IExtensionHostManager {
 	private readonly _extensionHost: IExtensionHost;
 	private _proxy: Promise<IExtensionHostProxy | null> | null;
 	private _hasStarted = false;
+
+	public get pid(): number | null {
+		return this._extensionHost.pid;
+	}
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;
@@ -497,6 +502,13 @@ class LazyCreateExtensionHostManager extends Disposable implements IExtensionHos
 	private _startCalled: Barrier;
 	private _actual: ExtensionHostManager | null;
 	private _lazyStartExtensions: ExtensionHostExtensions | null;
+
+	public get pid(): number | null {
+		if (this._actual) {
+			return this._actual.pid;
+		}
+		return null;
+	}
 
 	public get kind(): ExtensionHostKind {
 		return this._extensionHost.runningLocation.kind;

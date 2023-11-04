@@ -112,6 +112,7 @@ export const enum ExtensionHostStartup {
 }
 
 export interface IExtensionHost {
+	readonly pid: number | null;
 	readonly runningLocation: ExtensionRunningLocation;
 	readonly remoteAuthority: string | null;
 	readonly startup: ExtensionHostStartup;

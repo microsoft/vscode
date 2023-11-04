@@ -753,6 +753,11 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		const processManager: IExtensionHostManager = this._doCreateExtensionHostManager(extensionHost, initialActivationEvents);
 		processManager.onDidExit(([code, signal]) => this._onExtensionHostCrashOrExit(processManager, code, signal));
 		processManager.onDidChangeResponsiveState((responsiveState) => {
+			if (responsiveState === ResponsiveState.Responsive) {
+				this._logService.info(`Extension host (${extensionHostKindToString(processManager.kind)}) pid (${processManager.pid}) is unresponsive.`);
+			} else {
+				this._logService.info(`Extension host (${extensionHostKindToString(processManager.kind)}) pid (${processManager.pid}) is responsive.`);
+			}
 			this._onDidChangeResponsiveChange.fire({
 				extensionHostKind: processManager.kind,
 				isResponsive: responsiveState === ResponsiveState.Responsive,
@@ -852,9 +857,9 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		}
 
 		if (activatedExtensions.length > 0) {
-			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) pid (${extensionHost.pid}) terminated unexpectedly. The following extensions were running: ${activatedExtensions.map(id => id.value).join(', ')}`);
 		} else {
-			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) terminated unexpectedly. No extensions were activated.`);
+			this._logService.error(`Extension host (${extensionHostKindToString(extensionHost.kind)}) pid (${extensionHost.pid}) terminated unexpectedly. No extensions were activated.`);
 		}
 	}
 
