@@ -25,7 +25,20 @@ interface IWindow {
 	readonly disposables: DisposableStore;
 }
 
-export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
+export type MainWindowId = -1;
+export const mainWindowId: MainWindowId = -1;
+
+export type AuxiliaryWindow = Window & typeof globalThis & {
+	readonly vscodeWindowId: number;
+};
+
+export function isAuxiliaryWindow(obj: Window): obj is AuxiliaryWindow {
+	const candidate = obj as AuxiliaryWindow | undefined;
+
+	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
+}
+
+export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<WindowGlobal, IWindow>();
 	windows.set(window, { window, disposables: new DisposableStore() });
 
@@ -68,6 +81,13 @@ export const { registerWindow, getWindows, getWindowsCount, onDidRegisterWindow,
 		},
 		getWindowsCount(): number {
 			return windows.size;
+		},
+		getWindowId(targetWindow: Window | AuxiliaryWindow): number | MainWindowId {
+			if (isAuxiliaryWindow(targetWindow)) {
+				return targetWindow.vscodeWindowId;
+			}
+
+			return mainWindowId;
 		}
 	};
 })();
@@ -223,51 +243,65 @@ class AnimationFrameQueueItem implements IDisposable {
 	/**
 	 * The runners scheduled at the next animation frame
 	 */
-	let NEXT_QUEUE: AnimationFrameQueueItem[] = [];
+	const NEXT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * The runners scheduled at the current animation frame
 	 */
-	let CURRENT_QUEUE: AnimationFrameQueueItem[] | null = null;
+	const CURRENT_QUEUE = new Map<number /* window ID */, AnimationFrameQueueItem[]>();
 	/**
 	 * A flag to keep track if the native requestAnimationFrame was already called
 	 */
-	let animFrameRequested = false;
+	const animFrameRequested = new Map<number /* window ID */, boolean>();
 	/**
 	 * A flag to indicate if currently handling a native requestAnimationFrame callback
 	 */
-	let inAnimationFrameRunner = false;
+	const inAnimationFrameRunner = new Map<number /* window ID */, boolean>();
 
-	const animationFrameRunner = () => {
-		animFrameRequested = false;
+	const animationFrameRunner = (targetWindowId: number) => {
+		animFrameRequested.set(targetWindowId, false);
 
-		CURRENT_QUEUE = NEXT_QUEUE;
-		NEXT_QUEUE = [];
+		const currentQueue = NEXT_QUEUE.get(targetWindowId) ?? [];
+		CURRENT_QUEUE.set(targetWindowId, currentQueue);
+		NEXT_QUEUE.set(targetWindowId, []);
 
-		inAnimationFrameRunner = true;
-		while (CURRENT_QUEUE.length > 0) {
-			CURRENT_QUEUE.sort(AnimationFrameQueueItem.sort);
-			const top = CURRENT_QUEUE.shift()!;
+		inAnimationFrameRunner.set(targetWindowId, true);
+		while (currentQueue.length > 0) {
+			currentQueue.sort(AnimationFrameQueueItem.sort);
+			const top = currentQueue.shift()!;
 			top.execute();
 		}
-		inAnimationFrameRunner = false;
+		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
 	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
+		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
-		NEXT_QUEUE.push(item);
 
-		if (!animFrameRequested) {
-			animFrameRequested = true;
-			targetWindow.requestAnimationFrame(animationFrameRunner);
+		let nextQueue = NEXT_QUEUE.get(targetWindowId);
+		if (!nextQueue) {
+			nextQueue = [];
+			NEXT_QUEUE.set(targetWindowId, nextQueue);
+		}
+		nextQueue.push(item);
+
+		if (!animFrameRequested.get(targetWindowId)) {
+			animFrameRequested.set(targetWindowId, true);
+			targetWindow.requestAnimationFrame(() => animationFrameRunner(targetWindowId));
 		}
 
 		return item;
 	};
 
 	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
-		if (inAnimationFrameRunner) {
+		const targetWindowId = getWindowId(targetWindow);
+		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
-			CURRENT_QUEUE!.push(item);
+			let currentQueue = CURRENT_QUEUE.get(targetWindowId);
+			if (!currentQueue) {
+				currentQueue = [];
+				CURRENT_QUEUE.set(targetWindowId, currentQueue);
+			}
+			currentQueue.push(item);
 			return item;
 		} else {
 			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);

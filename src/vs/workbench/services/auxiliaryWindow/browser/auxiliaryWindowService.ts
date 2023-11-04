@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { AuxiliaryWindow, Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -44,16 +44,6 @@ export interface IAuxiliaryWindow extends IDisposable {
 	readonly container: HTMLElement;
 
 	layout(): void;
-}
-
-export type AuxiliaryWindow = Window & typeof globalThis & {
-	readonly vscodeWindowId: number;
-};
-
-export function isAuxiliaryWindow(obj: Window): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
-
-	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
 }
 
 export class BrowserAuxiliaryWindowService extends Disposable implements IAuxiliaryWindowService {

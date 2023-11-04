@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -389,14 +390,14 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
-						window.requestAnimationFrame(() => {
+						scheduleAtNextAnimationFrame(() => {
 							if (newHeight !== 0) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
 								entry.target.style.padding = `0px`;
 							}
 							this.updateHeight(observedElementInfo, entry.target.offsetHeight);
-						});
+						}, getWindow(entry.target));
 					} else {
 						this.updateHeight(observedElementInfo, entry.target.offsetHeight);
 					}
@@ -2816,9 +2817,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 					cellId: cellId,
 					dragOffsetY: this.currentDrag.clientY,
 				});
-				requestAnimationFrame(trySendDragUpdate);
+				scheduleAtNextAnimationFrame(trySendDragUpdate, getWindow(e));
 			};
-			requestAnimationFrame(trySendDragUpdate);
+			scheduleAtNextAnimationFrame(trySendDragUpdate, getWindow(e));
 		}
 
 		updateDrag(e: DragEvent, cellId: string) {
