@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
-import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow, isAuxiliaryWindow } from 'vs/base/browser/dom';
+import { EventType, addDisposableListener, getClientArea, Dimension, position, size, IDimension, isAncestorUsingFlowTo, computeScreenAwareSize, getActiveDocument, getWindows, getActiveWindow, focusWindow, isActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { onDidChangeFullscreen, isFullscreen, isWCOEnabled } from 'vs/base/browser/browser';
 import { IWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/common/workingCopyBackup';
 import { isWindows, isLinux, isMacintosh, isWeb, isNative, isIOS } from 'vs/base/common/platform';
@@ -52,7 +52,7 @@ import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/b
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
-	activeContainerId: 'main' | number /* window ID */;
+	activeContainerId: number;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -466,16 +466,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private getActiveContainerId(): 'main' | number {
+	private getActiveContainerId(): number {
 		const activeContainer = this.activeContainer;
-		if (activeContainer !== this.container) {
-			const containerWindow = getWindow(activeContainer);
-			if (isAuxiliaryWindow(containerWindow)) {
-				return containerWindow.vscodeWindowId;
-			}
-		}
 
-		return 'main';
+		return getWindow(activeContainer).vscodeWindowId;
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {

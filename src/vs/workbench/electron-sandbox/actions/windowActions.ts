@@ -28,8 +28,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { isMacintosh } from 'vs/base/common/platform';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { getActiveWindow, isAuxiliaryWindow } from 'vs/base/browser/dom';
-import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
 
 export class CloseWindowAction extends Action2 {
@@ -62,12 +61,7 @@ export class CloseWindowAction extends Action2 {
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const nativeHostService = accessor.get(INativeHostService);
 
-		const window = getActiveWindow();
-		if (isAuxiliaryWindow(window)) {
-			return nativeHostService.closeWindowById(window.vscodeWindowId);
-		}
-
-		return nativeHostService.closeWindow();
+		return nativeHostService.closeWindowById(getActiveWindow().vscodeWindowId);
 	}
 }
 
@@ -216,13 +210,7 @@ abstract class BaseSwitchWindow extends Action2 {
 		const languageService = accessor.get(ILanguageService);
 		const nativeHostService = accessor.get(INativeHostService);
 
-		let currentWindowId: number;
-		const activeWindow = getActiveWindow();
-		if (isAuxiliaryWindow(activeWindow)) {
-			currentWindowId = activeWindow.vscodeWindowId;
-		} else {
-			currentWindowId = nativeHostService.windowId;
-		}
+		const currentWindowId = getActiveWindow().vscodeWindowId;
 
 		const windows = await nativeHostService.getWindows({ includeAuxiliaryWindows: true });
 
@@ -410,15 +398,8 @@ export class ExperimentalSplitWindowAction extends Action2 {
 		const editorService = accessor.get(IEditorService);
 		const editorGroupService = accessor.get(IEditorGroupsService);
 		const nativeHostService = accessor.get(INativeHostService);
-		const environmentService = accessor.get(INativeWorkbenchEnvironmentService);
 
-		let activeWindowId: number;
 		const activeWindow = getActiveWindow();
-		if (isAuxiliaryWindow(activeWindow)) {
-			activeWindowId = activeWindow.vscodeWindowId;
-		} else {
-			activeWindowId = environmentService.window.id;
-		}
 
 		// First position the active window which may involve
 		// leaving fullscreen mode and then split it.
@@ -427,7 +408,7 @@ export class ExperimentalSplitWindowAction extends Action2 {
 			y: 0,
 			width: activeWindow.screen.availWidth / 2,
 			height: activeWindow.screen.availHeight
-		}, { targetWindowId: activeWindowId });
+		}, { targetWindowId: activeWindow.vscodeWindowId });
 
 		// Then create a new window next to the active window
 		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({

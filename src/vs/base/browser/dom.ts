@@ -18,40 +18,36 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
-type WindowGlobal = Window & typeof globalThis;
-
-interface IWindow {
-	readonly window: WindowGlobal;
+interface ICodeWindow {
+	readonly window: CodeWindow;
 	readonly disposables: DisposableStore;
 }
 
-export type MainWindowId = -1;
-export const mainWindowId: MainWindowId = -1;
-
-export type AuxiliaryWindow = Window & typeof globalThis & {
+export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
 
-export function isAuxiliaryWindow(obj: Window): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
-
-	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
-}
-
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
-	const windows = new Map<WindowGlobal, IWindow>();
-	windows.set(window, { window, disposables: new DisposableStore() });
+	const windows = new Map<number, ICodeWindow>();
 
-	const onDidRegisterWindow = new event.Emitter<IWindow>();
-	const onDidUnregisterWindow = new event.Emitter<WindowGlobal>();
-	const onWillUnregisterWindow = new event.Emitter<WindowGlobal>();
+	const mainWindow = window as CodeWindow;
+	if (typeof mainWindow.vscodeWindowId !== 'number') {
+		Object.defineProperty(window, 'vscodeWindowId', {
+			get: () => -1
+		});
+	}
+	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
+
+	const onDidRegisterWindow = new event.Emitter<ICodeWindow>();
+	const onDidUnregisterWindow = new event.Emitter<CodeWindow>();
+	const onWillUnregisterWindow = new event.Emitter<CodeWindow>();
 
 	return {
 		onDidRegisterWindow: onDidRegisterWindow.event,
 		onWillUnregisterWindow: onWillUnregisterWindow.event,
 		onDidUnregisterWindow: onDidUnregisterWindow.event,
-		registerWindow(window: WindowGlobal): IDisposable {
-			if (windows.has(window)) {
+		registerWindow(window: CodeWindow): IDisposable {
+			if (windows.has(window.vscodeWindowId)) {
 				return Disposable.None;
 			}
 
@@ -61,10 +57,10 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 				window,
 				disposables: disposables.add(new DisposableStore())
 			};
-			windows.set(window, registeredWindow);
+			windows.set(window.vscodeWindowId, registeredWindow);
 
 			disposables.add(toDisposable(() => {
-				windows.delete(window);
+				windows.delete(window.vscodeWindowId);
 				onDidUnregisterWindow.fire(window);
 			}));
 
@@ -76,18 +72,14 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 
 			return disposables;
 		},
-		getWindows(): Iterable<IWindow> {
+		getWindows(): Iterable<ICodeWindow> {
 			return windows.values();
 		},
 		getWindowsCount(): number {
 			return windows.size;
 		},
-		getWindowId(targetWindow: Window | AuxiliaryWindow): number | MainWindowId {
-			if (isAuxiliaryWindow(targetWindow)) {
-				return targetWindow.vscodeWindowId;
-			}
-
-			return mainWindowId;
+		getWindowId(targetWindow: Window): number {
+			return (targetWindow as CodeWindow).vscodeWindowId;
 		}
 	};
 })();
@@ -809,25 +801,25 @@ export function getActiveDocument(): Document {
 	return documents.find(document => document.hasFocus()) ?? document;
 }
 
-export function getActiveWindow(): WindowGlobal {
+export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
-	return document.defaultView?.window ?? window;
+	return (document.defaultView?.window ?? window) as CodeWindow;
 }
 
-export function getWindow(element: Node | undefined | null): WindowGlobal;
-export function getWindow(event: UIEvent | undefined | null): WindowGlobal;
-export function getWindow(e: unknown): WindowGlobal {
+export function getWindow(element: Node | undefined | null): CodeWindow;
+export function getWindow(event: UIEvent | undefined | null): CodeWindow;
+export function getWindow(e: unknown): CodeWindow {
 	const candidateNode = e as Node | undefined | null;
 	if (candidateNode?.ownerDocument?.defaultView) {
-		return candidateNode.ownerDocument.defaultView.window;
+		return candidateNode.ownerDocument.defaultView.window as CodeWindow;
 	}
 
 	const candidateEvent = e as UIEvent | undefined | null;
 	if (candidateEvent?.view) {
-		return candidateEvent.view.window;
+		return candidateEvent.view.window as CodeWindow;
 	}
 
-	return window;
+	return window as CodeWindow;
 }
 
 export function focusWindow(element: Node): void {

@@ -216,7 +216,7 @@ export class NativeLocalProcessExtensionHost implements IExtensionHost {
 		}
 
 		const opts: IExtensionHostProcessOptions = {
-			responseWindowId: this._environmentService.window.id,
+			responseWindowId: this._nativeHostService.windowId,
 			responseChannel: 'vscode:startExtensionHostMessagePortResult',
 			responseNonce: generateUuid(),
 			env,

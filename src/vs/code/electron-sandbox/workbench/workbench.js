@@ -47,8 +47,13 @@
 			beforeLoaderConfig: function (loaderConfig) {
 				loaderConfig.recordStats = true;
 			},
-			beforeRequire: function () {
+			beforeRequire: function (windowConfig) {
 				performance.mark('code/willLoadWorkbenchMain');
+
+				// Code windows have a `vscodeWindowId` property to identify them
+				Object.defineProperty(window, 'vscodeWindowId', {
+					get: () => windowConfig.windowId
+				});
 
 				// It looks like browsers only lazily enable
 				// the <canvas> element when needed. Since we
