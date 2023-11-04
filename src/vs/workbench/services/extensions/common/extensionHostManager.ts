@@ -344,6 +344,12 @@ export class ExtensionHostManager extends Disposable implements IExtensionHostMa
 			// i.e. the extension host could not be started
 			return;
 		}
+
+		if (!this._extensionHost.extensions!.containsActivationEvent(activationEvent)) {
+			this._resolvedActivationEvents.add(activationEvent);
+			return;
+		}
+
 		await proxy.activateByEvent(activationEvent, activationKind);
 		this._resolvedActivationEvents.add(activationEvent);
 	}

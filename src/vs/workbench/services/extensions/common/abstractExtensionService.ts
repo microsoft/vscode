@@ -373,12 +373,7 @@ export abstract class AbstractExtensionService extends Disposable implements IEx
 		let shouldActivateReason: string | null = null;
 		let hasWorkspaceContains = false;
 		const activationEvents = this._activationEventReader.readActivationEvents(extensionDescription);
-		for (let activationEvent of activationEvents) {
-			// TODO@joao: there's no easy way to contribute this
-			if (activationEvent === 'onUri') {
-				activationEvent = `onUri:${ExtensionIdentifier.toKey(extensionDescription.identifier)}`;
-			}
-
+		for (const activationEvent of activationEvents) {
 			if (this._allRequestedActivateEvents.has(activationEvent)) {
 				// This activation event was fired before the extension was added
 				shouldActivate = true;
