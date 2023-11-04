@@ -9,7 +9,7 @@ import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
 import { IFileMatch, ISearchRange, ITextSearchMatch, QueryType } from 'vs/workbench/services/search/common/search';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { CellFindMatchModel } from 'vs/workbench/contrib/notebook/browser/contrib/find/findModel';
 import { CellMatch, FileMatch, FolderMatch, SearchModel, textSearchMatchesToNotebookMatches } from 'vs/workbench/contrib/search/browser/searchModel';
 import { URI } from 'vs/base/common/uri';
@@ -40,6 +40,7 @@ suite('searchNotebookHelpers', () => {
 		instantiationService.stub(IModelService, modelService);
 		instantiationService.stub(INotebookEditorService, notebookEditorService);
 		mdInputCell = {
+			id: 'mdCell',
 			cellKind: CellKind.Markup, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
@@ -53,6 +54,7 @@ suite('searchNotebookHelpers', () => {
 
 		const findMatchMds = [new FindMatch(new Range(1, 15, 1, 19), ['Test'])];
 		codeCell = {
+			id: 'codeCell',
 			cellKind: CellKind.Code, textBuffer: <IReadonlyTextBuffer>{
 				getLineContent(lineNumber: number): string {
 					if (lineNumber === 1) {
@@ -180,18 +182,18 @@ suite('searchNotebookHelpers', () => {
 			const codeWebviewContentMatchObjs = textSearchMatchesToNotebookMatches(codeWebviewResults, codeCellMatch);
 
 
-			assert.strictEqual(markdownCellContentMatchObjs[0].cell.id, mdCellMatch.id);
+			assert.strictEqual(markdownCellContentMatchObjs[0].cell?.id, mdCellMatch.id);
 			assertRangesEqual(markdownCellContentMatchObjs[0].range(), [new Range(1, 15, 1, 19)]);
 
-			assert.strictEqual(codeCellContentMatchObjs[0].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeCellContentMatchObjs[1].cell.id, codeCellMatch.id);
+			assert.strictEqual(codeCellContentMatchObjs[0].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeCellContentMatchObjs[1].cell?.id, codeCellMatch.id);
 			assertRangesEqual(codeCellContentMatchObjs[0].range(), [new Range(1, 8, 1, 12)]);
 			assertRangesEqual(codeCellContentMatchObjs[1].range(), [new Range(1, 14, 1, 18)]);
 			assertRangesEqual(codeCellContentMatchObjs[2].range(), [new Range(2, 18, 2, 22)]);
 
-			assert.strictEqual(codeWebviewContentMatchObjs[0].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeWebviewContentMatchObjs[1].cell.id, codeCellMatch.id);
-			assert.strictEqual(codeWebviewContentMatchObjs[2].cell.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[0].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[1].cell?.id, codeCellMatch.id);
+			assert.strictEqual(codeWebviewContentMatchObjs[2].cell?.id, codeCellMatch.id);
 			assertRangesEqual(codeWebviewContentMatchObjs[0].range(), [new Range(1, 2, 1, 6)]);
 			assertRangesEqual(codeWebviewContentMatchObjs[1].range(), [new Range(1, 8, 1, 12)]);
 			assertRangesEqual(codeWebviewContentMatchObjs[2].range(), [new Range(1, 12, 1, 16)]);

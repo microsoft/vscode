@@ -268,10 +268,18 @@ export class RemoteTunnelService extends Disposable implements IRemoteTunnelServ
 
 			// split and find the line, since in dev builds additional noise is
 			// added by cargo to the output.
-			const status: {
+			let status: {
 				service_installed: boolean;
 				tunnel: object | null;
-			} = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			};
+
+			try {
+				status = JSON.parse(output.trim().split('\n').find(l => l.startsWith('{'))!);
+			} catch (e) {
+				this._logger.error(`Could not parse status output: ${JSON.stringify(output.trim())}`);
+				this.setTunnelStatus(TunnelStates.disconnected());
+				return;
+			}
 
 			isServiceInstalled = status.service_installed;
 			this._logger.info(status.tunnel ? 'Other tunnel running, attaching...' : 'No other tunnel running');

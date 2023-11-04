@@ -444,6 +444,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('confirmDragAndDrop', "Controls whether the Explorer should ask for confirmation to move files and folders via drag and drop."),
 			'default': true
 		},
+		'explorer.confirmPasteNative': {
+			'type': 'boolean',
+			'description': nls.localize('confirmPasteNative', "Controls whether the Explorer should ask for confirmation when pasting native files and folders."),
+			'default': true
+		},
 		'explorer.confirmDelete': {
 			'type': 'boolean',
 			'description': nls.localize('confirmDelete', "Controls whether the Explorer should ask for confirmation when deleting a file via the trash."),

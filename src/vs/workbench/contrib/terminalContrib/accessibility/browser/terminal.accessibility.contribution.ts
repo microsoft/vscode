@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -25,7 +25,7 @@ import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/termin
 import { BufferContentTracker } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/bufferContentTracker';
 import { TerminalAccessibilityHelpProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibilityHelp';
 import { TextAreaSyncAddon } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/textAreaSyncAddon';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { Position } from 'vs/editor/common/core/position';
 import { ICommandWithEditorLine, TerminalAccessibleBufferProvider } from 'vs/workbench/contrib/terminalContrib/accessibility/browser/terminalAccessibleBufferProvider';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -66,6 +66,8 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
+	private _onCommandExecutedShowListener: MutableDisposable<IDisposable> = new MutableDisposable();
+
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
@@ -91,7 +93,18 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				this.show();
 			}
 		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
+				this._updateCommandExecutedListener();
+			}
+		}));
+		this._register(this._instance.capabilities.onDidAddCapability(e => {
+			if (e.capability.type === TerminalCapability.CommandDetection) {
+				this._updateCommandExecutedListener();
+			}
+		}));
 	}
+
 	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
 		const addon = this._instantiationService.createInstance(TextAreaSyncAddon, this._instance.capabilities);
 		xterm.raw.loadAddon(addon);
@@ -106,6 +119,25 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
 			if (this._isTerminalAccessibleViewOpen()) {
+				this.show();
+			}
+		}));
+	}
+
+	private _updateCommandExecutedListener(): void {
+		if (!this._instance.capabilities.has(TerminalCapability.CommandDetection)) {
+			return;
+		}
+		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
+			this._onCommandExecutedShowListener.clear();
+			return;
+		} else if (this._onCommandExecutedShowListener.value) {
+			return;
+		}
+
+		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
+		this._onCommandExecutedShowListener.value = this._register(capability.onCommandExecuted(() => {
+			if (this._instance.hasFocus) {
 				this.show();
 			}
 		}));

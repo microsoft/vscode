@@ -134,20 +134,22 @@ export class ActivitybarPart extends Part {
 		container.style.borderColor = borderColor ? borderColor : '';
 	}
 
-	show(): void {
+	show(focus?: boolean): void {
 		if (!this.content) {
 			return;
 		}
 
-		if (this.compositeBar.value) {
-			return;
+		if (!this.compositeBar.value) {
+			this.compositeBar.value = this.createCompositeBar();
+			this.compositeBar.value.create(this.content);
+
+			if (this.dimension) {
+				this.layout(this.dimension.width, this.dimension.height);
+			}
 		}
 
-		this.compositeBar.value = this.createCompositeBar();
-		this.compositeBar.value.create(this.content);
-
-		if (this.dimension) {
-			this.layout(this.dimension.width, this.dimension.height);
+		if (focus) {
+			this.focus();
 		}
 	}
 
@@ -460,7 +462,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	submenu: MenuId.ActivityBarPositionMenu,
 	title: localize('positionActivituBar', "Activity Bar Position"),
 	group: '3_workbench_layout_move',
-	order: 1
+	order: 2
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitleContext, {
