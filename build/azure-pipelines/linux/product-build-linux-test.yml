@@ -87,7 +87,7 @@ steps:
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
       - script: yarn gulp node
-        displayName: Download node.js
+        displayName: Download node.js for remote tests
         retryCountOnTaskFailure: 3
 
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
@@ -154,6 +154,10 @@ steps:
 
       - script: yarn gulp compile-extension:markdown-language-features compile-extension-media compile-extension:vscode-test-resolver
         displayName: Build extensions for smoke tests
+
+      - script: yarn gulp node
+        displayName: Download node.js for remote tests
+        retryCountOnTaskFailure: 3
 
       - script: yarn smoketest-no-compile --tracing
         timeoutInMinutes: 20

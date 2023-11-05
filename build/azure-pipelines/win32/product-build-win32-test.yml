@@ -74,7 +74,7 @@ steps:
           . build/azure-pipelines/win32/exec.ps1
           $ErrorActionPreference = "Stop"
           exec { yarn gulp node }
-        displayName: Download node.js
+        displayName: Download node.js for remote tests
         retryCountOnTaskFailure: 3
 
       - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
