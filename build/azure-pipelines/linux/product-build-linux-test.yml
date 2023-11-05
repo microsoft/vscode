@@ -86,6 +86,10 @@ steps:
 
   - ${{ if eq(parameters.VSCODE_RUN_INTEGRATION_TESTS, true) }}:
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
+      - script: yarn gulp node
+        displayName: Download node.js
+        retryCountOnTaskFailure: 3
+
       - script: ./scripts/test-integration.sh --tfs "Integration Tests"
         env:
           DISPLAY: ":10"
