@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/4028d24f926bccca29204528ee97ecd455d5908e",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/806e024d8ea2478596d7e0ab871d2b1436e6fead",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -3291,7 +3291,7 @@
 		},
 		"literals-regular-expression-literal-callout": {
 			"name": "meta.callout.regexp",
-			"match": "(?x)\n# PCRECallout\n(\\()(?<keyw>\\?C)\n  (?:\n    (?<num>\\d+)\n    | `(?<name>(?:[^`]|``)*)`\n    | '(?<name>(?:[^']|'')*)'\n    | \"(?<name>(?:[^\"]|\"\")*)\"\n    | \\^(?<name>(?:[^\\^]|\\^\\^)*)\\^\n    | %(?<name>(?:[^%]|%%)*)%\n    | #(?<name>(?:[^#]|##)*)#\n    | \\$(?<name>(?:[^$]|\\$\\$)*)\\$\n    | \\{(?<name>(?:[^}]|\\}\\})*)\\}\n  )?\n(\\))\n# NamedCallout\n| (\\()(?<keyw>\\*)\n    (?<name>(?!\\d)\\w+)\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?:\\{ [^,}]+ (?:,[^,}]+)* \\})?\n  (\\))\n# InterpolatedCallout\n| (\\()(?<keyw>\\?)\n    # we only support a fixed maximum number of braces because otherwise we can't balance the number of open and close braces\n    (\\{(?<g1>\\{)?+(?<g2>\\{)?+(?<g3>\\{)?+(?<g4>\\{)?+(?<g5>\\{)?+) .+? \\}(?(<g1>)\\})(?(<g2>)\\})(?(<g3>)\\})(?(<g4>)\\})(?(<g5>)\\})\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?<keyw>[X<>]?)\n  (\\))",
+			"match": "(?x)\n# PCRECallout\n(\\()(?<keyw>\\?C)\n  (?:\n    (?<num>\\d+)\n    | `(?<name>(?:[^`]|``)*)`\n    | '(?<name>(?:[^']|'')*)'\n    | \"(?<name>(?:[^\"]|\"\")*)\"\n    | \\^(?<name>(?:[^\\^]|\\^\\^)*)\\^\n    | %(?<name>(?:[^%]|%%)*)%\n    | \\#(?<name>(?:[^#]|\\#\\#)*)\\#\n    | \\$(?<name>(?:[^$]|\\$\\$)*)\\$\n    | \\{(?<name>(?:[^}]|\\}\\})*)\\}\n  )?\n(\\))\n# NamedCallout\n| (\\()(?<keyw>\\*)\n    (?<name>(?!\\d)\\w+)\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?:\\{ [^,}]+ (?:,[^,}]+)* \\})?\n  (\\))\n# InterpolatedCallout\n| (\\()(?<keyw>\\?)\n    # we only support a fixed maximum number of braces because otherwise we can't balance the number of open and close braces\n    (\\{(?<g1>\\{)?+(?<g2>\\{)?+(?<g3>\\{)?+(?<g4>\\{)?+(?<g5>\\{)?+) .+? \\}(?(<g1>)\\})(?(<g2>)\\})(?(<g3>)\\})(?(<g4>)\\})(?(<g5>)\\})\n    (?:\\[(?<tag>(?!\\d)\\w+)\\])?\n    (?<keyw>[X<>]?)\n  (\\))",
 			"captures": {
 				"1": {
 					"name": "punctuation.definition.group.regexp"
@@ -3324,36 +3324,39 @@
 					"name": "entity.name.function.callout.regexp"
 				},
 				"11": {
-					"name": "punctuation.definition.group.regexp"
+					"name": "entity.name.function.callout.regexp"
 				},
 				"12": {
 					"name": "punctuation.definition.group.regexp"
 				},
 				"13": {
-					"name": "keyword.control.callout.regexp"
+					"name": "punctuation.definition.group.regexp"
 				},
 				"14": {
-					"name": "entity.name.function.callout.regexp"
+					"name": "keyword.control.callout.regexp"
 				},
 				"15": {
-					"name": "variable.language.tag-name.regexp"
+					"name": "entity.name.function.callout.regexp"
 				},
 				"16": {
-					"name": "punctuation.definition.group.regexp"
+					"name": "variable.language.tag-name.regexp"
 				},
 				"17": {
 					"name": "punctuation.definition.group.regexp"
 				},
 				"18": {
-					"name": "keyword.control.callout.regexp"
+					"name": "punctuation.definition.group.regexp"
 				},
-				"25": {
-					"name": "variable.language.tag-name.regexp"
+				"19": {
+					"name": "keyword.control.callout.regexp"
 				},
 				"26": {
-					"name": "keyword.control.callout.regexp"
+					"name": "variable.language.tag-name.regexp"
 				},
 				"27": {
+					"name": "keyword.control.callout.regexp"
+				},
+				"28": {
 					"name": "punctuation.definition.group.regexp"
 				}
 			}
