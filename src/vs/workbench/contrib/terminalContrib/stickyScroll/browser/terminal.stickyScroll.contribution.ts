@@ -61,6 +61,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		// TODO: Skip these when hidden
 		this.add(xterm.raw.onScroll(() => this._refresh()));
 		this.add(xterm.raw.onLineFeed(() => this._refresh()));
+		this.add(addStandardDisposableListener(xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()));
 		// TODO: Disable in alt buffer
 
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
@@ -94,7 +95,10 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		if (!commandDetection) {
 			return;
 		}
-		const command = commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
+		// The command from viewportY + 1 is used because this one will not be obscured by sticky
+		// scroll.
+		const command = commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
+
 		// TODO: Expose unified interface for fetching line content
 		const marker = command && 'commandStartMarker' in command
 			? command.commandStartMarker
@@ -106,7 +110,6 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		}
 		this._currentStickyMarker = marker;
 		const element = this._ensureElement();
-		// element.textContent = this._xterm.raw.buffer.active.getLine(marker.line)?.translateToString(true) ?? '';
 		if (element.textContent === '') {
 			hide(element);
 		} else {
@@ -123,8 +126,6 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			});
 			if (s) {
 				const content = s.substring(0, s.indexOf('\r'));
-
-				// const content = this._xterm.raw.buffer.active.getLine(marker.line)?.translateToString(true) ?? '';
 				if (content) {
 					this._stickyScrollOverlay.write(content);
 				}
