@@ -31,7 +31,7 @@ export function formatStackTrace(stack: string) {
 
 const formatSequence = /\u001b\[.+?m/g;
 const fileRegex = /File\s+(?:\u001b\[.+?m)?(.+):(\d+)/;
-const lineNumberRegex = /^((?:\u001b\[.+?m)?[ ->]*?)(\d+)(.*)/;
+const lineNumberRegex = /^((?:\u001b\[.+?m)?[ \->]+?)(\d+)(?:\u001b\[0m)?( .*)/;
 const cellRegex = /(?<prefix>Cell\s+(?:\u001b\[.+?m)?In\s*\[(?<executionCount>\d+)\],\s*)(?<lineLabel>line (?<lineNumber>\d+)).*/;
 // older versions of IPython ~8.3.0
 const inputRegex = /(?<prefix>Input\s+?(?:\u001b\[.+?m)(?<cellLabel>In\s*\[(?<executionCount>\d+)\]))(?<postfix>.*)/;
