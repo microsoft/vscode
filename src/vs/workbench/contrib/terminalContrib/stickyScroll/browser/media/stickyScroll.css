@@ -14,3 +14,8 @@
 	background: var(--vscode-terminal-background, var(--vscode-panel-background));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 }
+
+.terminal-sticky-scroll .xterm {
+	/* TODO: Remove !important */
+	position: relative !important;
+}
