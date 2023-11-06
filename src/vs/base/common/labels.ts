@@ -83,7 +83,7 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		if (resource.scheme !== tildifier.userHome.scheme && resource.path[0] === posix.sep && resource.path[1] !== posix.sep) {
 			userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
 		} else {
-			userHomeCandidate = resource.fsPath;
+			userHomeCandidate = absolutePath;
 		}
 
 		absolutePath = tildify(userHomeCandidate, userHome, os);
