@@ -530,6 +530,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onCommandExecuted.fire();
 	}
 
+	get isWindowsPty(): boolean {
+		return this._isWindowsPty;
+	}
+
 	private async _handleCommandExecutedWindows(): Promise<void> {
 		await this._commandStartedWindowsBarrier?.wait();
 		// On Windows, use the gathered cursor move markers to correct the command start and

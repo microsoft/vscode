@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -66,12 +66,13 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
-	private _onCommandExecutedShowListener: MutableDisposable<IDisposable> = new MutableDisposable();
+	private _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -129,18 +130,27 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
-			this._onCommandExecutedShowListener.clear();
+			this._onDidRunCommand.clear();
 			return;
-		} else if (this._onCommandExecutedShowListener.value) {
+		} else if (this._onDidRunCommand.value) {
 			return;
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onCommandExecutedShowListener.value = this._register(capability.onCommandExecuted(() => {
-			if (this._instance.hasFocus) {
-				this.show();
-			}
-		}));
+		const hasCommandExecuted = capability.isWindowsPty && this._accessibilityService.isScreenReaderOptimized();
+		if (hasCommandExecuted) {
+			this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
+				if (this._instance.hasFocus) {
+					this.show();
+				}
+			}));
+		} else {
+			this._onDidRunCommand.value = this._register(capability.onCommandFinished(() => {
+				if (this._instance.hasFocus) {
+					this.show();
+				}
+			}));
+		}
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {
