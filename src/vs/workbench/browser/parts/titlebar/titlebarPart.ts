@@ -51,6 +51,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
 import { EditorCommandsContextActionRunner } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IEditorCommandsContext, IToolbarActions } from 'vs/workbench/common/editor';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -125,7 +126,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
-		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, window, 'main'));
+		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, 'main'));
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 

@@ -6,7 +6,8 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CodeWindow, Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -47,7 +48,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 }
 
 export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
-	if (obj === window) {
+	if (obj === mainWindow) {
 		return false;
 	}
 
@@ -62,7 +63,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
 
-	private static WINDOW_IDS = getWindowId(window) + 1; // start from the main window ID + 1
+	private static WINDOW_IDS = getWindowId(mainWindow) + 1; // start from the main window ID + 1
 
 	private readonly _onDidOpenAuxiliaryWindow = this._register(new Emitter<IAuxiliaryWindowOpenEvent>());
 	readonly onDidOpenAuxiliaryWindow = this._onDidOpenAuxiliaryWindow.event;
@@ -125,7 +126,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			};
 		}
 
-		const auxiliaryWindow = window.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,

@@ -51,6 +51,7 @@ import { ILocaleService } from 'vs/workbench/services/localization/common/locale
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { mainWindow } from 'vs/base/browser/window';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1928,7 +1929,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				[extension] = await this.getExtensions([{ id: extensionId }], { source: 'uri' }, CancellationToken.None);
 			}
 			if (extension) {
-				await this.hostService.focus(window);
+				await this.hostService.focus(mainWindow);
 				await this.open(extension);
 			}
 		}).then(undefined, error => this.onError(error));

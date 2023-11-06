@@ -48,25 +48,6 @@
 			"orientation",
 			"context"
 		], // non-complete list of globals that are easy to access unintentionally
-		"no-restricted-syntax": [
-			"warn",
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
-				"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
-				"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
-				"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
-				"message": "Use DOM.isDragEvent() to support multi-window scenarios."
-			}
-		],
 		"no-var": "warn",
 		"jsdoc/no-types": "warn",
 		"semi": "off",
@@ -699,6 +680,49 @@
 					{
 						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
 						"restrictions": []
+					}
+				],
+				"no-restricted-syntax": [
+					"warn",
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+						"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+						"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+						"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+					}
+				],
+				"no-restricted-globals": [
+					"warn",
+					"name",
+					"length",
+					"event",
+					"closed",
+					"external",
+					"status",
+					"origin",
+					"orientation",
+					"context",
+					{
+						"name": "requestAnimationFrame",
+						"message": "Use <targetWindow>.requestAnimationFrame to support multi-window scenarios."
+					},
+					{
+						"name": "cancelAnimationFrame",
+						"message": "Use <targetWindow>.cancelAnimationFrame to support multi-window scenarios."
+					},
+					{
+						"name": "window",
+						"message": "Be aware of multi-window scenarios: Use DOM.getWindow() or DOM.getActiveWindow() to obtain the correct window for the context you are in. Only use window.ts#mainWindow if you target the main window."
 					}
 				]
 			}

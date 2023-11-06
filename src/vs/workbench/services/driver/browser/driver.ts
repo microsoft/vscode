@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -221,5 +222,5 @@ export class BrowserWindowDriver implements IWindowDriver {
 }
 
 export function registerWindowDriver(instantiationService: IInstantiationService): void {
-	Object.assign(window, { driver: instantiationService.createInstance(BrowserWindowDriver) });
+	Object.assign(mainWindow, { driver: instantiationService.createInstance(BrowserWindowDriver) });
 }
