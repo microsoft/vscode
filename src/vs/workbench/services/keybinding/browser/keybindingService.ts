@@ -22,6 +22,7 @@ import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecyc
 import * as objects from 'vs/base/common/objects';
 import { isMacintosh, OperatingSystem, OS } from 'vs/base/common/platform';
 import { dirname } from 'vs/base/common/resources';
+import { mainWindow } from 'vs/base/browser/window';
 
 // platform
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
@@ -42,6 +43,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
 
 // workbench
 import { commandsExtensionPoint } from 'vs/workbench/services/actions/common/menusExtensionPoint';
@@ -52,9 +55,6 @@ import { IKeyboard, INavigatorWithKeyboard } from 'vs/workbench/services/keybind
 import { getAllUnboundCommands } from 'vs/workbench/services/keybinding/browser/unboundCommands';
 import { IUserKeybindingItem, KeybindingIO, OutputBuilder } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
-import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { ILocalizedString, isLocalizedString } from 'vs/platform/action/common/action';
-import { mainWindow } from 'vs/base/browser/window';
 
 interface ContributedKeyBinding {
 	command: string;
