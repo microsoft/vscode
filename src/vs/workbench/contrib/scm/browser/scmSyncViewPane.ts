@@ -135,6 +135,12 @@ export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
 	readonly type: 'historyItemChange';
 }
 
+export interface SCMViewSeparatorElement {
+	readonly label: string;
+	readonly repository: ISCMRepository;
+	readonly type: 'separator';
+}
+
 class ListDelegate implements IListVirtualDelegate<any> {
 
 	getHeight(element: any): number {

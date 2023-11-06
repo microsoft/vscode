@@ -23,7 +23,7 @@ import { MenuItemAction, IMenuService, registerAction2, MenuId, IAction2Options,
 import { IAction, ActionRunner, Action, Separator } from 'vs/base/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, IFileIconTheme } from 'vs/platform/theme/common/themeService';
-import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode } from './util';
+import { isSCMResource, isSCMResourceGroup, connectPrimaryMenuToInlineActionBar, isSCMRepository, isSCMInput, collectContextMenuActions, getActionViewItemProvider, isSCMActionButton, isSCMViewService, isSCMHistoryItemGroupTreeElement, isSCMHistoryItemTreeElement, isSCMHistoryItemChangeTreeElement, toDiffEditorArguments, isSCMResourceNode, isSCMHistoryItemChangeNode, isSCMViewSeparator } from './util';
 import { WorkbenchCompressibleAsyncDataTree, IOpenEvent } from 'vs/platform/list/browser/listService';
 import { IConfigurationService, ConfigurationTarget, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { disposableTimeout, ThrottledDelayer, Sequencer } from 'vs/base/common/async';
@@ -96,7 +96,7 @@ import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
@@ -112,7 +112,8 @@ type TreeElement =
 	SCMHistoryItemGroupTreeElement |
 	SCMHistoryItemTreeElement |
 	SCMHistoryItemChangeTreeElement |
-	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
+	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
+	SCMViewSeparatorElement;
 
 interface ISCMLayout {
 	height: number | undefined;
@@ -844,6 +845,43 @@ class HistoryItemChangeRenderer implements ICompressibleTreeRenderer<SCMHistoryI
 	}
 }
 
+interface SeparatorTemplate {
+	readonly label: IconLabel;
+	readonly disposables: IDisposable;
+}
+
+class SeparatorRenderer implements ICompressibleTreeRenderer<SCMViewSeparatorElement, void, SeparatorTemplate> {
+
+	static readonly TEMPLATE_ID = 'separator';
+	get templateId(): string { return SeparatorRenderer.TEMPLATE_ID; }
+
+	renderTemplate(container: HTMLElement): SeparatorTemplate {
+		// hack
+		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-no-twistie');
+
+		// Use default cursor & disable hover for list item
+		container.parentElement!.parentElement!.classList.add('cursor-default', 'force-no-hover');
+
+		const element = append(container, $('.separator-container'));
+		const label = new IconLabel(element, { supportIcons: true, });
+		append(element, $('.separator'));
+
+		return { label, disposables: new DisposableStore() };
+	}
+	renderElement(element: ITreeNode<SCMViewSeparatorElement, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		templateData.label.setLabel(element.element.label);
+	}
+
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMViewSeparatorElement>, void>, index: number, templateData: SeparatorTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	disposeTemplate(templateData: SeparatorTemplate): void {
+		throw new Error('Method not implemented.');
+	}
+
+}
+
 class ListDelegate implements IListVirtualDelegate<TreeElement> {
 
 	constructor(private readonly inputRenderer: InputRenderer) { }
@@ -875,6 +913,8 @@ class ListDelegate implements IListVirtualDelegate<TreeElement> {
 			return HistoryItemRenderer.TEMPLATE_ID;
 		} else if (isSCMHistoryItemChangeTreeElement(element) || isSCMHistoryItemChangeNode(element)) {
 			return HistoryItemChangeRenderer.TEMPLATE_ID;
+		} else if (isSCMViewSeparator(element)) {
+			return SeparatorRenderer.TEMPLATE_ID;
 		} else {
 			throw new Error('Unknown element');
 		}
@@ -902,6 +942,8 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 			return element.resources.length > 0 || !element.hideWhenEmpty;
 		} else if (isSCMHistoryItemGroupTreeElement(element)) {
 			return (element.count ?? 0) > 0;
+		} else if (isSCMViewSeparator(element)) {
+			return element.repository.provider.groups.some(g => g.resources.length > 0);
 		} else {
 			return true;
 		}
@@ -935,6 +977,14 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 1;
 		}
 
+		if (isSCMViewSeparator(one)) {
+			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other)) {
+				throw new Error('Invalid comparison');
+			}
+
+			return 0;
+		}
+
 		if (isSCMResourceGroup(one)) {
 			if (!isSCMResourceGroup(other)) {
 				throw new Error('Invalid comparison');
@@ -944,7 +994,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 		}
 
 		if (isSCMHistoryItemGroupTreeElement(one)) {
-			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other)) {
+			if (!isSCMHistoryItemGroupTreeElement(other) && !isSCMResourceGroup(other) && !isSCMViewSeparator(other)) {
 				throw new Error('Invalid comparison');
 			}
 
@@ -1019,6 +1069,8 @@ export class SCMTreeKeyboardNavigationLabelProvider implements ICompressibleKeyb
 			return element.label;
 		} else if (isSCMHistoryItemTreeElement(element)) {
 			return element.label;
+		} else if (isSCMViewSeparator(element)) {
+			return element.label;
 		} else {
 			if (this.viewMode() === ViewMode.List) {
 				// In List mode match using the file name and the path.
@@ -1077,6 +1129,9 @@ function getSCMResourceId(element: TreeElement): string {
 		const historyItemGroup = historyItem.historyItemGroup;
 		const provider = historyItemGroup.repository.provider;
 		return `folder:${provider.id}/${historyItemGroup.id}/${historyItem.id}/$FOLDER/${element.uri.toString()}`;
+	} else if (isSCMViewSeparator(element)) {
+		const provider = element.repository.provider;
+		return `separator:${provider.id}`;
 	} else {
 		throw new Error('Invalid tree element');
 	}
@@ -1134,6 +1189,8 @@ export class SCMAccessibilityProvider implements IListAccessibilityProvider<Tree
 			}
 
 			return result.join(', ');
+		} else if (isSCMViewSeparator(element)) {
+			return element.label;
 		} else {
 			const result: string[] = [];
 
@@ -2324,6 +2381,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(HistoryItemGroupRenderer),
 				this.instantiationService.createInstance(HistoryItemRenderer),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
+				this.instantiationService.createInstance(SeparatorRenderer)
 			],
 			this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton),
 			{
@@ -2768,6 +2826,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return true;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
 			return false;
+		} else if (isSCMViewSeparator(inputOrElement)) {
+			return false;
 		} else {
 			throw new Error('hasChildren not implemented.');
 		}
@@ -2806,6 +2866,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !actionButton))) {
 				children.push(...resourceGroups);
 			}
+
+			// Separator
+			children.push({
+				label: 'Incoming/Outgoing',
+				repository: inputOrElement,
+				type: 'separator'
+			} as SCMViewSeparatorElement);
 
 			// History item groups
 			const historyProvider = inputOrElement.provider.historyProvider;
@@ -2952,7 +3019,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
-		if (ResourceTree.isResourceNode(element)) {
+		if (isSCMResourceNode(element)) {
 			if (element.parent === element.context.resourceTree.root) {
 				return element.context;
 			} else if (!element.parent) {

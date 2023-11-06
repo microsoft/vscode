@@ -17,7 +17,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/languages';
 import { reset } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemChangeTreeElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
+import { SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemChangeTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { URI } from 'vs/base/common/uri';
 import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
 
@@ -67,6 +67,10 @@ export function isSCMHistoryItemChangeTreeElement(element: any): element is SCMH
 
 export function isSCMHistoryItemChangeNode(element: any): element is IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> {
 	return ResourceTree.isResourceNode(element) && isSCMHistoryItemTreeElement(element.context);
+}
+
+export function isSCMViewSeparator(element: any): element is SCMViewSeparatorElement {
+	return (element as SCMViewSeparatorElement).type === 'separator';
 }
 
 export function toDiffEditorArguments(uri: URI, originalUri: URI, modifiedUri: URI): unknown[] {
