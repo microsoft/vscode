@@ -1,4 +1,4 @@
-{
+6c22727c4abd4f8d7963564c49b341d9516ea5e0
   "maxReviewers": 2,
   "requiredOrgs": ["Microsoft"],
   "skipAlreadyAssignedPR": true,
