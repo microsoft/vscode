@@ -6,7 +6,7 @@
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -77,8 +77,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService) {
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -143,9 +142,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 				this.show();
 			}
 		}));
-		if (capability.isWindowsPty && this._accessibilityService.isScreenReaderOptimized()) {
-			// It's possible command executed never happens (for example if PSReadLine is disabled)
-			this._onDidPreCommandFinishWindows.value = this._register(capability.onCommandExecuted(() => {
+		if (capability.isWindowsPty) {
+			// It's possible command executed never happens (for example, if PSReadLine is disabled)
+			this._onDidPreCommandFinishWindows.value = this._register(capability.onPreCommandFinishedWindows(() => {
 				if (this._instance.hasFocus) {
 					this.show();
 				}
