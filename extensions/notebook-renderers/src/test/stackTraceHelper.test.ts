@@ -88,4 +88,16 @@ suite('StackTraceHelper', () => {
 		assert.ok(!/<a href=.*>\d<\/a>/.test(formatted), formatted);
 	});
 
+	test('IPython stack without line numbers are not linkified', () => {
+		const stack =
+			'\u001b[1;36m  Cell \u001b[1;32mIn[6], line 1\u001b[1;36m\u001b[0m\n' +
+			'\u001b[1;33m    print(\u001b[0m\n' +
+			'\u001b[1;37m          ^\u001b[0m\n' +
+			'\u001b[1;31mSyntaxError\u001b[0m\u001b[1;31m:\u001b[0m incomplete input\n';
+
+		const formattedLines = formatStackTrace(stack).split('\n');
+		assert.ok(/<a href='vscode-notebook-cell.*>/.test(formattedLines[0]), 'line should contain a link: ' + formattedLines[0]);
+		formattedLines.slice(1).forEach(line => assert.ok(!/<a href=.*>/.test(line), 'line should not contain a link: ' + line));
+	});
+
 });
