@@ -55,6 +55,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }
@@ -334,7 +335,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private toRender: StateChange | undefined = undefined;
 
 	private editorService: IEditorService;
-	private targetWindow = window;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -570,7 +570,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				if (toRender) {
 					this.doRenderNow();
 				}
-			}, this.targetWindow);
+			}, mainWindow);
 		} else {
 			this.toRender.combine(changed);
 		}

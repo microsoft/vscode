@@ -19,6 +19,7 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class HoverService implements IHoverService {
 	declare readonly _serviceBrand: undefined;
@@ -81,7 +82,7 @@ export class HoverService implements IHoverService {
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
 			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
-			options.container = this._layoutService.getContainer(targetElement.ownerDocument.defaultView || window);
+			options.container = this._layoutService.getContainer(targetElement.ownerDocument.defaultView || mainWindow);
 		}
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(
@@ -112,7 +113,7 @@ export class HoverService implements IHoverService {
 			}
 		}
 
-		if ('IntersectionObserver' in window) {
+		if ('IntersectionObserver' in mainWindow) {
 			const observer = new IntersectionObserver(e => this._intersectionChange(e, hover), { threshold: 0 });
 			const firstTargetElement = 'targetElements' in options.target ? options.target.targetElements[0] : options.target;
 			observer.observe(firstTargetElement);

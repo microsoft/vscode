@@ -41,6 +41,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { mainWindow } from 'vs/base/browser/window';
 
 export interface IWorkbenchOptions {
 
@@ -75,7 +76,7 @@ export class Workbench extends Layout {
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
-		this._register(addDisposableListener(window, 'unhandledrejection', event => {
+		this._register(addDisposableListener(mainWindow, 'unhandledrejection', event => {
 
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 			onUnexpectedError(event.reason);
@@ -102,8 +103,8 @@ export class Workbench extends Layout {
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 
-		if (typeof window.require?.config === 'function') {
-			window.require.config({
+		if (typeof mainWindow.require?.config === 'function') {
+			mainWindow.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {
 						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));

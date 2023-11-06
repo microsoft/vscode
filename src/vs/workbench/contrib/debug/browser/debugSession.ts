@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
 import { Queue, RunOnceScheduler } from 'vs/base/common/async';
@@ -1018,7 +1019,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 									}
 
 									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-										await this.hostService.focus(window, { force: true /* Application may not be active */ });
+										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
 									}
 								}
 							}

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type * as DOM from 'vs/base/browser/window';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -87,6 +88,8 @@ declare function cancelIdleCallback(handle: number): void;
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
+	// eslint-disable-next-line no-restricted-globals
+	const $window = window as typeof DOM.$window;
 	const textEncoder = new TextEncoder();
 	const textDecoder = new TextDecoder();
 
@@ -389,7 +392,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 					if (shouldUpdatePadding) {
 						// Do not update dimension in resize observer
-						window.requestAnimationFrame(() => {
+						$window.requestAnimationFrame(() => {
 							if (newHeight !== 0) {
 								entry.target.style.padding = `${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodePadding}px ${ctx.style.outputNodeLeftPadding}px`;
 							} else {
@@ -457,7 +460,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 
 				// if the node is not scrollable, we can continue. We don't check the computed style always as it's expensive
-				if (window.getComputedStyle(node).overflowY === 'hidden' || window.getComputedStyle(node).overflowY === 'visible') {
+				if ($window.getComputedStyle(node).overflowY === 'hidden' || $window.getComputedStyle(node).overflowY === 'visible') {
 					continue;
 				}
 
@@ -671,7 +674,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	}
 
 	function selectRange(_range: ICommonRange) {
-		const sel = window.getSelection();
+		const sel = $window.getSelection();
 		if (sel) {
 			try {
 				sel.removeAllRanges();
@@ -704,8 +707,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}
 			};
 		} else {
-			window.document.execCommand('hiliteColor', false, matchColor);
-			const cloneRange = window.getSelection()!.getRangeAt(0).cloneRange();
+			$window.document.execCommand('hiliteColor', false, matchColor);
+			const cloneRange = $window.getSelection()!.getRangeAt(0).cloneRange();
 			const _range = {
 				collapsed: cloneRange.collapsed,
 				commonAncestorContainer: cloneRange.commonAncestorContainer,
@@ -722,7 +725,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						document.designMode = 'On';
 						document.execCommand('removeFormat', false, undefined);
 						document.designMode = 'Off';
-						window.getSelection()?.removeAllRanges();
+						$window.getSelection()?.removeAllRanges();
 					} catch (e) {
 						console.log(e);
 					}
@@ -732,9 +735,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 					try {
 						document.designMode = 'On';
 						document.execCommand('removeFormat', false, undefined);
-						window.document.execCommand('hiliteColor', false, color);
+						$window.document.execCommand('hiliteColor', false, color);
 						document.designMode = 'Off';
-						window.getSelection()?.removeAllRanges();
+						$window.getSelection()?.removeAllRanges();
 					} catch (e) {
 						console.log(e);
 					}
@@ -906,12 +909,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 	const onDidReceiveKernelMessage = createEmitter<unknown>();
 
-	const ttPolicy = window.trustedTypes?.createPolicy('notebookRenderer', {
+	const ttPolicy = $window.trustedTypes?.createPolicy('notebookRenderer', {
 		createHTML: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 		createScript: value => value, // CodeQL [SM03712] The rendered content is provided by renderer extensions, which are responsible for sanitizing their content themselves. The notebook webview is also sandboxed.
 	});
 
-	window.addEventListener('wheel', handleWheel);
+	$window.addEventListener('wheel', handleWheel);
 
 	interface IFindMatch {
 		type: 'preview' | 'output';
@@ -945,8 +948,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		currentMatchIndex: number;
 	}
 
-	const matchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
-	const currentMatchColor = window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+	const matchColor = $window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
+	const currentMatchColor = $window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
 		private _activeHighlightInfo: Map<string, IHighlightInfo>;
@@ -992,7 +995,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 			const match = highlightInfo.matches[index];
 			highlightInfo.currentMatchIndex = index;
-			const sel = window.getSelection();
+			const sel = $window.getSelection();
 			if (!!match && !!sel && match.highlightResult) {
 				let offset = 0;
 				try {
@@ -1237,7 +1240,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 		const range = document.createRange();
 		range.selectNodeContents(document.getElementById('findStart')!);
-		const sel = window.getSelection();
+		const sel = $window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
 
@@ -1247,7 +1250,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			document.designMode = 'On';
 
 			while (find && matches.length < 500) {
-				find = (window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
+				find = ($window as any).find(query, /* caseSensitive*/ !!options.caseSensitive,
 				/* backwards*/ false,
 				/* wrapAround*/ false,
 				/* wholeWord */ !!options.wholeWord,
@@ -1255,7 +1258,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					false);
 
 				if (find) {
-					const selection = window.getSelection();
+					const selection = $window.getSelection();
 					if (!selection) {
 						console.log('no selection');
 						break;
@@ -1415,7 +1418,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	window.addEventListener('message', async rawEvent => {
+	$window.addEventListener('message', async rawEvent => {
 		const event = rawEvent as ({ data: webviewMessages.ToWebviewMessage });
 
 		switch (event.data.type) {
@@ -2816,9 +2819,9 @@ async function webviewPreloads(ctx: PreloadContext) {
 					cellId: cellId,
 					dragOffsetY: this.currentDrag.clientY,
 				});
-				requestAnimationFrame(trySendDragUpdate);
+				$window.requestAnimationFrame(trySendDragUpdate);
 			};
-			requestAnimationFrame(trySendDragUpdate);
+			$window.requestAnimationFrame(trySendDragUpdate);
 		}
 
 		updateDrag(e: DragEvent, cellId: string) {

@@ -940,7 +940,7 @@ export class ListView<T> implements IListView<T> {
 
 		item.row.domNode.style.width = 'fit-content';
 		item.width = getContentWidth(item.row.domNode);
-		const style = window.getComputedStyle(item.row.domNode);
+		const style = getWindow(item.row.domNode).getComputedStyle(item.row.domNode);
 
 		if (style.paddingLeft) {
 			item.width += parseFloat(style.paddingLeft);
