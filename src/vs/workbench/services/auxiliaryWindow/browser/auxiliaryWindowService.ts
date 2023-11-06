@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { CodeWindow, Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { CodeWindow, Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -62,7 +62,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	private static readonly DEFAULT_SIZE = { width: 800, height: 600 };
 
-	private static WINDOW_IDS = 0;
+	private static WINDOW_IDS = getWindowId(window) + 1; // start from the main window ID + 1
 
 	private readonly _onDidOpenAuxiliaryWindow = this._register(new Emitter<IAuxiliaryWindowOpenEvent>());
 	readonly onDidOpenAuxiliaryWindow = this._onDidOpenAuxiliaryWindow.event;
