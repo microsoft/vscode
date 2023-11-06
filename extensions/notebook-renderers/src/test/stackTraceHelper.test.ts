@@ -43,8 +43,6 @@ suite('StackTraceHelper', () => {
 		assert.ok(formatted.indexOf('<a href=\'C:\\venvs\\myLib.py:2\'>2</a>') > 0, 'Missing frame link in ' + formatted);
 	});
 
-
-
 	test('IPython stack line numbers are linkified for IPython 8.3', () => {
 		// stack frames within functions do not list the line number, i.e.
 		// 'Input In [1], in myfunc()' vs
@@ -93,7 +91,11 @@ suite('StackTraceHelper', () => {
 			'\u001b[1;36m  Cell \u001b[1;32mIn[6], line 1\u001b[1;36m\u001b[0m\n' +
 			'\u001b[1;33m    print(\u001b[0m\n' +
 			'\u001b[1;37m          ^\u001b[0m\n' +
-			'\u001b[1;31mSyntaxError\u001b[0m\u001b[1;31m:\u001b[0m incomplete input\n';
+			'\u001b[1;31mSyntaxError\u001b[0m\u001b[1;31m:\u001b[0m incomplete input\n' +
+			// contrived examples to check for more false positives
+			'1  print(\n' +
+			'a 1  print(\n' +
+			'   1a  print(\n';
 
 		const formattedLines = formatStackTrace(stack).split('\n');
 		assert.ok(/<a href='vscode-notebook-cell.*>/.test(formattedLines[0]), 'line should contain a link: ' + formattedLines[0]);
