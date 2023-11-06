@@ -194,7 +194,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			this._terminal.scrollToLine(line);
 		}
 		if (!hideDecoration) {
-			this._registerTemporaryDecoration(marker, endMarker);
+			this.registerTemporaryDecoration(marker, endMarker);
 		}
 	}
 
@@ -211,7 +211,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	private _registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void {
+	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void {
 		if (!this._terminal) {
 			return;
 		}

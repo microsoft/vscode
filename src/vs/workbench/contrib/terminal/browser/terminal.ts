@@ -107,7 +107,9 @@ export interface IMarkTracker {
 	selectToNextLine(): void;
 	clearMarker(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
+
 	scrollToLine(line: number, position: ScrollPosition): void;
+	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
 }
 
 export interface ITerminalGroup {

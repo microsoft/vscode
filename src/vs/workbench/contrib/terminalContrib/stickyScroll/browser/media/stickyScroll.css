@@ -10,7 +10,7 @@
 	top: 0;
 	z-index: 32; /* Must be higher than .xterm-viewport and decorations*/
 	/* TODO: Sticky scroll background key */
-	background: var(--vscode-terminal-background, var(--vscode-panel-background));
+	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-panel-background)));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 }
 
@@ -22,6 +22,7 @@
 	/* TODO: Remove !important */
 	position: relative !important;
 	pointer-events: none;
+	padding-bottom: 0 !important;
 }
 
 .terminal-sticky-scroll .hover-overlay {
@@ -34,5 +35,5 @@
 }
 
 .terminal-sticky-scroll .hover-overlay:hover {
-	background-color: var(--vscode-editorStickyScrollHover-background, #ffffff10);
+	background-color: var(--vscode-terminalStickyScrollHover-background, transparent);
 }
