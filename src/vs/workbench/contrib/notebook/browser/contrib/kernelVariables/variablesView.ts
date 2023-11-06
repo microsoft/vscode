@@ -7,8 +7,10 @@ import * as nls from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IViewContainersRegistry, IViewsRegistry } from 'vs/workbench/common/views';
+import { Extensions, IViewContainersRegistry, IViewsRegistry, ViewContainerLocation } from 'vs/workbench/common/views';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
+import { VariablesPanelDescriptor } from 'vs/workbench/contrib/notebook/browser/contrib/kernelVariables/variablesPanel';
+import { ViewPaneContainer } from 'vs/workbench/browser/parts/views/viewPaneContainer';
 
 const VARIABLES_VIEW_CONTAINER_ID = 'variablesViewContainer';
 
@@ -30,11 +32,11 @@ export class VariablesView extends Disposable implements IWorkbenchContribution 
 				viewsRegistry.registerViews([variablesPanelDescriptor!], viewContainer);
 			}
 		} else {
-			this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
-				if (e.affectsSome(new Set(forwardedPortsViewEnabled.keys()))) {
-					this.enableForwardedPortsView();
-				}
-			});
+			// this.contextKeyListener = this.contextKeyService.onDidChangeContext(e => {
+			// 	if (e.affectsSome()) {
+			// 		this.enableVariablesView();
+			// 	}
+			// });
 		}
 	}
 
