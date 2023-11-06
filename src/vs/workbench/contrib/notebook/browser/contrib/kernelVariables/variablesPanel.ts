@@ -19,6 +19,9 @@ import { IViewDescriptorService } from 'vs/workbench/common/views';
 
 export class VariablesPanel extends ViewPane {
 
+	static readonly ID = TUNNEL_VIEW_ID;
+	static readonly TITLE: ILocalizedString = nls.localize2('remote.tunnel', "Ports");
+
 	constructor(
 		options: IViewPaneOptions,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -36,5 +39,25 @@ export class VariablesPanel extends ViewPane {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
 
+	}
+}
+
+export class TunnelPanelDescriptor implements IViewDescriptor {
+	readonly id = TunnelPanel.ID;
+	readonly name: ILocalizedString = TunnelPanel.TITLE;
+	readonly ctorDescriptor: SyncDescriptor<TunnelPanel>;
+	readonly canToggleVisibility = true;
+	readonly hideByDefault = false;
+	// group is not actually used for views that are not extension contributed. Use order instead.
+	readonly group = 'details@0';
+	// -500 comes from the remote explorer viewOrderDelegate
+	readonly order = -500;
+	readonly remoteAuthority?: string | string[];
+	readonly canMoveView = true;
+	readonly containerIcon = portsViewIcon;
+
+	constructor(viewModel: ITunnelViewModel, environmentService: IWorkbenchEnvironmentService) {
+		this.ctorDescriptor = new SyncDescriptor(TunnelPanel, [viewModel]);
+		this.remoteAuthority = environmentService.remoteAuthority ? environmentService.remoteAuthority.split('+')[0] : undefined;
 	}
 }
