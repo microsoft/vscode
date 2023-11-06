@@ -138,19 +138,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
 		const hasCommandExecuted = capability.isWindowsPty && this._accessibilityService.isScreenReaderOptimized();
-		if (hasCommandExecuted) {
-			this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
-				if (this._instance.hasFocus) {
-					this.show();
-				}
-			}));
-		} else {
-			this._onDidRunCommand.value = this._register(capability.onCommandFinished(() => {
-				if (this._instance.hasFocus) {
-					this.show();
-				}
-			}));
-		}
+		this._onDidRunCommand.value = this._register((hasCommandExecuted ? capability.onCommandExecuted : capability.onCommandFinished)(() => {
+			if (this._instance.hasFocus) {
+				this.show();
+			}
+		}));
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {
