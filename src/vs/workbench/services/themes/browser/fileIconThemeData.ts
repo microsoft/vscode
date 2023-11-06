@@ -10,7 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { asCSSUrl } from 'vs/base/browser/dom';
+import { $window, asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/languages/language';
@@ -465,5 +465,5 @@ function handleParentFolder(key: string, selectors: string[]): string {
 
 function escapeCSS(str: string) {
 	str = str.replace(/[\11\12\14\15\40]/g, '/'); // HTML class names can not contain certain whitespace characters, use / instead, which doesn't exist in file names.
-	return window.CSS.escape(str);
+	return $window.CSS.escape(str);
 }

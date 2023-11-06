@@ -60,7 +60,7 @@ export class HoverWidget extends Widget {
 	private _addedFocusTrap: boolean = false;
 
 	private get _targetWindow(): Window {
-		return this._target.targetElements?.[0].ownerDocument.defaultView || window;
+		return this._target.targetElements?.[0].ownerDocument.defaultView || dom.mainWindow;
 	}
 	private get _targetDocumentElement(): HTMLElement {
 		return this._target.targetElements?.[0].ownerDocument.documentElement;
@@ -660,12 +660,12 @@ class CompositeMouseTracker extends Widget {
 		this._clearEvaluateMouseStateTimeout();
 		// Evaluate whether the mouse is still outside asynchronously such that other mouse targets
 		// have the opportunity to first their mouse in event.
-		this._mouseTimeout = window.setTimeout(() => this._fireIfMouseOutside(), 0);
+		this._mouseTimeout = dom.$window.setTimeout(() => this._fireIfMouseOutside(), 0);
 	}
 
 	private _clearEvaluateMouseStateTimeout(): void {
 		if (this._mouseTimeout) {
-			clearTimeout(this._mouseTimeout);
+			dom.$window.clearTimeout(this._mouseTimeout);
 			this._mouseTimeout = undefined;
 		}
 	}

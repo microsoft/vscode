@@ -733,7 +733,7 @@ class OpenEditorsDragAndDrop implements IListDragAndDrop<OpenEditor | IEditorGro
 			});
 			this.editorGroupService.activateGroup(group);
 		} else {
-			this.dropHandler.handleDrop(originalEvent, window, () => group, () => group.focus(), { index });
+			this.dropHandler.handleDrop(originalEvent, dom.mainWindow, () => group, () => group.focus(), { index });
 		}
 	}
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isFirefox } from 'vs/base/browser/browser';
-import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { $window, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { streamToBuffer, VSBufferReadableStream } from 'vs/base/common/buffer';
@@ -159,7 +159,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this.providedViewType = initInfo.providedViewType;
 		this.origin = initInfo.origin ?? this.id;
 
-		this._encodedWebviewOriginPromise = parentOriginHash(window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
+		this._encodedWebviewOriginPromise = parentOriginHash($window.origin, this.origin).then(id => this._encodedWebviewOrigin = id);
 
 		this._options = initInfo.options;
 		this.extension = initInfo.extension;
@@ -180,7 +180,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		this._element = this._createElement(initInfo.options, initInfo.contentOptions);
 
 
-		const subscription = this._register(addDisposableListener(window, 'message', (e: MessageEvent) => {
+		const subscription = this._register(addDisposableListener($window, 'message', (e: MessageEvent) => {
 			if (!this._encodedWebviewOrigin || e?.data?.target !== this.id) {
 				return;
 			}
@@ -461,7 +461,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			extensionId: extension?.id.value ?? '',
 			platform: this.platform,
 			'vscode-resource-base-authority': webviewRootResourceAuthority,
-			parentOrigin: window.origin,
+			parentOrigin: $window.origin,
 		};
 
 		if (this._options.disableServiceWorker) {
@@ -501,7 +501,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			}));
 		}
 
-		for (const node of [element, window]) {
+		for (const node of [element, $window]) {
 			this._register(addDisposableListener(node, EventType.DRAG_END, () => {
 				this._stopBlockingIframeDragEvents();
 			}));
@@ -684,7 +684,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 			get: () => this.element,
 		});
 		// And re-dispatch
-		window.dispatchEvent(emulatedKeyboardEvent);
+		$window.dispatchEvent(emulatedKeyboardEvent);
 	}
 
 	windowDidDragStart(): void {

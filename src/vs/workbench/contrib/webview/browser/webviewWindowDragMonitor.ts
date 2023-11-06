@@ -17,7 +17,7 @@ export class WebviewWindowDragMonitor extends Disposable {
 	constructor(getWebview: () => IWebview | undefined) {
 		super();
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.DRAG_START, () => {
+		this._register(DOM.addDisposableListener(DOM.$window, DOM.EventType.DRAG_START, () => {
 			getWebview()?.windowDidDragStart();
 		}));
 
@@ -25,8 +25,8 @@ export class WebviewWindowDragMonitor extends Disposable {
 			getWebview()?.windowDidDragEnd();
 		};
 
-		this._register(DOM.addDisposableListener(window, DOM.EventType.DRAG_END, onDragEnd));
-		this._register(DOM.addDisposableListener(window, DOM.EventType.MOUSE_MOVE, currentEvent => {
+		this._register(DOM.addDisposableListener(DOM.$window, DOM.EventType.DRAG_END, onDragEnd));
+		this._register(DOM.addDisposableListener(DOM.$window, DOM.EventType.MOUSE_MOVE, currentEvent => {
 			if (currentEvent.buttons === 0) {
 				onDragEnd();
 			}

@@ -13,7 +13,7 @@ import { HTMLFileSystemProvider } from 'vs/platform/files/browser/htmlFileSystem
 import { localize } from 'vs/nls';
 import { getMediaOrTextMime } from 'vs/base/common/mime';
 import { basename } from 'vs/base/common/resources';
-import { triggerDownload, triggerUpload } from 'vs/base/browser/dom';
+import { mainWindow, triggerDownload, triggerUpload } from 'vs/base/browser/dom';
 import Severity from 'vs/base/common/severity';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { extractFileListData } from 'vs/platform/dnd/browser/dnd';
@@ -57,13 +57,13 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.pickFileAndOpenSimplified(schema, options, false);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		if (!WebFileSystemAccess.supported(mainWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
 		let fileHandle: FileSystemHandle | undefined = undefined;
 		try {
-			([fileHandle] = await window.showOpenFilePicker({ multiple: false }));
+			([fileHandle] = await mainWindow.showOpenFilePicker({ multiple: false }));
 		} catch (error) {
 			return; // `showOpenFilePicker` will throw an error when the user cancels
 		}
@@ -116,7 +116,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.pickFileToSaveSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		if (!WebFileSystemAccess.supported(mainWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -124,7 +124,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
+			fileHandle = await mainWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...{ suggestedName: basename(defaultUri), startIn } });
 		} catch (error) {
 			return; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -157,7 +157,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.showSaveDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		if (!WebFileSystemAccess.supported(mainWindow)) {
 			return this.showUnsupportedBrowserWarning('save');
 		}
 
@@ -165,7 +165,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		const startIn = Iterable.first(this.fileSystemProvider.directories);
 
 		try {
-			fileHandle = await window.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
+			fileHandle = await mainWindow.showSaveFilePicker({ types: this.getFilePickerTypes(options.filters), ...options.defaultUri ? { suggestedName: basename(options.defaultUri) } : undefined, ...{ startIn } });
 		} catch (error) {
 			return undefined; // `showSaveFilePicker` will throw an error when the user cancels
 		}
@@ -184,7 +184,7 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 			return super.showOpenDialogSimplified(schema, options);
 		}
 
-		if (!WebFileSystemAccess.supported(window)) {
+		if (!WebFileSystemAccess.supported(mainWindow)) {
 			return this.showUnsupportedBrowserWarning('open');
 		}
 
@@ -193,12 +193,12 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 
 		try {
 			if (options.canSelectFiles) {
-				const handle = await window.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
+				const handle = await mainWindow.showOpenFilePicker({ multiple: false, types: this.getFilePickerTypes(options.filters), ...{ startIn } });
 				if (handle.length === 1 && WebFileSystemAccess.isFileSystemFileHandle(handle[0])) {
 					uri = await this.fileSystemProvider.registerFileHandle(handle[0]);
 				}
 			} else {
-				const handle = await window.showDirectoryPicker({ ...{ startIn } });
+				const handle = await mainWindow.showDirectoryPicker({ ...{ startIn } });
 				uri = await this.fileSystemProvider.registerDirectoryHandle(handle);
 			}
 		} catch (error) {

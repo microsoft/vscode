@@ -979,13 +979,13 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 	// the use of canvas, window.devicePixelRatio needs to be used here in
 	// order to be precise. font.charWidth/charHeight alone as insufficient
 	// when window.devicePixelRatio changes.
-	const scaledWidthAvailable = width * window.devicePixelRatio;
+	const scaledWidthAvailable = width * dom.$window.devicePixelRatio;
 
-	const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
+	const scaledCharWidth = font.charWidth * dom.$window.devicePixelRatio + font.letterSpacing;
 	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
-	const scaledHeightAvailable = height * window.devicePixelRatio;
-	const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+	const scaledHeightAvailable = height * dom.$window.devicePixelRatio;
+	const scaledCharHeight = Math.ceil(font.charHeight * dom.$window.devicePixelRatio);
 	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 

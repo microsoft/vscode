@@ -110,7 +110,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			}
 
 			// Reset the scheduler if the mouse moves too much
-			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
+			if (Math.abs(e.pageX - origin.x) > dom.$window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > dom.$window.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
 				this._tooltipScheduler?.schedule();
