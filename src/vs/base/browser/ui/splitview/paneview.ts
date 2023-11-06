@@ -175,11 +175,11 @@ export abstract class Pane extends Disposable implements IView {
 			}
 
 			if (typeof this.animationTimer === 'number') {
-				clearTimeout(this.animationTimer);
+				getWindow(this.element).clearTimeout(this.animationTimer);
 			}
 			append(this.element, this.body);
 		} else {
-			this.animationTimer = getWindow(this.body).setTimeout(() => {
+			this.animationTimer = getWindow(this.element).setTimeout(() => {
 				this.body.remove();
 			}, 200);
 		}

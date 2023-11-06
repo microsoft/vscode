@@ -1179,7 +1179,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
-				mainWindow.setTimeout(() => {
+				(element instanceof HTMLElement ? getWindow(element) : element).setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
@@ -1437,7 +1437,7 @@ export function windowOpenNoOpener(url: string): void {
 	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
 	// However, this also doesn't allow us to realize if the browser blocked
 	// the creation of the window.
-	$window.open(url, '_blank', 'noopener');
+	mainWindow.open(url, '_blank', 'noopener');
 }
 
 /**
@@ -1453,9 +1453,9 @@ export function windowOpenNoOpener(url: string): void {
  */
 const popupWidth = 780, popupHeight = 640;
 export function windowOpenPopup(url: string): void {
-	const left = Math.floor($window.screenLeft + $window.innerWidth / 2 - popupWidth / 2);
-	const top = Math.floor($window.screenTop + $window.innerHeight / 2 - popupHeight / 2);
-	$window.open(
+	const left = Math.floor(mainWindow.screenLeft + mainWindow.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor(mainWindow.screenTop + mainWindow.innerHeight / 2 - popupHeight / 2);
+	mainWindow.open(
 		url,
 		'_blank',
 		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
@@ -1478,7 +1478,7 @@ export function windowOpenPopup(url: string): void {
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = $window.open();
+	const newTab = mainWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
@@ -1500,7 +1500,7 @@ export function animate(fn: () => void, targetWindow: Window): IDisposable {
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-RemoteAuthorities.setPreferredWebSchema(/^https:/.test($window.location.href) ? 'https' : 'http');
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test(mainWindow.location.href) ? 'https' : 'http');
 
 /**
  * returns url('...')

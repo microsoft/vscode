@@ -262,13 +262,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._showTimeout === null) {
 			if (this._hideTimeout !== null) {
-				DOM.getWindow(this._notebookEditor.getDomNode()).clearTimeout(this._hideTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._hideTimeout);
 				this._hideTimeout = null;
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}
 
 			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
-			this._showTimeout = DOM.getWindow(this._notebookEditor.getDomNode()).setTimeout(() => {
+			this._showTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 				this._showTimeout = null;
 			}, 200);
@@ -284,13 +284,13 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._showTimeout === null) {
 			if (this._hideTimeout !== null) {
-				DOM.getWindow(this._notebookEditor.getDomNode()).clearTimeout(this._hideTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._hideTimeout);
 				this._hideTimeout = null;
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}
 
 			this._notebookEditor.addClassName(FIND_SHOW_TRANSITION);
-			this._showTimeout = DOM.getWindow(this._notebookEditor.getDomNode()).setTimeout(() => {
+			this._showTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 				this._showTimeout = null;
 			}, 200);
@@ -308,12 +308,12 @@ class NotebookFindWidget extends SimpleFindReplaceWidget implements INotebookEdi
 
 		if (this._hideTimeout === null) {
 			if (this._showTimeout !== null) {
-				DOM.getWindow(this._notebookEditor.getDomNode()).clearTimeout(this._showTimeout);
+				DOM.getWindow(this.getDomNode()).clearTimeout(this._showTimeout);
 				this._showTimeout = null;
 				this._notebookEditor.removeClassName(FIND_SHOW_TRANSITION);
 			}
 			this._notebookEditor.addClassName(FIND_HIDE_TRANSITION);
-			this._hideTimeout = DOM.getWindow(this._notebookEditor.getDomNode()).setTimeout(() => {
+			this._hideTimeout = DOM.getWindow(this.getDomNode()).setTimeout(() => {
 				this._notebookEditor.removeClassName(FIND_HIDE_TRANSITION);
 			}, 200);
 		} else {

@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -82,7 +82,7 @@ export class HoverService implements IHoverService {
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
 			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
-			options.container = this._layoutService.getContainer(getWindow(targetElement));
+			options.container = this._layoutService.getContainer(targetElement.ownerDocument.defaultView || mainWindow);
 		}
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(

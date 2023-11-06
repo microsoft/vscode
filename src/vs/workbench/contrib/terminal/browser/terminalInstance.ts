@@ -536,13 +536,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
-		let initialDataEventsTimeout: number | undefined = $window.setTimeout(() => {
+		let initialDataEventsTimeout: number | undefined = dom.getWindow(this._container).setTimeout(() => {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
 		this._register(toDisposable(() => {
 			if (initialDataEventsTimeout) {
-				$window.clearTimeout(initialDataEventsTimeout);
+				dom.getWindow(this._container).clearTimeout(initialDataEventsTimeout);
 			}
 		}));
 

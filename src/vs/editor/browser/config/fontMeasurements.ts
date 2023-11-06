@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
+import { $window } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { CharWidthRequest, CharWidthRequestType, readCharWidths } from 'vs/editor/browser/config/charWidthReader';
@@ -36,7 +37,7 @@ export interface ISerializedFontInfo {
 export class FontMeasurementsImpl extends Disposable {
 
 	private _cache: FontMeasurementsCache;
-	private _evictUntrustedReadingsTimeout: any;
+	private _evictUntrustedReadingsTimeout: number;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -50,7 +51,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
-			clearTimeout(this._evictUntrustedReadingsTimeout);
+			$window.clearTimeout(this._evictUntrustedReadingsTimeout);
 			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
@@ -69,7 +70,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
 			// Try reading again after some time
-			this._evictUntrustedReadingsTimeout = setTimeout(() => {
+			this._evictUntrustedReadingsTimeout = $window.setTimeout(() => {
 				this._evictUntrustedReadingsTimeout = -1;
 				this._evictUntrustedReadings();
 			}, 5000);
