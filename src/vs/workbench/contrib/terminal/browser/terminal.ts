@@ -1042,6 +1042,11 @@ export interface IXtermTerminal extends IDisposable {
 	readonly isFocused: boolean;
 
 	/**
+	 * Whether a canvas-based renderer is being used.
+	 */
+	readonly isGpuAccelerated: boolean;
+
+	/**
 	 * Attached the terminal to the given element
 	 * @param container Container the terminal will be rendered in
 	 * @param options Additional options for mounting the terminal in an element

@@ -7,19 +7,18 @@ import 'vs/css!./media/stickyScroll';
 import { throttle } from 'vs/base/common/decorators';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import { hide, show } from 'vs/base/browser/dom';
+import { hide, setVisibility, show } from 'vs/base/browser/dom';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { importAMDNodeModule } from 'vs/amdX';
-import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
 let CanvasAddon: typeof CanvasAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -34,7 +33,8 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 	private _xterm?: IXtermTerminal & { raw: RawXtermTerminal };
 	private _element?: HTMLElement;
 	private _stickyScrollOverlay?: RawXtermTerminal;
-	private _overlaySerializeAddon?: SerializeAddonType;
+	private _serializeAddon?: SerializeAddonType;
+	private _canvasAddon?: CanvasAddonType;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -42,14 +42,19 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		widgetManager: TerminalWidgetManager,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
+
+		this.add(xterm.raw.buffer.onBufferChange(buffer => {
+			const element = this._ensureElement();
+			setVisibility(buffer.type === 'normal', element);
+		}));
+
+		// TODO: Skip these when hidden
 		this.add(xterm.raw.onScroll(() => this._refresh()));
 		this.add(xterm.raw.onLineFeed(() => this._refresh()));
 		// TODO: Disable in alt buffer
@@ -61,15 +66,16 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			});
 			this._stickyScrollOverlay = overlay;
 			this._getSerializeAddonConstructor().then(addonCtor => {
-				this._overlaySerializeAddon = new addonCtor();
-				xterm.raw.loadAddon(this._overlaySerializeAddon);
+				this._serializeAddon = new addonCtor();
+				xterm.raw.loadAddon(this._serializeAddon);
 			});
-			// TODO: Track and sync with real instance
-			// if (gpu renderer) {
-			this._getCanvasAddonConstructor().then(addonCtor => {
-				overlay.loadAddon(new addonCtor());
-			});
-			// }
+			// TODO: Sync every render
+			if (xterm.isGpuAccelerated) {
+				this._getCanvasAddonConstructor().then(addonCtor => {
+					this._canvasAddon = new addonCtor();
+					overlay.loadAddon(this._canvasAddon);
+				});
+			}
 		});
 	}
 
@@ -93,7 +99,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		if (!marker || marker.line === -1) {
 			return;
 		}
-		const element = this._ensureElement(this._xterm.raw.element);
+		const element = this._ensureElement();
 		// element.textContent = this._xterm.raw.buffer.active.getLine(marker.line)?.translateToString(true) ?? '';
 		if (element.textContent === '') {
 			hide(element);
@@ -106,7 +112,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
 			// TODO: Serialize line instead
 			// TODO: Support providing single line/range serialize addon
-			const s = this._overlaySerializeAddon?.serialize({
+			const s = this._serializeAddon?.serialize({
 				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
 			});
 			if (s) {
@@ -121,7 +127,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		}
 	}
 
-	private _ensureElement(container: HTMLElement): HTMLElement {
+	private _ensureElement(): HTMLElement {
 		if (!this._element) {
 			this._element = document.createElement('div');
 			this._element.classList.add('terminal-sticky-scroll');
