@@ -18,6 +18,16 @@ import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 
+// eslint-disable-next-line no-restricted-globals
+export const mainWindow = window as CodeWindow;
+
+/**
+ * @deprecated to support multi-window scenarios, use `DOM.mainWindow`
+ * if you target the main global window or use helpers such as `DOM.getWindow()`
+ * or `DOM.getActiveWindow()` to obtain the correct window for the context you are in.
+ */
+export const $window = mainWindow;
+
 export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
@@ -30,9 +40,8 @@ interface IRegisteredCodeWindow {
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
-	const mainWindow = window as CodeWindow;
 	if (typeof mainWindow.vscodeWindowId !== 'number') {
-		Object.defineProperty(window, 'vscodeWindowId', {
+		Object.defineProperty(mainWindow, 'vscodeWindowId', {
 			get: () => 1
 		});
 	}
@@ -803,7 +812,7 @@ export function getActiveDocument(): Document {
 
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
-	return (document.defaultView?.window ?? window) as CodeWindow;
+	return (document.defaultView?.window ?? mainWindow) as CodeWindow;
 }
 
 export function getWindow(element: Node | undefined | null): CodeWindow;
@@ -819,7 +828,7 @@ export function getWindow(e: unknown): CodeWindow {
 		return candidateEvent.view.window as CodeWindow;
 	}
 
-	return window as CodeWindow;
+	return mainWindow;
 }
 
 export function focusWindow(element: Node): void {
@@ -844,7 +853,7 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 	// to support auxiliary windows to clone the stylesheet.
 	if (container === document.head) {
 		for (const { window: targetWindow, disposables } of getWindows()) {
-			if (targetWindow === window) {
+			if (targetWindow === mainWindow) {
 				continue; // main window is already tracked
 			}
 
@@ -1183,7 +1192,7 @@ class FocusTracker extends Disposable implements IFocusTracker {
 		const onBlur = () => {
 			if (hasFocus) {
 				loosingFocus = true;
-				window.setTimeout(() => {
+				mainWindow.setTimeout(() => {
 					if (loosingFocus) {
 						loosingFocus = false;
 						hasFocus = false;
@@ -1441,7 +1450,7 @@ export function windowOpenNoOpener(url: string): void {
 	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
 	// However, this also doesn't allow us to realize if the browser blocked
 	// the creation of the window.
-	window.open(url, '_blank', 'noopener');
+	$window.open(url, '_blank', 'noopener');
 }
 
 /**
@@ -1457,9 +1466,9 @@ export function windowOpenNoOpener(url: string): void {
  */
 const popupWidth = 780, popupHeight = 640;
 export function windowOpenPopup(url: string): void {
-	const left = Math.floor(window.screenLeft + window.innerWidth / 2 - popupWidth / 2);
-	const top = Math.floor(window.screenTop + window.innerHeight / 2 - popupHeight / 2);
-	window.open(
+	const left = Math.floor($window.screenLeft + $window.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor($window.screenTop + $window.innerHeight / 2 - popupHeight / 2);
+	$window.open(
 		url,
 		'_blank',
 		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
@@ -1482,7 +1491,7 @@ export function windowOpenPopup(url: string): void {
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = window.open();
+	const newTab = $window.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
@@ -1504,7 +1513,7 @@ export function animate(fn: () => void, targetWindow: Window): IDisposable {
 	return toDisposable(() => stepDisposable.dispose());
 }
 
-RemoteAuthorities.setPreferredWebSchema(/^https:/.test(window.location.href) ? 'https' : 'http');
+RemoteAuthorities.setPreferredWebSchema(/^https:/.test($window.location.href) ? 'https' : 'http');
 
 /**
  * returns url('...')
@@ -1628,7 +1637,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	if (window.innerHeight === screen.height) {
+	if ($window.innerHeight === screen.height) {
 		// if the height of the window matches the screen height, we can
 		// safely assume that the browser is fullscreen because no browser
 		// chrome is taking height away (e.g. like toolbars).
@@ -1637,7 +1646,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	if (platform.isMacintosh || platform.isLinux) {
 		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if (window.outerHeight === screen.height && window.outerWidth === screen.width) {
+		if ($window.outerHeight === screen.height && $window.outerWidth === screen.width) {
 			// if the height of the browser matches the screen height, we can
 			// only guess that we are in fullscreen. It is also possible that
 			// the user has turned off taskbars in the OS and the browser is
@@ -1842,7 +1851,7 @@ export class ModifierKeyEmitter extends event.Emitter<IModifierKeyStatus> {
 			metaKey: false
 		};
 
-		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window, disposables: this._subscriptions }));
+		this._subscriptions.add(event.Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => this.registerListeners(window, disposables), { window: mainWindow, disposables: this._subscriptions }));
 	}
 
 	private registerListeners(window: Window, disposables: DisposableStore): void {
