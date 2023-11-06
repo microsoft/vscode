@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $window } from 'vs/base/browser/window';
+import type * as DOM from 'vs/base/browser/window';
 import type { Event } from 'vs/base/common/event';
 import type { IDisposable } from 'vs/base/common/lifecycle';
 import type * as webviewMessages from 'vs/workbench/contrib/notebook/browser/view/renderers/webviewMessages';
@@ -88,6 +88,8 @@ declare function cancelIdleCallback(handle: number): void;
 declare function __import(path: string): Promise<any>;
 
 async function webviewPreloads(ctx: PreloadContext) {
+	// eslint-disable-next-line no-restricted-globals
+	const $window = window as typeof DOM.$window;
 	const textEncoder = new TextEncoder();
 	const textDecoder = new TextDecoder();
 
