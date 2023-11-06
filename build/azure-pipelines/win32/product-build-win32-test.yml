@@ -70,13 +70,6 @@ steps:
       displayName: Build integration tests
 
     - ${{ if eq(parameters.VSCODE_QUALITY, 'oss') }}:
-      - powershell: |
-          . build/azure-pipelines/win32/exec.ps1
-          $ErrorActionPreference = "Stop"
-          exec { yarn gulp node }
-        displayName: Download node.js for remote tests
-        retryCountOnTaskFailure: 3
-
       - powershell: .\scripts\test-integration.bat --tfs "Integration Tests"
         displayName: Run integration tests (Electron)
         timeoutInMinutes: 20
