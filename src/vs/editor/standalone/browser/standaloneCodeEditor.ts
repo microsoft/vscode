@@ -367,6 +367,7 @@ export class StandaloneCodeEditor extends CodeEditorWidget implements IStandalon
 			uniqueId,
 			label,
 			label,
+			undefined,
 			precondition,
 			(...args: unknown[]) => Promise.resolve(_descriptor.run(this, ...args)),
 			this._contextKeyService

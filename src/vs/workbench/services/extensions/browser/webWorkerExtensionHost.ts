@@ -40,6 +40,7 @@ export interface IWebWorkerExtensionHostDataProvider {
 
 export class WebWorkerExtensionHost extends Disposable implements IExtensionHost {
 
+	public readonly pid = null;
 	public readonly remoteAuthority = null;
 	public extensions: ExtensionHostExtensions | null = null;
 

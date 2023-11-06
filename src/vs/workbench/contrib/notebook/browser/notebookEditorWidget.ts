@@ -52,7 +52,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { contrastBorder, errorForeground, focusBorder, foreground, listInactiveSelectionBackground, registerColor, scrollbarSliderActiveBackground, scrollbarSliderBackground, scrollbarSliderHoverBackground, transparent } from 'vs/platform/theme/common/colorRegistry';
 import { EDITOR_PANE_BACKGROUND, PANEL_BORDER, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { debugIconStartForeground } from 'vs/workbench/contrib/debug/browser/debugColors';
-import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealRangeType, CellRevealSyncType, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFindMatchWithIndex, CellFocusMode, CellLayoutContext, CellRevealRangeType, CellRevealType, IActiveNotebookEditorDelegate, IBaseCellEditorOptions, ICellOutputViewModel, ICellViewModel, ICommonCellInfo, IDisplayOutputLayoutUpdateRequest, IFocusNotebookCellOptions, IInsetRenderOutput, IModelDecorationsChangeAccessor, INotebookDeltaDecoration, INotebookEditor, INotebookEditorContribution, INotebookEditorContributionDescription, INotebookEditorCreationOptions, INotebookEditorDelegate, INotebookEditorMouseEvent, INotebookEditorOptions, INotebookEditorViewState, INotebookViewCellsUpdateEvent, INotebookWebviewMessage, RenderOutputType, ScrollToRevealBehavior } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookEditorExtensionsRegistry } from 'vs/workbench/contrib/notebook/browser/notebookEditorExtensions';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { notebookDebug } from 'vs/workbench/contrib/notebook/browser/notebookLogger';
@@ -1231,10 +1231,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					cell.updateEditState(CellEditState.Editing, 'setOptions');
 					cell.focusMode = CellFocusMode.Editor;
 					await this.revealRangeInCenterIfOutsideViewportAsync(cell, new Range(selection.startLineNumber, selection.startColumn, selection.endLineNumber || selection.startLineNumber, selection.endColumn || selection.startColumn));
-				} else if (options?.cellRevealType === CellRevealType.NearTopIfOutsideViewport) {
-					await this._list.revealCellAsync(cell, CellRevealType.NearTopIfOutsideViewport);
 				} else {
-					await this._list.revealCellAsync(cell, CellRevealType.CenterIfOutsideViewport);
+					this._list.revealCell(cell, options?.cellRevealType ?? CellRevealType.CenterIfOutsideViewport);
 				}
 
 				const editor = this._renderedEditors.get(cell)!;
@@ -2058,55 +2056,55 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	revealCellRangeInView(range: ICellRange) {
-		return this._list.revealCellsInView(range);
+		return this._list.revealCells(range);
 	}
 
 	revealInView(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealSyncType.Default);
+		this._list.revealCell(cell, CellRevealType.Default);
 	}
 
 	revealInViewAtTop(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealSyncType.Top);
+		this._list.revealCell(cell, CellRevealType.Top);
 	}
 
 	revealInCenter(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealSyncType.Center);
+		this._list.revealCell(cell, CellRevealType.Center);
 	}
 
 	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealSyncType.CenterIfOutsideViewport);
+		this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
 	}
 
 	revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealSyncType.FirstLineIfOutsideViewport);
+		this._list.revealCell(cell, CellRevealType.FirstLineIfOutsideViewport);
 	}
 
 	async revealLineInViewAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Default);
 	}
 
 	async revealLineInCenterAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.Center);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.Center);
 	}
 
 	async revealLineInCenterIfOutsideViewportAsync(cell: ICellViewModel, line: number): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
+		return this._list.revealRangeInCell(cell, new Range(line, 1, line, 1), CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
 	async revealRangeInViewAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Default);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.Default);
 	}
 
 	async revealRangeInCenterAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.Center);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.Center);
 	}
 
 	async revealRangeInCenterIfOutsideViewportAsync(cell: ICellViewModel, range: Selection | Range): Promise<void> {
-		return this._list.revealCellRangeAsync(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
+		return this._list.revealRangeInCell(cell, range, CellRevealRangeType.CenterIfOutsideViewport);
 	}
 
-	async revealCellOffsetInCenterAsync(cell: ICellViewModel, offset: number): Promise<void> {
-		return this._list.revealCellOffsetInCenterAsync(cell, offset);
+	revealCellOffsetInCenter(cell: ICellViewModel, offset: number) {
+		return this._list.revealCellOffsetInCenter(cell, offset);
 	}
 
 	getViewIndexByModelIndex(index: number): number {
@@ -2341,9 +2339,9 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 					const selectionsStartPosition = cell.getSelectionsStartPosition();
 					if (selectionsStartPosition?.length) {
 						const firstSelectionPosition = selectionsStartPosition[0];
-						await this.revealRangeInCenterIfOutsideViewportAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
+						await this.revealRangeInViewAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
 					} else {
-						this.revealInCenterIfOutsideViewport(cell);
+						this.revealInView(cell);
 					}
 				}
 

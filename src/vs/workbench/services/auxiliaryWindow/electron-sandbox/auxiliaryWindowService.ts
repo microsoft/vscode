@@ -5,16 +5,16 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService, AuxiliaryWindow as BrowserAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { getActiveWindow } from 'vs/base/browser/dom';
+import { CodeWindow, getActiveWindow } from 'vs/base/browser/dom';
 
-type NativeAuxiliaryWindow = BrowserAuxiliaryWindow & {
+type NativeAuxiliaryWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
 };
 
