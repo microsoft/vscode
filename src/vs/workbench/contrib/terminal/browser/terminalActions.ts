@@ -434,8 +434,26 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommand,
+		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command.command) {
+				return;
+			}
+			await clipboardService.writeText(command.command);
+		}
+	});
+
+	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
+		title: { value: localize('workbench.action.terminal.copyLastCommandOutput', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -453,6 +471,28 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
+		title: { value: localize('workbench.action.terminal.copyLastCommandAndLastCommandOutput', 'Copy Last Command And Last Command Output'), original: 'Copy Last Command And Last Command Output' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command?.hasOutput()) {
+				return;
+			}
+			const output = command.getOutput();
+			if (isString(output)) {
+				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
+			}
+		}
+	});
+
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
