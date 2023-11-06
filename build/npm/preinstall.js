@@ -2,20 +2,17 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-let err = false;
 
 const nodeVersion = /^(\d+)\.(\d+)\.(\d+)/.exec(process.versions.node);
 const majorNodeVersion = parseInt(nodeVersion[1]);
 const minorNodeVersion = parseInt(nodeVersion[2]);
-const patchNodeVersion = parseInt(nodeVersion[3]);
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	if (majorNodeVersion < 18 || (majorNodeVersion === 18 && minorNodeVersion < 15)) {
-		console.error('\033[1;31m*** Please use node.js versions >=18.15.x and <19.\033[0;0m');
-		err = true;
+		handleErrorOrWarning('*** Please use node.js versions >=18.15.x and <19.');
 	}
 	if (majorNodeVersion >= 19) {
-		console.warn('\033[1;31m*** Warning: Versions of node.js >= 19 have not been tested.\033[0;0m')
+		handleErrorOrWarning('*** Warning: Versions of node.js >= 19 have not been tested.', 'warn')
 	}
 }
 
@@ -35,28 +32,18 @@ if (
 	) ||
 	majorYarnVersion >= 2
 ) {
-	console.error('\033[1;31m*** Please use yarn >=1.10.1 and <2.\033[0;0m');
-	err = true;
+	handleErrorOrWarning('*** Please use yarn >=1.10.1 and <2.');
 }
 
 if (!/yarn[\w-.]*\.c?js$|yarnpkg$/.test(process.env['npm_execpath'])) {
-	console.error('\033[1;31m*** Please use yarn to install dependencies.\033[0;0m');
-	err = true;
+	handleErrorOrWarning('*** Please use yarn to install dependencies.');
 }
 
 if (process.platform === 'win32') {
 	if (!hasSupportedVisualStudioVersion()) {
-		console.error('\033[1;31m*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.\033[0;0m');
-		err = true;
+		handleErrorOrWarning('*** Invalid C/C++ Compiler Toolchain. Please check https://github.com/microsoft/vscode/wiki/How-to-Contribute#prerequisites.');
 	}
-	if (!err) {
-		installHeaders();
-	}
-}
-
-if (err) {
-	console.error('');
-	process.exit(1);
+	installHeaders();
 }
 
 function hasSupportedVisualStudioVersion() {
@@ -105,8 +92,7 @@ function installHeaders() {
 		stdio: 'inherit'
 	});
 	if (yarnResult.error || yarnResult.status !== 0) {
-		console.error(`Installing node-gyp failed`);
-		err = true;
+		handleErrorOrWarning(`Installing node-gyp failed`);
 		return;
 	}
 
@@ -163,4 +149,19 @@ function getHeaderInfo(rcFile) {
 	return disturl !== undefined && target !== undefined
 		? { disturl, target }
 		: undefined;
+}
+
+/**
+ * To handle the console error or warn
+ * @param {*} message message to print
+ * @param {*} type type of console function. Default is 'error'
+ */
+function handleErrorOrWarning(message, type = 'error') {
+	const isError = type === 'error';
+
+	const color = isError ? '\x1b' : '';
+	console[`${type}`](`${color}[1;31m${message}${color}[0;0m`);
+	if (isError) {
+		process.exit(1);
+	};
 }
