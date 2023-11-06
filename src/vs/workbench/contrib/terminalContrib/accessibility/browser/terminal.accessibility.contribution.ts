@@ -133,7 +133,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			this._onDidRunCommand.clear();
 			this._onDidPreCommandFinishWindows.clear();
 			return;
-		} else if (this._onDidRunCommand.value || this._onDidPreCommandFinishWindows.value) {
+		} else if (this._onDidRunCommand.value) {
 			return;
 		}
 
