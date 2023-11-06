@@ -33,7 +33,7 @@ export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRe
 	const mainWindow = window as CodeWindow;
 	if (typeof mainWindow.vscodeWindowId !== 'number') {
 		Object.defineProperty(window, 'vscodeWindowId', {
-			get: () => -1
+			get: () => 1
 		});
 	}
 	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
