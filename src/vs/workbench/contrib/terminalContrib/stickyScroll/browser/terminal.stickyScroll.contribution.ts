@@ -3,22 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'vs/css!./media/stickyScroll';
+import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
+import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
+import type { IMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { importAMDNodeModule } from 'vs/amdX';
+import { $, addStandardDisposableListener, append, hide, setVisibility, show } from 'vs/base/browser/dom';
 import { throttle } from 'vs/base/common/decorators';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import 'vs/css!./media/stickyScroll';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
-import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
-import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
-import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import { hide, setVisibility, show } from 'vs/base/browser/dom';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { importAMDNodeModule } from 'vs/amdX';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 
 let CanvasAddon: typeof CanvasAddonType;
 let SerializeAddon: typeof SerializeAddonType;
@@ -33,6 +34,9 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 	private _xterm?: IXtermTerminal & { raw: RawXtermTerminal };
 	private _element?: HTMLElement;
 	private _stickyScrollOverlay?: RawXtermTerminal;
+
+	private _currentStickyMarker?: IMarker;
+
 	private _serializeAddon?: SerializeAddonType;
 	private _canvasAddon?: CanvasAddonType;
 
@@ -84,6 +88,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		if (!this._xterm?.raw?.element) {
 			return;
 		}
+		this._currentStickyMarker = undefined;
 		// TODO: Cache
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
@@ -99,6 +104,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		if (!marker || marker.line === -1) {
 			return;
 		}
+		this._currentStickyMarker = marker;
 		const element = this._ensureElement();
 		// element.textContent = this._xterm.raw.buffer.active.getLine(marker.line)?.translateToString(true) ?? '';
 		if (element.textContent === '') {
@@ -134,10 +140,18 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			// // TODO: Safety
 			this._xterm!.raw.element!.parentElement!.append(this._element);
 
+			const hoverOverlay = $('.hover-overlay');
+			this.add(addStandardDisposableListener(hoverOverlay, 'click', e => {
+				if (this._xterm && this._currentStickyMarker) {
+					this._xterm.scrollToLine(this._currentStickyMarker.line, ScrollPosition.Middle);
+				}
+			}));
 
 			// TODO: Add to a container outside the xterm instance?
 			// TODO: Remove !
 			this._stickyScrollOverlay!.open(this._element);
+
+			append(this._element, hoverOverlay);
 		}
 
 		return this._element;

@@ -24,7 +24,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { MarkNavigationAddon, ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -589,6 +589,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	scrollToTop(): void {
 		this.raw.scrollToTop();
+	}
+
+	scrollToLine(line: number, position: ScrollPosition = ScrollPosition.Top): void {
+		this.markTracker.scrollToLine(line, position);
 	}
 
 	clearBuffer(): void {

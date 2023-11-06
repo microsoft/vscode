@@ -103,7 +103,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 
 		let markerIndex;
 		const currentLineY = typeof this._currentMarker === 'object'
-			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			? this.getTargetScrollLine(this._currentMarker.line, scrollPosition)
 			: Math.min(getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
@@ -149,7 +149,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 
 		let markerIndex;
 		const currentLineY = typeof this._currentMarker === 'object'
-			? this._getTargetScrollLine(this._terminal, this._currentMarker, scrollPosition)
+			? this.getTargetScrollLine(this._currentMarker.line, scrollPosition)
 			: Math.min(getLine(this._terminal, this._currentMarker), this._terminal.buffer.active.baseY);
 		const viewportY = this._terminal.buffer.active.viewportY;
 		if (typeof this._currentMarker === 'object' ? !this._isMarkerInViewport(this._terminal, this._currentMarker) : currentLineY !== viewportY) {
@@ -190,7 +190,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 		if (!this._isMarkerInViewport(this._terminal, marker)) {
-			const line = this._getTargetScrollLine(this._terminal, marker, position);
+			const line = this.getTargetScrollLine(marker.line, position);
 			this._terminal.scrollToLine(line);
 		}
 		if (!hideDecoration) {
@@ -256,13 +256,17 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	private _getTargetScrollLine(terminal: Terminal, marker: IMarker, position: ScrollPosition) {
+	scrollToLine(line: number, position: ScrollPosition): void {
+		this._terminal?.scrollToLine(this.getTargetScrollLine(line, position));
+	}
+
+	getTargetScrollLine(line: number, position: ScrollPosition): number {
 		// Middle is treated at 1/4 of the viewport's size because context below is almost always
 		// more important than context above in the terminal.
-		if (position === ScrollPosition.Middle) {
-			return Math.max(marker.line - Math.floor(terminal.rows / 4), 0);
+		if (this._terminal && position === ScrollPosition.Middle) {
+			return Math.max(line - Math.floor(this._terminal.rows / 4), 0);
 		}
-		return marker.line;
+		return line;
 	}
 
 	private _isMarkerInViewport(terminal: Terminal, marker: IMarker) {

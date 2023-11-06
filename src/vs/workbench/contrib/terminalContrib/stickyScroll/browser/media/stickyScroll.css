@@ -8,14 +8,31 @@
 	left: 0;
 	right: 0;
 	top: 0;
-	background: red;
 	z-index: 32; /* Must be higher than .xterm-viewport and decorations*/
 	/* TODO: Sticky scroll background key */
 	background: var(--vscode-terminal-background, var(--vscode-panel-background));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;
 }
 
+.terminal-sticky-scroll:hover {
+	cursor: pointer !important;
+}
+
 .terminal-sticky-scroll .xterm {
 	/* TODO: Remove !important */
 	position: relative !important;
+	pointer-events: none;
+}
+
+.terminal-sticky-scroll .hover-overlay {
+	position: absolute;
+	left: 0;
+	right: 0;
+	top: 0;
+	bottom: 0;
+	cursor: pointer !important;
+}
+
+.terminal-sticky-scroll .hover-overlay:hover {
+	background-color: var(--vscode-editorStickyScrollHover-background, #ffffff10);
 }

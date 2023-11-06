@@ -20,12 +20,12 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditableData } from 'vs/workbench/common/views';
 import { ITerminalStatusList } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
-import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xtermTerminal';
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
 import type { IMarker, ITheme, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -107,6 +107,7 @@ export interface IMarkTracker {
 	selectToNextLine(): void;
 	clearMarker(): void;
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
+	scrollToLine(line: number, position: ScrollPosition): void;
 }
 
 export interface ITerminalGroup {
@@ -1114,12 +1115,13 @@ export interface IXtermTerminal extends IDisposable {
 	 */
 	focus(): void;
 
-	/** Scroll the terminal buffer down 1 line. */   scrollDownLine(): void;
-	/** Scroll the terminal buffer down 1 page. */   scrollDownPage(): void;
+	/** Scroll the terminal buffer down 1 line.   */ scrollDownLine(): void;
+	/** Scroll the terminal buffer down 1 page.   */ scrollDownPage(): void;
 	/** Scroll the terminal buffer to the bottom. */ scrollToBottom(): void;
-	/** Scroll the terminal buffer up 1 line. */     scrollUpLine(): void;
-	/** Scroll the terminal buffer up 1 page. */     scrollUpPage(): void;
-	/** Scroll the terminal buffer to the top. */    scrollToTop(): void;
+	/** Scroll the terminal buffer up 1 line.     */ scrollUpLine(): void;
+	/** Scroll the terminal buffer up 1 page.     */ scrollUpPage(): void;
+	/** Scroll the terminal buffer to the top.    */ scrollToTop(): void;
+	/** Scroll the terminal buffer to a set line  */ scrollToLine(line: number, position?: ScrollPosition): void;
 
 	/**
 	 * Clears the terminal buffer, leaving only the prompt line and moving it to the top of the
