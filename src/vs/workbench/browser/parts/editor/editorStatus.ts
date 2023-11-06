@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorstatus';
 import { localize } from 'vs/nls';
-import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { mainWindow, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, assertIsDefined } from 'vs/base/common/types';
@@ -334,7 +334,6 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 	private toRender: StateChange | undefined = undefined;
 
 	private editorService: IEditorService;
-	private targetWindow = window;
 
 	constructor(
 		@IEditorService editorService: IEditorService,
@@ -570,7 +569,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				if (toRender) {
 					this.doRenderNow();
 				}
-			}, this.targetWindow);
+			}, mainWindow);
 		} else {
 			this.toRender.combine(changed);
 		}

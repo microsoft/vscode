@@ -56,7 +56,7 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, Gro
 import { IEditorService, ISaveEditorsOptions, IRevertAllEditorsOptions, PreferredGroup, IEditorsChangeEvent, ISaveEditorsResult } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorPaneRegistry, EditorPaneDescriptor } from 'vs/workbench/browser/editor';
-import { Dimension, IDimension } from 'vs/base/browser/dom';
+import { Dimension, IDimension, mainWindow } from 'vs/base/browser/dom';
 import { ILoggerService, ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { timeout } from 'vs/base/common/async';
@@ -594,9 +594,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	hasContainer = true;
-	container: HTMLElement = window.document.body;
-	containers = [window.document.body];
-	activeContainer: HTMLElement = window.document.body;
+	container: HTMLElement = mainWindow.document.body;
+	containers = [mainWindow.document.body];
+	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;

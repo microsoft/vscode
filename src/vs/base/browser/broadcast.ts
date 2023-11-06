@@ -63,8 +63,8 @@ export class BroadcastDataChannel<T> extends Disposable {
 			this.broadcastChannel.postMessage(data);
 		} else {
 			// remove previous changes so that event is triggered even if new changes are same as old changes
-			mainWindow.localStorage.removeItem(this.channelName);
-			mainWindow.localStorage.setItem(this.channelName, JSON.stringify(data));
+			localStorage.removeItem(this.channelName);
+			localStorage.setItem(this.channelName, JSON.stringify(data));
 		}
 	}
 }

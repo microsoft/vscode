@@ -154,7 +154,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 			this._isClosed = true;
 
 			if (pendingErrorEvent) {
-				if (!window.navigator.onLine) {
+				if (!navigator.onLine) {
 					// The browser is offline => this is a temporary error which might resolve itself
 					sendErrorNow(new RemoteAuthorityResolverError('Browser is offline', RemoteAuthorityResolverErrorCode.TemporarilyNotAvailable, e));
 				} else {
@@ -279,7 +279,7 @@ export class BrowserSocketFactory implements ISocketFactory<RemoteConnectionType
 
 	connect({ host, port }: WebSocketRemoteConnection, path: string, query: string, debugLabel: string): Promise<ISocket> {
 		return new Promise<ISocket>((resolve, reject) => {
-			const webSocketSchema = (/^https:/.test(window.location.href) ? 'wss' : 'ws');
+			const webSocketSchema = (/^https:/.test(dom.mainWindow.location.href) ? 'wss' : 'ws');
 			const socket = this._webSocketFactory.create(`${webSocketSchema}://${(/:/.test(host) && !/\[/.test(host)) ? `[${host}]` : host}:${port}${path}?${query}&skipWebSocketFrames=false`, debugLabel);
 			const errorListener = socket.onError(reject);
 			socket.onOpen(() => {

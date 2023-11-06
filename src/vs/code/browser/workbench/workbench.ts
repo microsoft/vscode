@@ -180,7 +180,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 	private async load(): Promise<Record<string, string>> {
 		const record = this.loadAuthSessionFromElement();
 		// Get the secrets from localStorage
-		const encrypted = mainWindow.localStorage.getItem(this._storageKey);
+		const encrypted = localStorage.getItem(this._storageKey);
 		if (encrypted) {
 			try {
 				const decrypted = JSON.parse(await this.crypto.unseal(encrypted));
@@ -188,7 +188,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 			} catch (err) {
 				// TODO: send telemetry
 				console.error('Failed to decrypt secrets from localStorage', err);
-				mainWindow.localStorage.removeItem(this._storageKey);
+				localStorage.removeItem(this._storageKey);
 			}
 		}
 
@@ -250,7 +250,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 	private async save(): Promise<void> {
 		try {
 			const encrypted = await this.crypto.seal(JSON.stringify(await this._secretsPromise));
-			mainWindow.localStorage.setItem(this._storageKey, encrypted);
+			localStorage.setItem(this._storageKey, encrypted);
 		} catch (err) {
 			console.error(err);
 		}
@@ -299,7 +299,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 		// https://github.com/microsoft/vscode/blob/159479eb5ae451a66b5dac3c12d564f32f454796/extensions/github-authentication/src/githubServer.ts#L50-L50
 		if (!(options.authority === 'vscode.github-authentication' && options.path === '/dummy')) {
 			const key = `vscode-web.url-callbacks[${id}]`;
-			mainWindow.localStorage.removeItem(key);
+			localStorage.removeItem(key);
 
 			this.pendingCallbacks.add(id);
 			this.startListening();
@@ -343,7 +343,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 		for (const id of this.pendingCallbacks) {
 			const key = `vscode-web.url-callbacks[${id}]`;
-			const result = mainWindow.localStorage.getItem(key);
+			const result = localStorage.getItem(key);
 
 			if (result !== null) {
 				try {
@@ -354,7 +354,7 @@ class LocalStorageURLCallbackProvider extends Disposable implements IURLCallback
 
 				pendingCallbacks = pendingCallbacks ?? new Set(this.pendingCallbacks);
 				pendingCallbacks.delete(id);
-				mainWindow.localStorage.removeItem(key);
+				localStorage.removeItem(key);
 			}
 		}
 

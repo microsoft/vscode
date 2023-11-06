@@ -9,7 +9,7 @@ import { IMenuService, MenuId, IMenu, SubmenuItemAction, registerAction2, Action
 import { MenuBarVisibility, getTitleBarStyle, IWindowOpenable, getMenuBarVisibility } from 'vs/platform/window/common/window';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
-import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
+import { addDisposableListener, Dimension, EventType, mainWindow } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -789,7 +789,7 @@ export class CustomMenubarControl extends MenubarControl {
 	protected override registerListeners(): void {
 		super.registerListeners();
 
-		this._register(addDisposableListener(window, EventType.RESIZE, () => {
+		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => {
 			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
 				this.menubar.blur();
 			}

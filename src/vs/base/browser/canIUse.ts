@@ -42,6 +42,6 @@ export const BrowserFeatures = {
 
 	// 'ontouchstart' in window always evaluates to true with typescript's modern typings. This causes `window` to be
 	// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-	touch: 'ontouchstart' in DOM.$window || navigator.maxTouchPoints > 0,
-	pointerEvents: DOM.$window.PointerEvent && ('ontouchstart' in DOM.$window || DOM.$window.navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0)
+	touch: 'ontouchstart' in DOM.mainWindow || navigator.maxTouchPoints > 0,
+	pointerEvents: DOM.mainWindow.PointerEvent && ('ontouchstart' in DOM.mainWindow || navigator.maxTouchPoints > 0 || navigator.maxTouchPoints > 0)
 };
