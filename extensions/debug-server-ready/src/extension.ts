@@ -18,6 +18,7 @@ interface ServerReadyAction {
 	uriFormat?: string;
 	webRoot?: string;
 	name?: string;
+	config?: vscode.DebugConfiguration;
 	killOnServerStop?: boolean;
 }
 
@@ -194,7 +195,11 @@ class ServerReadyDetector extends vscode.Disposable {
 				break;
 
 			case 'startDebugging':
-				await this.startNamedDebugSession(session, args.name || 'unspecified');
+				if (args.config) {
+					await this.startConfigDebugSession(session, args.config);
+				} else {
+					await this.startNamedDebugSession(session, args.name || 'unspecified');
+				}
 				break;
 
 			default:
@@ -244,6 +249,38 @@ class ServerReadyDetector extends vscode.Disposable {
 			webRoot: session.configuration.serverReadyAction.webRoot || WEB_ROOT,
 			_debugServerReadySessionId: trackerId,
 		});
+	}
+
+	private async startConfigDebugSession(session: vscode.DebugSession, config: vscode.DebugConfiguration) {
+		const name = config.name;
+		const args = session.configuration.serverReadyAction as ServerReadyAction;
+		if (!args.killOnServerStop) {
+			await vscode.debug.startDebugging(session.workspaceFolder, config);
+			return;
+		}
+
+		const cts = new vscode.CancellationTokenSource();
+		const newSessionPromise = this.catchStartedDebugSession(x => x.name === name, cts.token);
+
+		if (!await vscode.debug.startDebugging(session.workspaceFolder, config)) {
+			cts.cancel();
+			cts.dispose();
+			return;
+		}
+
+		const createdSession = await newSessionPromise;
+		cts.dispose();
+
+		if (!createdSession) {
+			return;
+		}
+
+		const stopListener = this.onDidSessionStop(async () => {
+			stopListener.dispose();
+			this.disposables.delete(stopListener);
+			await vscode.debug.stopDebugging(createdSession);
+		});
+		this.disposables.add(stopListener);
 	}
 
 	private async startNamedDebugSession(session: vscode.DebugSession, name: string) {
