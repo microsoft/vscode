@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { DeferredPromise } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';

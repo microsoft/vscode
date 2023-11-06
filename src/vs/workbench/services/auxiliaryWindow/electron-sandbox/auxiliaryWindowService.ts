@@ -12,7 +12,8 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { CodeWindow, getActiveWindow } from 'vs/base/browser/dom';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 
 type NativeAuxiliaryWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;

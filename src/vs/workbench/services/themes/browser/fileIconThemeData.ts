@@ -10,10 +10,11 @@ import * as resources from 'vs/base/common/resources';
 import * as Json from 'vs/base/common/json';
 import { ExtensionData, IThemeExtensionPoint, IWorkbenchFileIconTheme } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
-import { $window, asCSSUrl } from 'vs/base/browser/dom';
+import { asCSSUrl } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { IExtensionResourceLoaderService } from 'vs/platform/extensionResourceLoader/common/extensionResourceLoader';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { $window } from 'vs/base/browser/window';
 
 export class FileIconThemeData implements IWorkbenchFileIconTheme {
 

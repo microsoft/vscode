@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $window } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 /**
  * Represents a window in a possible chain of iframes

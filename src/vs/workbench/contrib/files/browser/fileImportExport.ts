@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { isDragEvent, mainWindow, triggerDownload } from 'vs/base/browser/dom';
+import { isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -36,6 +36,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { mainWindow } from 'vs/base/browser/window';
 
 //#region Browser File Upload (drag and drop, input element)
 

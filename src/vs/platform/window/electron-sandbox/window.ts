@@ -4,7 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getZoomLevel, setZoomFactor, setZoomLevel } from 'vs/base/browser/browser';
-import { getWindows, mainWindow } from 'vs/base/browser/dom';
+import { getWindows } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { ISandboxGlobals, ipcRenderer, webFrame } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
 

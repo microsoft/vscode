@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getClientArea, getTopLeftOffset, mainWindow } from 'vs/base/browser/dom';
+import { getClientArea, getTopLeftOffset } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { coalesce } from 'vs/base/common/arrays';
 import { language, locale } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

@@ -5,7 +5,7 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import * as sinonTest from 'sinon-test';
-import { mainWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import * as Errors from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isStandalone } from 'vs/base/browser/browser';
-import { mainWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { VSBuffer, decodeBase64, encodeBase64 } from 'vs/base/common/buffer';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';

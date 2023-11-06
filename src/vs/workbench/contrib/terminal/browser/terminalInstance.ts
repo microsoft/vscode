@@ -88,6 +88,7 @@ import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { $window } from 'vs/base/browser/window';
 
 const enum Constants {
 	/**
@@ -535,13 +536,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
-		let initialDataEventsTimeout: number | undefined = dom.$window.setTimeout(() => {
+		let initialDataEventsTimeout: number | undefined = $window.setTimeout(() => {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
 		this._register(toDisposable(() => {
 			if (initialDataEventsTimeout) {
-				dom.$window.clearTimeout(initialDataEventsTimeout);
+				$window.clearTimeout(initialDataEventsTimeout);
 			}
 		}));
 
@@ -1210,7 +1211,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		if (force || !dom.$window.getSelection()?.toString()) {
+		if (force || !$window.getSelection()?.toString()) {
 			this.xterm.raw.focus();
 			this._onDidRequestFocus.fire();
 		}

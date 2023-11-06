@@ -39,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { generateUuid } from 'vs/base/common/uuid';
 import { runWhenIdle } from 'vs/base/common/async';
-import { $window } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 const enum ProcessConstants {
 	/**

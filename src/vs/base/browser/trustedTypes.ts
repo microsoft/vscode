@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
 export function createTrustedTypesPolicy<Options extends TrustedTypePolicyOptions>(

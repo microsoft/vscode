@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/editorstatus';
 import { localize } from 'vs/nls';
-import { mainWindow, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
+import { runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { format, compare, splitLines } from 'vs/base/common/strings';
 import { extname, basename, isEqual } from 'vs/base/common/resources';
 import { areFunctions, assertIsDefined } from 'vs/base/common/types';
@@ -55,6 +55,7 @@ import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { TabFocus } from 'vs/editor/browser/config/tabFocus';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private primary: IEncodingSupport, private secondary: IEncodingSupport) { }

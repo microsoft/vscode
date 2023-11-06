@@ -20,7 +20,7 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $window } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 const enum FontConstants {
 	MinimumFontSize = 6,

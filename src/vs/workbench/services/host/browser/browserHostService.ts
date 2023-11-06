@@ -14,7 +14,7 @@ import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/edito
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, getActiveDocument, getWindowId, mainWindow, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -39,6 +39,7 @@ import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/c
 import { coalesce } from 'vs/base/common/arrays';
 import { disposableInterval } from 'vs/base/common/async';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * A workspace to open in the workbench can either be:

@@ -9,9 +9,10 @@ import { AbstractLifecycleService } from 'vs/workbench/services/lifecycle/common
 import { localize } from 'vs/nls';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, mainWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IStorageService, WillSaveStateReason } from 'vs/platform/storage/common/storage';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserLifecycleService extends AbstractLifecycleService {
 

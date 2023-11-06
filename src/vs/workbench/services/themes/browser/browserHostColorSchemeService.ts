@@ -8,7 +8,7 @@ import { addMatchMediaChangeListener } from 'vs/base/browser/browser';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IHostColorSchemeService } from 'vs/workbench/services/themes/common/hostColorSchemeService';
-import { mainWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserHostColorSchemeService extends Disposable implements IHostColorSchemeService {
 

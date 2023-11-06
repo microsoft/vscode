@@ -9,7 +9,7 @@ import { INativeWindowConfiguration, IWindowsConfiguration } from 'vs/platform/w
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setFullscreen } from 'vs/base/browser/browser';
-import { domContentLoaded, mainWindow } from 'vs/base/browser/dom';
+import { domContentLoaded } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -60,6 +60,7 @@ import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from 'vs/plat
 import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class DesktopMain extends Disposable {
 

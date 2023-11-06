@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as browser from 'vs/base/browser/browser';
-import * as DOM from 'vs/base/browser/dom';
 import { IframeUtils } from 'vs/base/browser/iframe';
+import { $window } from 'vs/base/browser/window';
 import * as platform from 'vs/base/common/platform';
 
 export interface IMouseEvent {
@@ -75,7 +75,7 @@ export class StandardMouseEvent implements IMouseEvent {
 		}
 
 		// Find the position of the iframe this code is executing in relative to the iframe where the event was captured.
-		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow(DOM.$window, e.view);
+		const iframeOffsets = IframeUtils.getPositionOfChildWindowRelativeToAncestorWindow($window, e.view);
 		this.posx -= iframeOffsets.left;
 		this.posy -= iframeOffsets.top;
 	}

@@ -12,7 +12,7 @@ import { isWindows, OperatingSystem, OS } from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IPath, posix, win32 } from 'vs/base/common/path';
 import { ITerminalBackend } from 'vs/platform/terminal/common/terminal';
-import { $window } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 export class TerminalLinkResolver implements ITerminalLinkResolver {
 	declare _serviceBrand: undefined;

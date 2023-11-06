@@ -17,20 +17,7 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
-
-// eslint-disable-next-line no-restricted-globals
-export const mainWindow = window as CodeWindow;
-
-/**
- * @deprecated to support multi-window scenarios, use `DOM.mainWindow`
- * if you target the main global window or use helpers such as `DOM.getWindow()`
- * or `DOM.getActiveWindow()` to obtain the correct window for the context you are in.
- */
-export const $window = mainWindow;
-
-export type CodeWindow = Window & typeof globalThis & {
-	readonly vscodeWindowId: number;
-};
+import { CodeWindow, mainWindow, $window } from 'vs/base/browser/window';
 
 interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;

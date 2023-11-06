@@ -22,7 +22,8 @@ import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions } f
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Event } from 'vs/base/common/event';
-import { addDisposableListener, mainWindow, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';

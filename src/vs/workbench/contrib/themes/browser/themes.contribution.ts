@@ -44,7 +44,7 @@ import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storag
 import { isWeb } from 'vs/base/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
-import { $window } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 export const manageExtensionIcon = registerIcon('theme-selection-manage-extension', Codicon.gear, localize('manageExtensionIcon', 'Icon for the \'Manage\' action in the theme selection quick pick.'));
 
