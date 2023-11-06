@@ -138,7 +138,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onDidRunCommand.value = this._register(Event.any(capability.onCommandExecuted, capability.onPreCommandFinishedWindows)(() => {
+		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
 			if (this._instance.hasFocus) {
 				this.show();
 			}
