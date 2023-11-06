@@ -23,7 +23,11 @@
 	padding: 5px 12px 6px 20px;
 }
 
-.extensions-viewlet > .header > .search-box {
+.extensions-viewlet > .header  > .extensions-search-container {
+	position: relative;
+}
+
+.extensions-viewlet > .header  > .extensions-search-container >  .search-box {
 	width: 100%;
 	height: 28px;
 	line-height: 18px;
@@ -33,6 +37,16 @@
 	-webkit-appearance: textfield;
 	-moz-appearance: textfield;
 }
+
+.extensions-viewlet > .header  > .extensions-search-container >  .extensions-search-actions-container {
+	display: flex;
+	align-items: center;
+	position: absolute;
+	top: 0;
+	right: 0;
+	height: 100%;
+}
+
 
 .extensions-viewlet > .extensions {
 	height: calc(100% - 41px);
