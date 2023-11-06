@@ -109,6 +109,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly onBeforeCommandFinished = this._onBeforeCommandFinished.event;
 	private readonly _onCommandFinished = this._register(new Emitter<ITerminalCommand>());
 	readonly onCommandFinished = this._onCommandFinished.event;
+	private readonly _onPreCommandFinishedWindows = this._register(new Emitter<void>());
+	readonly onPreCommandFinishedWindows = this._onPreCommandFinishedWindows.event;
 	private readonly _onCommandExecuted = this._register(new Emitter<void>());
 	readonly onCommandExecuted = this._onCommandExecuted.event;
 	private readonly _onCommandInvalidated = this._register(new Emitter<ITerminalCommand[]>());
@@ -625,6 +627,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (this._currentCommand.commandStartMarker) {
 				this._commandMarkers.push(this._currentCommand.commandStartMarker);
 			}
+			this._onPreCommandFinishedWindows.fire();
 		}
 		this._evaluateCommandMarkersWindows();
 	}

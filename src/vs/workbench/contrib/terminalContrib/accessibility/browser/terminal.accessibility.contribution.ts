@@ -67,17 +67,18 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
 	private _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
+	private _onDidPreCommandFinishWindows: MutableDisposable<IDisposable> = new MutableDisposable();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager,
 		widgetManager: TerminalWidgetManager,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService) {
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService) {
 		super();
 		this._register(AccessibleViewAction.addImplementation(90, 'terminal', () => {
 			if (this._terminalService.activeInstance !== this._instance) {
@@ -132,17 +133,24 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
 			this._onDidRunCommand.clear();
 			return;
-		} else if (this._onDidRunCommand.value) {
+		} else if (this._onDidRunCommand.value && this._onDidPreCommandFinishWindows.value) {
 			return;
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		const hasCommandExecuted = capability.isWindowsPty && this._accessibilityService.isScreenReaderOptimized();
-		this._onDidRunCommand.value = this._register((hasCommandExecuted ? capability.onCommandExecuted : capability.onCommandFinished)(() => {
+		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
 			if (this._instance.hasFocus) {
 				this.show();
 			}
 		}));
+		if (capability.isWindowsPty && this._accessibilityService.isScreenReaderOptimized()) {
+			// It's possible command executed never happens (for example if PSReadLine is disabled)
+			this._onDidPreCommandFinishWindows.value = this._register(capability.onCommandExecuted(() => {
+				if (this._instance.hasFocus) {
+					this.show();
+				}
+			}));
+		}
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {
