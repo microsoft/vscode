@@ -421,7 +421,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		if (!diff || diff.changes.length === 0) {
 			for (const zone of this._diffZonePool) {
 				zone.hide();
-				zone.dispose();
 			}
 			return;
 		}
