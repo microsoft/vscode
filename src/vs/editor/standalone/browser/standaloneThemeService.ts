@@ -353,7 +353,7 @@ export class StandaloneThemeService extends Disposable implements IStandaloneThe
 
 	private _onOSSchemeChanged() {
 		if (this._autoDetectHighContrast) {
-			const wantsHighContrast = window.matchMedia(`(forced-colors: active)`).matches;
+			const wantsHighContrast = dom.mainWindow.matchMedia(`(forced-colors: active)`).matches;
 			if (wantsHighContrast !== isHighContrast(this._theme.type)) {
 				// switch to high contrast or non-high contrast but stick to dark or light
 				let newThemeName;

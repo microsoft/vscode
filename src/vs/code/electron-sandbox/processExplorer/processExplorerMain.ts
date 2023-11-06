@@ -6,7 +6,7 @@
 import 'vs/css!./media/processExplorer';
 import 'vs/base/browser/ui/codicons/codiconStyles'; // make sure codicon css is loaded
 import { localize } from 'vs/nls';
-import { $, append, createStyleSheet } from 'vs/base/browser/dom';
+import { $, append, createStyleSheet, mainWindow } from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { DataTree } from 'vs/base/browser/ui/tree/dataTree';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
@@ -262,7 +262,7 @@ class ProcessExplorer {
 				await this.createProcessTree(processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
-				this.tree.layout(window.innerHeight, window.innerWidth);
+				this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 			}
 
 			this.requestProcessList(0);
@@ -342,7 +342,7 @@ class ProcessExplorer {
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
-		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.KeyE && event.altKey) {
@@ -356,11 +356,11 @@ class ProcessExplorer {
 			}
 		});
 
-		container.style.height = `${window.innerHeight}px`;
+		container.style.height = `${mainWindow.innerHeight}px`;
 
-		window.addEventListener('resize', () => {
-			container.style.height = `${window.innerHeight}px`;
-			this.tree?.layout(window.innerHeight, window.innerWidth);
+		mainWindow.addEventListener('resize', () => {
+			container.style.height = `${mainWindow.innerHeight}px`;
+			this.tree?.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		});
 	}
 

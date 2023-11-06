@@ -36,7 +36,7 @@ export interface ISerializedFontInfo {
 export class FontMeasurementsImpl extends Disposable {
 
 	private _cache: FontMeasurementsCache;
-	private _evictUntrustedReadingsTimeout: number;
+	private _evictUntrustedReadingsTimeout: any;
 
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	public readonly onDidChange: Event<void> = this._onDidChange.event;
@@ -50,7 +50,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 	public override dispose(): void {
 		if (this._evictUntrustedReadingsTimeout !== -1) {
-			window.clearTimeout(this._evictUntrustedReadingsTimeout);
+			clearTimeout(this._evictUntrustedReadingsTimeout);
 			this._evictUntrustedReadingsTimeout = -1;
 		}
 		super.dispose();
@@ -69,7 +69,7 @@ export class FontMeasurementsImpl extends Disposable {
 
 		if (!value.isTrusted && this._evictUntrustedReadingsTimeout === -1) {
 			// Try reading again after some time
-			this._evictUntrustedReadingsTimeout = window.setTimeout(() => {
+			this._evictUntrustedReadingsTimeout = setTimeout(() => {
 				this._evictUntrustedReadingsTimeout = -1;
 				this._evictUntrustedReadings();
 			}, 5000);

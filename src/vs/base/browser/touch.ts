@@ -95,7 +95,7 @@ export class Gesture extends Disposable {
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchstart', (e: TouchEvent) => this.onTouchStart(e), { passive: false }));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchend', (e: TouchEvent) => this.onTouchEnd(window, e)));
 			disposables.add(DomUtils.addDisposableListener(window.document, 'touchmove', (e: TouchEvent) => this.onTouchMove(e), { passive: false }));
-		}, { window, disposables: this._store }));
+		}, { window: DomUtils.mainWindow, disposables: this._store }));
 	}
 
 	public static addTarget(element: HTMLElement): IDisposable {
@@ -126,7 +126,7 @@ export class Gesture extends Disposable {
 	static isTouchDevice(): boolean {
 		// `'ontouchstart' in window` always evaluates to true with typescript's modern typings. This causes `window` to be
 		// `never` later in `window.navigator`. That's why we need the explicit `window as Window` cast
-		return 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+		return 'ontouchstart' in DomUtils.mainWindow || navigator.maxTouchPoints > 0;
 	}
 
 	public override dispose(): void {

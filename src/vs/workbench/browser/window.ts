@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, mainWindow, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
@@ -53,13 +53,13 @@ export class BrowserWindow extends Disposable {
 		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Layout
-		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		const viewport = isIOS && mainWindow.visualViewport ? mainWindow.visualViewport /** Visual viewport */ : mainWindow /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
 			this.layoutService.layout();
 
 			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				window.scrollTo(0, 0);
+				mainWindow.scrollTo(0, 0);
 			}
 		}));
 
@@ -108,7 +108,7 @@ export class BrowserWindow extends Disposable {
 				buttons: [
 					{
 						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
-						run: () => window.location.reload() // do not use any services at this point since they are likely not functional at this point
+						run: () => mainWindow.location.reload() // do not use any services at this point since they are likely not functional at this point
 					}
 				]
 			});
@@ -191,7 +191,7 @@ export class BrowserWindow extends Disposable {
 				// handling explicitly to prevent the workbench from going down.
 				else {
 					const invokeProtocolHandler = () => {
-						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.href = href);
 					};
 
 					invokeProtocolHandler();

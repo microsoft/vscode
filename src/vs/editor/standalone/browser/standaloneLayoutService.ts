@@ -20,7 +20,7 @@ class StandaloneLayoutService implements ILayoutService {
 	private _dimension?: dom.IDimension;
 	get mainContainerDimension(): dom.IDimension {
 		if (!this._dimension) {
-			this._dimension = dom.getClientArea(window.document.body);
+			this._dimension = dom.getClientArea(dom.mainWindow.document.body);
 		}
 
 		return this._dimension;

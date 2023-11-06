@@ -122,7 +122,7 @@ export class OpenerService implements IOpenerService {
 				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
-					window.location.href = href;
+					dom.mainWindow.location.href = href;
 				}
 				return true;
 			}

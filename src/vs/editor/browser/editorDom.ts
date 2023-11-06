@@ -24,7 +24,7 @@ export class PageCoordinates {
 	) { }
 
 	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - window.scrollX, this.y - window.scrollY);
+		return new ClientCoordinates(this.x - dom.$window.scrollX, this.y - dom.$window.scrollY);
 	}
 }
 
@@ -44,7 +44,7 @@ export class ClientCoordinates {
 	) { }
 
 	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + window.scrollX, this.clientY + window.scrollY);
+		return new PageCoordinates(this.clientX + dom.$window.scrollX, this.clientY + dom.$window.scrollY);
 	}
 }
 

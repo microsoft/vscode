@@ -9,7 +9,7 @@ import { INativeWindowConfiguration, IWindowsConfiguration } from 'vs/platform/w
 import { Workbench } from 'vs/workbench/browser/workbench';
 import { NativeWindow } from 'vs/workbench/electron-sandbox/window';
 import { setFullscreen } from 'vs/base/browser/browser';
-import { domContentLoaded } from 'vs/base/browser/dom';
+import { domContentLoaded, mainWindow } from 'vs/base/browser/dom';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { URI } from 'vs/base/common/uri';
 import { WorkspaceService } from 'vs/workbench/services/configuration/browser/configurationService';
@@ -109,7 +109,7 @@ export class DesktopMain extends Disposable {
 	async open(): Promise<void> {
 
 		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded(window)]);
+		const [services] = await Promise.all([this.initServices(), domContentLoaded(mainWindow)]);
 
 		// Apply zoom level early once we have a configuration service
 		// and before the workbench is created to prevent flickering.

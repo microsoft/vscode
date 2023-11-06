@@ -257,7 +257,7 @@ class StandaloneDialogService implements IDialogService {
 			messageText = messageText + '\n\n' + detail;
 		}
 
-		return window.confirm(messageText);
+		return dom.mainWindow.confirm(messageText);
 	}
 
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
