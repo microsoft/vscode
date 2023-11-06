@@ -825,6 +825,12 @@ export function focusWindow(element: Node): void {
 	}
 }
 
+const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
+
+export function isGlobalStylesheet(node: Node): boolean {
+	return globalStylesheets.has(node as HTMLStyleElement);
+}
+
 export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
@@ -839,37 +845,33 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
 	if (container === document.head) {
+		const globalStylesheetClones = new Set<HTMLStyleElement>();
+		globalStylesheets.set(style, globalStylesheetClones);
+
 		for (const { window: targetWindow, disposables } of getWindows()) {
 			if (targetWindow === mainWindow) {
 				continue; // main window is already tracked
 			}
 
-			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, targetWindow));
+			const cloneDisposable = disposables.add(cloneGlobalStyleSheet(style, globalStylesheetClones, targetWindow));
 			disposableStore?.add(cloneDisposable);
 		}
-
 	}
 
 	return style;
 }
 
-const globalStylesheets = new Map<HTMLStyleElement /* main stylesheet */, Set<HTMLStyleElement /* aux window clones that track the main stylesheet */>>();
-
-export function isGlobalStylesheet(node: Node): boolean {
-	return globalStylesheets.has(node as HTMLStyleElement);
-}
-
 export function cloneGlobalStylesheets(targetWindow: Window): IDisposable {
 	const disposables = new DisposableStore();
 
-	for (const [globalStylesheet] of globalStylesheets) {
-		disposables.add(cloneGlobalStyleSheet(globalStylesheet, targetWindow));
+	for (const [globalStylesheet, clonedGlobalStylesheets] of globalStylesheets) {
+		disposables.add(cloneGlobalStyleSheet(globalStylesheet, clonedGlobalStylesheets, targetWindow));
 	}
 
 	return disposables;
 }
 
-function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow: Window): IDisposable {
+function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, globalStylesheetClones: Set<HTMLStyleElement>, targetWindow: Window): IDisposable {
 	const disposables = new DisposableStore();
 
 	const clone = globalStylesheet.cloneNode(true) as HTMLStyleElement;
@@ -884,13 +886,8 @@ function cloneGlobalStyleSheet(globalStylesheet: HTMLStyleElement, targetWindow:
 		clone.textContent = globalStylesheet.textContent;
 	}));
 
-	let clonedGlobalStylesheets = globalStylesheets.get(globalStylesheet);
-	if (!clonedGlobalStylesheets) {
-		clonedGlobalStylesheets = new Set<HTMLStyleElement>();
-		globalStylesheets.set(globalStylesheet, clonedGlobalStylesheets);
-	}
-	clonedGlobalStylesheets.add(clone);
-	disposables.add(toDisposable(() => clonedGlobalStylesheets?.delete(clone)));
+	globalStylesheetClones.add(clone);
+	disposables.add(toDisposable(() => globalStylesheetClones.delete(clone)));
 
 	return disposables;
 }
