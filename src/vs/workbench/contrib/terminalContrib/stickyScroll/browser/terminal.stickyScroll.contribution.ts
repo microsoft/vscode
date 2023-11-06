@@ -7,11 +7,11 @@ import 'vs/css!./media/stickyScroll';
 import { throttle } from 'vs/base/common/decorators';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { IDetachedTerminalInstance, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
-import type { Terminal as RawXtermTerminal } from 'xterm';
+import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { hide, show } from 'vs/base/browser/dom';
 
 class TerminalStickyScrollContribution extends DisposableStore implements ITerminalContribution {
@@ -26,8 +26,8 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
-		private readonly _processManager: ITerminalProcessManager,
-		private readonly _widgetManager: TerminalWidgetManager,
+		processManager: ITerminalProcessManager | ITerminalProcessInfo,
+		widgetManager: TerminalWidgetManager,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
