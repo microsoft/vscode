@@ -292,6 +292,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
 			return this._currentCommand;
 		}
+
+		// No commands
+		if (this._commands.length === 0) {
+			return undefined;
+		}
+
+		// Line is before any registered commands
+		if (this._commands[0].marker!.line > line) {
+			return undefined;
+		}
+
 		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
 		// TODO: Use a reverse for loop to find the line to avoid creating another array
 		const reversed = [...this._commands].reverse();

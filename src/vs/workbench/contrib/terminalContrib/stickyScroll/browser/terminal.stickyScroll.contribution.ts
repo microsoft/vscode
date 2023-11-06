@@ -69,7 +69,6 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		this.add(xterm.raw.onScroll(() => this._refresh()));
 		this.add(xterm.raw.onLineFeed(() => this._refresh()));
 		this.add(addStandardDisposableListener(xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()));
-		// TODO: Disable in alt buffer
 
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
 			const overlay = new ctor({
@@ -107,6 +106,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
 		// scroll.
 		const command = commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
+		const element = this._ensureElement();
 
 		// TODO: Expose unified interface for fetching line content
 		const marker = command && 'commandStartMarker' in command
@@ -114,11 +114,20 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			: command && 'marker' in command
 				? command.marker
 				: undefined;
+
+		// Hide if the marker doesn't exist or has been trimmed from the scrollback
 		if (!marker || marker.line === -1) {
+			hide(element);
 			return;
 		}
+
+		// Hide sticky scroll if it's on the same line
+		if (marker.line === this._xterm.raw.buffer.active.viewportY) {
+			hide(element);
+			return;
+		}
+
 		this._currentStickyMarker = marker;
-		const element = this._ensureElement();
 		if (element.textContent === '') {
 			hide(element);
 		} else {
@@ -128,8 +137,7 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 
 		if (this._stickyScrollOverlay) {
 			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
-			// TODO: Serialize line instead
-			// TODO: Support providing single line/range serialize addon
+			// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
 			const s = this._serializeAddon?.serialize({
 				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
 			});
