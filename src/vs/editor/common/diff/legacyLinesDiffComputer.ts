@@ -5,7 +5,8 @@
 
 import { CharCode } from 'vs/base/common/charCode';
 import { IDiffChange, ISequence, LcsDiff, IDiffResult } from 'vs/base/common/diff/diff';
-import { ILinesDiffComputer, ILinesDiffComputerOptions, RangeMapping, LineRangeMapping, LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
+import { ILinesDiffComputer, ILinesDiffComputerOptions, LinesDiff } from 'vs/editor/common/diff/linesDiffComputer';
+import { RangeMapping, DetailedLineRangeMapping } from './rangeMapping';
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { assertFn, checkAdjacentItems } from 'vs/base/common/assert';
@@ -23,8 +24,8 @@ export class LegacyLinesDiffComputer implements ILinesDiffComputer {
 			shouldPostProcessCharChanges: true,
 		});
 		const result = diffComputer.computeDiff();
-		const changes: LineRangeMapping[] = [];
-		let lastChange: LineRangeMapping | null = null;
+		const changes: DetailedLineRangeMapping[] = [];
+		let lastChange: DetailedLineRangeMapping | null = null;
 
 
 		for (const c of result.changes) {
@@ -44,17 +45,17 @@ export class LegacyLinesDiffComputer implements ILinesDiffComputer {
 				modifiedRange = new LineRange(c.modifiedStartLineNumber, c.modifiedEndLineNumber + 1);
 			}
 
-			let change = new LineRangeMapping(originalRange, modifiedRange, c.charChanges?.map(c => new RangeMapping(
+			let change = new DetailedLineRangeMapping(originalRange, modifiedRange, c.charChanges?.map(c => new RangeMapping(
 				new Range(c.originalStartLineNumber, c.originalStartColumn, c.originalEndLineNumber, c.originalEndColumn),
 				new Range(c.modifiedStartLineNumber, c.modifiedStartColumn, c.modifiedEndLineNumber, c.modifiedEndColumn),
 			)));
 			if (lastChange) {
-				if (lastChange.modifiedRange.endLineNumberExclusive === change.modifiedRange.startLineNumber
-					|| lastChange.originalRange.endLineNumberExclusive === change.originalRange.startLineNumber) {
+				if (lastChange.modified.endLineNumberExclusive === change.modified.startLineNumber
+					|| lastChange.original.endLineNumberExclusive === change.original.startLineNumber) {
 					// join touching diffs. Probably moving diffs up/down in the algorithm causes touching diffs.
-					change = new LineRangeMapping(
-						lastChange.originalRange.join(change.originalRange),
-						lastChange.modifiedRange.join(change.modifiedRange),
+					change = new DetailedLineRangeMapping(
+						lastChange.original.join(change.original),
+						lastChange.modified.join(change.modified),
 						lastChange.innerChanges && change.innerChanges ?
 							lastChange.innerChanges.concat(change.innerChanges) : undefined
 					);
@@ -68,10 +69,10 @@ export class LegacyLinesDiffComputer implements ILinesDiffComputer {
 
 		assertFn(() => {
 			return checkAdjacentItems(changes,
-				(m1, m2) => m2.originalRange.startLineNumber - m1.originalRange.endLineNumberExclusive === m2.modifiedRange.startLineNumber - m1.modifiedRange.endLineNumberExclusive &&
+				(m1, m2) => m2.original.startLineNumber - m1.original.endLineNumberExclusive === m2.modified.startLineNumber - m1.modified.endLineNumberExclusive &&
 					// There has to be an unchanged line in between (otherwise both diffs should have been joined)
-					m1.originalRange.endLineNumberExclusive < m2.originalRange.startLineNumber &&
-					m1.modifiedRange.endLineNumberExclusive < m2.modifiedRange.startLineNumber,
+					m1.original.endLineNumberExclusive < m2.original.startLineNumber &&
+					m1.modified.endLineNumberExclusive < m2.modified.startLineNumber,
 			);
 		});
 
@@ -92,7 +93,7 @@ export interface IDiffComputationResult {
 	/**
 	 * The changes as (modern) line range mapping array.
 	 */
-	changes2: readonly LineRangeMapping[];
+	changes2: readonly DetailedLineRangeMapping[];
 }
 
 /**

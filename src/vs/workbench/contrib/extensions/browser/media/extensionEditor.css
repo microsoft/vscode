@@ -517,6 +517,10 @@
 	height: 224px;
 }
 
+.extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.three-rows > .extension-pack {
+	height: 306px;
+}
+
 .extension-editor > .body > .content > .details > .readme-container > .extension-pack-readme.more-rows > .extension-pack {
 	height: 326px;
 }

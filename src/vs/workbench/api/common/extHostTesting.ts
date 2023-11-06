@@ -5,12 +5,12 @@
 
 /* eslint-disable local/code-no-native-private */
 
-import { mapFind } from 'vs/base/common/arrays';
+import { mapFindFirst } from 'vs/base/common/arraysFind';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { hash } from 'vs/base/common/hash';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
@@ -29,7 +29,6 @@ import { TestCommandId } from 'vs/workbench/contrib/testing/common/constants';
 import { TestId, TestIdPathParts, TestPosition } from 'vs/workbench/contrib/testing/common/testId';
 import { InvalidTestItemError } from 'vs/workbench/contrib/testing/common/testItemCollection';
 import { AbstractIncrementalTestCollection, CoverageDetails, ICallProfileRunHandler, IFileCoverage, ISerializedTestResults, IStartControllerTests, IStartControllerTestsResult, ITestErrorMessage, ITestItem, ITestItemContext, ITestMessageMenuArgs, IncrementalChangeCollector, IncrementalTestCollectionItem, InternalTestItem, TestResultState, TestRunProfileBitset, TestsDiff, TestsDiffOp, isStartControllerTests } from 'vs/workbench/contrib/testing/common/testTypes';
-import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import type * as vscode from 'vscode';
 
 interface ControllerInfo {
@@ -229,7 +228,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * @inheritdoc
 	 */
 	$provideFileCoverage(runId: string, taskId: string, token: CancellationToken): Promise<IFileCoverage[]> {
-		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
+		const coverage = mapFindFirst(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
 		return coverage?.provideFileCoverage(token) ?? Promise.resolve([]);
 	}
 
@@ -237,7 +236,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 	 * @inheritdoc
 	 */
 	$resolveFileCoverage(runId: string, taskId: string, fileIndex: number, token: CancellationToken): Promise<CoverageDetails[]> {
-		const coverage = mapFind(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
+		const coverage = mapFindFirst(this.runTracker.trackers, t => t.id === runId ? t.getCoverage(taskId) : undefined);
 		return coverage?.resolveFileCoverage(fileIndex, token) ?? Promise.resolve([]);
 	}
 
@@ -424,7 +423,6 @@ class TestRunTracker extends Disposable {
 	constructor(
 		private readonly dto: TestRunDto,
 		private readonly proxy: MainThreadTestingShape,
-		private readonly extension: Readonly<IRelaxedExtensionDescription>,
 		parentToken?: CancellationToken,
 	) {
 		super();
@@ -475,10 +473,6 @@ class TestRunTracker extends Disposable {
 			const converted = messages instanceof Array
 				? messages.map(Convert.TestMessage.from)
 				: [Convert.TestMessage.from(messages)];
-
-			if (converted.some(c => c.contextValue !== undefined)) {
-				checkProposedApiEnabled(this.extension, 'testMessageContextValue');
-			}
 
 			if (test.uri && test.range) {
 				const defaultLocation: ILocationDto = { range: Convert.Range.from(test.range), uri: test.uri };
@@ -606,6 +600,11 @@ class TestRunTracker extends Disposable {
 
 		this.proxy.$addTestsToRun(this.dto.controllerId, this.dto.id, chain);
 	}
+
+	public override dispose(): void {
+		this.markEnded();
+		super.dispose();
+	}
 }
 
 /**
@@ -676,7 +675,7 @@ export class TestRunCoordinator {
 		});
 
 		const tracker = this.getTracker(request, dto, extension);
-		tracker.onEnd(() => {
+		Event.once(tracker.onEnd)(() => {
 			this.proxy.$finishedExtensionTestRun(dto.id);
 			tracker.dispose();
 		});
@@ -685,9 +684,9 @@ export class TestRunCoordinator {
 	}
 
 	private getTracker(req: vscode.TestRunRequest, dto: TestRunDto, extension: IRelaxedExtensionDescription, token?: CancellationToken) {
-		const tracker = new TestRunTracker(dto, this.proxy, extension, token);
+		const tracker = new TestRunTracker(dto, this.proxy, token);
 		this.tracked.set(req, tracker);
-		tracker.onEnd(() => this.tracked.delete(req));
+		Event.once(tracker.onEnd)(() => this.tracked.delete(req));
 		return tracker;
 	}
 }
@@ -915,7 +914,7 @@ class MirroredTestCollection extends AbstractIncrementalTestCollection<MirroredC
 	 * Gets a list of root test items.
 	 */
 	public get rootTests() {
-		return super.roots;
+		return this.roots;
 	}
 
 	/**
@@ -974,7 +973,7 @@ class TestObservers {
 		return {
 			onDidChangeTest: current.tests.onDidChangeTests,
 			get tests() { return [...current.tests.rootTests].map(t => t.revived); },
-			dispose: once(() => {
+			dispose: createSingleCallFunction(() => {
 				if (--current.observers === 0) {
 					this.proxy.$unsubscribeFromDiffs();
 					this.current = undefined;

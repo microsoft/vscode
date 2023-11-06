@@ -6,13 +6,13 @@
 import { IDimension } from 'vs/base/browser/dom';
 import { Orientation } from 'vs/base/browser/ui/splitview/splitview';
 import { Color } from 'vs/base/common/color';
-import { Event } from 'vs/base/common/event';
+import { Event, IDynamicListEventMultiplexer } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IKeyMods } from 'vs/platform/quickinput/common/quickInput';
-import { IMarkProperties, ITerminalCapabilityStore, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { IMarkProperties, ITerminalCapabilityImplMap, ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { IExtensionTerminalProfile, IReconnectionProperties, IShellIntegration, IShellLaunchConfig, ITerminalBackend, ITerminalDimensions, ITerminalLaunchError, ITerminalProfile, ITerminalTabLayoutInfoById, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalShellType, TerminalType, TitleEventSource, WaitOnExitValue } from 'vs/platform/terminal/common/terminal';
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
@@ -25,7 +25,7 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { IRegisterContributedProfileArgs, IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalConfigHelper, ITerminalFont, ITerminalProcessExtHostProxy, ITerminalProcessInfo } from 'vs/workbench/contrib/terminal/common/terminal';
 import { EditorGroupColumn } from 'vs/workbench/services/editor/common/editorGroupColumn';
 import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser/simpleSuggestWidget';
-import type { IMarker, Terminal as RawXtermTerminal } from 'xterm';
+import type { IMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 
 export const ITerminalService = createDecorator<ITerminalService>('terminalService');
 export const ITerminalEditorService = createDecorator<ITerminalEditorService>('terminalEditorService');
@@ -170,7 +170,7 @@ export interface IDetachedTerminalInstance extends IDisposable {
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions>): void;
 }
 
-export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId === 'number';
+export const isDetachedTerminalInstance = (t: ITerminalInstance | IDetachedTerminalInstance): t is IDetachedTerminalInstance => typeof (t as ITerminalInstance).instanceId !== 'number';
 
 export interface ITerminalService extends ITerminalInstanceHost {
 	readonly _serviceBrand: undefined;
@@ -188,21 +188,23 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	/** The number of restored terminal groups on startup. */
 	readonly restoredGroupCount: number;
 
-	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
-	readonly onDidDisposeGroup: Event<ITerminalGroup>;
 	readonly onDidCreateInstance: Event<ITerminalInstance>;
-	readonly onDidReceiveProcessId: Event<ITerminalInstance>;
 	readonly onDidChangeInstanceDimensions: Event<ITerminalInstance>;
-	readonly onDidMaximumDimensionsChange: Event<ITerminalInstance>;
 	readonly onDidRequestStartExtensionTerminal: Event<IStartExtensionTerminalRequest>;
-	readonly onDidChangeInstanceTitle: Event<ITerminalInstance | undefined>;
-	readonly onDidChangeInstanceIcon: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	readonly onDidChangeInstanceColor: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
-	readonly onDidChangeInstancePrimaryStatus: Event<ITerminalInstance>;
-	readonly onDidInputInstanceData: Event<ITerminalInstance>;
-	readonly onDidChangeSelection: Event<ITerminalInstance>;
 	readonly onDidRegisterProcessSupport: Event<void>;
 	readonly onDidChangeConnectionState: Event<void>;
+
+	// Group events
+	readonly onDidChangeActiveGroup: Event<ITerminalGroup | undefined>;
+
+	// Multiplexed events
+	readonly onAnyInstanceDataInput: Event<ITerminalInstance>;
+	readonly onAnyInstanceIconChange: Event<{ instance: ITerminalInstance; userInitiated: boolean }>;
+	readonly onAnyInstanceMaximumDimensionsChange: Event<ITerminalInstance>;
+	readonly onAnyInstancePrimaryStatusChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceProcessIdReady: Event<ITerminalInstance>;
+	readonly onAnyInstanceSelectionChange: Event<ITerminalInstance>;
+	readonly onAnyInstanceTitleChange: Event<ITerminalInstance>;
 
 	/**
 	 * Creates a terminal.
@@ -263,6 +265,21 @@ export interface ITerminalService extends ITerminalInstanceHost {
 
 	getEditingTerminal(): ITerminalInstance | undefined;
 	setEditingTerminal(instance: ITerminalInstance | undefined): void;
+
+	/**
+	 * Creates an instance event listener that listens to all instances, dynamically adding new
+	 * instances and removing old instances as needed.
+	 * @param getEvent Maps the instance to the event.
+	 */
+	createOnInstanceEvent<T>(getEvent: (instance: ITerminalInstance) => Event<T>): Event<T>;
+
+	/**
+	 * Creates a capability event listener that listens to capabilities on all instances,
+	 * dynamically adding and removing instances and capabilities as needed.
+	 * @param capabilityId The capability type to listen to an event on.
+	 * @param getEvent Maps the capability to the event.
+	 */
+	createOnInstanceCapabilityEvent<T extends TerminalCapability, K>(capabilityId: T, getEvent: (capability: ITerminalCapabilityImplMap[T]) => Event<K>): IDynamicListEventMultiplexer<{ instance: ITerminalInstance; data: K }>;
 }
 export class TerminalLinkQuickPickEvent extends MouseEvent {
 
@@ -575,6 +592,7 @@ export interface ITerminalInstance {
 	onDidBlur: Event<ITerminalInstance>;
 	onDidInputData: Event<ITerminalInstance>;
 	onDidChangeSelection: Event<ITerminalInstance>;
+	onDidRunText: Event<void>;
 
 	/**
 	 * An event that fires when a terminal is dropped on this instance via drag and drop.

@@ -828,6 +828,9 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			} else if (!statDirname.isDirectory) {
 				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateNonexistentDir', 'Please enter a path that exists.');
 				return Promise.resolve(false);
+			} else if (statDirname.readonly || statDirname.locked) {
+				this.filePickBox.validationMessage = nls.localize('remoteFileDialog.validateReadonlyFolder', 'This folder cannot be used as a save destination. Please choose another folder');
+				return Promise.resolve(false);
 			}
 		} else { // open
 			if (!stat) {
@@ -999,26 +1002,12 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 		return sorted;
 	}
 
-	private extname(file: URI): string {
-		const ext = resources.extname(file);
-		if (ext.length === 0) {
-			const basename = resources.basename(file);
-			if (basename.startsWith('.')) {
-				return basename;
-			}
-		} else {
-			return ext;
-		}
-		return '';
-	}
-
 	private filterFile(file: URI): boolean {
 		if (this.options.filters) {
-			const ext = this.extname(file);
 			for (let i = 0; i < this.options.filters.length; i++) {
 				for (let j = 0; j < this.options.filters[i].extensions.length; j++) {
 					const testExt = this.options.filters[i].extensions[j];
-					if ((testExt === '*') || (ext === ('.' + testExt))) {
+					if ((testExt === '*') || (file.path.endsWith('.' + testExt))) {
 						return true;
 					}
 				}

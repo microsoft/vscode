@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { findExpressionInStackFrame } from 'vs/workbench/contrib/debug/browser/debugHover';
 import type { IExpression, IScope } from 'vs/workbench/contrib/debug/common/debug';
@@ -23,8 +22,6 @@ suite('Debug - Hover', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('find expression in stack frame', async () => {
 		const model = createMockDebugModel(disposables);

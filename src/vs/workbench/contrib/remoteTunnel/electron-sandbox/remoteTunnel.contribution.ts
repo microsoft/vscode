@@ -112,7 +112,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 	) {
 		super();
 
-		this.logger = this._register(loggerService.createLogger(LOG_ID, { name: LOGGER_NAME }));
+		this.logger = this._register(loggerService.createLogger(joinPath(environmentService.logsHome, `${LOG_ID}.log`), { id: LOG_ID, name: LOGGER_NAME }));
 
 		this.connectionStateContext = REMOTE_TUNNEL_CONNECTION_STATE.bindTo(this.contextKeyService);
 
@@ -270,6 +270,9 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		);
 	}
 
+	private getPreferredTokenFromSession(session: ExistingSessionItem) {
+		return session.session.accessToken || session.session.idToken;
+	}
 
 	private async startTunnel(asService: boolean): Promise<ConnectionInfo | undefined> {
 		if (this.connectionInfo) {
@@ -327,7 +330,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 									break;
 							}
 						});
-						const token = authenticationSession.session.idToken ?? authenticationSession.session.accessToken;
+						const token = this.getPreferredTokenFromSession(authenticationSession);
 						const account: IRemoteTunnelSession = { sessionId: authenticationSession.session.id, token, providerId: authenticationSession.providerId, accountLabel: authenticationSession.session.account.label };
 						this.remoteTunnelService.startTunnel({ active: true, asService, session: account }).then(status => {
 							if (!completed && (status.type === 'connected' || status.type === 'disconnected')) {
@@ -352,10 +355,6 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 
 	private async getAuthenticationSession(): Promise<ExistingSessionItem | undefined> {
 		const sessions = await this.getAllSessions();
-		if (sessions.length === 1) {
-			return sessions[0];
-		}
-
 		const quickpick = this.quickInputService.createQuickPick<ExistingSessionItem | AuthenticationProviderOption | IQuickPickItem>();
 		quickpick.ok = false;
 		quickpick.placeholder = localize('accountPreference.placeholder', "Sign in to an account to enable remote access");
@@ -448,7 +447,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 		if (session) {
 			const sessionItem = (await this.getAllSessions()).find(s => s.session.id === session.sessionId);
 			if (sessionItem) {
-				return sessionItem.session.idToken ?? sessionItem.session.accessToken;
+				return this.getPreferredTokenFromSession(sessionItem);
 			}
 		}
 		return undefined;
@@ -789,7 +788,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_HOST_NAME]: {
 			description: localize('remoteTunnelAccess.machineName', "The name under which the remote tunnel access is registered. If not set, the host name is used."),
 			type: 'string',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			pattern: '^(\\w[\\w-]*)?$',
 			patternErrorMessage: localize('remoteTunnelAccess.machineNameRegex', "The name must only consist of letters, numbers, underscore and dash. It must not start with a dash."),
 			maxLength: 20,
@@ -798,7 +797,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CONFIGURATION_KEY_PREVENT_SLEEP]: {
 			description: localize('remoteTunnelAccess.preventSleep', "Prevent the computer from sleeping when remote tunnel access is turned on."),
 			type: 'boolean',
-			scope: ConfigurationScope.MACHINE,
+			scope: ConfigurationScope.APPLICATION,
 			default: false,
 		}
 	}

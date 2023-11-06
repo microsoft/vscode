@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import { Event } from 'vs/base/common/event';
-import { assertIsDefined } from 'vs/base/common/types';
+import { DeepRequiredNonNullable, assertIsDefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditorViewState, IDiffEditor, IDiffEditorViewState, IEditor, IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -27,6 +27,7 @@ import { IErrorWithActions, createErrorWithActions, isErrorWithActions } from 'v
 import { IAction, toAction } from 'vs/base/common/actions';
 import Severity from 'vs/base/common/severity';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 
 // Static values for editor contributions
 export const EditorExtensions = {
@@ -750,7 +751,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor cannot be in a dirty state
 	 * and may still have unsaved changes
 	 */
-	Scratchpad = 1 << 9
+	Scratchpad = 1 << 9,
+
+	/**
+	 * Signals that the editor does not support opening in
+	 * auxiliary windows yet.
+	 */
+	AuxWindowUnsupported = 1 << 10
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;
@@ -1066,6 +1073,7 @@ export const enum GroupModelChangeKind {
 	/* Group Changes */
 	GROUP_ACTIVE,
 	GROUP_INDEX,
+	GROUP_LABEL,
 	GROUP_LOCKED,
 
 	/* Editor Changes */
@@ -1088,16 +1096,36 @@ export interface IWorkbenchEditorConfiguration {
 	};
 }
 
+interface IEditorPartLimitConfiguration {
+	enabled?: boolean;
+	excludeDirty?: boolean;
+	value?: number;
+	perEditorGroup?: boolean;
+}
+
+export interface IEditorPartLimitOptions extends Required<IEditorPartLimitConfiguration> { }
+
+interface IEditorPartDecorationsConfiguration {
+	badges?: boolean;
+	colors?: boolean;
+}
+
+export interface IEditorPartDecorationOptions extends Required<IEditorPartDecorationsConfiguration> { }
+
 interface IEditorPartConfiguration {
-	showTabs?: boolean;
+	showTabs?: 'multiple' | 'single' | 'none';
 	wrapTabs?: boolean;
 	scrollToSwitchTabs?: boolean;
 	highlightModifiedTabs?: boolean;
-	tabCloseButton?: 'left' | 'right' | 'off';
+	tabActionLocation?: 'left' | 'right';
+	tabActionCloseVisibility?: boolean;
+	tabActionUnpinVisibility?: boolean;
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
+	pinnedTabsOnSeparateRow?: boolean;
+	tabHeight?: 'default' | 'compact';
 	preventPinnedEditorClose?: PreventPinnedEditorClose;
 	titleScrollbarSizing?: 'default' | 'large';
 	focusRecentEditorAfterClose?: boolean;
@@ -1118,21 +1146,14 @@ interface IEditorPartConfiguration {
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
 	centeredLayoutFixedWidth?: boolean;
-	doubleClickTabToToggleEditorGroupSizes?: boolean;
-	limit?: {
-		enabled?: boolean;
-		excludeDirty?: boolean;
-		value?: number;
-		perEditorGroup?: boolean;
-	};
-	decorations?: {
-		badges?: boolean;
-		colors?: boolean;
-	};
+	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
+	showEditorActionsInTitleBar?: 'noTabs' | 'never';
+	limit?: IEditorPartLimitConfiguration;
+	decorations?: IEditorPartDecorationsConfiguration;
 }
 
-export interface IEditorPartOptions extends IEditorPartConfiguration {
-	hasIcons?: boolean;
+export interface IEditorPartOptions extends DeepRequiredNonNullable<IEditorPartConfiguration> {
+	hasIcons: boolean;
 }
 
 export interface IEditorPartOptionsChangeEvent {
@@ -1349,7 +1370,7 @@ export enum EditorCloseMethod {
 	MOUSE
 }
 
-export function preventEditorClose(group: IEditorGroup, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
+export function preventEditorClose(group: IEditorGroup | IReadonlyEditorGroupModel, editor: EditorInput, method: EditorCloseMethod, configuration: IEditorPartConfiguration): boolean {
 	if (!group.isSticky(editor)) {
 		return false; // only interested in sticky editors
 	}
@@ -1566,4 +1587,9 @@ export function createEditorOpenError(messageOrError: string | Error, actions: I
 	error.allowDialog = options?.allowDialog;
 
 	return error;
+}
+
+export interface IToolbarActions {
+	readonly primary: IAction[];
+	readonly secondary: IAction[];
 }

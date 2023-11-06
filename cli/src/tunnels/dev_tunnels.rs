@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+use super::protocol::{self, PortPrivacy};
 use crate::auth;
 use crate::constants::{IS_INTERACTIVE_CLI, PROTOCOL_VERSION_TAG, TUNNEL_SERVICE_USER_AGENT};
 use crate::state::{LauncherPaths, PersistedState};
@@ -12,7 +13,8 @@ use crate::util::errors::{
 use crate::util::input::prompt_placeholder;
 use crate::{debug, info, log, spanf, trace, warning};
 use async_trait::async_trait;
-use futures::TryFutureExt;
+use futures::future::BoxFuture;
+use futures::{FutureExt, TryFutureExt};
 use lazy_static::lazy_static;
 use rand::prelude::IteratorRandom;
 use regex::Regex;
@@ -31,10 +33,41 @@ use tunnels::management::{
 	NO_REQUEST_OPTIONS,
 };
 
-use super::protocol::{self, PortPrivacy};
-use super::wsl_detect::is_wsl_installed;
-
 static TUNNEL_COUNT_LIMIT_NAME: &str = "TunnelsPerUserPerLocation";
+
+#[allow(dead_code)]
+mod tunnel_flags {
+	use crate::{log, tunnels::wsl_detect::is_wsl_installed};
+
+	pub const IS_WSL_INSTALLED: u32 = 1 << 0;
+	pub const IS_WINDOWS: u32 = 1 << 1;
+	pub const IS_LINUX: u32 = 1 << 2;
+	pub const IS_MACOS: u32 = 1 << 3;
+
+	/// Creates a flag string for the tunnel
+	pub fn create(log: &log::Logger) -> String {
+		let mut flags = 0;
+
+		#[cfg(windows)]
+		{
+			flags |= IS_WINDOWS;
+		}
+		#[cfg(target_os = "linux")]
+		{
+			flags |= IS_LINUX;
+		}
+		#[cfg(target_os = "macos")]
+		{
+			flags |= IS_MACOS;
+		}
+
+		if is_wsl_installed(log) {
+			flags |= IS_WSL_INSTALLED;
+		}
+
+		format!("_flag{}", flags)
+	}
+}
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct PersistedTunnel {
@@ -62,6 +95,11 @@ impl PersistedTunnel {
 trait AccessTokenProvider: Send + Sync {
 	/// Gets the current access token.
 	async fn refresh_token(&self) -> Result<String, WrappedError>;
+
+	/// Maintains the stored credential by refreshing it against the service
+	/// to ensure its stays current. Returns a future that should be polled and
+	/// only completes if a refresh fails in a consistent way.
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>>;
 }
 
 /// Access token provider that provides a fixed token without refreshing.
@@ -78,10 +116,15 @@ impl AccessTokenProvider for StaticAccessTokenProvider {
 	async fn refresh_token(&self) -> Result<String, WrappedError> {
 		Ok(self.0.clone())
 	}
+
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>> {
+		futures::future::pending().boxed()
+	}
 }
 
 /// Access token provider that looks up the token from the tunnels API.
 struct LookupAccessTokenProvider {
+	auth: auth::Auth,
 	client: TunnelManagementClient,
 	locator: TunnelLocator,
 	log: log::Logger,
@@ -90,12 +133,14 @@ struct LookupAccessTokenProvider {
 
 impl LookupAccessTokenProvider {
 	pub fn new(
+		auth: auth::Auth,
 		client: TunnelManagementClient,
 		locator: TunnelLocator,
 		log: log::Logger,
 		initial_token: Option<String>,
 	) -> Self {
 		Self {
+			auth,
 			client,
 			locator,
 			log,
@@ -130,10 +175,16 @@ impl AccessTokenProvider for LookupAccessTokenProvider {
 			Err(e) => Err(wrap(e, "failed to lookup tunnel for host token")),
 		}
 	}
+
+	fn keep_alive(&self) -> BoxFuture<'static, Result<(), AnyError>> {
+		let auth = self.auth.clone();
+		auth.keep_token_alive().boxed()
+	}
 }
 
 #[derive(Clone)]
 pub struct DevTunnels {
+	auth: auth::Auth,
 	log: log::Logger,
 	launcher_tunnel: PersistedState<Option<PersistedTunnel>>,
 	client: TunnelManagementClient,
@@ -212,6 +263,7 @@ impl ActiveTunnel {
 
 const VSCODE_CLI_TUNNEL_TAG: &str = "vscode-server-launcher";
 const VSCODE_CLI_FORWARDING_TAG: &str = "vscode-port-forward";
+const OWNED_TUNNEL_TAGS: &[&str] = &[VSCODE_CLI_TUNNEL_TAG, VSCODE_CLI_FORWARDING_TAG];
 const MAX_TUNNEL_NAME_LENGTH: usize = 20;
 
 fn get_host_token_from_tunnel(tunnel: &Tunnel) -> String {
@@ -275,9 +327,10 @@ impl DevTunnels {
 		paths: &LauncherPaths,
 	) -> DevTunnels {
 		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
-		client.authorization_provider(auth);
+		client.authorization_provider(auth.clone());
 
 		DevTunnels {
+			auth,
 			log: log.clone(),
 			client: client.into(),
 			launcher_tunnel: PersistedState::new(paths.root().join("port_forwarding_tunnel.json")),
@@ -292,9 +345,10 @@ impl DevTunnels {
 		paths: &LauncherPaths,
 	) -> DevTunnels {
 		let mut client = new_tunnel_management(&TUNNEL_SERVICE_USER_AGENT);
-		client.authorization_provider(auth);
+		client.authorization_provider(auth.clone());
 
 		DevTunnels {
+			auth,
 			log: log.clone(),
 			client: client.into(),
 			launcher_tunnel: PersistedState::new(paths.root().join("code_tunnel.json")),
@@ -490,6 +544,7 @@ impl DevTunnels {
 			&persisted,
 			self.client.clone(),
 			LookupAccessTokenProvider::new(
+				self.auth.clone(),
 				self.client.clone(),
 				locator,
 				self.log.clone(),
@@ -577,17 +632,12 @@ impl DevTunnels {
 
 	/// Gets the expected tunnel tags
 	fn get_tags(&self, name: &str) -> Vec<String> {
-		let mut tags = vec![
+		vec![
 			name.to_string(),
 			PROTOCOL_VERSION_TAG.to_string(),
 			self.tag.to_string(),
-		];
-
-		if is_wsl_installed(&self.log) {
-			tags.push("_wsl".to_string())
-		}
-
-		tags
+			tunnel_flags::create(&self.log),
+		]
 	}
 
 	/// Ensures the tunnel contains a tag for the current PROTCOL_VERSION, and no
@@ -635,7 +685,7 @@ impl DevTunnels {
 			"Tunnel limit hit, trying to recycle an old tunnel"
 		);
 
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(OWNED_TUNNEL_TAGS).await?;
 
 		let recyclable = existing_tunnels
 			.iter()
@@ -667,13 +717,15 @@ impl DevTunnels {
 		}
 	}
 
-	async fn list_all_server_tunnels(&mut self) -> Result<Vec<Tunnel>, AnyError> {
+	async fn list_tunnels_with_tag(
+		&mut self,
+		tags: &[&'static str],
+	) -> Result<Vec<Tunnel>, AnyError> {
 		let tunnels = spanf!(
 			self.log,
 			self.log.span("dev-tunnel.listall"),
 			self.client.list_all_tunnels(&TunnelRequestOptions {
-				tags: vec![self.tag.to_string()],
-				require_all_tags: true,
+				tags: tags.iter().map(|t| t.to_string()).collect(),
 				..Default::default()
 			})
 		)
@@ -703,6 +755,7 @@ impl DevTunnels {
 	fn get_placeholder_name() -> String {
 		let mut n = clean_hostname_for_tunnel(&gethostname::gethostname().to_string_lossy());
 		n.make_ascii_lowercase();
+		n.truncate(MAX_TUNNEL_NAME_LENGTH);
 		n
 	}
 
@@ -711,7 +764,7 @@ impl DevTunnels {
 		preferred_name: Option<&str>,
 		mut use_random_name: bool,
 	) -> Result<String, AnyError> {
-		let existing_tunnels = self.list_all_server_tunnels().await?;
+		let existing_tunnels = self.list_tunnels_with_tag(&[self.tag]).await?;
 		let is_name_free = |n: &str| {
 			!existing_tunnels.iter().any(|v| {
 				v.status
@@ -953,6 +1006,7 @@ impl ActiveTunnelManager {
 			.add_port_raw(&TunnelPort {
 				port_number,
 				protocol: Some(TUNNEL_PROTOCOL_AUTO.to_owned()),
+				access_control: Some(privacy_to_tunnel_acl(PortPrivacy::Private)),
 				..Default::default()
 			})
 			.await
@@ -1010,6 +1064,7 @@ impl ActiveTunnelManager {
 		access_token_provider: impl AccessTokenProvider + 'static,
 		status: StatusLock,
 	) {
+		let mut token_ka = access_token_provider.keep_alive();
 		let mut backoff = Backoff::new(Duration::from_secs(5), Duration::from_secs(120));
 
 		macro_rules! fail {
@@ -1065,6 +1120,10 @@ impl ActiveTunnelManager {
 						warning!(log, "Tunnel exited unexpectedly but gracefully, reconnecting");
 						backoff.delay().await;
 					}
+				},
+				Err(e) = &mut token_ka => {
+					error!(log, "access token is no longer valid, exiting: {}", e);
+					return;
 				},
 				_ = close_rx.recv() => {
 					trace!(log, "Tunnel closing gracefully");
@@ -1148,23 +1207,34 @@ fn vec_eq_as_set(a: &[String], b: &[String]) -> bool {
 }
 
 fn privacy_to_tunnel_acl(privacy: PortPrivacy) -> TunnelAccessControl {
-	let mut acl = TunnelAccessControl { entries: vec![] };
-
-	if privacy == PortPrivacy::Public {
-		acl.entries
-			.push(tunnels::contracts::TunnelAccessControlEntry {
+	TunnelAccessControl {
+		entries: vec![match privacy {
+			PortPrivacy::Public => tunnels::contracts::TunnelAccessControlEntry {
 				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
 				provider: None,
 				is_inherited: false,
 				is_deny: false,
 				is_inverse: false,
 				organization: None,
+				expiration: None,
 				subjects: vec![],
 				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
-			});
+			},
+			// Ensure private ports are actually private and do not inherit any
+			// default visibility that may be set on the tunnel:
+			PortPrivacy::Private => tunnels::contracts::TunnelAccessControlEntry {
+				kind: tunnels::contracts::TunnelAccessControlEntryType::Anonymous,
+				provider: None,
+				is_inherited: false,
+				is_deny: true,
+				is_inverse: false,
+				organization: None,
+				expiration: None,
+				subjects: vec![],
+				scopes: vec![TUNNEL_ACCESS_SCOPES_CONNECT.to_string()],
+			},
+		}],
 	}
-
-	acl
 }
 
 #[cfg(test)]

@@ -16,34 +16,34 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 
 	declare readonly _serviceBrand: undefined;
 
-	private _responsePendingAudioCue: IDisposable | undefined;
-	private _hasReceivedRequest: boolean = false;
+	private _pendingCueMap: Map<number, IDisposable | undefined> = new Map();
+
 	private _runOnceScheduler: RunOnceScheduler;
 	private _lastResponse: string | undefined;
+	private _requestId: number = 0;
 
 	constructor(@IAudioCueService private readonly _audioCueService: IAudioCueService) {
 		super();
 		this._register(this._runOnceScheduler = new RunOnceScheduler(() => {
-			if (!this._hasReceivedRequest) {
-				this._responsePendingAudioCue = this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS);
-			}
+			this._pendingCueMap.set(this._requestId, this._audioCueService.playAudioCueLoop(AudioCue.chatResponsePending, CHAT_RESPONSE_PENDING_AUDIO_CUE_LOOP_MS));
 		}, CHAT_RESPONSE_PENDING_ALLOWANCE_MS));
 	}
-	acceptRequest(): void {
+	acceptRequest(): number {
+		this._requestId++;
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, { allowManyInParallel: true });
 		this._runOnceScheduler.schedule();
+		return this._requestId;
 	}
-	acceptResponse(response?: IChatResponseViewModel | string): void {
-		this._hasReceivedRequest = true;
+	acceptResponse(response: IChatResponseViewModel | string | undefined, requestId: number): void {
+		this._pendingCueMap.get(requestId)?.dispose();
+		this._pendingCueMap.delete(requestId);
 		const isPanelChat = typeof response !== 'string';
-		this._responsePendingAudioCue?.dispose();
 		this._runOnceScheduler?.cancel();
 		const responseContent = typeof response === 'string' ? response : response?.response.asString();
 		if (this._lastResponse === responseContent) {
 			return;
 		}
 		this._audioCueService.playAudioCue(AudioCue.chatResponseReceived, { allowManyInParallel: true });
-		this._hasReceivedRequest = false;
 		if (!response) {
 			return;
 		}

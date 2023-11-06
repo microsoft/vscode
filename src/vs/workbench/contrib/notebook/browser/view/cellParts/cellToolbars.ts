@@ -233,9 +233,9 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 			this._rootClassDelegate.toggle('cell-toolbar-dropdown-active', visible);
 
 			if (deferredUpdate && !visible) {
-				this._register(disposableTimeout(() => {
+				disposableTimeout(() => {
 					deferredUpdate?.();
-				}));
+				}, 0, this._store);
 
 				deferredUpdate = undefined;
 			}
@@ -243,7 +243,7 @@ export class CellTitleToolbarPart extends CellOverlayPart {
 	}
 
 	private updateActions(toolbar: ToolBar, actions: { primary: IAction[]; secondary: IAction[] }) {
-		const hadFocus = DOM.isAncestor(document.activeElement, toolbar.getElement());
+		const hadFocus = DOM.isAncestorOfActiveElement(toolbar.getElement());
 		toolbar.setActions(actions.primary, actions.secondary);
 		if (hadFocus) {
 			this._notebookEditor.focus();

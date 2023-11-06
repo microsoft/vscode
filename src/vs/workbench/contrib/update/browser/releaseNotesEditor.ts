@@ -37,7 +37,7 @@ export class ReleaseNotesManager {
 
 	private _currentReleaseNotes: WebviewInput | undefined = undefined;
 	private _lastText: string | undefined;
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 
 	public constructor(
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,

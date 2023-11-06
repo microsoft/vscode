@@ -135,7 +135,7 @@ export class TestingExplorerFilter extends BaseActionViewItem {
 	public layout(width: number) {
 		this.input.layout(new dom.Dimension(
 			width - /* horizontal padding */ 24 - /* editor padding */ 8 - /* filter button padding */ 22,
-			/* line height */ 27 - /* editor padding */ 4,
+			20, // line height from suggestEnabledInput.ts
 		));
 	}
 

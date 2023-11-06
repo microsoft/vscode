@@ -61,6 +61,9 @@ import { VSBuffer } from 'vs/base/common/buffer';
 import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { timeout } from 'vs/base/common/async';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -180,6 +183,7 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 }
 
 suite('ExtensionRecommendationsService Test', () => {
+	let disposableStore: DisposableStore;
 	let workspaceService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
 	let testConfigurationService: TestConfigurationService;
@@ -189,18 +193,27 @@ suite('ExtensionRecommendationsService Test', () => {
 		uninstallEvent: Emitter<UninstallExtensionEvent>,
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
-	const promptedEmitter = new Emitter<void>();
+	let promptedEmitter: Emitter<void>;
 	let onModelAddedEvent: Emitter<ITextModel>;
 
-	suiteSetup(() => {
-		instantiationService = new TestInstantiationService();
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+	teardown(async () => {
+		disposableStore.dispose();
+		await timeout(0); // allow for async disposables to complete
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	setup(() => {
+		disposableStore = new DisposableStore();
+		instantiationService = disposableStore.add(new TestInstantiationService());
+		promptedEmitter = disposableStore.add(new Emitter<void>());
+		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
+		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
+		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
+		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 		instantiationService.stub(ISharedProcessService, TestSharedProcessService);
-		instantiationService.stub(ILifecycleService, new TestLifecycleService());
+		instantiationService.stub(ILifecycleService, disposableStore.add(new TestLifecycleService()));
 		testConfigurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(INotificationService, new TestNotificationService());
@@ -222,11 +235,11 @@ suite('ExtensionRecommendationsService Test', () => {
 			extensions: [],
 			async whenInstalledExtensionsRegistered() { return true; }
 		});
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, NativeURLService);
 		instantiationService.stub(IWorkspaceTagsService, new NoOpWorkspaceTagsService());
-		instantiationService.stub(IStorageService, new TestStorageService());
+		instantiationService.stub(IStorageService, disposableStore.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(IProductService, <Partial<IProductService>>{
 			extensionTips: {
@@ -275,13 +288,11 @@ suite('ExtensionRecommendationsService Test', () => {
 			},
 		});
 
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		instantiationService.stub(IExtensionTipsService, instantiationService.createInstance(TestExtensionTipsService));
+		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		instantiationService.stub(IExtensionTipsService, disposableStore.add(instantiationService.createInstance(TestExtensionTipsService)));
 
 		onModelAddedEvent = new Emitter<ITextModel>();
-	});
 
-	setup(() => {
 		instantiationService.stub(IEnvironmentService, <Partial<IEnvironmentService>>{});
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
@@ -307,12 +318,6 @@ suite('ExtensionRecommendationsService Test', () => {
 		});
 	});
 
-	teardown(() => (<ExtensionRecommendationsService>testObject).dispose());
-
-	suiteTeardown(() => {
-		instantiationService.dispose();
-	});
-
 	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		return setUpFolder(folderName, recommendedExtensions, ignoredRecommendations);
 	}
@@ -320,9 +325,9 @@ suite('ExtensionRecommendationsService Test', () => {
 	async function setUpFolder(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): Promise<void> {
 		const ROOT = URI.file('tests').with({ scheme: 'vscode-tests' });
 		const logService = new NullLogService();
-		const fileService = new FileService(logService);
-		const fileSystemProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		const fileService = disposableStore.add(new FileService(logService));
+		const fileSystemProvider = disposableStore.add(new InMemoryFileSystemProvider());
+		disposableStore.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 
 		const folderDir = joinPath(ROOT, folderName);
 		const workspaceSettingsDir = joinPath(folderDir, '.vscode');
@@ -338,14 +343,14 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.stub(IFileService, fileService);
 		workspaceService = new TestContextService(myWorkspace);
 		instantiationService.stub(IWorkspaceContextService, workspaceService);
-		instantiationService.stub(IWorkspaceExtensionsConfigService, instantiationService.createInstance(WorkspaceExtensionsConfigService));
-		instantiationService.stub(IExtensionIgnoredRecommendationsService, instantiationService.createInstance(ExtensionIgnoredRecommendationsService));
-		instantiationService.stub(IExtensionRecommendationNotificationService, instantiationService.createInstance(ExtensionRecommendationNotificationService));
+		instantiationService.stub(IWorkspaceExtensionsConfigService, disposableStore.add(instantiationService.createInstance(WorkspaceExtensionsConfigService)));
+		instantiationService.stub(IExtensionIgnoredRecommendationsService, disposableStore.add(instantiationService.createInstance(ExtensionIgnoredRecommendationsService)));
+		instantiationService.stub(IExtensionRecommendationNotificationService, disposableStore.add(instantiationService.createInstance(ExtensionRecommendationNotificationService)));
 	}
 
 	function testNoPromptForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', recommendations).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			return testObject.activationPromise.then(() => {
 				assert.strictEqual(Object.keys(testObject.getAllRecommendationsWithReason()).length, recommendations.length);
 				assert.ok(!prompted);
@@ -355,7 +360,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 	function testNoPromptOrRecommendationsForValidRecommendations(recommendations: string[]) {
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			assert.ok(!prompted);
 
 			return testObject.getWorkspaceRecommendations().then(() => {
@@ -384,7 +389,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 	test('ExtensionRecommendationsService: Prompt for valid workspace recommendations', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await setUpFolderWorkspace('myFolder', mockTestData.recommendedExtensions);
-		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 
 		await Event.toPromise(promptedEmitter.event);
 		const recommendations = Object.keys(testObject.getAllRecommendationsWithReason());
@@ -413,7 +418,7 @@ suite('ExtensionRecommendationsService Test', () => {
 	test('ExtensionRecommendationsService: No Prompt for valid workspace recommendations if showRecommendationsOnlyOnDemand is set', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		testConfigurationService.setUserConfiguration(ConfigurationKey, { showRecommendationsOnlyOnDemand: true });
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			return testObject.activationPromise.then(() => {
 				assert.ok(!prompted);
 			});
@@ -431,7 +436,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.get(IStorageService).store('extensionsAssistant/ignored_recommendations', '["ms-dotnettools.csharp", "mockpublisher2.mockextension2"]', StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been globally ignored
@@ -449,7 +454,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, ignoredRecommendations).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getAllRecommendationsWithReason();
 				assert.ok(!recommendations['ms-dotnettools.csharp']); // stored recommendation that has been workspace ignored
@@ -471,7 +476,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		storageService.store('extensionsAssistant/ignored_recommendations', globallyIgnoredRecommendations, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		await setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, workspaceIgnoredRecommendations);
-		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 		await testObject.activationPromise;
 
 		const recommendations = testObject.getAllRecommendationsWithReason();
@@ -489,7 +494,7 @@ suite('ExtensionRecommendationsService Test', () => {
 
 		await setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions);
 		const extensionIgnoredRecommendationsService = instantiationService.get(IExtensionIgnoredRecommendationsService);
-		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 		await testObject.activationPromise;
 
 		let recommendations = testObject.getAllRecommendationsWithReason();
@@ -521,9 +526,9 @@ suite('ExtensionRecommendationsService Test', () => {
 		storageService.store('extensionsAssistant/ignored_recommendations', '["ms-vscode.vscode"]', StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		await setUpFolderWorkspace('myFolder', []);
-		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 		const extensionIgnoredRecommendationsService = instantiationService.get(IExtensionIgnoredRecommendationsService);
-		extensionIgnoredRecommendationsService.onDidChangeGlobalIgnoredRecommendation(changeHandlerTarget);
+		disposableStore.add(extensionIgnoredRecommendationsService.onDidChangeGlobalIgnoredRecommendation(changeHandlerTarget));
 		extensionIgnoredRecommendationsService.toggleGlobalIgnoredRecommendation(ignoredExtensionId, true);
 		await testObject.activationPromise;
 
@@ -536,7 +541,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
-			testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+			testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 			return testObject.activationPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.strictEqual(recommendations.length, 2);
@@ -555,7 +560,7 @@ suite('ExtensionRecommendationsService Test', () => {
 		instantiationService.get(IStorageService).store('extensionsAssistant/recommendations', storedRecommendations, StorageScope.PROFILE, StorageTarget.MACHINE);
 
 		await setUpFolderWorkspace('myFolder', []);
-		testObject = instantiationService.createInstance(ExtensionRecommendationsService);
+		testObject = disposableStore.add(instantiationService.createInstance(ExtensionRecommendationsService));
 		await testObject.activationPromise;
 
 		const recommendations = testObject.getFileBasedRecommendations();

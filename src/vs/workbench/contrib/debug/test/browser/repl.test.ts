@@ -9,7 +9,6 @@ import { TreeVisibility } from 'vs/base/browser/ui/tree/tree';
 import { timeout } from 'vs/base/common/async';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import severity from 'vs/base/common/severity';
-import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
 import { ReplFilter } from 'vs/workbench/contrib/debug/browser/replFilter';
@@ -35,8 +34,6 @@ suite('Debug - REPL', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('repl output', () => {
 		const session = disposables.add(createTestSession(model));

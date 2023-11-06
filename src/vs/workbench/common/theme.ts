@@ -256,7 +256,7 @@ export const EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND = registerColor('editorGroup
 	light: editorBackground,
 	hcDark: editorBackground,
 	hcLight: editorBackground
-}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when tabs are disabled (`\"workbench.editor.showTabs\": false`). Editor groups are the containers of editors."));
+}, localize('editorGroupHeaderBackground', "Background color of the editor group title header when (`\"workbench.editor.showTabs\": \"single\"`). Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_BORDER = registerColor('editorGroupHeader.border', {
 	dark: null,
@@ -874,6 +874,59 @@ export const MENUBAR_SELECTION_BORDER = registerColor('menubar.selectionBorder',
 	hcDark: activeContrastBorder,
 	hcLight: activeContrastBorder,
 }, localize('menubarSelectionBorder', "Border color of the selected menu item in the menubar."));
+
+// < --- Command Center --- >
+
+// foreground (inactive and active)
+export const COMMAND_CENTER_FOREGROUND = registerColor(
+	'commandCenter.foreground',
+	{ dark: TITLE_BAR_ACTIVE_FOREGROUND, hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: TITLE_BAR_ACTIVE_FOREGROUND, hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-foreground', "Foreground color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEFOREGROUND = registerColor(
+	'commandCenter.activeForeground',
+	{ dark: MENUBAR_SELECTION_FOREGROUND, hcDark: MENUBAR_SELECTION_FOREGROUND, light: MENUBAR_SELECTION_FOREGROUND, hcLight: MENUBAR_SELECTION_FOREGROUND },
+	localize('commandCenter-activeForeground', "Active foreground color of the command center"),
+	false
+);
+export const COMMAND_CENTER_INACTIVEFOREGROUND = registerColor(
+	'commandCenter.inactiveForeground',
+	{ dark: TITLE_BAR_INACTIVE_FOREGROUND, hcDark: TITLE_BAR_INACTIVE_FOREGROUND, light: TITLE_BAR_INACTIVE_FOREGROUND, hcLight: TITLE_BAR_INACTIVE_FOREGROUND },
+	localize('commandCenter-inactiveForeground', "Foreground color of the command center when the window is inactive"),
+	false
+);
+// background (inactive and active)
+export const COMMAND_CENTER_BACKGROUND = registerColor(
+	'commandCenter.background',
+	{ dark: Color.white.transparent(0.05), hcDark: null, light: Color.black.transparent(0.05), hcLight: null },
+	localize('commandCenter-background', "Background color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEBACKGROUND = registerColor(
+	'commandCenter.activeBackground',
+	{ dark: Color.white.transparent(0.08), hcDark: MENUBAR_SELECTION_BACKGROUND, light: Color.black.transparent(0.08), hcLight: MENUBAR_SELECTION_BACKGROUND },
+	localize('commandCenter-activeBackground', "Active background color of the command center"),
+	false
+);
+// border: active and inactive. defaults to active background
+export const COMMAND_CENTER_BORDER = registerColor(
+	'commandCenter.border', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcDark: contrastBorder, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .20), hcLight: contrastBorder },
+	localize('commandCenter-border', "Border color of the command center"),
+	false
+);
+export const COMMAND_CENTER_ACTIVEBORDER = registerColor(
+	'commandCenter.activeBorder', { dark: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcDark: TITLE_BAR_ACTIVE_FOREGROUND, light: transparent(TITLE_BAR_ACTIVE_FOREGROUND, .30), hcLight: TITLE_BAR_ACTIVE_FOREGROUND },
+	localize('commandCenter-activeBorder', "Active border color of the command center"),
+	false
+);
+// border: defaults to active background
+export const COMMAND_CENTER_INACTIVEBORDER = registerColor(
+	'commandCenter.inactiveBorder', { dark: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcDark: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), light: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25), hcLight: transparent(TITLE_BAR_INACTIVE_FOREGROUND, .25) },
+	localize('commandCenter-inactiveBorder', "Border color of the command center when the window is inactive"),
+	false
+);
+
 
 // < --- Notifications --- >
 

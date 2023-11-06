@@ -52,6 +52,7 @@ const VERSION: &str = concatcp!(NUMBER_IN_VERSION, " (commit ", COMMIT_IN_VERSIO
 #[clap(
    help_template = INTEGRATED_TEMPLATE,
    long_about = None,
+	 name = constants::APPLICATION_NAME,
    version = VERSION,
  )]
 pub struct IntegratedCli {
@@ -84,6 +85,7 @@ pub struct CliCore {
    help_template = STANDALONE_TEMPLATE,
    long_about = None,
    version = VERSION,
+	 name = constants::APPLICATION_NAME,
  )]
 pub struct StandaloneCli {
 	#[clap(flatten)]
@@ -173,6 +175,7 @@ pub enum Commands {
 	Version(VersionArgs),
 
 	/// Runs a local web version of VS Code.
+	#[clap(about = concatcp!("Runs a local web version of ", constants::PRODUCT_NAME_LONG))]
 	ServeWeb(ServeWebArgs),
 
 	/// Runs the control server on process stdin/stdout
@@ -217,11 +220,14 @@ pub struct CommandShellArgs {
 	#[clap(long)]
 	pub on_socket: bool,
 	/// Listen on a port instead of stdin/stdout.
-	#[clap(long)]
-	pub on_port: bool,
+	#[clap(long, num_args = 0..=1, default_missing_value = "0")]
+	pub on_port: Option<u16>,
 	/// Require the given token string to be given in the handshake.
 	#[clap(long)]
 	pub require_token: Option<String>,
+	/// Optional parent process id. If provided, the server will be stopped when the process of the given pid no longer exists
+	#[clap(long, hide = true)]
+	pub parent_process_id: Option<String>,
 }
 
 #[derive(Args, Debug, Clone)]

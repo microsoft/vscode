@@ -98,7 +98,7 @@ export class MouseHandler extends ViewEventHandler {
 			// remove this listener
 
 			if (!this._mouseLeaveMonitor) {
-				this._mouseLeaveMonitor = dom.addDisposableListener(document, 'mousemove', (e) => {
+				this._mouseLeaveMonitor = dom.addDisposableListener(this.viewHelper.viewDomNode.ownerDocument, 'mousemove', (e) => {
 					if (!this.viewHelper.viewDomNode.contains(e.target as Node | null)) {
 						// went outside the editor!
 						this._onMouseLeave(new EditorMouseEvent(e, false, this.viewHelper.viewDomNode));
@@ -464,7 +464,7 @@ class MouseDownOperation extends Disposable {
 				(browserEvent?: MouseEvent | KeyboardEvent) => {
 					const position = this._findMousePosition(this._lastMouseEvent!, false);
 
-					if (browserEvent && browserEvent instanceof KeyboardEvent) {
+					if (dom.isKeyboardEvent(browserEvent)) {
 						// cancel
 						this._viewController.emitMouseDropCanceled();
 					} else {
@@ -682,7 +682,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		this._position = position;
 		this._mouseEvent = mouseEvent;
 		this._lastTime = Date.now();
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute(), dom.getWindow(mouseEvent.browserEvent));
 	}
 
 	public override dispose(): void {
@@ -752,7 +752,7 @@ class TopBottomDragScrollingOperation extends Disposable {
 		}
 
 		this._dispatchMouse(mouseTarget, true, NavigationCommandRevealType.None);
-		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute());
+		this._animationFrameDisposable = dom.scheduleAtNextAnimationFrame(() => this._execute(), dom.getWindow(mouseTarget.element));
 	}
 }
 

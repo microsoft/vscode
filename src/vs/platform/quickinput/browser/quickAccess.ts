@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DefaultQuickAccessFilterValue, Extensions, IQuickAccessController, IQuickAccessOptions, IQuickAccessProvider, IQuickAccessProviderDescriptor, IQuickAccessProviderRunOptions, IQuickAccessRegistry } from 'vs/platform/quickinput/common/quickAccess';
@@ -112,7 +112,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 		let pickPromise: DeferredPromise<IQuickPickItem[]> | undefined = undefined;
 		if (pick) {
 			pickPromise = new DeferredPromise<IQuickPickItem[]>();
-			disposables.add(once(picker.onWillAccept)(e => {
+			disposables.add(Event.once(picker.onWillAccept)(e => {
 				e.veto();
 				picker.hide();
 			}));
@@ -131,7 +131,7 @@ export class QuickAccessController extends Disposable implements IQuickAccessCon
 
 		// Finally, trigger disposal and cancellation when the picker
 		// hides depending on items selected or not.
-		once(picker.onDidHide)(() => {
+		Event.once(picker.onDidHide)(() => {
 			if (picker.selectedItems.length === 0) {
 				cts.cancel();
 			}

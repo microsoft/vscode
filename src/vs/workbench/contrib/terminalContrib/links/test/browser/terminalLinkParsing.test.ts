@@ -5,6 +5,7 @@
 
 import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { detectLinks, detectLinkSuffixes, getLinkSuffix, IParsedLink, removeLinkQueryString, removeLinkSuffix } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkParsing';
 
 interface ITestLink {
@@ -47,6 +48,8 @@ const testLinks: ITestLink[] = [
 	{ link: 'foo 339', prefix: undefined, suffix: ' 339', hasRow: true, hasCol: false },
 	{ link: 'foo 339:12', prefix: undefined, suffix: ' 339:12', hasRow: true, hasCol: true },
 	{ link: 'foo 339.12', prefix: undefined, suffix: ' 339.12', hasRow: true, hasCol: true },
+	{ link: 'foo 339.12-14', prefix: undefined, suffix: ' 339.12-14', hasRow: true, hasCol: true, hasRowEnd: false, hasColEnd: true },
+	{ link: 'foo 339.12-341.14', prefix: undefined, suffix: ' 339.12-341.14', hasRow: true, hasCol: true, hasRowEnd: true, hasColEnd: true },
 
 	// Double quotes
 	{ link: '"foo",339', prefix: '"', suffix: '",339', hasRow: true, hasCol: false },
@@ -140,6 +143,8 @@ const testLinks: ITestLink[] = [
 const testLinksWithSuffix = testLinks.filter(e => !!e.suffix);
 
 suite('TerminalLinkParsing', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('removeLinkSuffix', () => {
 		for (const testLink of testLinks) {
 			test('`' + testLink.link + '`', () => {

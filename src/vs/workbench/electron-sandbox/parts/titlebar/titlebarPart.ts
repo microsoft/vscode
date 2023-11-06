@@ -11,7 +11,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { isMacintosh, isWindows, isLinux, isNative } from 'vs/base/common/platform';
-import { MenuId } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { TitlebarPart as BrowserTitleBarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -23,6 +23,9 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { NativeMenubarControl } from 'vs/workbench/electron-sandbox/parts/titlebar/menubarControl';
 import { IHoverService } from 'vs/workbench/services/hover/browser/hover';
+import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 export class TitlebarPart extends BrowserTitleBarPart {
 	private maxRestoreControl: HTMLElement | undefined;
@@ -66,8 +69,12 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		@IHostService hostService: IHostService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IHoverService hoverService: IHoverService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService,
+		@IMenuService menuService: IMenuService,
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService);
+		super(contextMenuService, configurationService, environmentService, instantiationService, themeService, storageService, layoutService, contextKeyService, hostService, hoverService, editorGroupService, editorService, menuService, keybindingService);
 
 		this.environmentService = environmentService;
 	}
@@ -198,7 +205,7 @@ export class TitlebarPart extends BrowserTitleBarPart {
 		// Window System Context Menu
 		// See https://github.com/electron/electron/issues/24893
 		if (isWindows && getTitleBarStyle(this.configurationService) === 'custom') {
-			this._register(this.nativeHostService.onDidTriggerSystemContextMenu(({ windowId, x, y }) => {
+			this._register(this.nativeHostService.onDidTriggerMainWindowSystemContextMenu(({ windowId, x, y }) => {
 				if (this.nativeHostService.windowId !== windowId) {
 					return;
 				}

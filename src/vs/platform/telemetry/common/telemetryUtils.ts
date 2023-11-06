@@ -122,7 +122,7 @@ export function supportsTelemetry(productService: IProductService, environmentSe
 	if (!environmentService.isBuilt && !environmentService.disableTelemetry) {
 		return true;
 	}
-	return !(environmentService.disableTelemetry || !productService.enableTelemetry || environmentService.extensionTestsLocationURI);
+	return !(environmentService.disableTelemetry || !productService.enableTelemetry);
 }
 
 /**
@@ -133,6 +133,10 @@ export function supportsTelemetry(productService: IProductService, environmentSe
  * @returns True if telemetry is actually disabled and we're only logging for debug purposes
  */
 export function isLoggingOnly(productService: IProductService, environmentService: IEnvironmentService): boolean {
+	// If we're testing an extension, log telemetry for debug purposes
+	if (environmentService.extensionTestsLocationURI) {
+		return true;
+	}
 	// Logging only mode is only for OSS
 	if (environmentService.isBuilt) {
 		return false;

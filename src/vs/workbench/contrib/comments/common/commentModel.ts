@@ -119,7 +119,10 @@ export class CommentsModel {
 		changed.forEach(thread => {
 			// Find resource that has the comment thread
 			const matchingResourceIndex = threadsForOwner.findIndex((resourceData) => resourceData.id === thread.resource);
-			const matchingResourceData = threadsForOwner[matchingResourceIndex];
+			const matchingResourceData = matchingResourceIndex >= 0 ? threadsForOwner[matchingResourceIndex] : undefined;
+			if (!matchingResourceData) {
+				return;
+			}
 
 			// Find comment node on resource that is that thread and replace it
 			const index = matchingResourceData.commentThreads.findIndex((commentThread) => commentThread.threadId === thread.threadId);

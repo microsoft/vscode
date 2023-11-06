@@ -47,8 +47,11 @@ import { platform } from 'vs/base/common/platform';
 import { arch } from 'vs/base/common/process';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('ExtensionsViews Tests', () => {
+
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let testableView: ExtensionsListView;
@@ -75,13 +78,13 @@ suite('ExtensionsViews Tests', () => {
 	const fileBasedRecommendationB = aGalleryExtension('filebased-recommendation-B');
 	const otherRecommendationA = aGalleryExtension('other-recommendation-A');
 
-	suiteSetup(() => {
-		installEvent = new Emitter<InstallExtensionEvent>();
-		didInstallEvent = new Emitter<readonly InstallExtensionResult[]>();
-		uninstallEvent = new Emitter<UninstallExtensionEvent>();
-		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+	setup(async () => {
+		installEvent = disposableStore.add(new Emitter<InstallExtensionEvent>());
+		didInstallEvent = disposableStore.add(new Emitter<readonly InstallExtensionResult[]>());
+		uninstallEvent = disposableStore.add(new Emitter<UninstallExtensionEvent>());
+		didUninstallEvent = disposableStore.add(new Emitter<DidUninstallExtensionEvent>());
 
-		instantiationService = new TestInstantiationService();
+		instantiationService = disposableStore.add(new TestInstantiationService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(ILogService, NullLogService);
 		instantiationService.stub(IProductService, {});
@@ -122,7 +125,7 @@ suite('ExtensionsViews Tests', () => {
 			}
 		});
 
-		instantiationService.stub(IWorkbenchExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
+		instantiationService.stub(IWorkbenchExtensionEnablementService, disposableStore.add(new TestExtensionEnablementService(instantiationService)));
 
 		const reasons: { [key: string]: any } = {};
 		reasons[workspaceRecommendationA.identifier.id] = { reasonId: ExtensionRecommendationReason.Workspace };
@@ -163,9 +166,7 @@ suite('ExtensionsViews Tests', () => {
 			}
 		});
 		instantiationService.stub(IURLService, NativeURLService);
-	});
 
-	setup(async () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [localEnabledTheme, localEnabledLanguage, localRandom, localDisabledTheme, localDisabledLanguage, builtInTheme, builtInBasic]);
 		instantiationService.stubPromise(IExtensionManagementService, 'getExtensgetExtensionsControlManifestionsReport', {});
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
@@ -195,17 +196,8 @@ suite('ExtensionsViews Tests', () => {
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledTheme], EnablementState.DisabledGlobally);
 		await (<TestExtensionEnablementService>instantiationService.get(IWorkbenchExtensionEnablementService)).setEnablement([localDisabledLanguage], EnablementState.DisabledGlobally);
 
-		instantiationService.set(IExtensionsWorkbenchService, instantiationService.createInstance(ExtensionsWorkbenchService));
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
-	});
-
-	teardown(() => {
-		(<ExtensionsWorkbenchService>instantiationService.get(IExtensionsWorkbenchService)).dispose();
-		testableView.dispose();
-	});
-
-	suiteTeardown(() => {
-		instantiationService.dispose();
+		instantiationService.set(IExtensionsWorkbenchService, disposableStore.add(instantiationService.createInstance(ExtensionsWorkbenchService)));
+		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 	});
 
 	test('Test query types', () => {
@@ -513,7 +505,7 @@ suite('ExtensionsViews Tests', () => {
 		});
 
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
+		testableView = disposableStore.add(instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 
 		return testableView.show('search-me').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];
@@ -540,7 +532,7 @@ suite('ExtensionsViews Tests', () => {
 		const queryTarget = <SinonStub>instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(...realResults));
 
 		testableView.dispose();
-		testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' });
+		disposableStore.add(testableView = instantiationService.createInstance(ExtensionsListView, {}, { id: '', title: '' }));
 
 		return testableView.show('search-me @sort:installs').then(result => {
 			const options: IQueryOptions = queryTarget.args[0][0];

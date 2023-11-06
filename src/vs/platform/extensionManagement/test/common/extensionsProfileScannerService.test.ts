@@ -6,9 +6,9 @@
 import * as assert from 'assert';
 import * as sinon from 'sinon';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { joinPath } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { AbstractExtensionsProfileScannerService, ProfileExtensionsEvent } from 'vs/platform/extensionManagement/common/extensionsProfileScannerService';
 import { ExtensionType, IExtension, IExtensionManifest, TargetPlatform } from 'vs/platform/extensions/common/extensions';
@@ -28,7 +28,7 @@ class TestObject extends AbstractExtensionsProfileScannerService { }
 suite('ExtensionsProfileScannerService', () => {
 
 	const ROOT = URI.file('/ROOT');
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	const extensionsLocation = joinPath(ROOT, 'extensions');
 	let instantiationService: TestInstantiationService;
@@ -38,22 +38,20 @@ suite('ExtensionsProfileScannerService', () => {
 		const logService = new NullLogService();
 		const fileService = disposables.add(new FileService(logService));
 		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		fileService.registerProvider(ROOT.scheme, fileSystemProvider);
+		disposables.add(fileService.registerProvider(ROOT.scheme, fileSystemProvider));
 		instantiationService.stub(ILogService, logService);
 		instantiationService.stub(IFileService, fileService);
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		const uriIdentityService = instantiationService.stub(IUriIdentityService, new UriIdentityService(fileService));
+		const uriIdentityService = instantiationService.stub(IUriIdentityService, disposables.add(new UriIdentityService(fileService)));
 		const environmentService = instantiationService.stub(IEnvironmentService, { userRoamingDataHome: ROOT, cacheHome: joinPath(ROOT, 'cache'), });
-		const userDataProfilesService = new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService);
+		const userDataProfilesService = disposables.add(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
 		instantiationService.stub(IUserDataProfilesService, userDataProfilesService);
 	});
-
-	teardown(() => disposables.clear());
 
 	suiteTeardown(() => sinon.restore());
 
 	test('write extensions located in the same extensions folder', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
@@ -64,7 +62,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('write extensions located in the different folder', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
@@ -75,7 +73,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('write extensions located in the same extensions folder has relative location ', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(extensionsLocation, 'pub.a-1.0.0'));
@@ -86,7 +84,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('write extensions located in different extensions folder does not has relative location ', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
@@ -105,7 +103,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
@@ -123,7 +121,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
@@ -141,7 +139,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const extension2 = aExtension('pub.b', joinPath(extensionsLocation, 'pub.b-1.0.0'));
 		await testObject.addExtensionsToProfile([[extension2, undefined]], extensionsManifest);
 
@@ -173,7 +171,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension2.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
@@ -197,7 +195,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
@@ -215,7 +213,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const extension2 = aExtension('pub.b', joinPath(extensionsLocation, 'pub.b-1.0.0'));
 		await testObject.addExtensionsToProfile([[extension2, undefined]], extensionsManifest);
 
@@ -247,7 +245,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension2.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
@@ -287,7 +285,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension4.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [
@@ -316,7 +314,7 @@ suite('ExtensionsProfileScannerService', () => {
 			relativePath: 2
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -333,7 +331,7 @@ suite('ExtensionsProfileScannerService', () => {
 			relativePath: 'pub.a-1.0.0'
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -351,7 +349,7 @@ suite('ExtensionsProfileScannerService', () => {
 			relativePath: 'pub.a-1.0.0'
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -367,7 +365,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -384,7 +382,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -400,7 +398,7 @@ suite('ExtensionsProfileScannerService', () => {
 			location: extension.location.toJSON(),
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		try {
 			await testObject.scanProfileExtensions(extensionsManifest);
@@ -412,7 +410,7 @@ suite('ExtensionsProfileScannerService', () => {
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		await instantiationService.get(IFileService).writeFile(extensionsManifest, VSBuffer.fromString(''));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual, []);
 	});
@@ -423,7 +421,7 @@ suite('ExtensionsProfileScannerService', () => {
 
 
 		`));
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual, []);
 	});
@@ -438,7 +436,7 @@ suite('ExtensionsProfileScannerService', () => {
 			version: extension.manifest.version,
 		}])));
 
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
 		assert.deepStrictEqual(actual.map(a => ({ ...a, location: a.location.toJSON() })), [{ identifier: extension.identifier, location: extension.location.toJSON(), version: extension.manifest.version, metadata: undefined }]);
@@ -448,11 +446,11 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add extension trigger events', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const target1 = sinon.stub();
 		const target2 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onDidAddExtensions(target2);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onDidAddExtensions(target2));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
@@ -477,11 +475,11 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('remove extension trigger events', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 		const target1 = sinon.stub();
 		const target2 = sinon.stub();
-		testObject.onRemoveExtensions(target1);
-		testObject.onDidRemoveExtensions(target2);
+		disposables.add(testObject.onRemoveExtensions(target1));
+		disposables.add(testObject.onDidRemoveExtensions(target2));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 		const extension = aExtension('pub.a', joinPath(ROOT, 'foo', 'pub.a-1.0.0'));
@@ -507,7 +505,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add extension with same id but different version', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 
@@ -518,10 +516,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const target2 = sinon.stub();
 		const target3 = sinon.stub();
 		const target4 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onRemoveExtensions(target2);
-		testObject.onDidAddExtensions(target3);
-		testObject.onDidRemoveExtensions(target4);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onRemoveExtensions(target2));
+		disposables.add(testObject.onDidAddExtensions(target3));
+		disposables.add(testObject.onDidRemoveExtensions(target4));
 		const extension2 = aExtension('pub.a', joinPath(ROOT, 'pub.a-2.0.0'), undefined, { version: '2.0.0' });
 		await testObject.addExtensionsToProfile([[extension2, undefined]], extensionsManifest);
 
@@ -558,7 +556,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add same extension', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 
@@ -569,10 +567,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const target2 = sinon.stub();
 		const target3 = sinon.stub();
 		const target4 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onRemoveExtensions(target2);
-		testObject.onDidAddExtensions(target3);
-		testObject.onDidRemoveExtensions(target4);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onRemoveExtensions(target2));
+		disposables.add(testObject.onDidAddExtensions(target3));
+		disposables.add(testObject.onDidRemoveExtensions(target4));
 		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
@@ -584,7 +582,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add same extension with different metadata', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 
@@ -595,10 +593,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const target2 = sinon.stub();
 		const target3 = sinon.stub();
 		const target4 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onRemoveExtensions(target2);
-		testObject.onDidAddExtensions(target3);
-		testObject.onDidRemoveExtensions(target4);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onRemoveExtensions(target2));
+		disposables.add(testObject.onDidAddExtensions(target3));
+		disposables.add(testObject.onDidRemoveExtensions(target4));
 		await testObject.addExtensionsToProfile([[extension, { isApplicationScoped: true }]], extensionsManifest);
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
@@ -610,7 +608,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add extension with different version and metadata', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 
@@ -622,10 +620,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const target2 = sinon.stub();
 		const target3 = sinon.stub();
 		const target4 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onRemoveExtensions(target2);
-		testObject.onDidAddExtensions(target3);
-		testObject.onDidRemoveExtensions(target4);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onRemoveExtensions(target2));
+		disposables.add(testObject.onDidAddExtensions(target3));
+		disposables.add(testObject.onDidRemoveExtensions(target4));
 		await testObject.addExtensionsToProfile([[extension2, { isApplicationScoped: true }]], extensionsManifest);
 
 		const actual = await testObject.scanProfileExtensions(extensionsManifest);
@@ -661,7 +659,7 @@ suite('ExtensionsProfileScannerService', () => {
 	});
 
 	test('add extension with same id and version located in the different folder', async () => {
-		const testObject = instantiationService.createInstance(TestObject, extensionsLocation);
+		const testObject = disposables.add(instantiationService.createInstance(TestObject, extensionsLocation));
 
 		const extensionsManifest = joinPath(extensionsLocation, 'extensions.json');
 
@@ -672,10 +670,10 @@ suite('ExtensionsProfileScannerService', () => {
 		const target2 = sinon.stub();
 		const target3 = sinon.stub();
 		const target4 = sinon.stub();
-		testObject.onAddExtensions(target1);
-		testObject.onRemoveExtensions(target2);
-		testObject.onDidAddExtensions(target3);
-		testObject.onDidRemoveExtensions(target4);
+		disposables.add(testObject.onAddExtensions(target1));
+		disposables.add(testObject.onRemoveExtensions(target2));
+		disposables.add(testObject.onDidAddExtensions(target3));
+		disposables.add(testObject.onDidRemoveExtensions(target4));
 		extension = aExtension('pub.a', joinPath(ROOT, 'pub.a-1.0.0'));
 		await testObject.addExtensionsToProfile([[extension, undefined]], extensionsManifest);
 

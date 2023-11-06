@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { deepStrictEqual, ok } from 'assert';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -13,6 +13,8 @@ import { TestInstantiationService } from 'vs/platform/instantiation/test/common/
 import { IContextMenuDelegate } from 'vs/base/browser/contextmenu';
 import { importAMDNodeModule } from 'vs/amdX';
 import { writeP } from 'vs/workbench/contrib/terminal/browser/terminalTestHelpers';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 type TestTerminalCommandMatch = Pick<ITerminalCommand, 'command' | 'cwd' | 'exitCode'> & { marker: { line: number } };
 
@@ -23,6 +25,8 @@ class TestCommandDetectionCapability extends CommandDetectionCapability {
 }
 
 suite('CommandDetectionCapability', () => {
+	let disposables: DisposableStore;
+
 	let xterm: Terminal;
 	let capability: TestCommandDetectionCapability;
 	let addEvents: ITerminalCommand[];
@@ -57,20 +61,21 @@ suite('CommandDetectionCapability', () => {
 	}
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		disposables = new DisposableStore();
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80 });
-		instantiationService = new TestInstantiationService();
+		instantiationService = disposables.add(new TestInstantiationService());
 		instantiationService.stub(IContextMenuService, { showContextMenu(delegate: IContextMenuDelegate): void { } } as Partial<IContextMenuService>);
-		capability = new TestCommandDetectionCapability(xterm, new NullLogService());
+		capability = disposables.add(new TestCommandDetectionCapability(xterm, new NullLogService()));
 		addEvents = [];
 		capability.onCommandFinished(e => addEvents.push(e));
 		assertCommands([]);
 	});
 
-	teardown(() => {
-		instantiationService.dispose();
-	});
+	teardown(() => disposables.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('should not add commands when no capability methods are triggered', async () => {
 		await writeP(xterm, 'foo\r\nbar\r\n');

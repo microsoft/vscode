@@ -433,7 +433,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Unless there are explicit contents provided, it is important that we do not
 		// resolve a working copy that is dirty or is in the process of saving to prevent
 		// data loss.
-		if (!options?.contents && (this.dirty || this.saveSequentializer.hasPending())) {
+		if (!options?.contents && (this.dirty || this.saveSequentializer.isRunning())) {
 			this.trace('resolve() - exit - without resolving because file working copy is dirty or being saved');
 
 			return;
@@ -851,15 +851,15 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			return;
 		}
 
-		// Lookup any running pending save for this versionId and return it if found
+		// Lookup any running save for this versionId and return it if found
 		//
 		// Scenario: user invoked the save action multiple times quickly for the same contents
 		//           while the save was not yet finished to disk
 		//
-		if (this.saveSequentializer.hasPending(versionId)) {
-			this.trace(`doSave(${versionId}) - exit - found a pending save for versionId ${versionId}`);
+		if (this.saveSequentializer.isRunning(versionId)) {
+			this.trace(`doSave(${versionId}) - exit - found a running save for versionId ${versionId}`);
 
-			return this.saveSequentializer.pending;
+			return this.saveSequentializer.running;
 		}
 
 		// Return early if not dirty (unless forced)
@@ -879,20 +879,20 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		// Scenario B: save is very slow (e.g. network share) and the user manages to change the working copy and trigger another save
 		//             while the first save has not returned yet.
 		//
-		if (this.saveSequentializer.hasPending()) {
+		if (this.saveSequentializer.isRunning()) {
 			this.trace(`doSave(${versionId}) - exit - because busy saving`);
 
 			// Indicate to the save sequentializer that we want to
-			// cancel the pending operation so that ours can run
-			// before the pending one finishes.
-			// Currently this will try to cancel pending save
-			// participants and pending snapshots from the
+			// cancel the running operation so that ours can run
+			// before the running one finishes.
+			// Currently this will try to cancel running save
+			// participants and running snapshots from the
 			// save operation, but not the actual save which does
 			// not support cancellation yet.
-			this.saveSequentializer.cancelPending();
+			this.saveSequentializer.cancelRunning();
 
-			// Register this as the next upcoming save and return
-			return this.saveSequentializer.setNext(() => this.doSave(options));
+			// Queue this as the upcoming save and return
+			return this.saveSequentializer.queue(() => this.doSave(options));
 		}
 
 		// Push all edit operations to the undo stack so that the user has a chance to
@@ -903,7 +903,7 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 
 		const saveCancellation = new CancellationTokenSource();
 
-		return this.saveSequentializer.setPending(versionId, (async () => {
+		return this.saveSequentializer.run(versionId, (async () => {
 
 			// A save participant can still change the working copy now
 			// and since we are so close to saving we do not want to trigger
@@ -975,13 +975,13 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			// Clear error flag since we are trying to save again
 			this.inErrorMode = false;
 
-			// Save to Disk. We mark the save operation as currently pending with
+			// Save to Disk. We mark the save operation as currently running with
 			// the latest versionId because it might have changed from a save
 			// participant triggering
 			this.trace(`doSave(${versionId}) - before write()`);
 			const lastResolvedFileStat = assertIsDefined(this.lastResolvedFileStat);
 			const resolvedFileWorkingCopy = this;
-			return this.saveSequentializer.setPending(versionId, (async () => {
+			return this.saveSequentializer.run(versionId, (async () => {
 				try {
 					const writeFileOptions: IWriteFileOptions = {
 						mtime: lastResolvedFileStat.mtime,
@@ -1169,8 +1169,8 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 		const handle = this.notificationService.notify({ id: `${hash(this.resource.toString())}`, severity: Severity.Error, message, actions: { primary: primaryActions } });
 
 		// Remove automatically when we get saved/reverted
-		const listener = Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close());
-		Event.once(handle.onDidClose)(() => listener.dispose());
+		const listener = this._register(Event.once(Event.any(this.onDidSave, this.onDidRevert))(() => handle.close()));
+		this._register(Event.once(handle.onDidClose)(() => listener.dispose()));
 	}
 
 	private updateLastResolvedFileStat(newFileStat: IFileStatWithMetadata): void {
@@ -1256,14 +1256,14 @@ export class StoredFileWorkingCopy<M extends IStoredFileWorkingCopyModel> extend
 			case StoredFileWorkingCopyState.ORPHAN:
 				return this.isOrphaned();
 			case StoredFileWorkingCopyState.PENDING_SAVE:
-				return this.saveSequentializer.hasPending();
+				return this.saveSequentializer.isRunning();
 			case StoredFileWorkingCopyState.SAVED:
 				return !this.dirty;
 		}
 	}
 
 	async joinState(state: StoredFileWorkingCopyState.PENDING_SAVE): Promise<void> {
-		return this.saveSequentializer.pending;
+		return this.saveSequentializer.running;
 	}
 
 	//#endregion

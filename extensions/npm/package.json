@@ -4,6 +4,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "version": "1.0.1",
+  "private": true,
   "license": "MIT",
   "engines": {
     "vscode": "0.10.x"
@@ -16,25 +17,22 @@
     "terminalQuickFixProvider"
   ],
   "scripts": {
-    "compile": "gulp compile-extension:npm",
-    "watch": "gulp watch-extension:npm"
+    "compile": "npx gulp compile-extension:npm",
+    "watch": "npx gulp watch-extension:npm"
   },
   "dependencies": {
-    "find-up": "^4.1.0",
+    "find-up": "^5.0.0",
     "find-yarn-workspace-root": "^2.0.0",
-    "jsonc-parser": "^2.2.1",
-    "minimatch": "^3.0.4",
+    "jsonc-parser": "^3.2.0",
+    "minimatch": "^5.1.6",
     "request-light": "^0.7.0",
-    "which": "^2.0.2",
-    "which-pm": "^2.0.0"
+    "which": "^4.0.0",
+    "which-pm": "^2.1.1"
   },
   "devDependencies": {
-    "@types/minimatch": "^3.0.3",
+    "@types/minimatch": "^5.1.2",
     "@types/node": "18.x",
-    "@types/which": "^2.0.0"
-  },
-  "resolutions": {
-    "which-pm/load-yaml-file/**/argparse": "1.0.9"
+    "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
   "browser": "./dist/browser/npmBrowserMain",

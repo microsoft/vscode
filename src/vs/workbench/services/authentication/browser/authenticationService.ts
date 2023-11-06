@@ -13,7 +13,6 @@ import * as nls from 'vs/nls';
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICredentialsService } from 'vs/platform/credentials/common/credentials';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Severity } from 'vs/platform/notification/common/notification';
@@ -80,14 +79,10 @@ export function addAccountUsage(storageService: IStorageService, providerId: str
 // TODO: pull this out into its own service
 export type AuthenticationSessionInfo = { readonly id: string; readonly accessToken: string; readonly providerId: string; readonly canSignOut?: boolean };
 export async function getCurrentAuthenticationSessionInfo(
-	// TODO: Remove when all known embedders implement SecretStorageProviders instead of CredentialsProviders
-	credentialsService: ICredentialsService,
 	secretStorageService: ISecretStorageService,
 	productService: IProductService
 ): Promise<AuthenticationSessionInfo | undefined> {
-	const authenticationSessionValue =
-		await secretStorageService.get(`${productService.urlProtocol}.loginAccount`)
-		?? await credentialsService.getPassword(`${productService.urlProtocol}.login`, 'account');
+	const authenticationSessionValue = await secretStorageService.get(`${productService.urlProtocol}.loginAccount`);
 	if (authenticationSessionValue) {
 		try {
 			const authenticationSessionInfo: AuthenticationSessionInfo = JSON.parse(authenticationSessionValue);

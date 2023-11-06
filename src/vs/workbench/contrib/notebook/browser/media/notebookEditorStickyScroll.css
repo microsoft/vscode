@@ -15,7 +15,17 @@
 	.notebookOverlay
 	.notebook-sticky-scroll-container
 	.notebook-sticky-scroll-line {
+	background-color: var(--vscode-notebook-editorBackground);
+	position: relative;
+	z-index: 0;
 	padding-left: 12px;
+	/* transition: margin-top 0.2s ease-in-out; */
+}
+
+.monaco-workbench.hc-light .notebookOverlay .notebook-sticky-scroll-container,
+.monaco-workbench.hc-black .notebookOverlay .notebook-sticky-scroll-container {
+	background-color: var(--vscode-editorStickyScroll-background);
+	border-bottom: 1px solid var(--vscode-contrastBorder);
 }
 
 .monaco-workbench

@@ -4,30 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { CoreEditingCommands, CoreNavigationCommands } from 'vs/editor/browser/coreCommands';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
-import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
-import { TextModel } from 'vs/editor/common/model/textModel';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { EncodedTokenizationResult, IState, ITokenizationSupport, TokenizationRegistry } from 'vs/editor/common/languages';
-import { StandardTokenType, MetadataConsts } from 'vs/editor/common/encodedTokenAttributes';
+import { ILanguageService } from 'vs/editor/common/languages/language';
 import { IndentAction, IndentationRule } from 'vs/editor/common/languages/languageConfiguration';
 import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
 import { NullState } from 'vs/editor/common/languages/nullTokenize';
-import { withTestCodeEditor, TestCodeEditorInstantiationOptions, ITestCodeEditor, createCodeEditorServices, instantiateTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
-import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { EndOfLinePreference, EndOfLineSequence, ITextModel } from 'vs/editor/common/model';
+import { TextModel } from 'vs/editor/common/model/textModel';
 import { ViewModel } from 'vs/editor/common/viewModel/viewModelImpl';
 import { OutgoingViewModelEventKind } from 'vs/editor/common/viewModelEventDispatcher';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ICursorPositionChangedEvent } from 'vs/editor/common/cursorEvents';
+import { ITestCodeEditor, TestCodeEditorInstantiationOptions, createCodeEditorServices, instantiateTestCodeEditor, withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
+import { IRelaxedTextModelCreationOptions, createTextModel, instantiateTextModel } from 'vs/editor/test/common/testTextModel';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { URI } from 'vs/base/common/uri';
 
 // --------- utils
 
@@ -141,6 +142,8 @@ suite('Editor Controller - Cursor', () => {
 			callback(editor, viewModel);
 		});
 	}
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('cursor initialized', () => {
 		runTest((editor, viewModel) => {
@@ -833,18 +836,20 @@ suite('Editor Controller - Cursor', () => {
 	// --------- eventing
 
 	test('no move doesn\'t trigger event', () => {
+
 		runTest((editor, viewModel) => {
-			viewModel.onEvent((e) => {
+			const disposable = viewModel.onEvent((e) => {
 				assert.ok(false, 'was not expecting event');
 			});
 			moveTo(editor, viewModel, 1, 1);
+			disposable.dispose();
 		});
 	});
 
 	test('move eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.onEvent((e) => {
+			const disposable = viewModel.onEvent((e) => {
 				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
 					events++;
 					assert.deepStrictEqual(e.selections, [new Selection(1, 2, 1, 2)]);
@@ -852,13 +857,14 @@ suite('Editor Controller - Cursor', () => {
 			});
 			moveTo(editor, viewModel, 1, 2);
 			assert.strictEqual(events, 1, 'receives 1 event');
+			disposable.dispose();
 		});
 	});
 
 	test('move in selection mode eventing', () => {
 		runTest((editor, viewModel) => {
 			let events = 0;
-			viewModel.onEvent((e) => {
+			const disposable = viewModel.onEvent((e) => {
 				if (e.kind === OutgoingViewModelEventKind.CursorStateChanged) {
 					events++;
 					assert.deepStrictEqual(e.selections, [new Selection(1, 1, 1, 2)]);
@@ -866,6 +872,7 @@ suite('Editor Controller - Cursor', () => {
 			});
 			moveTo(editor, viewModel, 1, 2, true);
 			assert.strictEqual(events, 1, 'receives 1 event');
+			disposable.dispose();
 		});
 	});
 
@@ -1337,7 +1344,7 @@ suite('Editor Controller - Cursor', () => {
 
 		withTestCodeEditor(model, {}, (editor1, cursor1) => {
 			let event: ICursorPositionChangedEvent | undefined = undefined;
-			editor1.onDidChangeCursorPosition(e => {
+			const disposable = editor1.onDidChangeCursorPosition(e => {
 				event = e;
 			});
 
@@ -1347,6 +1354,7 @@ suite('Editor Controller - Cursor', () => {
 			event = undefined;
 			editor1.setPosition(new Position(1, 2), 'navigation');
 			assert.strictEqual(event!.source, 'navigation');
+			disposable.dispose();
 		});
 
 		languageRegistration.dispose();
@@ -1403,6 +1411,8 @@ suite('Editor Controller', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function setupOnEnterLanguage(indentAction: IndentAction): string {
 		const onEnterLanguageId = 'onEnterMode';
 
@@ -1429,6 +1439,9 @@ suite('Editor Controller', () => {
 	function setupAutoClosingLanguage() {
 		disposables.add(languageService.registerLanguage({ id: autoClosingLanguageId }));
 		disposables.add(languageConfigurationService.register(autoClosingLanguageId, {
+			comments: {
+				blockComment: ['/*', '*/']
+			},
 			autoClosingPairs: [
 				{ open: '{', close: '}' },
 				{ open: '[', close: ']' },
@@ -2207,7 +2220,7 @@ suite('Editor Controller', () => {
 			moveTo(editor, viewModel, 3, 4, true);
 
 			let isFirst = true;
-			model.onDidChangeContent(() => {
+			const disposable = model.onDidChangeContent(() => {
 				if (isFirst) {
 					isFirst = false;
 					viewModel.type('\t', 'keyboard');
@@ -2239,6 +2252,8 @@ suite('Editor Controller', () => {
 				'and more lines',
 				'just some text',
 			].join('\n'), '004');
+
+			disposable.dispose();
 		});
 	});
 
@@ -2723,11 +2738,13 @@ suite('Editor Controller', () => {
 		withTestCodeEditor(model, {}, (editor1, cursor1) => {
 			withTestCodeEditor(model, {}, (editor2, cursor2) => {
 
-				editor1.onDidChangeCursorPosition(() => {
+				const disposable = editor1.onDidChangeCursorPosition(() => {
 					model.tokenization.tokenizeIfCheap(1);
 				});
 
 				model.applyEdits([{ range: new Range(1, 1, 1, 1), text: '-' }]);
+
+				disposable.dispose();
 			});
 		});
 
@@ -4859,12 +4876,13 @@ suite('Editor Controller', () => {
 		}, (editor, model, viewModel) => {
 			moveTo(editor, viewModel, 1, 5);
 			let changeText: string | null = null;
-			model.onDidChangeContent(e => {
+			const disposable = model.onDidChangeContent(e => {
 				changeText = e.changes[0].text;
 			});
 			viewModel.type(')', 'keyboard');
 			assert.deepStrictEqual(model.getLineContent(1), '(div)');
 			assert.deepStrictEqual(changeText, ')');
+			disposable.dispose();
 		});
 	});
 
@@ -5340,6 +5358,24 @@ suite('Editor Controller', () => {
 			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
 			viewModel.type('*', 'keyboard');
 			assert.strictEqual(model.getLineContent(1), '/** */');
+		});
+	});
+
+	test('autoClosingPairs - doc comments can be turned off', () => {
+		usingCursor({
+			text: [
+				'',
+			],
+			languageId: autoClosingLanguageId,
+			editorOpts: {
+				autoClosingComments: 'never'
+			}
+		}, (editor, model, viewModel) => {
+
+			model.setValue('/*');
+			viewModel.setSelections('test', [new Selection(1, 3, 1, 3)]);
+			viewModel.type('*', 'keyboard');
+			assert.strictEqual(model.getLineContent(1), '/**');
 		});
 	});
 
@@ -6148,6 +6184,8 @@ suite('Editor Controller', () => {
 });
 
 suite('Undo stops', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('there is an undo stop between typing and deleting left', () => {
 		const model = createTextModel(

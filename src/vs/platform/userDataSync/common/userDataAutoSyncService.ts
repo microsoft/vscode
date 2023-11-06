@@ -424,7 +424,10 @@ class AutoSync extends Disposable {
 	}
 
 	private waitUntilNextIntervalAndSync(): void {
-		this.intervalHandler.value = disposableTimeout(() => this.sync(AutoSync.INTERVAL_SYNCING, false), this.interval);
+		this.intervalHandler.value = disposableTimeout(() => {
+			this.sync(AutoSync.INTERVAL_SYNCING, false);
+			this.intervalHandler.value = undefined;
+		}, this.interval);
 	}
 
 	sync(reason: string, disableCache: boolean): Promise<void> {

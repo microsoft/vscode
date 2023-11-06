@@ -17,7 +17,7 @@ import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { DebugModel } from 'vs/workbench/contrib/debug/common/debugModel';
 import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { ansiColorMap } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { ansiColorMap, registerColors } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 
 suite('Debug - ANSI Handling', () => {
@@ -45,6 +45,7 @@ suite('Debug - ANSI Handling', () => {
 		}
 		const testTheme = new TestColorTheme(colors);
 		themeService = new TestThemeService(testTheme);
+		registerColors();
 	});
 
 	teardown(() => {

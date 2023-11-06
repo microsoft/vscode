@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IMatch } from 'vs/base/common/filters';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { ResourceSet } from 'vs/base/common/map';
 import { basenameOrAuthority, dirname } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { IRange } from 'vs/editor/common/core/range';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
@@ -15,20 +16,20 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ILabelService } from 'vs/platform/label/common/label';
 import { WorkbenchCompressibleObjectTree, getSelectionKeyboardEvent } from 'vs/platform/list/browser/listService';
 import { FastAndSlowPicks, IPickerQuickAccessItem, PickerQuickAccessProvider, Picks } from 'vs/platform/quickinput/browser/pickerQuickAccess';
-import { DefaultQuickAccessFilterValue } from 'vs/platform/quickinput/common/quickAccess';
-import { IKeyMods, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
+import { DefaultQuickAccessFilterValue, IQuickAccessProviderRunOptions } from 'vs/platform/quickinput/common/quickAccess';
+import { IKeyMods, IQuickPick, IQuickPickItem, IQuickPickSeparator } from 'vs/platform/quickinput/common/quickInput';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { IViewsService } from 'vs/workbench/common/views';
 import { searchDetailsIcon, searchOpenInFileIcon } from 'vs/workbench/contrib/search/browser/searchIcons';
-import { FileMatch, Match, MatchInNotebook, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
+import { FileMatch, Match, RenderableMatch, SearchModel, searchComparer } from 'vs/workbench/contrib/search/browser/searchModel';
 import { SearchView, getEditorSelectionFromMatch } from 'vs/workbench/contrib/search/browser/searchView';
 import { IWorkbenchSearchConfiguration, getOutOfWorkspaceEditorResources } from 'vs/workbench/contrib/search/common/search';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITextQueryBuilderOptions, QueryBuilder } from 'vs/workbench/services/search/common/queryBuilder';
 import { IPatternInfo, ITextQuery, VIEW_ID } from 'vs/workbench/services/search/common/search';
 
-export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '% ';
+export const TEXT_SEARCH_QUICK_ACCESS_PREFIX = '%';
 
 const DEFAULT_TEXT_QUERY_BUILDER_OPTIONS: ITextQueryBuilderOptions = {
 	_reason: 'quickAccessSearch',
@@ -75,6 +76,22 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		this.searchModel = this._instantiationService.createInstance(SearchModel);
 	}
 
+	override dispose(): void {
+		this.searchModel.dispose();
+		super.dispose();
+	}
+
+	override provide(picker: IQuickPick<IPickerQuickAccessItem>, token: CancellationToken, runOptions?: IQuickAccessProviderRunOptions): IDisposable {
+		const disposables = new DisposableStore();
+		if (TEXT_SEARCH_QUICK_ACCESS_PREFIX.length < picker.value.length) {
+			picker.valueSelection = [TEXT_SEARCH_QUICK_ACCESS_PREFIX.length, picker.value.length];
+		}
+		disposables.add(super.provide(picker, token, runOptions));
+		disposables.add(picker.onDidHide(() => this.searchModel.searchResult.toggleHighlights(false)));
+		disposables.add(picker.onDidAccept(() => this.searchModel.searchResult.toggleHighlights(false)));
+		return disposables;
+	}
+
 	private get configuration() {
 		const editorConfig = this._configurationService.getValue<IWorkbenchEditorConfiguration>().workbench?.editor;
 		const searchConfig = this._configurationService.getValue<IWorkbenchSearchConfiguration>().search;
@@ -115,7 +132,8 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		const getAsyncResults = async () => {
 			await result.asyncResults;
-			return this.searchModel.searchResult.matches().filter(e => result.syncResults.indexOf(e) === -1);
+			const syncResultURIs = new ResourceSet(result.syncResults.map(e => e.resource));
+			return this.searchModel.searchResult.matches().filter(e => !syncResultURIs.has(e.resource));
 		};
 		return {
 			syncResults: this.searchModel.searchResult.matches(),
@@ -208,8 +226,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 							keyMods,
 							selection: getEditorSelectionFromMatch(element, this.searchModel),
 							preserveFocus: event.inBackground,
-							forcePinned: event.inBackground,
-							indexedCellOptions: element instanceof MatchInNotebook ? { index: element.cellIndex, selection: element.range() } : undefined
+							forcePinned: event.inBackground
 						});
 					}
 				});
@@ -218,7 +235,7 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		return picks;
 	}
 
-	private async handleAccept(fileMatch: FileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean; indexedCellOptions?: { index: number; selection?: Range } }): Promise<void> {
+	private async handleAccept(fileMatch: FileMatch, options: { keyMods?: IKeyMods; selection?: ITextEditorSelection; preserveFocus?: boolean; range?: IRange; forcePinned?: boolean; forceOpenSideBySide?: boolean }): Promise<void> {
 		const editorOptions = {
 			preserveFocus: options.preserveFocus,
 			pinned: options.keyMods?.ctrlCmd || options.forcePinned || this.configuration.openEditorPinned,
@@ -247,6 +264,9 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 		}
 		const matches = allMatches.syncResults;
 		const syncResult = this._getPicksFromMatches(matches, MAX_FILES_SHOWN);
+		if (syncResult.length > 0) {
+			this.searchModel.searchResult.toggleHighlights(true);
+		}
 
 		if (matches.length >= MAX_FILES_SHOWN) {
 			return syncResult;
@@ -254,9 +274,16 @@ export class TextSearchQuickAccess extends PickerQuickAccessProvider<IPickerQuic
 
 		return {
 			picks: syncResult,
-			additionalPicks: allMatches.asyncResults.then((asyncResults) => {
-				return this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length);
-			})
+			additionalPicks: allMatches.asyncResults
+				.then(asyncResults => (asyncResults.length + syncResult.length === 0) ? [{
+					label: localize('noAnythingResults', "No matching results")
+				}] : this._getPicksFromMatches(asyncResults, MAX_FILES_SHOWN - matches.length))
+				.then(picks => {
+					if (picks.length > 0) {
+						this.searchModel.searchResult.toggleHighlights(true);
+					}
+					return picks;
+				})
 		};
 
 	}

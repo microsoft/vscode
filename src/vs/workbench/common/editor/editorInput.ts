@@ -69,8 +69,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed: boolean = false;
-
 	/**
 	 * Optional: subclasses can override to implement
 	 * custom confirmation on close behavior.
@@ -316,12 +314,11 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
-		if (!this.disposed) {
-			this.disposed = true;
+		if (!this.isDisposed()) {
 			this._onWillDispose.fire();
 		}
 

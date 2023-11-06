@@ -14,7 +14,7 @@ import { MainThreadTelemetryShape } from 'vs/workbench/api/common/extHost.protoc
 import { IExtensionHostInitData } from 'vs/workbench/services/extensions/common/extensionHostProtocol';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { URI } from 'vs/base/common/uri';
-import { ILogService } from 'vs/platform/log/common/log';
+import { ILogService, LogLevel as LogServiceLevel } from 'vs/platform/log/common/log';
 import { IExtensionDescription } from 'vs/platform/extensions/common/extensions';
 import { LogLevel, createHttpPatch, createProxyResolver, createTlsPatch, ProxySupportSetting, ProxyAgentParams, createNetPatch } from '@vscode/proxy-agent';
 
@@ -53,8 +53,22 @@ export function connectProxyResolver(
 				extHostLogService.error(message, ...args);
 			}
 		},
-		getLogLevel: () => extHostLogService.getLevel(),
-		// TODO @chrmarti Remove this from proxy agent
+		getLogLevel: () => {
+			const level = extHostLogService.getLevel();
+			switch (level) {
+				case LogServiceLevel.Trace: return LogLevel.Trace;
+				case LogServiceLevel.Debug: return LogLevel.Debug;
+				case LogServiceLevel.Info: return LogLevel.Info;
+				case LogServiceLevel.Warning: return LogLevel.Warning;
+				case LogServiceLevel.Error: return LogLevel.Error;
+				case LogServiceLevel.Off: return LogLevel.Off;
+				default: return never(level);
+			}
+			function never(level: never) {
+				extHostLogService.error('Unknown log level', level);
+				return LogLevel.Debug;
+			}
+		},
 		proxyResolveTelemetry: () => { },
 		useHostProxy: doUseHostProxy,
 		addCertificates: [],

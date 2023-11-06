@@ -97,7 +97,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 }
 
 async function getNPMCommandPath(): Promise<string | undefined> {
-	if (canRunNpmInCurrentWorkspace()) {
+	if (vscode.workspace.isTrusted && canRunNpmInCurrentWorkspace()) {
 		try {
 			return await which(process.platform === 'win32' ? 'npm.cmd' : 'npm');
 		} catch (e) {

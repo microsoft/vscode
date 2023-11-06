@@ -183,8 +183,7 @@ export class UpToDateInlineCompletions implements IDisposable {
 	private readonly _prependedInlineCompletionItems: InlineCompletionItem[] = [];
 
 	private _rangeVersionIdValue = 0;
-	private readonly _rangeVersionId = derived(reader => {
-		/** @description ranges */
+	private readonly _rangeVersionId = derived(this, reader => {
 		this.versionId.read(reader);
 		let changed = false;
 		for (const i of this._inlineCompletions) {

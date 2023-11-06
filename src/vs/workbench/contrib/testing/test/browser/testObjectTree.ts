@@ -104,7 +104,7 @@ export class TestTreeTestHarness<T extends ITestTreeProjection = ITestTreeProjec
 	constructor(makeTree: (listener: ITestService) => T, public readonly c = testStubs.nested()) {
 		super();
 		this._register(c);
-		this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */));
+		this._register(this.c.onDidGenerateDiff(d => this.c.setDiff(d /* don't clear during testing */)));
 
 		const collection = new MainThreadTestCollection((testId, levels) => {
 			this.c.expand(testId, levels);

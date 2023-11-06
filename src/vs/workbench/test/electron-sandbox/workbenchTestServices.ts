@@ -6,13 +6,13 @@
 import { Event } from 'vs/base/common/event';
 import { workbenchInstantiationService as browserWorkbenchInstantiationService, ITestInstantiationService, TestEncodingOracle, TestEnvironmentService, TestFileDialogService, TestFilesConfigurationService, TestFileService, TestLifecycleService, TestTextFileService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { ISharedProcessService } from 'vs/platform/ipc/electron-sandbox/services';
-import { INativeHostService, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
+import { INativeHostService, INativeOptions, IOSProperties, IOSStatistics } from 'vs/platform/native/common/native';
 import { VSBuffer, VSBufferReadable, VSBufferReadableStream } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { IFileDialogService, INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IOpenedWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme } from 'vs/platform/window/common/window';
+import { IOpenedMainWindow, IOpenEmptyWindowOptions, IWindowOpenable, IOpenWindowOptions, IColorScheme, IRectangle } from 'vs/platform/window/common/window';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService, INativeEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -46,17 +46,16 @@ import { FileUserDataProvider } from 'vs/platform/userData/common/fileUserDataPr
 import { IWorkingCopyIdentifier } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { NativeWorkingCopyBackupService } from 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyBackupService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
+import { UserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 
 export class TestSharedProcessService implements ISharedProcessService {
 
 	declare readonly _serviceBrand: undefined;
 
 	createRawConnection(): never { throw new Error('Not Implemented'); }
-
 	getChannel(channelName: string): any { return undefined; }
-
 	registerChannel(channelName: string, channel: any): void { }
-
 	notifyRestored(): void { }
 }
 
@@ -65,21 +64,23 @@ export class TestNativeHostService implements INativeHostService {
 
 	readonly windowId = -1;
 
-	onDidOpenWindow: Event<number> = Event.None;
-	onDidMaximizeWindow: Event<number> = Event.None;
-	onDidUnmaximizeWindow: Event<number> = Event.None;
-	onDidFocusWindow: Event<number> = Event.None;
-	onDidBlurWindow: Event<number> = Event.None;
+	onDidOpenMainWindow: Event<number> = Event.None;
+	onDidMaximizeMainWindow: Event<number> = Event.None;
+	onDidUnmaximizeMainWindow: Event<number> = Event.None;
+	onDidFocusMainWindow: Event<number> = Event.None;
+	onDidBlurMainWindow: Event<number> = Event.None;
+	onDidFocusMainOrAuxiliaryWindow: Event<number> = Event.None;
+	onDidBlurMainOrAuxiliaryWindow: Event<number> = Event.None;
 	onDidResumeOS: Event<unknown> = Event.None;
 	onDidChangeColorScheme = Event.None;
 	onDidChangePassword = Event.None;
-	onDidTriggerSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
+	onDidTriggerMainWindowSystemContextMenu: Event<{ windowId: number; x: number; y: number }> = Event.None;
 	onDidChangeDisplay = Event.None;
 
 	windowCount = Promise.resolve(1);
 	getWindowCount(): Promise<number> { return this.windowCount; }
 
-	async getWindows(): Promise<IOpenedWindow[]> { return []; }
+	async getWindows(): Promise<IOpenedMainWindow[]> { return []; }
 	async getActiveWindowId(): Promise<number | undefined> { return undefined; }
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
@@ -94,10 +95,12 @@ export class TestNativeHostService implements INativeHostService {
 	async maximizeWindow(): Promise<void> { }
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
+	async moveWindowTop(options?: INativeOptions): Promise<void> { }
+	async positionWindow(position: IRectangle, options?: INativeOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }
 	async saveWindowSplash(value: IPartsSplash): Promise<void> { }
-	async focusWindow(options?: { windowId?: number | undefined } | undefined): Promise<void> { }
+	async focusWindow(options?: INativeOptions): Promise<void> { }
 	async showMessageBox(options: Electron.MessageBoxOptions): Promise<Electron.MessageBoxReturnValue> { throw new Error('Method not implemented.'); }
 	async showSaveDialog(options: Electron.SaveDialogOptions): Promise<Electron.SaveDialogReturnValue> { throw new Error('Method not implemented.'); }
 	async showOpenDialog(options: Electron.OpenDialogOptions): Promise<Electron.OpenDialogReturnValue> { throw new Error('Method not implemented.'); }
@@ -178,7 +181,7 @@ export function workbenchInstantiationService(overrides?: {
 	textEditorService?: (instantiationService: IInstantiationService) => ITextEditorService;
 }, disposables = new DisposableStore()): ITestInstantiationService {
 	const instantiationService = browserWorkbenchInstantiationService({
-		workingCopyBackupService: (instantiationService: IInstantiationService) => new TestNativeWorkingCopyBackupService(),
+		workingCopyBackupService: () => disposables.add(new TestNativeWorkingCopyBackupService()),
 		...overrides
 	}, disposables);
 
@@ -216,7 +219,7 @@ export class TestNativeTextFileServiceWithEncodingOverrides extends NativeTextFi
 	}
 }
 
-export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService {
+export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupService implements IDisposable {
 
 	private backupResourceJoiners: Function[];
 	private discardBackupJoiners: Function[];
@@ -231,15 +234,20 @@ export class TestNativeWorkingCopyBackupService extends NativeWorkingCopyBackupS
 		const lifecycleService = new TestLifecycleService();
 		super(environmentService as any, fileService, logService, lifecycleService);
 
-		const inMemoryFileSystemProvider = new InMemoryFileSystemProvider();
-		fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider);
-		fileService.registerProvider(Schemas.vscodeUserData, new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, logService));
+		const inMemoryFileSystemProvider = this._register(new InMemoryFileSystemProvider());
+		this._register(fileService.registerProvider(Schemas.inMemory, inMemoryFileSystemProvider));
+		const uriIdentityService = this._register(new UriIdentityService(fileService));
+		const userDataProfilesService = this._register(new UserDataProfilesService(environmentService, fileService, uriIdentityService, logService));
+		this._register(fileService.registerProvider(Schemas.vscodeUserData, this._register(new FileUserDataProvider(Schemas.file, inMemoryFileSystemProvider, Schemas.vscodeUserData, userDataProfilesService, uriIdentityService, logService))));
 
 		this.backupResourceJoiners = [];
 		this.discardBackupJoiners = [];
 		this.discardedBackups = [];
 		this.pendingBackupsArr = [];
 		this.discardedAllBackups = false;
+
+		this._register(fileService);
+		this._register(lifecycleService);
 	}
 
 	testGetFileService(): IFileService {

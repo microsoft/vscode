@@ -780,6 +780,7 @@ export interface ICellEditorViewState {
 
 export const NOTEBOOK_EDITOR_CURSOR_BOUNDARY = new RawContextKey<'none' | 'top' | 'bottom' | 'both'>('notebookEditorCursorAtBoundary', 'none');
 
+export const NOTEBOOK_EDITOR_CURSOR_LINE_BOUNDARY = new RawContextKey<'none' | 'start' | 'end' | 'both'>('notebookEditorCursorAtLineBoundary', 'none');
 
 export interface INotebookLoadOptions {
 	/**
@@ -961,7 +962,10 @@ export const NotebookSetting = {
 	findScope: 'notebook.find.scope',
 	logging: 'notebook.logging',
 	confirmDeleteRunningCell: 'notebook.confirmDeleteRunningCell',
-	remoteSaving: 'notebook.experimental.remoteSave'
+	remoteSaving: 'notebook.experimental.remoteSave',
+	gotoSymbolsAllSymbols: 'notebook.gotoSymbols.showAllSymbols',
+	scrollToRevealCell: 'notebook.scrolling.revealNextCellOnExecute',
+	anchorToFocusedCell: 'notebook.scrolling.experimental.anchorToFocusedCell'
 } as const;
 
 export const enum CellStatusbarAlignment {

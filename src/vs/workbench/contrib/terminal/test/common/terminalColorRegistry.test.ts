@@ -10,6 +10,7 @@ import { ansiColorIdentifiers, registerColors } from 'vs/workbench/contrib/termi
 import { IColorTheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { ColorScheme } from 'vs/platform/theme/common/theme';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 registerColors();
 
@@ -29,6 +30,7 @@ function getMockTheme(type: ColorScheme): IColorTheme {
 }
 
 suite('Workbench - TerminalColorRegistry', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('hc colors', function () {
 		const theme = getMockTheme(ColorScheme.HIGH_CONTRAST_DARK);

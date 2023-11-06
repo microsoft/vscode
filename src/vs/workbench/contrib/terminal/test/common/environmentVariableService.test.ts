@@ -14,6 +14,7 @@ import { Emitter } from 'vs/base/common/event';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestEnvironmentVariableService extends EnvironmentVariableService {
 	persistCollections(): void { this._persistCollections(); }
@@ -21,6 +22,8 @@ class TestEnvironmentVariableService extends EnvironmentVariableService {
 }
 
 suite('EnvironmentVariable - EnvironmentVariableService', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let environmentVariableService: TestEnvironmentVariableService;
 	let storageService: TestStorageService;
@@ -28,27 +31,23 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 	let changeExtensionsEvent: Emitter<void>;
 
 	setup(() => {
-		changeExtensionsEvent = new Emitter<void>();
+		changeExtensionsEvent = store.add(new Emitter<void>());
 
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		instantiationService.stub(IExtensionService, TestExtensionService);
-		storageService = new TestStorageService();
+		storageService = store.add(new TestStorageService());
 		historyService = new TestHistoryService();
 		instantiationService.stub(IStorageService, storageService);
 		instantiationService.stub(IExtensionService, TestExtensionService);
 		instantiationService.stub(IExtensionService, 'onDidChangeExtensions', changeExtensionsEvent.event);
-		instantiationService.stub(IExtensionService, 'getExtensions', [
+		instantiationService.stub(IExtensionService, 'extensions', [
 			{ identifier: { value: 'ext1' } },
 			{ identifier: { value: 'ext2' } },
 			{ identifier: { value: 'ext3' } }
 		]);
 		instantiationService.stub(IHistoryService, historyService);
 
-		environmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
+		environmentVariableService = store.add(instantiationService.createInstance(TestEnvironmentVariableService));
 	});
 
 	test('should persist collections to the storage service and be able to restore from them', () => {
@@ -65,7 +64,7 @@ suite('EnvironmentVariable - EnvironmentVariableService', () => {
 
 		// Persist with old service, create a new service with the same storage service to verify restore
 		environmentVariableService.persistCollections();
-		const service2: TestEnvironmentVariableService = instantiationService.createInstance(TestEnvironmentVariableService);
+		const service2: TestEnvironmentVariableService = store.add(instantiationService.createInstance(TestEnvironmentVariableService));
 		deepStrictEqual([...service2.mergedCollection.getVariableMap(undefined).entries()], [
 			['A', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Replace, value: 'a', variable: 'A', options: undefined }]],
 			['B', [{ extensionIdentifier: 'ext1', type: EnvironmentVariableMutatorType.Append, value: 'b', variable: 'B', options: undefined }]],

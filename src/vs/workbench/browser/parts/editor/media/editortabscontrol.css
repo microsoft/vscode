@@ -1,0 +1,49 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Editor Label */
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title {
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label {
+	white-space: nowrap;
+	flex: 1;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a {
+	font-size: 13px;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .monaco-icon-label::before,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label a,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .title-label h2,
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab .tab-label span {
+	cursor: pointer;
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .monaco-icon-label::before {
+	height: var(--editor-group-tab-height); /* tweak the icon size of the editor labels when icons are enabled */
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title.breadcrumbs .monaco-icon-label::after,
+.monaco-workbench .part.editor > .content .editor-group-container > .title.tabs .monaco-icon-label::after {
+	margin-right: 0; /* by default the icon label has a padding right and this isn't wanted when not showing tabs and not showing breadcrumbs */
+}
+
+/* Drag and Drop */
+
+.monaco-editor-group-drag-image {
+	display: inline-block;
+	padding: 1px 7px;
+	border-radius: 10px;
+	font-size: 12px;
+	position: absolute;
+}

@@ -135,6 +135,17 @@ const RULES: IRule[] = [
 		]
 	},
 
+	// Common: vs/platform/native/common/nativeHostService.ts
+	{
+		target: '**/vs/platform/native/common/nativeHostService.ts',
+		allowedTypes: CORE_TYPES,
+		disallowedTypes: [/* Ignore native types that are defined from here */],
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
 	// Common: vs/workbench/api/common/extHostExtensionService.ts
 	{
 		target: '**/vs/workbench/api/common/extHostExtensionService.ts',

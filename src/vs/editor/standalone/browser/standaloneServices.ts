@@ -1114,6 +1114,9 @@ export module StandaloneServices {
 	serviceCollection.set(IInstantiationService, instantiationService);
 
 	export function get<T>(serviceId: ServiceIdentifier<T>): T {
+		if (!initialized) {
+			initialize({});
+		}
 		const r = serviceCollection.get(serviceId);
 		if (!r) {
 			throw new Error('Missing service ' + serviceId);

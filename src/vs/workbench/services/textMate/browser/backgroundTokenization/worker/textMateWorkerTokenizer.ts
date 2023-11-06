@@ -29,7 +29,7 @@ export interface TextMateModelTokenizerHost {
 export class TextMateWorkerTokenizer extends MirrorTextModel {
 	private _tokenizerWithStateStore: TokenizerWithStateStore<StateStack> | null = null;
 	private _isDisposed: boolean = false;
-	private readonly _maxTokenizationLineLength = observableValue('_maxTokenizationLineLength', -1);
+	private readonly _maxTokenizationLineLength = observableValue(this, -1);
 	private _diffStateStacksRefEqFn?: typeof diffStateStacksRefEq;
 	private readonly _tokenizeDebouncer = new RunOnceScheduler(() => this._tokenize(), 10);
 

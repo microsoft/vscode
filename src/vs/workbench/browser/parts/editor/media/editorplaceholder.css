@@ -44,6 +44,8 @@
 	max-width: 450px;
 	text-align: center;
 	word-break: break-word;
+	user-select: text;
+	-webkit-user-select: text;
 }
 
 .monaco-editor-pane-placeholder .editor-placeholder-buttons-container {

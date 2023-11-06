@@ -45,7 +45,7 @@ import { IWorkbenchQuickAccessConfiguration } from 'vs/workbench/browser/quickac
 import { GotoSymbolQuickAccessProvider } from 'vs/workbench/contrib/codeEditor/browser/quickaccess/gotoSymbolQuickAccess';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ScrollType, IEditor, ICodeEditorViewState, IDiffEditorViewState } from 'vs/editor/common/editorCommon';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getIEditor } from 'vs/editor/browser/editorBrowser';
 import { Codicon } from 'vs/base/common/codicons';
@@ -112,7 +112,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 			// Picker for this run
 			this.picker = picker;
-			once(picker.onDispose)(() => {
+			Event.once(picker.onDispose)(() => {
 				if (picker === this.picker) {
 					this.picker = undefined; // clear the picker when disposed to not keep it in memory for too long
 				}
@@ -236,7 +236,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// but only when the picker was closed via explicit user
 		// gesture and not e.g. when focus was lost because that
 		// could mean the user clicked into the editor directly.
-		disposables.add(once(picker.onDidHide)(({ reason }) => {
+		disposables.add(Event.once(picker.onDidHide)(({ reason }) => {
 			if (reason === QuickInputHideReason.Gesture) {
 				this.pickState.restoreEditorViewState();
 			}

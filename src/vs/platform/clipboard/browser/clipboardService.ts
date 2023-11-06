@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, isWebkitWebView } from 'vs/base/browser/browser';
-import { $, addDisposableListener } from 'vs/base/browser/dom';
+import { $, addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
@@ -96,10 +96,10 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		}
 
 		// Fallback to textarea and execCommand solution
+		const activeDocument = getActiveDocument();
+		const activeElement = activeDocument.activeElement;
 
-		const activeElement = document.activeElement;
-
-		const textArea: HTMLTextAreaElement = document.body.appendChild($('textarea', { 'aria-hidden': true }));
+		const textArea: HTMLTextAreaElement = activeDocument.body.appendChild($('textarea', { 'aria-hidden': true }));
 		textArea.style.height = '1px';
 		textArea.style.width = '1px';
 		textArea.style.position = 'absolute';
@@ -108,13 +108,13 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 		textArea.focus();
 		textArea.select();
 
-		document.execCommand('copy');
+		activeDocument.execCommand('copy');
 
 		if (activeElement instanceof HTMLElement) {
 			activeElement.focus();
 		}
 
-		document.body.removeChild(textArea);
+		activeDocument.body.removeChild(textArea);
 
 		return;
 	}

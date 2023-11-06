@@ -39,8 +39,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 
 	private sessionPosition: Position | undefined = undefined;
 
-	private readonly position = derived(reader => {
-		/** @description position */
+	private readonly position = derived(this, reader => {
 		const ghostText = this.model.read(reader)?.ghostText.read(reader);
 
 		if (!this.alwaysShowToolbar.read(reader) || !ghostText || ghostText.parts.length === 0) {
@@ -79,7 +78,7 @@ export class InlineCompletionsHintsWidget extends Disposable {
 				this.position,
 				model.selectedInlineCompletionIndex,
 				model.inlineCompletionsCount,
-				model.selectedInlineCompletion.map(v => v?.inlineCompletion.source.inlineCompletions.commands ?? []),
+				model.selectedInlineCompletion.map(v => /** @description commands */ v?.inlineCompletion.source.inlineCompletions.commands ?? []),
 			));
 			editor.addContentWidget(contentWidget);
 			store.add(toDisposable(() => editor.removeContentWidget(contentWidget)));

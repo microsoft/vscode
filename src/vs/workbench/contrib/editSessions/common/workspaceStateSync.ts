@@ -16,20 +16,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { AbstractSynchroniser, IAcceptResult, IMergeResult, IResourcePreview, ISyncResourcePreview } from 'vs/platform/userDataSync/common/abstractSynchronizer';
-import { IRemoteUserData, IResourceRefHandle, IUserDataSyncBackupStoreService, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSynchroniser, IWorkspaceState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
+import { IRemoteUserData, IResourceRefHandle, IUserDataSyncLocalStoreService, IUserDataSyncConfiguration, IUserDataSyncEnablementService, IUserDataSyncLogService, IUserDataSyncStoreService, IUserDataSynchroniser, IWorkspaceState, SyncResource } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditSession, IEditSessionsStorageService } from 'vs/workbench/contrib/editSessions/common/editSessions';
 import { IWorkspaceIdentityService } from 'vs/workbench/services/workspaces/common/workspaceIdentityService';
 
 
-class NullBackupStoreService implements IUserDataSyncBackupStoreService {
+class NullBackupStoreService implements IUserDataSyncLocalStoreService {
 	_serviceBrand: undefined;
-	async backup(profile: IUserDataProfile, resource: SyncResource, content: string): Promise<void> {
+	async writeResource(): Promise<void> {
 		return;
 	}
-	async getAllRefs(profile: IUserDataProfile, resource: SyncResource): Promise<IResourceRefHandle[]> {
+	async getAllResourceRefs(): Promise<IResourceRefHandle[]> {
 		return [];
 	}
-	async resolveContent(profile: IUserDataProfile, resource: SyncResource, ref: string): Promise<string | null> {
+	async resolveResourceContent(): Promise<string | null> {
 		return null;
 	}
 
@@ -70,9 +70,9 @@ export class WorkspaceStateSynchroniser extends AbstractSynchroniser implements 
 		@IWorkspaceIdentityService private readonly workspaceIdentityService: IWorkspaceIdentityService,
 		@IEditSessionsStorageService private readonly editSessionsStorageService: IEditSessionsStorageService,
 	) {
-		const userDataSyncBackupStoreService = new NullBackupStoreService();
+		const userDataSyncLocalStoreService = new NullBackupStoreService();
 		const userDataSyncEnablementService = new NullEnablementService();
-		super({ syncResource: SyncResource.WorkspaceState, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncBackupStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
+		super({ syncResource: SyncResource.WorkspaceState, profile }, collection, fileService, environmentService, storageService, userDataSyncStoreService, userDataSyncLocalStoreService, userDataSyncEnablementService, telemetryService, logService, configurationService, uriIdentityService);
 	}
 
 	override async sync(): Promise<void> {

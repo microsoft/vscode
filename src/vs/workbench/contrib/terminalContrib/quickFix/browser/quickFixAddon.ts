@@ -5,7 +5,7 @@
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon } from 'xterm-headless';
+import type { ITerminalAddon } from '@xterm/headless';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import type { IDecoration, Terminal } from 'xterm';
+import type { IDecoration, Terminal } from '@xterm/xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -89,7 +89,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
 		} else {
-			this._register(this._capabilities.onDidAddCapability(c => {
+			this._register(this._capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._registerCommandHandlers();
 				}
@@ -186,6 +186,15 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (command.command !== '' && this._lastQuickFixId) {
 			this._disposeQuickFix(this._lastQuickFixId, false);
 		}
+
+
+		// Wait for the next command to start to ensure the quick fix marker is created on the next
+		// prompt line
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			await Event.toPromise(commandDetection.onCommandStarted);
+		}
+
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
 			if (lines === undefined) {
 				return undefined;
@@ -283,7 +292,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
-			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
 				return;
 			}
