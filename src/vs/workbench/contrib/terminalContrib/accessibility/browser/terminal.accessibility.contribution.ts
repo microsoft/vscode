@@ -138,19 +138,11 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
+		this._onDidRunCommand.value = this._register(Event.any(capability.onCommandExecuted, capability.onPreCommandFinishedWindows)(() => {
 			if (this._instance.hasFocus) {
 				this.show();
 			}
 		}));
-		if (capability.isWindowsPty) {
-			// It's possible command executed never happens (for example, if PSReadLine is disabled)
-			this._onDidPreCommandFinishWindows.value = this._register(capability.onPreCommandFinishedWindows(() => {
-				if (this._instance.hasFocus) {
-					this.show();
-				}
-			}));
-		}
 	}
 
 	private _isTerminalAccessibleViewOpen(): boolean {

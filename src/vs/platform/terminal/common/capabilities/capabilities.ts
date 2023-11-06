@@ -167,7 +167,6 @@ export interface ICommandDetectionCapability {
 	readonly executingCommandObject: ITerminalCommand | undefined;
 	/** The current cwd at the cursor's position. */
 	readonly cwd: string | undefined;
-	get isWindowsPty(): boolean;
 	/**
 	 * Whether a command is currently being input. If the a command is current not being input or
 	 * the state cannot reliably be detected the fallback of undefined will be used.
