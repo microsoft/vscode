@@ -67,7 +67,6 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
 	private _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
-	private _onDidPreCommandFinishWindows: MutableDisposable<IDisposable> = new MutableDisposable();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -131,7 +130,6 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		}
 		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
 			this._onDidRunCommand.clear();
-			this._onDidPreCommandFinishWindows.clear();
 			return;
 		} else if (this._onDidRunCommand.value) {
 			return;
