@@ -27,7 +27,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, ContextKeyExpression, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { Codicon } from 'vs/base/common/codicons';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -186,7 +186,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (this.titleBarStyle !== 'native' && this.actionToolBar) {
-			const affectsEditorActions = event.affectsConfiguration('workbench.editor.showEditorActionsInTitleBar') || event.affectsConfiguration('workbench.editor.showTabs');
+			const affectsEditorActions = event.affectsConfiguration('workbench.editor.editorActionsLocation') || event.affectsConfiguration('workbench.editor.showTabs');
 			const affectsLayoutControl = event.affectsConfiguration('workbench.layoutControl.enabled');
 			const affectsActivityControl = event.affectsConfiguration(LayoutSettings.ACTIVITY_BAR_LOCATION);
 			if (affectsEditorActions) {
@@ -552,7 +552,11 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private get editorActionsEnabled(): boolean {
-		return this.editorGroupService.partOptions.showEditorActionsInTitleBar !== 'never' && this.editorGroupService.partOptions.showTabs === 'none';
+		return this.editorGroupService.partOptions.editorActionsLocation === 'titleBar' ||
+			(
+				this.editorGroupService.partOptions.editorActionsLocation === 'default' &&
+				this.editorGroupService.partOptions.showTabs === 'none'
+			);
 	}
 
 	private get activityActionsEnabled(): boolean {
@@ -603,12 +607,12 @@ export class TitlebarPart extends Part implements ITitleService {
 
 class ToogleConfigAction extends Action2 {
 
-	constructor(private readonly section: string, title: string, order: number, when?: ContextKeyExpression) {
+	constructor(private readonly section: string, title: string, order: number) {
 		super({
 			id: `toggle.${section}`,
 			title,
 			toggled: ContextKeyExpr.equals(`config.${section}`, true),
-			menu: { id: MenuId.TitleBarContext, order, when }
+			menu: { id: MenuId.TitleBarContext, order }
 		});
 	}
 
@@ -628,12 +632,6 @@ registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
 registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
 	constructor() {
 		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
-	}
-});
-
-registerAction2(class ToogleEditorActionsControl extends ToogleConfigAction {
-	constructor() {
-		super('workbench.editor.showEditorActionsInTitleBar', localize('toggle.editorActions', 'Editor Actions'), 2, ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none'));
 	}
 });
 
