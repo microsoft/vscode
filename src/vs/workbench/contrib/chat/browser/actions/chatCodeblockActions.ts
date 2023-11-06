@@ -353,8 +353,8 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: {
-					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
-					original: 'Insert Into New File'
+					value: localize('interactive.insertIntoNewFile.label', "Insert into New File"),
+					original: 'Insert into New File'
 				},
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
