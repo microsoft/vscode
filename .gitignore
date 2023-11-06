@@ -1,3 +1,5 @@
+src/vs/editor/browser/widget/diffReview.ts
+
 .DS_Store
 .cache
 npm-debug.log
