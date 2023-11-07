@@ -384,7 +384,7 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											shouldExecute: fix.shouldExecute
+											shouldExecute: fix.shouldExecute ?? true
 										});
 									},
 									tooltip: label,
