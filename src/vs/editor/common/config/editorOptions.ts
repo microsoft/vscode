@@ -563,10 +563,10 @@ export interface IEditorOptions {
 	 */
 	occurrencesHighlight?: boolean;
 	/**
-	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
+	 * Sets the mode for occurrence highlighting..
+	 * Defaults to 'singleFile'.
 	 */
-	multiDocumentOccurrencesHighlight?: boolean;
+	occurrencesHighlightMode?: 'singleFile' | 'multiFile';
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -5121,8 +5121,8 @@ export const enum EditorOption {
 	multiCursorModifier,
 	multiCursorPaste,
 	multiCursorLimit,
-	multiDocumentOccurrencesHighlight,
 	occurrencesHighlight,
+	occurrencesHighlightMode,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5622,9 +5622,17 @@ export const EditorOptions = {
 		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
 		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
 	)),
-	multiDocumentOccurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.multiDocumentOccurrencesHighlight, 'multiDocumentOccurrencesHighlight', false,
-		{ description: nls.localize('multiDocumentOccurrencesHighlight', "Experimental: Controls whether the editor should highlight word occurrences accross multiple open editors.") }
+	occurrencesHighlightMode: register(new EditorStringEnumOption(
+		EditorOption.occurrencesHighlightMode, 'occurrencesHighlightMode',
+		'singleFile' as 'singleFile' | 'multiFile',
+		['singleFile', 'multiFile'] as const,
+		{
+			markdownEnumDescriptions: [
+				nls.localize('occurrencesHighlightMode.singleFile', "Highlights occurrences only in the current file."),
+				nls.localize('occurrencesHighlightMode.multiFile', "Experimental: Highlights occurrences across all valid open files.")
+			],
+			markdownDescription: nls.localize('occurrencesHighlightMode', "Controls whether occurrences should be highlighted across multiple files.")
+		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(
 		EditorOption.overviewRulerBorder, 'overviewRulerBorder', true,

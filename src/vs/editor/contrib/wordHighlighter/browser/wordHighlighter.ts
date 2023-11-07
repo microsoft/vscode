@@ -257,7 +257,7 @@ class WordHighlighter {
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
 	private occurrencesHighlight: boolean;
-	private multiDocumentOccurrencesHighlight: boolean;
+	private occurrencesHighlightMode: 'singleFile' | 'multiFile';
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
@@ -285,7 +285,7 @@ class WordHighlighter {
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
-		this.multiDocumentOccurrencesHighlight = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
+		this.occurrencesHighlightMode = this.editor.getOption(EditorOption.occurrencesHighlightMode);
 		this.model = this.editor.getModel();
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this._ignorePositionChangeEvent) {
@@ -320,9 +320,9 @@ class WordHighlighter {
 				this._stopAll();
 			}
 
-			const newMultiDocumentValue = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
-			if (this.multiDocumentOccurrencesHighlight !== newMultiDocumentValue) {
-				this.multiDocumentOccurrencesHighlight = newMultiDocumentValue;
+			const newMultiDocumentValue = this.editor.getOption(EditorOption.occurrencesHighlightMode);
+			if (this.occurrencesHighlightMode !== newMultiDocumentValue) {
+				this.occurrencesHighlightMode = newMultiDocumentValue;
 				this._stopAll();
 			}
 		}));
@@ -586,7 +586,7 @@ class WordHighlighter {
 		}
 
 		// multi-doc OFF
-		if (!this.multiDocumentOccurrencesHighlight) {
+		if (this.occurrencesHighlightMode === 'singleFile') {
 			return [];
 		}
 

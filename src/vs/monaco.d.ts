@@ -3540,10 +3540,10 @@ declare namespace monaco.editor {
 		 */
 		occurrencesHighlight?: boolean;
 		/**
-		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
+		 * Sets the mode for occurrence highlighting..
+		 * Defaults to 'singleFile'.
 		 */
-		multiDocumentOccurrencesHighlight?: boolean;
+		occurrencesHighlightMode?: 'singleFile' | 'multiFile';
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4799,8 +4799,8 @@ declare namespace monaco.editor {
 		multiCursorModifier = 77,
 		multiCursorPaste = 78,
 		multiCursorLimit = 79,
-		multiDocumentOccurrencesHighlight = 80,
-		occurrencesHighlight = 81,
+		occurrencesHighlight = 80,
+		occurrencesHighlightMode = 81,
 		overviewRulerBorder = 82,
 		overviewRulerLanes = 83,
 		padding = 84,
@@ -4954,7 +4954,7 @@ declare namespace monaco.editor {
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
 		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
-		multiDocumentOccurrencesHighlight: IEditorOption<EditorOption.multiDocumentOccurrencesHighlight, boolean>;
+		occurrencesHighlightMode: IEditorOption<EditorOption.occurrencesHighlightMode, 'singleFile' | 'multiFile'>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
