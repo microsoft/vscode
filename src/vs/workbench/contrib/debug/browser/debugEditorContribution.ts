@@ -408,6 +408,10 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 		await this.updateInlineValueDecorations(sf);
 	}
 
+	private get stickyHover() {
+		return this.editor.getOption(EditorOption.hover).sticky;
+	}
+
 	@memoize
 	private get showHoverScheduler(): RunOnceScheduler {
 		const hoverOption = this.editor.getOption(EditorOption.hover);
@@ -424,7 +428,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 	@memoize
 	private get hideHoverScheduler(): RunOnceScheduler {
 		const scheduler = new RunOnceScheduler(() => {
-			if (!this.hoverWidget.isHovered()) {
+			if (!this.stickyHover || !this.hoverWidget.isHovered()) {
+				// Hide when sticky hover is disabled #197463
 				this.hoverWidget.hide();
 			}
 		}, 0);
@@ -469,7 +474,8 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 			}
 		}
 
-		if (target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
+
+		if (this.stickyHover && target.type === MouseTargetType.CONTENT_WIDGET && target.detail === DebugHoverWidget.ID && !(<any>mouseEvent.event)[stopKey]) {
 			// mouse moved on top of debug hover widget
 			return;
 		}
@@ -480,7 +486,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 				this.hideHoverScheduler.cancel();
 				this.showHoverScheduler.schedule();
 			}
-		} else if (!this.mouseDown) {
+		} else if (!this.stickyHover || !this.mouseDown) {
 			// Do not hide debug hover when the mouse is pressed because it usually leads to accidental closing #64620
 			this.hideHoverWidget();
 		}
