@@ -338,7 +338,6 @@ export function pwshUnixCommandNotFoundError(): ITerminalQuickFixInternalOptions
 						id: 'Pwsh Unix Command Not Found Error',
 						type: TerminalQuickFixType.TerminalCommand,
 						terminalCommand: line.trim(),
-						shouldExecute: true,
 						source: QuickFixSource.Builtin
 					});
 				}
