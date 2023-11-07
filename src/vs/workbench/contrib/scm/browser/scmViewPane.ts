@@ -1009,7 +1009,28 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return 0;
 		}
 
-		// List
+		if (isSCMHistoryItemChangeTreeElement(one) || isSCMHistoryItemChangeNode(one)) {
+			// List
+			if (this.viewMode() === ViewMode.List) {
+				if (!isSCMHistoryItemChangeTreeElement(other)) {
+					throw new Error('Invalid comparison');
+				}
+
+				return comparePaths(one.uri.fsPath, other.uri.fsPath);
+			}
+
+			// Tree
+			if (!isSCMHistoryItemChangeTreeElement(other) && !isSCMHistoryItemChangeNode(other)) {
+				throw new Error('Invalid comparison');
+			}
+
+			const oneName = isSCMHistoryItemChangeNode(one) ? one.name : basename(one.uri);
+			const otherName = isSCMHistoryItemChangeNode(other) ? other.name : basename(other.uri);
+
+			return compareFileNames(oneName, otherName);
+		}
+
+		// Resource (List)
 		if (this.viewMode() === ViewMode.List) {
 			// FileName
 			if (this.viewSortKey() === ViewSortKey.Name) {
@@ -1036,7 +1057,7 @@ export class SCMTreeSorter implements ITreeSorter<TreeElement> {
 			return comparePaths(onePath, otherPath);
 		}
 
-		// Tree
+		// Resource (Tree)
 		const oneIsDirectory = ResourceTree.isResourceNode(one);
 		const otherIsDirectory = ResourceTree.isResourceNode(other);
 
@@ -2943,7 +2964,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				count: ancestor?.behind ?? 0,
 				repository: element,
 				type: 'historyItemGroup'
-			} as SCMHistoryItemGroupTreeElement);
+			});
 		}
 
 		// Outgoing
@@ -2955,7 +2976,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			count: ancestor?.ahead ?? 0,
 			repository: element,
 			type: 'historyItemGroup'
-		} as SCMHistoryItemGroupTreeElement);
+		});
 
 		return children;
 	}
@@ -2970,13 +2991,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const historyItems = await historyProvider.provideHistoryItems(element.id, { limit: { id: element.ancestor } }) ?? [];
 		return historyItems.map(historyItem => ({
-			id: historyItem.id,
-			label: historyItem.label,
-			description: historyItem.description,
-			icon: historyItem.icon,
+			...historyItem,
 			historyItemGroup: element,
 			type: 'historyItem'
-		} as SCMHistoryItemTreeElement));
+		}));
 	}
 
 	private async getHistoryItemChanges(element: SCMHistoryItemTreeElement): Promise<(SCMHistoryItemChangeTreeElement | IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>)[]> {
@@ -2993,26 +3011,20 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		if (this.viewMode() === ViewMode.List) {
 			// List
 			return changes.map(change => ({
-				uri: change.uri,
-				originalUri: change.originalUri,
-				modifiedUri: change.modifiedUri,
-				renameUri: change.renameUri,
+				...change,
 				historyItem: element,
 				type: 'historyItemChange'
-			} as SCMHistoryItemChangeTreeElement));
+			}));
 		}
 
 		// Tree
 		const tree = new ResourceTree<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>(element, repository.provider.rootUri ?? URI.file('/'), this.uriIdentityService.extUri);
 		for (const change of changes) {
 			tree.add(change.uri, {
-				uri: change.uri,
-				originalUri: change.originalUri,
-				modifiedUri: change.modifiedUri,
-				renameUri: change.renameUri,
+				...change,
 				historyItem: element,
 				type: 'historyItemChange'
-			} as SCMHistoryItemChangeTreeElement);
+			});
 		}
 
 		return [...tree.root.children];
