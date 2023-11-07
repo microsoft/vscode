@@ -8,7 +8,6 @@ import 'vs/css!./media/stickyScroll';
 import { localize } from 'vs/nls';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 
-// HACK: These are derived from the editor background, not the terminal background because
 export const terminalStickyScrollBackground = registerColor('terminalStickyScroll.background', {
 	light: null,
 	dark: null,
@@ -16,7 +15,6 @@ export const terminalStickyScrollBackground = registerColor('terminalStickyScrol
 	hcLight: null
 }, localize('terminalStickyScroll.background', 'The background color of the sticky scroll overlay in the terminal.'));
 
-// TODO: These default values are from the editorStickyScrollHover.background and may not be ideal
 export const terminalStickyScrollHoverBackground = registerColor('terminalStickyScrollHover.background', {
 	dark: '#2A2D2E',
 	light: '#F0F0F0',
