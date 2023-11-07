@@ -7,7 +7,7 @@ import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { IMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
-import { $, addStandardDisposableListener, append, hide, setVisibility, show } from 'vs/base/browser/dom';
+import { $, addStandardDisposableListener, append } from 'vs/base/browser/dom';
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
@@ -27,6 +27,10 @@ const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
 	Off = 0,
 	On = 1
+}
+
+const enum CssClasses {
+	Visible = 'visible'
 }
 
 export class TerminalStickyScrollOverlay extends Disposable {
@@ -86,15 +90,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 		switch (state) {
 			case OverlayState.Off: {
-				if (this._element) {
-					setVisibility(false, this._element);
-				}
+				this._setVisible(false);
 				this._uninstallRefreshListeners();
 				break;
 			}
 			case OverlayState.On: {
-				const element = this._ensureElement();
-				setVisibility(true, element);
+				this._refresh();
 				this._installRefreshListeners();
 				break;
 			}
@@ -115,6 +116,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._refreshListeners.clear();
 	}
 
+	private _setVisible(isVisible: boolean) {
+		if (isVisible) {
+			this._ensureElement();
+		}
+		this._element?.classList.toggle(CssClasses.Visible, isVisible);
+	}
+
 	@throttle(0)
 	private _refresh(): void {
 		if (!this._xterm?.raw?.element) {
@@ -124,25 +132,24 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
 		// scroll.
 		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
-		const element = this._ensureElement();
 		this._currentStickyMarker = undefined;
 
 		// Sticky scroll only works with non-partial commands
 		if (!command || !('marker' in command)) {
-			hide(element);
+			this._setVisible(false);
 			return;
 		}
 
 		// Hide if the marker doesn't exist or has been trimmed from the scrollback
 		const marker = command.marker;
 		if (!marker || marker.line === -1) {
-			hide(element);
+			this._setVisible(false);
 			return;
 		}
 
 		// Hide sticky scroll if it's on the same line
 		if (marker.line === this._xterm.raw.buffer.active.viewportY) {
-			hide(element);
+			this._setVisible(false);
 			return;
 		}
 
@@ -167,12 +174,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 			if (command.exitCode !== undefined) {
 				this._currentStickyMarker = marker;
-				show(element);
+				this._setVisible(true);
 			} else {
-				hide(element);
+				this._setVisible(false);
 			}
 		} else {
-			hide(element);
+			this._setVisible(false);
 		}
 	}
 
