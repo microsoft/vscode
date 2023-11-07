@@ -53,10 +53,6 @@
 	padding: 0 5px;
 }
 
-.monaco-workbench .pane-composite-part > .title > .composite-bar-container >.composite-bar .monaco-action-bar .action-label.codicon {
-	font-size: 18px;
-}
-
 .monaco-workbench .pane-composite-part > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.icon .action-label:not(.codicon) {
 	width: 16px;
 	height: 16px;
