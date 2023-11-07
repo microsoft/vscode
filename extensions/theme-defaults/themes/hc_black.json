@@ -4,8 +4,8 @@
 	"colors": {
 		"editor.background": "#000000",
 		"editor.foreground": "#FFFFFF",
-		"editorIndentGuide.background": "#FFFFFF",
-		"editorIndentGuide.activeBackground": "#FFFFFF",
+		"editorIndentGuide.background1": "#FFFFFF",
+		"editorIndentGuide.activeBackground1": "#FFFFFF",
 		"sideBarTitle.foreground": "#FFFFFF",
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
