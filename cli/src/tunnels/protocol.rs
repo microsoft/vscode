@@ -209,6 +209,13 @@ pub struct FsRenameRequest {
 	pub to_path: String,
 }
 
+/// Method: `net_connect`. Connects to a port.
+#[derive(Deserialize)]
+pub struct NetConnectRequest {
+	pub port: u16,
+	pub host: String,
+}
+
 #[derive(Deserialize, Debug)]
 pub struct CallServerHttpParams {
 	pub path: String,
