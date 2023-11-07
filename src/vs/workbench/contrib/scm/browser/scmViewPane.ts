@@ -2219,6 +2219,9 @@ export class SCMViewPane extends ViewPane {
 	private _alwaysShowRepositories = false;
 	get alwaysShowRepositories(): boolean { return this._alwaysShowRepositories; }
 
+	private _showSyncInformation: { incoming: boolean; outgoing: boolean } = { incoming: false, outgoing: false };
+	get showSyncInformation(): { incoming: boolean; outgoing: boolean } { return this._showSyncInformation; }
+
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
 	private readonly asyncOperationSequencer = new Sequencer();
@@ -2346,6 +2349,14 @@ export class SCMViewPane extends ViewPane {
 				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this, this.visibilityDisposables);
 				updateRepositoryVisibility();
 
+				const updateSyncInformationVisibility = () => {
+					const setting = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
+					this._showSyncInformation = { incoming: setting.incoming === true, outgoing: setting.outgoing === true };
+					this.updateChildren();
+				};
+				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.experimental.showSyncInformation'), this.visibilityDisposables)(updateSyncInformationVisibility, this, this.visibilityDisposables);
+				updateSyncInformationVisibility();
+
 				// Add visible repositories
 				this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
 				this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
@@ -2404,7 +2415,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)
 			],
-			this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton),
+			this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showSyncInformation),
 			{
 				horizontalScrolling: false,
 				setRowLineHeight: false,
@@ -2822,6 +2833,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		private readonly viewMode: () => ViewMode,
 		private readonly alwaysShowRepositories: () => boolean,
 		private readonly showActionButton: () => boolean,
+		private readonly showSyncInformation: () => { incoming: boolean; outgoing: boolean },
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) { }
@@ -2943,7 +2955,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup) {
+		if (!historyProvider || !currentHistoryItemGroup || (this.showSyncInformation().incoming === false && this.showSyncInformation().outgoing === false)) {
 			return [];
 		}
 
@@ -2958,7 +2970,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 		const children: SCMHistoryItemGroupTreeElement[] = [];
 		// Incoming
-		if (historyItemGroupBase) {
+		if (historyItemGroupBase && this.showSyncInformation().incoming) {
 			children.push({
 				id: historyItemGroupBase.id,
 				label: `$(cloud-download) ${historyItemGroupBase.label}`,
@@ -2971,15 +2983,17 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 
 		// Outgoing
-		children.push({
-			id: currentHistoryItemGroup.id,
-			label: `$(cloud-upload) ${currentHistoryItemGroup.label}`,
-			description: localize('outgoing', "Outgoing Changes"),
-			ancestor: ancestor?.id,
-			count: ancestor?.ahead ?? 0,
-			repository: element,
-			type: 'historyItemGroup'
-		});
+		if (this.showSyncInformation().outgoing) {
+			children.push({
+				id: currentHistoryItemGroup.id,
+				label: `$(cloud-upload) ${currentHistoryItemGroup.label}`,
+				description: localize('outgoing', "Outgoing Changes"),
+				ancestor: ancestor?.id,
+				count: ancestor?.ahead ?? 0,
+				repository: element,
+				type: 'historyItemGroup'
+			});
+		}
 
 		return children;
 	}

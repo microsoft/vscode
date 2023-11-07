@@ -7,7 +7,7 @@ import { localize, localize2 } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { DirtyDiffWorkbenchController } from './dirtydiffDecorator';
-import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, SYNC_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { SCMActiveResourceContextKeyController, SCMStatusController } from './activity';
@@ -32,7 +32,6 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { SCMSyncViewPane } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { getActiveElement } from 'vs/base/browser/dom';
 
 ModesRegistry.registerLanguage({
@@ -81,7 +80,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 60,
+	weight: 80,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -109,17 +108,6 @@ viewsRegistry.registerViews([{
 	when: ContextKeyExpr.and(ContextKeyExpr.has('scm.providerCount'), ContextKeyExpr.notEquals('scm.providerCount', 0)),
 	// readonly when = ContextKeyExpr.or(ContextKeyExpr.equals('config.scm.alwaysShowProviders', true), ContextKeyExpr.and(ContextKeyExpr.notEquals('scm.providerCount', 0), ContextKeyExpr.notEquals('scm.providerCount', 1)));
 	containerIcon: sourceControlViewIcon
-}], viewContainer);
-
-viewsRegistry.registerViews([{
-	id: SYNC_VIEW_PANE_ID,
-	name: localize2('source control sync', "Source Control Sync"),
-	ctorDescriptor: new SyncDescriptor(SCMSyncViewPane),
-	canToggleVisibility: true,
-	canMoveView: true,
-	weight: 20,
-	order: -998,
-	when: ContextKeyExpr.equals('config.scm.experimental.showSyncView', true),
 }], viewContainer);
 
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
@@ -298,10 +286,24 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
 		},
-		'scm.experimental.showSyncView': {
-			type: 'boolean',
-			description: localize('showSyncView', "Controls whether the Source Control Sync view is shown."),
-			default: false
+		'scm.experimental.showSyncInformation': {
+			type: 'object',
+			description: localize('showSyncInformation', "Controls whether incoming/outgoing changes are shown in the Source Control view."),
+			additionalProperties: false,
+			properties: {
+				'incoming': {
+					type: 'boolean',
+					description: localize('showSyncInformationIncoming', "Show incoming changes in the Source Control view."),
+				},
+				'outgoing': {
+					type: 'boolean',
+					description: localize('showSyncInformationOutgoing', "Show outgoing changes in the Source Control view."),
+				},
+			},
+			default: {
+				'incoming': false,
+				'outgoing': false
+			}
 		}
 	}
 });
