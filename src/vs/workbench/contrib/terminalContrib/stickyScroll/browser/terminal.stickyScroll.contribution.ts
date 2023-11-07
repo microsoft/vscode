@@ -60,16 +60,19 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
 
+		// Only show sticky scroll in the normal buffer
 		this.add(xterm.raw.buffer.onBufferChange(buffer => {
 			const element = this._ensureElement();
 			setVisibility(buffer.type === 'normal', element);
 		}));
 
+		// Refresh sticky scroll on write/scroll events
 		// TODO: Skip these when hidden
 		this.add(xterm.raw.onScroll(() => this._refresh()));
 		this.add(xterm.raw.onLineFeed(() => this._refresh()));
 		this.add(addStandardDisposableListener(xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()));
 
+		// Create the overlay
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
 			const overlay = new ctor({
 				rows: 1,
@@ -127,27 +130,28 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			return;
 		}
 
-		this._currentStickyMarker = marker;
-		if (element.textContent === '') {
-			hide(element);
-		} else {
-			show(element);
-		}
-		console.log('command!', command);
-
 		if (this._stickyScrollOverlay) {
 			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
 			// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
 			const s = this._serializeAddon?.serialize({
 				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
 			});
-			if (s) {
-				const content = s.substring(0, s.indexOf('\r'));
-				if (content) {
-					this._stickyScrollOverlay.write(content);
-				}
+			const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
+			if (content) {
+				this._stickyScrollOverlay.write(content);
+				// Debug log to show the command
+				// this._stickyScrollOverlay.write(` [${command?.command}]`);
+
+				// TODO: Only sync options when needed
+				this._syncOptions(this._stickyScrollOverlay, this._xterm.raw);
 			}
-			this._syncOptions(this._stickyScrollOverlay, this._xterm.raw);
+
+			if (command && ('commandStartMarker' in command ? !command.isInvalid : command?.command)) {
+				this._currentStickyMarker = marker;
+				show(element);
+			} else {
+				hide(element);
+			}
 		}
 	}
 
@@ -159,6 +163,8 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			this._xterm!.raw.element!.parentElement!.append(this._element);
 
 			const hoverOverlay = $('.hover-overlay');
+
+			// Scroll to the command on click
 			this.add(addStandardDisposableListener(hoverOverlay, 'click', e => {
 				if (this._xterm && this._currentStickyMarker) {
 					this._xterm.scrollToLine(this._currentStickyMarker.line, ScrollPosition.Middle);
