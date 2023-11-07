@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
+import { IDimension } from 'vs/base/browser/dom';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -32,15 +35,25 @@ class TerminalStickyScrollContribution extends Disposable implements ITerminalCo
 		private readonly _instance: ITerminalInstance,
 		processManager: ITerminalProcessManager | ITerminalProcessInfo,
 		widgetManager: TerminalWidgetManager,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
 
 		this._refreshState();
+		this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.EnableStickyScroll)) {
+				this._refreshState();
+			}
+		});
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._xterm = xterm;
+		this._refreshState();
+	}
+
+	layout(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
 		this._refreshState();
 	}
 
@@ -73,17 +86,21 @@ class TerminalStickyScrollContribution extends Disposable implements ITerminalCo
 	}
 
 	private _tryEnable(): void {
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (capability && this._xterm) {
-			this._overlay.value = this._instantiationService.createInstance(TerminalStickyScrollOverlay, this._xterm, capability);
+		if (this._shouldBeEnabled()) {
+			// TODO: Ensure open has happened to prevent race condition where not attached
+			this._overlay.value = this._instantiationService.createInstance(TerminalStickyScrollOverlay, this._xterm!, this._instance.capabilities.get(TerminalCapability.CommandDetection)!);
 		}
 	}
 
 	private _tryDisable(): void {
-		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		if (!capability || !this._xterm) {
+		if (!this._shouldBeEnabled()) {
 			this._overlay.clear();
 		}
+	}
+
+	private _shouldBeEnabled(): boolean {
+		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		return !!(this._configurationService.getValue(TerminalSettingId.EnableStickyScroll) && capability && this._xterm?.raw?.element);
 	}
 }
 

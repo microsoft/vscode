@@ -7,10 +7,11 @@ import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
-import { $, addStandardDisposableListener, append } from 'vs/base/browser/dom';
+import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
+import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -38,7 +39,9 @@ const enum CssClasses {
 export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
-	private _canvasAddon?: CanvasAddonType;
+
+	private _canvasAddon = new MutableDisposable<CanvasAddonType>();
+	private _pendingCanvasAddon?: CancelablePromise<void>;
 
 	private _element?: HTMLElement;
 	private _currentStickyMarker?: IMarker;
@@ -62,6 +65,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._setState((buffer ?? this._xterm.raw.buffer.active).type === 'normal' ? OverlayState.On : OverlayState.Off);
 		}));
 
+		// React to option changes
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
 				this._syncOptions();
@@ -73,26 +77,21 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Eagerly create the overlay
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
-			const overlay = new ctor({
+			this._stickyScrollOverlay = new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
 				allowProposedApi: true,
 				...this._getOptions()
 			});
-			this._stickyScrollOverlay = overlay;
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
 				this._serializeAddon = new SerializeAddon();
 				this._xterm.raw.loadAddon(this._serializeAddon);
+				// Trigger a render as the serialize addon is required to render
+				this._refresh();
 			});
 
-			// TODO: Sync every render
-			if (this._xterm.isGpuAccelerated) {
-				this._getCanvasAddonConstructor().then(CanvasAddon => {
-					this._canvasAddon = new CanvasAddon();
-					overlay.loadAddon(this._canvasAddon);
-				});
-			}
+			this._syncGpuAccelerationState();
 		});
 	}
 
@@ -119,6 +118,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._refreshListeners.value = combinedDisposable(
 				this._xterm.raw.onScroll(() => this._refresh()),
 				this._xterm.raw.onLineFeed(() => this._refresh()),
+				// TODO: This may not exist!!!
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -131,13 +131,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _setVisible(isVisible: boolean) {
 		if (isVisible) {
 			this._ensureElement();
+			// The GPU acceleration state may be changes at any time and there is no event to listen
+			// to currently.
+			this._syncGpuAccelerationState();
 		}
 		this._element?.classList.toggle(CssClasses.Visible, isVisible);
 	}
 
 	@throttle(0)
 	private _refresh(): void {
-		if (!this._xterm?.raw?.element) {
+		if (!this._xterm?.raw?.element || !this._serializeAddon) {
 			return;
 		}
 
@@ -164,17 +167,19 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._setVisible(false);
 			return;
 		}
-
 		// TODO: Support multi-line prompts
 		// TODO: Support multi-line commands
 
 		if (this._stickyScrollOverlay) {
-			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
+			// Clear attrs, reset cursor position, clear right
+			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[K');
 			// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
-			const s = this._serializeAddon?.serialize({
+			const s = this._serializeAddon.serialize({
 				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
 			});
 			const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
+
+			// TODO: Don't write if it's the same
 			if (content) {
 				this._stickyScrollOverlay.write(content);
 				// Debug log to show the command
@@ -207,10 +212,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const overlay = this._stickyScrollOverlay;
 
 		this._element = $('.terminal-sticky-scroll');
-		// // TODO: Safety
-		this._xterm!.raw.element!.parentElement!.append(this._element);
-
 		const hoverOverlay = $('.hover-overlay');
+		this._element.append(hoverOverlay);
+		this._xterm.raw.element.parentElement.append(this._element);
+		this._register(toDisposable(() => this._element?.remove()));
+
+		this._stickyScrollOverlay.open(this._element);
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
@@ -224,21 +231,43 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// hover state as the selection is inaccessible anyway
 		this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => overlay.selectAll()));
 		this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => overlay.clearSelection()));
-
-		// TODO: Add to a container outside the xterm instance?
-		// TODO: Remove !
-		this._stickyScrollOverlay.open(this._element);
-
-		append(this._element, hoverOverlay);
 	}
 
 	@throttle(0)
-	private _syncOptions(): void {
+	private _syncOptions() {
 		if (!this._stickyScrollOverlay) {
 			return;
 		}
 		this._stickyScrollOverlay.resize(this._xterm.raw.cols, 1);
 		this._stickyScrollOverlay.options = this._getOptions();
+		this._syncGpuAccelerationState();
+	}
+
+	private _syncGpuAccelerationState() {
+		if (!this._stickyScrollOverlay) {
+			return;
+		}
+		const overlay = this._stickyScrollOverlay;
+
+		// The Webgl renderer isn't used here as there are a limited number of webgl contexts
+		// available within a given page. This is a single row that isn't rendered to often so the
+		// performance isn't as important
+		if (this._xterm.isGpuAccelerated) {
+			if (!this._canvasAddon.value && !this._pendingCanvasAddon) {
+				this._pendingCanvasAddon = createCancelablePromise(async token => {
+					const CanvasAddon = await this._getCanvasAddonConstructor();
+					if (!token.isCancellationRequested) {
+						this._canvasAddon.value = new CanvasAddon();
+						overlay.loadAddon(this._canvasAddon.value);
+					}
+					this._pendingCanvasAddon = undefined;
+				});
+			}
+		} else {
+			this._canvasAddon.clear();
+			this._pendingCanvasAddon?.cancel();
+			this._pendingCanvasAddon = undefined;
+		}
 	}
 
 	private _getOptions(): ITerminalOptions {
