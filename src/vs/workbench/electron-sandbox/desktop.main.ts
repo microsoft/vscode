@@ -60,6 +60,7 @@ import { RemoteSocketFactoryService, IRemoteSocketFactoryService } from 'vs/plat
 import { ElectronRemoteResourceLoader } from 'vs/platform/remote/electron-sandbox/electronRemoteResourceLoader';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class DesktopMain extends Disposable {
 
@@ -109,7 +110,7 @@ export class DesktopMain extends Disposable {
 	async open(): Promise<void> {
 
 		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded(window)]);
+		const [services] = await Promise.all([this.initServices(), domContentLoaded(mainWindow)]);
 
 		// Apply zoom level early once we have a configuration service
 		// and before the workbench is created to prevent flickering.

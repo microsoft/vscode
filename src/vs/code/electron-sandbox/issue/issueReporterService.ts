@@ -5,6 +5,7 @@
 import { $, createStyleSheet, reset, windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Button, unthemedButtonStyles } from 'vs/base/browser/ui/button/button';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
+import { mainWindow } from 'vs/base/browser/window';
 import { Delayer, RunOnceScheduler } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { groupBy } from 'vs/base/common/collections';
@@ -107,7 +108,7 @@ export class IssueReporter extends Disposable {
 			});
 		}
 
-		if (window.document.documentElement.lang !== 'en') {
+		if (mainWindow.document.documentElement.lang !== 'en') {
 			show(this.getElementById('english'));
 		}
 
@@ -569,7 +570,7 @@ export class IssueReporter extends Disposable {
 		const query = `is:issue+repo:${repo}+${title}`;
 		const similarIssues = this.getElementById('similar-issues')!;
 
-		window.fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
+		fetch(`https://api.github.com/search/issues?q=${query}`).then((response) => {
 			response.json().then(result => {
 				similarIssues.innerText = '';
 				if (result && result.items) {
@@ -612,7 +613,7 @@ export class IssueReporter extends Disposable {
 			})
 		};
 
-		window.fetch(url, init).then((response) => {
+		fetch(url, init).then((response) => {
 			response.json().then(result => {
 				this.clearSearchResults();
 
@@ -868,7 +869,7 @@ export class IssueReporter extends Disposable {
 			})
 		};
 
-		const response = await window.fetch(url, init);
+		const response = await fetch(url, init);
 		if (!response.ok) {
 			return false;
 		}

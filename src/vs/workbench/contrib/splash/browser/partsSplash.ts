@@ -20,6 +20,7 @@ import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
 import { runWhenIdle } from 'vs/base/common/async';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class PartsSplash {
 
@@ -45,7 +46,7 @@ export class PartsSplash {
 		let lastIdleSchedule: IDisposable | undefined;
 		Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(() => {
 			lastIdleSchedule?.dispose();
-			lastIdleSchedule = runWhenIdle(() => this._savePartsSplash(), 800);
+			lastIdleSchedule = runWhenIdle(mainWindow, () => this._savePartsSplash(), 800);
 		}, undefined, this._disposables);
 
 		_configService.onDidChangeConfiguration(e => {

@@ -36,6 +36,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAccess';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { $window } from 'vs/base/browser/window';
 
 //#region Browser File Upload (drag and drop, input element)
 
@@ -654,9 +655,9 @@ export class FileDownload {
 		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported($window)) {
 			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
+				const parentFolder: FileSystemDirectoryHandle = await $window.showDirectoryPicker();
 				const operation: IDownloadOperation = {
 					startTime: Date.now(),
 					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),

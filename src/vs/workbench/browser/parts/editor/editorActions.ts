@@ -33,7 +33,7 @@ import { KeyChord, KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from 'vs/workbench/common/contextkeys';
+import { ActiveEditorAvailableEditorIdsContext, ActiveEditorContext, ActiveEditorGroupEmptyContext, AuxiliaryBarVisibleContext, EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, MultipleEditorGroupsContext, SideBarVisibleContext } from 'vs/workbench/common/contextkeys';
 import { URI } from 'vs/base/common/uri';
 import { getActiveDocument } from 'vs/base/browser/dom';
 
@@ -1017,13 +1017,36 @@ export class MinimizeOtherGroupsAction extends Action2 {
 			id: 'workbench.action.minimizeOtherEditors',
 			title: { value: localize('minimizeOtherEditorGroups', "Expand Editor Group"), original: 'Expand Editor Group' },
 			f1: true,
-			category: Categories.View
+			category: Categories.View,
+			precondition: MultipleEditorGroupsContext
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
 		const editorGroupService = accessor.get(IEditorGroupsService);
 
+		editorGroupService.arrangeGroups(GroupsArrangement.EXPAND);
+	}
+}
+
+export class MinimizeOtherGroupsHideSidebarAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.minimizeOtherEditorsHideSidebar',
+			title: { value: localize('minimizeOtherEditorGroupsHideSidebar', "Expand Editor Group and Hide Side Bars"), original: 'Expand Editor Group and Hide Side Bars' },
+			f1: true,
+			category: Categories.View,
+			precondition: ContextKeyExpr.or(MultipleEditorGroupsContext, SideBarVisibleContext, AuxiliaryBarVisibleContext)
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+
+		layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+		layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		editorGroupService.arrangeGroups(GroupsArrangement.EXPAND);
 	}
 }
@@ -1073,7 +1096,7 @@ export class MaximizeGroupHideSidebarAction extends Action2 {
 			title: { value: localize('maximizeEditorHideSidebar', "Maximize Editor Group and Hide Side Bars"), original: 'Maximize Editor Group and Hide Side Bars' },
 			f1: true,
 			category: Categories.View,
-			precondition: ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext)
+			precondition: ContextKeyExpr.or(ContextKeyExpr.and(EditorPartMaximizedEditorGroupContext.negate(), EditorPartMultipleEditorGroupsContext), SideBarVisibleContext, AuxiliaryBarVisibleContext)
 		});
 	}
 

@@ -47,12 +47,12 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
-	activeContainerId: 'main' | number /* window ID */;
+	activeContainerId: number;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -368,8 +368,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// Theme changes
 		this._register(this.themeService.onDidColorThemeChange(() => this.updateStyles()));
 
-		// Window focus changes
-		this._register(this.hostService.onDidChangeFocus(e => this.onWindowFocusChanged(e)));
+		// Window active / focus changes
+		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChanged(focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChanged()));
 
 		// WCO changes
 		if (isWeb && typeof (navigator as any).windowControlsOverlay === 'object') {
@@ -450,31 +451,25 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this._onDidChangeFullscreen.fire(this.state.runtime.fullscreen);
 	}
 
-	private onWindowFocusChanged(hasFocus: boolean): void {
-		if (hasFocus) {
-			const activeContainerId = this.getActiveContainerId();
-			if (this.state.runtime.activeContainerId !== activeContainerId) {
-				this.state.runtime.activeContainerId = activeContainerId;
-				this._onDidChangeActiveContainer.fire();
-			}
+	private onActiveWindowChanged(): void {
+		const activeContainerId = this.getActiveContainerId();
+		if (this.state.runtime.activeContainerId !== activeContainerId) {
+			this.state.runtime.activeContainerId = activeContainerId;
+			this._onDidChangeActiveContainer.fire();
 		}
+	}
 
+	private onWindowFocusChanged(hasFocus: boolean): void {
 		if (this.state.runtime.hasFocus !== hasFocus) {
 			this.state.runtime.hasFocus = hasFocus;
 			this.updateWindowBorder();
 		}
 	}
 
-	private getActiveContainerId(): 'main' | number {
+	private getActiveContainerId(): number {
 		const activeContainer = this.activeContainer;
-		if (activeContainer !== this.container) {
-			const containerWindow = getWindow(activeContainer);
-			if (isAuxiliaryWindow(containerWindow)) {
-				return containerWindow.vscodeWindowId;
-			}
-		}
 
-		return 'main';
+		return getWindow(activeContainer).vscodeWindowId;
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {
@@ -1403,7 +1398,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (toggleFullScreen) {
-			this.hostService.toggleFullScreen();
+			this.hostService.toggleFullScreen(getActiveWindow());
 		}
 
 		// Event

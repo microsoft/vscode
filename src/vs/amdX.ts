@@ -57,8 +57,10 @@ class AMDModuleImporter {
 		(<any>globalThis).define.amd = true;
 
 		if (this._isRenderer) {
+			// eslint-disable-next-line no-restricted-globals
 			this._amdPolicy = window.trustedTypes?.createPolicy('amdLoader', {
 				createScriptURL(value) {
+					// eslint-disable-next-line no-restricted-globals
 					if (value.startsWith(window.location.origin)) {
 						return value;
 					}

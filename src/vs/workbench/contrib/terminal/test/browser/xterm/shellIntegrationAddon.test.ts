@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { strictEqual, deepStrictEqual, deepEqual } from 'assert';
 import * as sinon from 'sinon';
 import { parseKeyValueAssignment, parseMarkSequence, deserializeMessage, ShellIntegrationAddon } from 'vs/platform/terminal/common/xterm/shellIntegrationAddon';
@@ -38,7 +38,7 @@ suite('ShellIntegrationAddon', () => {
 	let capabilities: ITerminalCapabilityStore;
 
 	setup(async () => {
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = store.add(new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 }));
 		shellIntegrationAddon = store.add(new TestShellIntegrationAddon('', true, undefined, new NullLogService()));
 		xterm.loadAddon(shellIntegrationAddon);

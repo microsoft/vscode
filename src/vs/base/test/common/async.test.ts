@@ -867,6 +867,52 @@ suite('Async', () => {
 		});
 	});
 
+	suite('disposableInterval', () => {
+		test('basics', async () => {
+			let count = 0;
+			const promise = new async.DeferredPromise<void>();
+			const interval = async.disposableInterval(() => {
+				count++;
+				if (count === 3) {
+					promise.complete(undefined);
+					return true;
+				} else {
+					return false;
+				}
+			}, 0, 10);
+
+			await promise.p;
+			assert.strictEqual(count, 3);
+			interval.dispose();
+		});
+
+		test('iterations', async () => {
+			let count = 0;
+			const interval = async.disposableInterval(() => {
+				count++;
+
+				return false;
+			}, 0, 0);
+
+			await async.timeout(5);
+			assert.strictEqual(count, 0);
+			interval.dispose();
+		});
+
+		test('dispose', async () => {
+			let count = 0;
+			const interval = async.disposableInterval(() => {
+				count++;
+
+				return false;
+			}, 0, 10);
+
+			interval.dispose();
+			await async.timeout(5);
+			assert.strictEqual(count, 0);
+		});
+	});
+
 	test('raceCancellation', async () => {
 		const cts = store.add(new CancellationTokenSource());
 		const ctsTimeout = store.add(new CancellationTokenSource());

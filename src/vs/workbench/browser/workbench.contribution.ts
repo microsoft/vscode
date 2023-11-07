@@ -49,6 +49,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
 				'default': 'multiple'
 			},
+			'workbench.editor.editorActionsLocation': {
+				'type': 'string',
+				'enum': ['default', 'titleBar', 'hidden'],
+				'enumDescriptions': [
+					localize('workbench.editor.editorActionsLocation.default', "Show editor actions in the window title bar when `#workbench.editor.showTabs#` is set to `none`. Otherwise, editor actions are shown in the editor tab bar."),
+					localize('workbench.editor.editorActionsLocation.titleBar', "Show editor actions in the window title bar. If `#window.titleBarStyle#` is set to `native`, editor actions are hidden."),
+					localize('workbench.editor.editorActionsLocation.hidden', "Editor actions are not shown."),
+				],
+				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
+				'default': 'default'
+			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
 				'markdownDescription': localize('wrapTabs', "Controls whether tabs should be wrapped over multiple lines when exceeding available space or whether a scrollbar should appear instead. This value is ignored when `#workbench.editor.showTabs#` is not set to `multiple`."),

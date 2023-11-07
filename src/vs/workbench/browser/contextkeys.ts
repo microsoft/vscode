@@ -26,6 +26,7 @@ import { WebFileSystemAccess } from 'vs/platform/files/browser/webFileSystemAcce
 import { IProductService } from 'vs/platform/product/common/productService';
 import { FileSystemProviderCapabilities, IFileService } from 'vs/platform/files/common/files';
 import { getTitleBarStyle } from 'vs/platform/window/common/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class WorkbenchContextKeysHandler extends Disposable {
 	private inputFocusedContext: IContextKey<boolean>;
@@ -112,7 +113,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 		this.updateWorkspaceContextKeys();
 
 		// Capabilities
-		HasWebFileSystemAccess.bindTo(this.contextKeyService).set(WebFileSystemAccess.supported(window));
+		HasWebFileSystemAccess.bindTo(this.contextKeyService).set(WebFileSystemAccess.supported(mainWindow));
 
 		// Development
 		const isDevelopment = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
@@ -240,7 +241,7 @@ export class WorkbenchContextKeysHandler extends Disposable {
 
 		this._register(this.editorGroupService.onDidChangeEditorPartOptions(() => this.updateEditorAreaContextKeys()));
 
-		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window, disposables: this._store }));
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => disposables.add(addDisposableListener(window, EventType.FOCUS_IN, () => this.updateInputContextKeys(window.document), true)), { window: mainWindow, disposables: this._store }));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateWorkbenchStateContextKey()));
 		this._register(this.contextService.onDidChangeWorkspaceFolders(() => {

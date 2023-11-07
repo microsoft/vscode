@@ -48,25 +48,6 @@
 			"orientation",
 			"context"
 		], // non-complete list of globals that are easy to access unintentionally
-		"no-restricted-syntax": [
-			"warn",
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
-				"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
-				"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
-				"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
-			},
-			{
-				"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
-				"message": "Use DOM.isDragEvent() to support multi-window scenarios."
-			}
-		],
 		"no-var": "warn",
 		"jsdoc/no-types": "warn",
 		"semi": "off",
@@ -339,14 +320,14 @@
 							"vscode-regexpp",
 							"vscode-textmate",
 							"worker_threads",
-							"xterm",
-							"xterm-addon-canvas",
-							"xterm-addon-image",
-							"xterm-addon-search",
-							"xterm-addon-serialize",
-							"xterm-addon-unicode11",
-							"xterm-addon-webgl",
-							"xterm-headless",
+							"@xterm/addon-canvas",
+							"@xterm/addon-image",
+							"@xterm/addon-search",
+							"@xterm/addon-serialize",
+							"@xterm/addon-unicode11",
+							"@xterm/addon-webgl",
+							"@xterm/headless",
+							"@xterm/xterm",
 							"yauzl",
 							"yazl",
 							"zlib"
@@ -543,11 +524,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
@@ -572,11 +553,11 @@
 							"vscode-notebook-renderer", // Type only import
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm"
+								"pattern": "@xterm/xterm"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
-								"pattern": "xterm-addon-*"
+								"pattern": "@xterm/addon-*"
 							}, // node module allowed even in /browser/
 							{
 								"when": "hasBrowser",
@@ -699,6 +680,181 @@
 					{
 						"target": "src/{bootstrap-amd.js,bootstrap-fork.js,bootstrap-node.js,bootstrap-window.js,bootstrap.js,cli.js,main.js,server-cli.js,server-main.js}",
 						"restrictions": []
+					}
+				],
+				"no-restricted-syntax": [
+					"warn",
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='MouseEvent']",
+						"message": "Use DOM.isMouseEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='KeyboardEvent']",
+						"message": "Use DOM.isKeyboardEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='PointerEvent']",
+						"message": "Use DOM.isPointerEvent() to support multi-window scenarios."
+					},
+					{
+						"selector": "BinaryExpression[operator='instanceof'][right.name='DragEvent']",
+						"message": "Use DOM.isDragEvent() to support multi-window scenarios."
+					}
+				],
+				"no-restricted-globals": [
+					"warn",
+					"name",
+					"length",
+					"event",
+					"closed",
+					"external",
+					"status",
+					"origin",
+					"orientation",
+					"context",
+					{
+						"name": "requestAnimationFrame",
+						"message": "Use <targetWindow>.requestAnimationFrame to support multi-window scenarios."
+					},
+					{
+						"name": "cancelAnimationFrame",
+						"message": "Use <targetWindow>.cancelAnimationFrame to support multi-window scenarios."
+					},
+					{
+						"name": "requestIdleCallback",
+						"message": "Use <targetWindow>.requestIdleCallback to support multi-window scenarios."
+					},
+					{
+						"name": "cancelIdleCallback",
+						"message": "Use <targetWindow>.cancelIdleCallback to support multi-window scenarios."
+					},
+					{
+						"name": "window",
+						"message": "Be aware of multi-window scenarios: Use DOM.getWindow() or DOM.getActiveWindow() to obtain the correct window for the context you are in. Only use window.ts#mainWindow if you target the main window."
+					},
+					{
+						"name": "addEventListener",
+						"message": "Use <targetWindow>.addEventListener to support multi-window scenarios."
+					},
+					{
+						"name": "removeEventListener",
+						"message": "Use <targetWindow>.removeEventListener to support multi-window scenarios."
+					},
+					{
+						"name": "getComputedStyle",
+						"message": "Use <targetWindow>.getComputedStyle to support multi-window scenarios."
+					},
+					{
+						"name": "focus",
+						"message": "Use <targetWindow>.focus to support multi-window scenarios."
+					},
+					{
+						"name": "blur",
+						"message": "Use <targetWindow>.blur to support multi-window scenarios."
+					},
+					{
+						"name": "close",
+						"message": "Use <targetWindow>.close to support multi-window scenarios."
+					},
+					{
+						"name": "dispatchEvent",
+						"message": "Use <targetWindow>.dispatchEvent to support multi-window scenarios."
+					},
+					{
+						"name": "getSelection",
+						"message": "Use <targetWindow>.getSelection to support multi-window scenarios."
+					},
+					{
+						"name": "matchMedia",
+						"message": "Use <targetWindow>.matchMedia to support multi-window scenarios."
+					},
+					{
+						"name": "open",
+						"message": "Use <targetWindow>.open to support multi-window scenarios."
+					},
+					{
+						"name": "parent",
+						"message": "Use <targetWindow>.parent to support multi-window scenarios."
+					},
+					{
+						"name": "postMessage",
+						"message": "Use <targetWindow>.postMessage to support multi-window scenarios."
+					},
+					{
+						"name": "devicePixelRatio",
+						"message": "Use <targetWindow>.devicePixelRatio to support multi-window scenarios."
+					},
+					{
+						"name": "frames",
+						"message": "Use <targetWindow>.frames to support multi-window scenarios."
+					},
+					{
+						"name": "frameElement",
+						"message": "Use <targetWindow>.frameElement to support multi-window scenarios."
+					},
+					{
+						"name": "innerHeight",
+						"message": "Use <targetWindow>.innerHeight to support multi-window scenarios."
+					},
+					{
+						"name": "innerWidth",
+						"message": "Use <targetWindow>.innerWidth to support multi-window scenarios."
+					},
+					{
+						"name": "outerHeight",
+						"message": "Use <targetWindow>.outerHeight to support multi-window scenarios."
+					},
+					{
+						"name": "outerWidth",
+						"message": "Use <targetWindow>.outerWidth to support multi-window scenarios."
+					},
+					{
+						"name": "length",
+						"message": "Use <targetWindow>.length to support multi-window scenarios."
+					},
+					{
+						"name": "opener",
+						"message": "Use <targetWindow>.opener to support multi-window scenarios."
+					},
+					{
+						"name": "origin",
+						"message": "Use <targetWindow>.origin to support multi-window scenarios."
+					},
+					{
+						"name": "screen",
+						"message": "Use <targetWindow>.screen to support multi-window scenarios."
+					},
+					{
+						"name": "screenLeft",
+						"message": "Use <targetWindow>.screenLeft to support multi-window scenarios."
+					},
+					{
+						"name": "screenTop",
+						"message": "Use <targetWindow>.screenTop to support multi-window scenarios."
+					},
+					{
+						"name": "screenX",
+						"message": "Use <targetWindow>.screenX to support multi-window scenarios."
+					},
+					{
+						"name": "screenY",
+						"message": "Use <targetWindow>.screenY to support multi-window scenarios."
+					},
+					{
+						"name": "scrollX",
+						"message": "Use <targetWindow>.scrollX to support multi-window scenarios."
+					},
+					{
+						"name": "scrollY",
+						"message": "Use <targetWindow>.scrollY to support multi-window scenarios."
+					},
+					{
+						"name": "top",
+						"message": "Use <targetWindow>.top to support multi-window scenarios."
+					},
+					{
+						"name": "visualViewport",
+						"message": "Use <targetWindow>.visualViewport to support multi-window scenarios."
 					}
 				]
 			}

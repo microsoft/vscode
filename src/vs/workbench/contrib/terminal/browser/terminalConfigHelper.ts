@@ -20,6 +20,7 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
+import { $window } from 'vs/base/browser/window';
 
 const enum FontConstants {
 	MinimumFontSize = 6,
@@ -142,10 +143,10 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const deviceCharWidth = Math.floor(rect.width * window.devicePixelRatio);
+				const deviceCharWidth = Math.floor(rect.width * $window.devicePixelRatio);
 				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
-				const cssCellWidth = deviceCellWidth / window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / window.devicePixelRatio;
+				const cssCellWidth = deviceCellWidth / $window.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / $window.devicePixelRatio;
 			}
 		}
 
@@ -200,7 +201,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 					letterSpacing,
 					lineHeight,
 					charHeight: cellDims.height / lineHeight,
-					charWidth: cellDims.width - Math.round(letterSpacing) / window.devicePixelRatio
+					charWidth: cellDims.width - Math.round(letterSpacing) / $window.devicePixelRatio
 				};
 			}
 		}

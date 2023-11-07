@@ -173,8 +173,8 @@ export class Menubar {
 
 		// Listen to some events from window service to update menu
 		this.windowsMainService.onDidChangeWindowsCount(e => this.onDidChangeWindowsCount(e));
-		this.nativeHostMainService.onDidBlurWindow(() => this.onDidChangeWindowFocus());
-		this.nativeHostMainService.onDidFocusWindow(() => this.onDidChangeWindowFocus());
+		this.nativeHostMainService.onDidBlurMainWindow(() => this.onDidChangeWindowFocus());
+		this.nativeHostMainService.onDidFocusMainWindow(() => this.onDidChangeWindowFocus());
 	}
 
 	private get currentEnableMenuBarMnemonics(): boolean {
@@ -411,7 +411,7 @@ export class Menubar {
 				if (
 					this.windowsMainService.getWindowCount() === 0 || 	// allow to quit when no more windows are open
 					!!BrowserWindow.getFocusedWindow() ||				// allow to quit when window has focus (fix for https://github.com/microsoft/vscode/issues/39191)
-					lastActiveWindow?.isMinimized()						// allow to quit when window has no focus but is minimized (https://github.com/microsoft/vscode/issues/63000)
+					lastActiveWindow?.win?.isMinimized()				// allow to quit when window has no focus but is minimized (https://github.com/microsoft/vscode/issues/63000)
 				) {
 					const confirmed = await this.confirmBeforeQuit(event);
 					if (confirmed) {
@@ -774,7 +774,7 @@ export class Menubar {
 		// https://github.com/microsoft/vscode/issues/63000
 		if (!activeBrowserWindow) {
 			const lastActiveWindow = this.windowsMainService.getLastActiveWindow();
-			if (lastActiveWindow?.isMinimized()) {
+			if (lastActiveWindow?.win?.isMinimized()) {
 				activeBrowserWindow = lastActiveWindow.win;
 			}
 		}

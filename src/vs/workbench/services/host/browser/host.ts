@@ -23,12 +23,18 @@ export interface IHostService {
 	//#region Focus
 
 	/**
-	 * Emitted when the window focus changes.
+	 * Emitted when the focus of the window changes.
+	 *
+	 * Note: this considers the main window as well as auxiliary windows
+	 * when they are in focus. As long as the main window or any of its
+	 * auxiliary windows have focus, this event fires with `true`. It will
+	 * fire with `false` when neither the main window nor any of its
+	 * auxiliary windows have focus.
 	 */
 	readonly onDidChangeFocus: Event<boolean>;
 
 	/**
-	 * Find out if the window has focus or not.
+	 * Find out if the window or any of its auxiliary windows have focus.
 	 */
 	readonly hasFocus: boolean;
 
@@ -54,6 +60,12 @@ export interface IHostService {
 	//#region Window
 
 	/**
+	 * Emitted when the active window changes between main window
+	 * and auxiliary windows.
+	 */
+	readonly onDidChangeActiveWindow: Event<void>;
+
+	/**
 	 * Opens an empty window. The optional parameter allows to define if
 	 * a new window should open or the existing one change to an empty.
 	 */
@@ -67,7 +79,7 @@ export interface IHostService {
 	/**
 	 * Switch between fullscreen and normal window.
 	 */
-	toggleFullScreen(): Promise<void>;
+	toggleFullScreen(targetWindow: Window): Promise<void>;
 
 	/**
 	 * Bring a window to the front and restore it if needed.

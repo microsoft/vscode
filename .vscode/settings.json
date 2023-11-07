@@ -158,8 +158,8 @@
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
-		"xterm",
-		"xterm-headless",
+		"@xterm/xterm",
+		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.ts",

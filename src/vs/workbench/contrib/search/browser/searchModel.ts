@@ -817,6 +817,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					existingCell = existingRawCell;
 				}
 			}
+			existingCell?.clearAllMatches();
 			const cell = existingCell ?? new CellMatch(this, match.cell, match.index);
 			cell.addContentMatches(contentMatchesToTextSearchMatches(match.contentMatches, match.cell));
 			cell.addWebviewMatches(webviewMatchesToTextSearchMatches(match.webviewMatches));
@@ -906,7 +907,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (match.webviewIndex !== undefined) {
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
 			if (index !== undefined) {
-				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
+				this._notebookEditorWidget.revealCellOffsetInCenter(match.cell, outputOffset ?? 0);
 			}
 		} else {
 			match.cell.updateEditState(match.cell.getEditState(), 'focusNotebookCell');
