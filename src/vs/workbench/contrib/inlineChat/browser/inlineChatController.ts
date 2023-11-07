@@ -679,7 +679,7 @@ export class InlineChatController implements IEditorContribution {
 			} else {
 
 				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
-				if (reply.type === InlineChatResponseType.Message) {
+				if (reply.message) {
 					markdownContents.appendMarkdown(reply.message.value);
 				}
 

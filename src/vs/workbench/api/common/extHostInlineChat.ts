@@ -209,6 +209,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				id,
 				type: InlineChatResponseType.BulkEdit,
 				edits: typeConvert.WorkspaceEdit.from(edits),
+				message: res.contents && typeConvert.MarkdownString.from(res.contents),
 			};
 
 		} else {
@@ -217,6 +218,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 				id,
 				type: InlineChatResponseType.EditorEdit,
 				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+				message: res.contents && typeConvert.MarkdownString.from(res.contents),
 			};
 		}
 	}
