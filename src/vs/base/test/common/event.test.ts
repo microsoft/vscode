@@ -425,7 +425,6 @@ suite('Event', function () {
 			assert.strictEqual(count, 3);
 			done();
 		}, 0);
-		// eslint-disable-next-line no-restricted-globals
 		queueMicrotask(() => {
 			assert.strictEqual(count, 2);
 			count++;

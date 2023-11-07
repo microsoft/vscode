@@ -101,7 +101,6 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { OutlineTarget } from 'vs/workbench/services/outline/browser/outline';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
-import { $window } from 'vs/base/browser/window';
 
 const $ = DOM.$;
 
@@ -1155,7 +1154,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._backgroundMarkdownRenderRunning = true;
-		runWhenIdle($window, (deadline) => {
+		runWhenIdle(DOM.getWindow(this._body), (deadline) => {
 			this._backgroundMarkdownRenderingWithDeadline(deadline);
 		});
 	}

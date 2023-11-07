@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
@@ -40,7 +39,7 @@ suite('TextAreaInput', () => {
 
 	function yieldNow(): Promise<void> {
 		return new Promise((resolve, reject) => {
-			mainWindow.queueMicrotask(resolve);
+			queueMicrotask(resolve);
 		});
 	}
 

@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
+import { DeferredPromise, globalRunWhenIdle } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -55,7 +55,6 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
-import { $globalThis } from 'vs/base/common/globals';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -1436,7 +1435,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle($globalThis, () => {
+		this.pendingWebviewIdleCreationRequest.set(content.source, globalRunWhenIdle(() => {
 			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
 			this._sendMessageToWebview(message, transferable);
 			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });

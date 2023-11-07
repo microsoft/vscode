@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleValue } from 'vs/base/common/async';
+import { GlobalIdleValue } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
 import { illegalState } from 'vs/base/common/errors';
 import { toDisposable } from 'vs/base/common/lifecycle';
@@ -12,7 +12,6 @@ import { Graph } from 'vs/platform/instantiation/common/graph';
 import { GetLeadingNonServiceArgs, IInstantiationService, ServiceIdentifier, ServicesAccessor, _util } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { LinkedList } from 'vs/base/common/linkedList';
-import { $globalThis } from 'vs/base/common/globals';
 
 // TRACING
 const _enableAllTracing = false
@@ -256,7 +255,7 @@ export class InstantiationService implements IInstantiationService {
 			// return "empty events" when the service isn't instantiated yet
 			const earlyListeners = new Map<string, LinkedList<Parameters<Event<any>>>>();
 
-			const idle = new IdleValue<any>($globalThis, () => {
+			const idle = new GlobalIdleValue<any>(() => {
 				const result = child._createInstance<T>(ctor, args, _trace);
 
 				// early listeners that we kept are now being subscribed to

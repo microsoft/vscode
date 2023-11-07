@@ -41,7 +41,6 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
-import { mainWindow } from 'vs/base/browser/window';
 
 const nullEvent = new class {
 	id: number = -1;
@@ -109,7 +108,7 @@ suite('SearchModel', () => {
 		return <ISearchService>{
 			textSearch(query: ISearchQuery, token?: CancellationToken, onProgress?: (result: ISearchProgressItem) => void, notebookURIs?: ResourceSet): Promise<ISearchComplete> {
 				return new Promise(resolve => {
-					mainWindow.queueMicrotask(() => {
+					queueMicrotask(() => {
 						results.forEach(onProgress!);
 						resolve(complete!);
 					});
@@ -117,7 +116,7 @@ suite('SearchModel', () => {
 			},
 			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 				return new Promise(resolve => {
-					mainWindow.queueMicrotask(() => {
+					queueMicrotask(() => {
 						resolve({ results: results, messages: [] });
 					});
 
@@ -130,7 +129,7 @@ suite('SearchModel', () => {
 						messages: []
 					},
 					asyncResults: new Promise(resolve => {
-						mainWindow.queueMicrotask(() => {
+						queueMicrotask(() => {
 							results.forEach(onProgress!);
 							resolve(complete!);
 						});
@@ -149,7 +148,7 @@ suite('SearchModel', () => {
 			},
 			fileSearch(query: IFileQuery, token?: CancellationToken): Promise<ISearchComplete> {
 				return new Promise((resolve, reject) => {
-					mainWindow.queueMicrotask(() => {
+					queueMicrotask(() => {
 						reject(error);
 					});
 				});
@@ -184,7 +183,7 @@ suite('SearchModel', () => {
 					store.add(disposable);
 				}
 				return new Promise(resolve => {
-					mainWindow.queueMicrotask(() => {
+					queueMicrotask(() => {
 						resolve(<any>{});
 					});
 				});
@@ -200,7 +199,7 @@ suite('SearchModel', () => {
 						messages: []
 					},
 					asyncResults: new Promise(resolve => {
-						mainWindow.queueMicrotask(() => {
+						queueMicrotask(() => {
 							resolve(<any>{
 								results: [],
 								messages: []

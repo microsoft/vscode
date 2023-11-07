@@ -12,7 +12,6 @@ import { mock } from 'vs/base/test/common/mock';
 import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
 import { TestDialogService } from 'vs/platform/dialogs/test/common/testDialogService';
-import { mainWindow } from 'vs/base/browser/window';
 
 const emptyCommandService: ICommandService = {
 	_serviceBrand: undefined,
@@ -86,7 +85,7 @@ suite('ExtHostMessageService', function () {
 
 		const service = new MainThreadMessageService(null!, new EmptyNotificationService(notification => {
 			assert.strictEqual(notification.actions!.primary!.length, 1);
-			mainWindow.queueMicrotask(() => notification.actions!.primary![0].run());
+			queueMicrotask(() => notification.actions!.primary![0].run());
 		}), emptyCommandService, new TestDialogService());
 
 		const handle = await service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]);

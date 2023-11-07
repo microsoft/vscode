@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IdleDeadline, runWhenIdle } from 'vs/base/common/async';
+import { IdleDeadline, globalRunWhenIdle } from 'vs/base/common/async';
 import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
-import { $globalThis } from 'vs/base/common/globals';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { countEOL } from 'vs/editor/common/core/eolCounter';
@@ -463,7 +462,7 @@ export class DefaultBackgroundTokenizer implements IBackgroundTokenizer {
 		}
 
 		this._isScheduled = true;
-		runWhenIdle($globalThis, (deadline) => {
+		globalRunWhenIdle((deadline) => {
 			this._isScheduled = false;
 
 			this._backgroundTokenizeWithDeadline(deadline);
