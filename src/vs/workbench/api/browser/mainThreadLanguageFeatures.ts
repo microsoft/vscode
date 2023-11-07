@@ -308,15 +308,12 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					});
 
 					const res = this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
-					if (!res) {
-						return Promise.resolve(new Map<URI, languages.DocumentHighlight[]>());
-					}
-
 					return res.then(data => {
 						const result = new Map<URI, languages.DocumentHighlight[]>();
-						if (data) {
-							result.set(model.uri, data);
+						if (!data) {
+							return result;
 						}
+						result.set(model.uri, data);
 
 						if (!word) {
 							return result;
