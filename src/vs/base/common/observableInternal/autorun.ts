@@ -140,15 +140,18 @@ export class AutorunObserver<TChangeSummary = any> implements IObserver, IReader
 
 		this.state = AutorunState.upToDate;
 
+		const isDisposed = this.disposed;
 		try {
-			if (!this.disposed) {
+			if (!isDisposed) {
 				getLogger()?.handleAutorunTriggered(this);
 				const changeSummary = this.changeSummary!;
 				this.changeSummary = this.createChangeSummary?.();
 				this._runFn(this, changeSummary);
 			}
 		} finally {
-			getLogger()?.handleAutorunFinished(this);
+			if (!isDisposed) {
+				getLogger()?.handleAutorunFinished(this);
+			}
 			// We don't want our observed observables to think that they are (not even temporarily) not being observed.
 			// Thus, we only unsubscribe from observables that are definitely not read anymore.
 			for (const o of this.dependenciesToBeRemoved) {
