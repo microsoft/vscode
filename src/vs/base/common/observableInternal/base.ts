@@ -231,6 +231,24 @@ export function transaction(fn: (tx: ITransaction) => void, getDebugName?: () =>
 	}
 }
 
+let _globalTransaction: ITransaction | undefined = undefined;
+
+export function globalTransaction(fn: (tx: ITransaction) => void) {
+	if (_globalTransaction) {
+		fn(_globalTransaction);
+	} else {
+		const tx = new TransactionImpl(fn, undefined);
+		_globalTransaction = tx;
+		try {
+			fn(tx);
+		} finally {
+			tx.finish(); // During finish, more actions might be added to the transaction.
+			// Which is why we only clear the global transaction after finish.
+			_globalTransaction = undefined;
+		}
+	}
+}
+
 export async function asyncTransaction(fn: (tx: ITransaction) => Promise<void>, getDebugName?: () => string): Promise<void> {
 	const tx = new TransactionImpl(fn, getDebugName);
 	try {
@@ -263,17 +281,19 @@ export class TransactionImpl implements ITransaction {
 	}
 
 	public updateObserver(observer: IObserver, observable: IObservable<any>): void {
+		// When this gets called while finish is active, they will still get considered
 		this.updatingObservers!.push({ observer, observable });
 		observer.beginUpdate(observable);
 	}
 
 	public finish(): void {
 		const updatingObservers = this.updatingObservers!;
-		// Prevent anyone from updating observers from now on.
-		this.updatingObservers = null;
-		for (const { observer, observable } of updatingObservers) {
+		for (let i = 0; i < updatingObservers.length; i++) {
+			const { observer, observable } = updatingObservers[i];
 			observer.endUpdate(observable);
 		}
+		// Prevent anyone from updating observers from now on.
+		this.updatingObservers = null;
 		getLogger()?.handleEndTransaction();
 	}
 }
