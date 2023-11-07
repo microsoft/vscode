@@ -96,8 +96,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		compact: 22 as const
 	};
 
+	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
-	private editorActionsDisposables = this._register(new DisposableStore());
+	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
+	private readonly editorActionsDisposables = this._register(new DisposableStore());
 
 	private resourceContext: ResourceContextKey;
 
@@ -153,17 +155,47 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateTabHeight();
 	}
 
-	protected createEditorActionsToolBar(container: HTMLElement): void {
+	private get editorActionsEnabled(): boolean {
+		return this.groupsView.partOptions.editorActionsLocation === 'default' && this.groupsView.partOptions.showTabs !== 'none';
+	}
+
+	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
+		this.editorActionsToolbarContainer = document.createElement('div');
+		this.editorActionsToolbarContainer.classList.add(...classes);
+		parent.appendChild(this.editorActionsToolbarContainer);
+
+		this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
+	}
+
+	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
+		const editorActionsEnabled = this.editorActionsEnabled;
+		const editorActionsVisible = !!this.editorActionsToolbar;
+
+		// Create toolbar if it is enabled (and not yet created)
+		if (editorActionsEnabled && !editorActionsVisible) {
+			this.doCreateEditorActionsToolBar(container);
+		}
+		// Remove toolbar if it is not enabled (and is visible)
+		else if (!editorActionsEnabled && editorActionsVisible) {
+			this.editorActionsToolbar?.getElement().remove();
+			this.editorActionsToolbar = undefined;
+			this.editorActionsToolbarDisposables.clear();
+			this.editorActionsDisposables.clear();
+		}
+
+		container.classList.toggle('hidden', !editorActionsEnabled);
+	}
+
+	private doCreateEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 
 		// Toolbar Widget
-
-		this.editorActionsToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+		this.editorActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			actionRunner: this.editorActionsToolbarDisposables.add(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
@@ -176,7 +208,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorActionsToolbar.context = context;
 
 		// Action Run Handling
-		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
+		this.editorActionsToolbarDisposables.add(this.editorActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
 			if (e.error && !isCancellationError(e.error)) {
@@ -202,6 +234,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorActionsToolbar(): void {
+		if (!this.editorActionsEnabled) {
+			return;
+		}
+
 		this.editorActionsDisposables.clear();
 
 		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
@@ -218,7 +254,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar?.setActions([], []);
+		if (!this.editorActionsEnabled) {
+			return;
+		}
+
+		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		editorActionsToolbar.setActions([], []);
 	}
 
 	protected enableGroupDragging(element: HTMLElement): void {
@@ -358,6 +399,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		// Update Editor Actions Toolbar
+		if (
+			oldOptions.editorActionsLocation !== newOptions.editorActionsLocation ||
+			oldOptions.showTabs !== newOptions.showTabs
+		) {
+			if (this.editorActionsToolbarContainer) {
+				this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
+				this.updateEditorActionsToolbar();
+			}
 		}
 	}
 
