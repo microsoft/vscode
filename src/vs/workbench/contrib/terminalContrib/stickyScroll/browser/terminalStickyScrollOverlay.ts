@@ -8,8 +8,9 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { IMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener, append, hide, setVisibility, show } from 'vs/base/browser/dom';
-import { throttle } from 'vs/base/common/decorators';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { memoize, throttle } from 'vs/base/common/decorators';
+import { Event } from 'vs/base/common/event';
+import { Disposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -22,17 +23,23 @@ import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/mark
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
-let CanvasAddon: typeof CanvasAddonType;
-let SerializeAddon: typeof SerializeAddonType;
+const enum OverlayState {
+	/** Initial state/disabled by the alt buffer. */
+	Off = 0,
+	On = 1
+}
 
 export class TerminalStickyScrollOverlay extends Disposable {
-	private _element?: HTMLElement;
 	private _stickyScrollOverlay?: RawXtermTerminal;
-
-	private _currentStickyMarker?: IMarker;
-
 	private _serializeAddon?: SerializeAddonType;
 	private _canvasAddon?: CanvasAddonType;
+
+	private _element?: HTMLElement;
+	private _currentStickyMarker?: IMarker;
+
+	private _refreshListeners = this._register(new MutableDisposable());
+
+	private _state: OverlayState = OverlayState.Off;
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
@@ -44,18 +51,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		super();
 
 		// Only show sticky scroll in the normal buffer
-		this._register(this._xterm.raw.buffer.onBufferChange(buffer => {
-			const element = this._ensureElement();
-			setVisibility(buffer.type === 'normal', element);
+		this._register(Event.runAndSubscribe(this._xterm.raw.buffer.onBufferChange, buffer => {
+			this._setState((buffer ?? this._xterm.raw.buffer.active).type === 'normal' ? OverlayState.On : OverlayState.Off);
 		}));
 
-		// Refresh sticky scroll on write/scroll events
-		// TODO: Skip these when hidden
-		this._register(this._xterm.raw.onScroll(() => this._refresh()));
-		this._register(this._xterm.raw.onLineFeed(() => this._refresh()));
-		this._register(addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()));
-
-		// Create the overlay
+		// Eagerly create the overlay
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
 			const overlay = new ctor({
 				rows: 1,
@@ -64,18 +64,55 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			});
 			this._syncOptions(overlay, this._xterm.raw);
 			this._stickyScrollOverlay = overlay;
-			this._getSerializeAddonConstructor().then(addonCtor => {
-				this._serializeAddon = new addonCtor();
+
+			this._getSerializeAddonConstructor().then(SerializeAddon => {
+				this._serializeAddon = new SerializeAddon();
 				this._xterm.raw.loadAddon(this._serializeAddon);
 			});
+
 			// TODO: Sync every render
 			if (this._xterm.isGpuAccelerated) {
-				this._getCanvasAddonConstructor().then(addonCtor => {
-					this._canvasAddon = new addonCtor();
+				this._getCanvasAddonConstructor().then(CanvasAddon => {
+					this._canvasAddon = new CanvasAddon();
 					overlay.loadAddon(this._canvasAddon);
 				});
 			}
 		});
+	}
+
+	private _setState(state: OverlayState) {
+		if (this._state === state) {
+			return;
+		}
+		switch (state) {
+			case OverlayState.Off: {
+				if (this._element) {
+					setVisibility(false, this._element);
+				}
+				this._uninstallRefreshListeners();
+				break;
+			}
+			case OverlayState.On: {
+				const element = this._ensureElement();
+				setVisibility(true, element);
+				this._installRefreshListeners();
+				break;
+			}
+		}
+	}
+
+	private _installRefreshListeners() {
+		if (!this._refreshListeners.value) {
+			this._refreshListeners.value = combinedDisposable(
+				this._xterm.raw.onScroll(() => this._refresh()),
+				this._xterm.raw.onLineFeed(() => this._refresh()),
+				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
+			);
+		}
+	}
+
+	private _uninstallRefreshListeners() {
+		this._refreshListeners.clear();
 	}
 
 	@throttle(0)
@@ -142,6 +179,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _ensureElement(): HTMLElement {
 		if (!this._element) {
 			this._element = document.createElement('div');
+			// TODO: Use display in a class over hide/show/setVisibility
 			this._element.classList.add('terminal-sticky-scroll');
 			// // TODO: Safety
 			this._xterm!.raw.element!.parentElement!.append(this._element);
@@ -204,20 +242,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		};
 	}
 
-
-	// TODO: Share ctor
-	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
-		if (!CanvasAddon) {
-			CanvasAddon = (await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js')).CanvasAddon;
-		}
-		return CanvasAddon;
+	@memoize
+	private async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
+		const m = await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js');
+		return m.CanvasAddon;
 	}
 
-	// TODO: Share ctor
-	protected async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
-		if (!SerializeAddon) {
-			SerializeAddon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
-		}
-		return SerializeAddon;
+	@memoize
+	private async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
+		const m = await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js');
+		return m.SerializeAddon;
 	}
 }

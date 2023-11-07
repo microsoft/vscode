@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
-import { DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -14,7 +14,7 @@ import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/wid
 import { ITerminalProcessInfo, ITerminalProcessManager } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalStickyScrollOverlay } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollOverlay';
 
-class TerminalStickyScrollContribution extends DisposableStore implements ITerminalContribution {
+class TerminalStickyScrollContribution extends Disposable implements ITerminalContribution {
 	static readonly ID = 'terminal.stickyScroll';
 
 	static get(instance: ITerminalInstance): TerminalStickyScrollContribution | null {
@@ -23,10 +23,10 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 
 	private _xterm?: IXtermTerminal & { raw: RawXtermTerminal };
 
-	private _overlay = new MutableDisposable<TerminalStickyScrollOverlay>();
+	private _overlay = this._register(new MutableDisposable<TerminalStickyScrollOverlay>());
 
-	private _enableListeners = new MutableDisposable();
-	private _disableListeners = new MutableDisposable();
+	private _enableListeners = this._register(new MutableDisposable());
+	private _disableListeners = this._register(new MutableDisposable());
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
