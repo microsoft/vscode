@@ -10,7 +10,7 @@ import { platform } from 'vs/base/common/process';
 import { URI } from 'vs/base/common/uri';
 import { ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
-import { ExtensionType } from 'vs/platform/extensions/common/extensions';
+import { ExtensionIdentifier, ExtensionType } from 'vs/platform/extensions/common/extensions';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IIssueMainService, IssueReporterData, IssueReporterExtensionData, IssueReporterStyles, ProcessExplorerData } from 'vs/platform/issue/common/issue';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -22,6 +22,7 @@ import { IWorkbenchAssignmentService } from 'vs/workbench/services/assignment/co
 import { IAuthenticationService } from 'vs/workbench/services/authentication/common/authentication';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
+import { ImplicitActivationAwareReader } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
@@ -31,6 +32,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 
 	private readonly _handlers = new Map<string, IIssueUriRequestHandler>();
 	private readonly _providers = new Map<string, IIssueDataProvider>();
+	private readonly _activationEventReader = new ImplicitActivationAwareReader();
 
 	constructor(
 		@IIssueMainService private readonly issueMainService: IIssueMainService,
@@ -59,8 +61,18 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		});
 		ipcRenderer.on('vscode:sendReporterStatus', async (event, arg) => {
 			const extensionId = arg.extensionId;
-			const extensionName = arg.extensionName;
-			await this.extensionService.activateByEvent(`onIssueReporterOpened:${extensionName}`);
+			const extension = await this.extensionService.getExtension(extensionId);
+			if (extension) {
+				// const extensionDescription = this._registry.getExtensionDescription(extension.identifier);
+				const activationEvents = this._activationEventReader.readActivationEvents(extension);
+				for (const activationEvent of activationEvents) {
+					if (activationEvent === 'onIssueReporterOpened') {
+						const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
+						await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
+						break;
+					}
+				}
+			}
 			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
 			ipcRenderer.send('vscode:receiveReporterStatus', result);
 		});
