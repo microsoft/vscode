@@ -403,41 +403,34 @@ export class InlineCompletionsModel extends Disposable {
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);
 
-		// Create a local reference to the active completions.
-		const activeInlineCompletions = [
-			this._source.suggestWidgetInlineCompletions.get()?.clone(),
-			this._source.inlineCompletions.get()?.clone()
-		];
-
-		this._isAcceptingPartially = true;
+		// Executing the edit might free the completion, so we have to hold a reference on it.
+		completion.source.addRef();
 		try {
-			editor.pushUndoStop();
-			editor.executeEdits('inlineSuggestion.accept', [
-				EditOperation.replace(Range.fromPositions(position), partialText),
-			]);
-			const length = lengthOfText(partialText);
-			editor.setPosition(addPositions(position, length));
-		} catch (e) {
-			activeInlineCompletions.forEach(c => { c?.dispose(); });
+			this._isAcceptingPartially = true;
+			try {
+				editor.pushUndoStop();
+				editor.executeEdits('inlineSuggestion.accept', [
+					EditOperation.replace(Range.fromPositions(position), partialText),
+				]);
+				const length = lengthOfText(partialText);
+				editor.setPosition(addPositions(position, length));
+			} finally {
+				this._isAcceptingPartially = false;
+			}
+
+			if (completion.source.provider.handlePartialAccept) {
+				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), addPositions(position, lengthOfText(partialText)));
+				// This assumes that the inline completion and the model use the same EOL style.
+				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
+				completion.source.provider.handlePartialAccept(
+					completion.source.inlineCompletions,
+					completion.sourceInlineCompletion,
+					text.length,
+				);
+			}
 		} finally {
-			this._isAcceptingPartially = false;
+			completion.source.removeRef();
 		}
-
-		if (completion.source.provider.handlePartialAccept) {
-			const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), addPositions(position, lengthOfText(partialText)));
-			// This assumes that the inline completion and the model use the same EOL style.
-			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
-			completion.source.provider.handlePartialAccept(
-				completion.source.inlineCompletions,
-				completion.sourceInlineCompletion,
-				text.length,
-			);
-		}
-
-		// Cleans up previously cloned completions.
-		// If already removed outside of the partial accept,
-		// this will dispose it also on extensionHost.
-		activeInlineCompletions.forEach(c => { c?.dispose(); });
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
