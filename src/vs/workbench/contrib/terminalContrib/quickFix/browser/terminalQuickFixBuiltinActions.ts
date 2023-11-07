@@ -271,7 +271,6 @@ export function pwshGeneralError(): ITerminalQuickFixInternalOptions {
 					id: 'Pwsh General Error',
 					type: TerminalQuickFixType.TerminalCommand,
 					terminalCommand: suggestion,
-					shouldExecute: true,
 					source: QuickFixSource.Builtin
 				});
 			}
