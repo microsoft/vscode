@@ -1391,7 +1391,6 @@ export class GettingStartedPage extends EditorPane {
 		const categoryDescriptorComponent =
 			$('.getting-started-category',
 				{},
-				this.iconWidgetFor(category),
 				$('.category-description-container', {},
 					$('h2.category-title.max-lines-3', { 'x-category-title-for': category.id }, ...renderLabelWithIcons(category.title)),
 					$('.category-description.description.max-lines-3', { 'x-category-description-for': category.id }, ...renderLabelWithIcons(category.description))));
