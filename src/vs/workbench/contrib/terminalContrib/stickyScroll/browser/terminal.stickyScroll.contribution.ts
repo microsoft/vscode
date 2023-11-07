@@ -100,25 +100,27 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 		if (!this._xterm?.raw?.element) {
 			return;
 		}
-		this._currentStickyMarker = undefined;
+
 		// TODO: Cache
 		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
 			return;
 		}
+
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
 		// scroll.
 		const command = commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
 		const element = this._ensureElement();
+		this._currentStickyMarker = undefined;
 
-		// TODO: Expose unified interface for fetching line content
-		const marker = command && 'commandStartMarker' in command
-			? command.commandStartMarker
-			: command && 'marker' in command
-				? command.marker
-				: undefined;
+		// Sticky scroll only works with non-partial commands
+		if (!command || !('marker' in command)) {
+			hide(element);
+			return;
+		}
 
 		// Hide if the marker doesn't exist or has been trimmed from the scrollback
+		const marker = command.marker;
 		if (!marker || marker.line === -1) {
 			hide(element);
 			return;
@@ -129,6 +131,9 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 			hide(element);
 			return;
 		}
+
+		// TODO: Support multi-line prompts
+		// TODO: SUpport multi-line commands
 
 		if (this._stickyScrollOverlay) {
 			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
@@ -146,12 +151,14 @@ class TerminalStickyScrollContribution extends DisposableStore implements ITermi
 				this._syncOptions(this._stickyScrollOverlay, this._xterm.raw);
 			}
 
-			if (command && ('commandStartMarker' in command ? !command.isInvalid : command?.command)) {
+			if (command.exitCode !== undefined) {
 				this._currentStickyMarker = marker;
 				show(element);
 			} else {
 				hide(element);
 			}
+		} else {
+			hide(element);
 		}
 	}
 
