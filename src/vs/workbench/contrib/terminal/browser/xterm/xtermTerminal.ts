@@ -195,7 +195,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		private readonly _backgroundColorProvider: IXtermColorProvider,
+		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		shellIntegrationNonce: string,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean> | undefined,
@@ -908,7 +908,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		}
 
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		const backgroundColor = this._backgroundColorProvider.getBackgroundColor(theme);
+		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionBackgroundColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);

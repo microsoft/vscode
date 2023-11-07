@@ -2,10 +2,9 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -14,19 +13,12 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
-import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
+import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
-import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
-import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
+import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
 const enum OverlayState {
 	/** Initial state/disabled by the alt buffer. */
@@ -54,12 +46,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 
 	constructor(
-		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
+		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _commandDetection: ICommandDetectionCapability,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		xtermCtor: Promise<typeof XTermTerminal>,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
@@ -80,7 +71,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}));
 
 		// Eagerly create the overlay
-		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
+		xtermCtor.then(ctor => {
 			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
@@ -277,9 +268,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		const theme = this._themeService.getColorTheme();
-		const terminalBackground = theme.getColor(terminalStickyScrollBackground) || theme.getColor(TERMINAL_BACKGROUND_COLOR) || (
-			theme.getColor(this._instance.target === TerminalLocation.Editor ? editorBackground : PANEL_BACKGROUND)
-		);
 		return {
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
@@ -288,7 +276,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// Selection is used for hover state in the overlay
 			theme: {
 				...this._xterm.getXtermTheme(),
-				background: terminalBackground?.toString(),
+				background: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
 				selectionBackground: theme.getColor(terminalStickyScrollHoverBackground)?.toString(),
 				selectionInactiveBackground: undefined
 			},
