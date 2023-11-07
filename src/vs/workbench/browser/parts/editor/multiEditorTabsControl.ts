@@ -1032,7 +1032,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
+			scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
 		}));
 
 		// Drop support
@@ -1616,9 +1616,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				let scheduledLayout: IDisposable;
 				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
 				} else {
-					scheduledLayout = runWhenIdle(layoutFunction);
+					scheduledLayout = runWhenIdle(getWindow(this.tabsContainer), layoutFunction);
 				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };

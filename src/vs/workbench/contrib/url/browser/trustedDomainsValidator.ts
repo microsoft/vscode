@@ -24,6 +24,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { testUrlMatchesGlob } from 'vs/workbench/contrib/url/common/urlGlob';
 import { IWorkspaceTrustManagementService } from 'vs/platform/workspace/common/workspaceTrust';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { $window } from 'vs/base/browser/window';
 
 export class OpenerValidatorContributions implements IWorkbenchContribution {
 
@@ -47,19 +48,19 @@ export class OpenerValidatorContributions implements IWorkbenchContribution {
 	) {
 		this._openerService.registerValidator({ shouldOpen: (uri, options) => this.validateLink(uri, options) });
 
-		this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+		this._readAuthenticationTrustedDomainsResult = new IdleValue($window, () =>
 			this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
 		this._authenticationService.onDidRegisterAuthenticationProvider(() => {
 			this._readAuthenticationTrustedDomainsResult?.dispose();
-			this._readAuthenticationTrustedDomainsResult = new IdleValue(() =>
+			this._readAuthenticationTrustedDomainsResult = new IdleValue($window, () =>
 				this._instantiationService.invokeFunction(readAuthenticationTrustedDomains));
 		});
 
-		this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+		this._readWorkspaceTrustedDomainsResult = new IdleValue($window, () =>
 			this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
 		this._workspaceContextService.onDidChangeWorkspaceFolders(() => {
 			this._readWorkspaceTrustedDomainsResult?.dispose();
-			this._readWorkspaceTrustedDomainsResult = new IdleValue(() =>
+			this._readWorkspaceTrustedDomainsResult = new IdleValue($window, () =>
 				this._instantiationService.invokeFunction(readWorkspaceTrustedDomains));
 		});
 	}

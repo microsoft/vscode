@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getWindow } from 'vs/base/browser/dom';
 import { runWhenIdle } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
@@ -57,21 +58,21 @@ export class CodeEditorContributions extends Disposable {
 		// AfterFirstRender
 		// - these extensions will be instantiated at the latest 50ms after the first render.
 		// - but if there is idle time, we will instantiate them sooner.
-		this._register(runWhenIdle(() => {
+		this._register(runWhenIdle(getWindow(this._editor.getDomNode()), () => {
 			this._instantiateSome(EditorContributionInstantiation.AfterFirstRender);
 		}));
 
 		// BeforeFirstInteraction
 		// - these extensions will be instantiated at the latest before a mouse or a keyboard event.
 		// - but if there is idle time, we will instantiate them sooner.
-		this._register(runWhenIdle(() => {
+		this._register(runWhenIdle(getWindow(this._editor.getDomNode()), () => {
 			this._instantiateSome(EditorContributionInstantiation.BeforeFirstInteraction);
 		}));
 
 		// Eventually
 		// - these extensions will only be instantiated when there is idle time.
 		// - since there is no guarantee that there will ever be idle time, we set a timeout of 5s here.
-		this._register(runWhenIdle(() => {
+		this._register(runWhenIdle(getWindow(this._editor.getDomNode()), () => {
 			this._instantiateSome(EditorContributionInstantiation.Eventually);
 		}, 5000));
 	}
@@ -112,7 +113,7 @@ export class CodeEditorContributions extends Disposable {
 	}
 
 	public onAfterModelAttached(): void {
-		this._register(runWhenIdle(() => {
+		this._register(runWhenIdle(getWindow(this._editor?.getDomNode()), () => {
 			this._instantiateSome(EditorContributionInstantiation.AfterFirstRender);
 		}, 50));
 	}

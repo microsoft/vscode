@@ -395,7 +395,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		// Report the latency to the pty host when idle
-		runWhenIdle(() => {
+		runWhenIdle($window, () => {
 			this.backend?.getLatency().then(measurements => {
 				this._logService.info(`Latency measurements for ${this.remoteAuthority ?? 'local'} backend\n${measurements.map(e => `${e.label}: ${e.latency.toFixed(2)}ms`).join('\n')}`);
 			});
