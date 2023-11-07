@@ -584,7 +584,7 @@ export class SplitView<TLayoutContext = undefined, TView extends IView<TLayoutCo
 		this.scrollable = this._register(new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: callback => scheduleAtNextAnimationFrame(callback, getWindow(this.el)),
+			scheduleAtNextAnimationFrame: callback => scheduleAtNextAnimationFrame(getWindow(this.el), callback),
 		}));
 		this.scrollableElement = this._register(new SmoothScrollableElement(this.viewContainer, {
 			vertical: this.orientation === Orientation.VERTICAL ? (options.scrollbarVisibility ?? ScrollbarVisibility.Auto) : ScrollbarVisibility.Hidden,

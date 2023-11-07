@@ -721,8 +721,140 @@
 						"message": "Use <targetWindow>.cancelAnimationFrame to support multi-window scenarios."
 					},
 					{
+						"name": "requestIdleCallback",
+						"message": "Use <targetWindow>.requestIdleCallback to support multi-window scenarios."
+					},
+					{
+						"name": "cancelIdleCallback",
+						"message": "Use <targetWindow>.cancelIdleCallback to support multi-window scenarios."
+					},
+					{
 						"name": "window",
 						"message": "Be aware of multi-window scenarios: Use DOM.getWindow() or DOM.getActiveWindow() to obtain the correct window for the context you are in. Only use window.ts#mainWindow if you target the main window."
+					},
+					{
+						"name": "addEventListener",
+						"message": "Use <targetWindow>.addEventListener to support multi-window scenarios."
+					},
+					{
+						"name": "removeEventListener",
+						"message": "Use <targetWindow>.removeEventListener to support multi-window scenarios."
+					},
+					{
+						"name": "getComputedStyle",
+						"message": "Use <targetWindow>.getComputedStyle to support multi-window scenarios."
+					},
+					{
+						"name": "focus",
+						"message": "Use <targetWindow>.focus to support multi-window scenarios."
+					},
+					{
+						"name": "blur",
+						"message": "Use <targetWindow>.blur to support multi-window scenarios."
+					},
+					{
+						"name": "close",
+						"message": "Use <targetWindow>.close to support multi-window scenarios."
+					},
+					{
+						"name": "dispatchEvent",
+						"message": "Use <targetWindow>.dispatchEvent to support multi-window scenarios."
+					},
+					{
+						"name": "getSelection",
+						"message": "Use <targetWindow>.getSelection to support multi-window scenarios."
+					},
+					{
+						"name": "matchMedia",
+						"message": "Use <targetWindow>.matchMedia to support multi-window scenarios."
+					},
+					{
+						"name": "open",
+						"message": "Use <targetWindow>.open to support multi-window scenarios."
+					},
+					{
+						"name": "parent",
+						"message": "Use <targetWindow>.parent to support multi-window scenarios."
+					},
+					{
+						"name": "postMessage",
+						"message": "Use <targetWindow>.postMessage to support multi-window scenarios."
+					},
+					{
+						"name": "devicePixelRatio",
+						"message": "Use <targetWindow>.devicePixelRatio to support multi-window scenarios."
+					},
+					{
+						"name": "frames",
+						"message": "Use <targetWindow>.frames to support multi-window scenarios."
+					},
+					{
+						"name": "frameElement",
+						"message": "Use <targetWindow>.frameElement to support multi-window scenarios."
+					},
+					{
+						"name": "innerHeight",
+						"message": "Use <targetWindow>.innerHeight to support multi-window scenarios."
+					},
+					{
+						"name": "innerWidth",
+						"message": "Use <targetWindow>.innerWidth to support multi-window scenarios."
+					},
+					{
+						"name": "outerHeight",
+						"message": "Use <targetWindow>.outerHeight to support multi-window scenarios."
+					},
+					{
+						"name": "outerWidth",
+						"message": "Use <targetWindow>.outerWidth to support multi-window scenarios."
+					},
+					{
+						"name": "length",
+						"message": "Use <targetWindow>.length to support multi-window scenarios."
+					},
+					{
+						"name": "opener",
+						"message": "Use <targetWindow>.opener to support multi-window scenarios."
+					},
+					{
+						"name": "origin",
+						"message": "Use <targetWindow>.origin to support multi-window scenarios."
+					},
+					{
+						"name": "screen",
+						"message": "Use <targetWindow>.screen to support multi-window scenarios."
+					},
+					{
+						"name": "screenLeft",
+						"message": "Use <targetWindow>.screenLeft to support multi-window scenarios."
+					},
+					{
+						"name": "screenTop",
+						"message": "Use <targetWindow>.screenTop to support multi-window scenarios."
+					},
+					{
+						"name": "screenX",
+						"message": "Use <targetWindow>.screenX to support multi-window scenarios."
+					},
+					{
+						"name": "screenY",
+						"message": "Use <targetWindow>.screenY to support multi-window scenarios."
+					},
+					{
+						"name": "scrollX",
+						"message": "Use <targetWindow>.scrollX to support multi-window scenarios."
+					},
+					{
+						"name": "scrollY",
+						"message": "Use <targetWindow>.scrollY to support multi-window scenarios."
+					},
+					{
+						"name": "top",
+						"message": "Use <targetWindow>.top to support multi-window scenarios."
+					},
+					{
+						"name": "visualViewport",
+						"message": "Use <targetWindow>.visualViewport to support multi-window scenarios."
 					}
 				]
 			}

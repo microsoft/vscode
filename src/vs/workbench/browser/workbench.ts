@@ -451,7 +451,7 @@ export class Workbench extends Layout {
 
 				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+					this._register(runWhenIdle(mainWindow, () => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 				}, 2500));
 				eventuallyPhaseScheduler.schedule();
 			})

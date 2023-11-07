@@ -11,6 +11,7 @@ import type { Terminal, IMarker, ITerminalAddon, IDecoration } from '@xterm/xter
 import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { getWindow } from 'vs/base/browser/dom';
 
 enum Boundary {
 	Top,
@@ -241,7 +242,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 							element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
 						}
 						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getComputedStyle(this._terminal.element).paddingLeft}`;
+							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 						}
 					}
 				});

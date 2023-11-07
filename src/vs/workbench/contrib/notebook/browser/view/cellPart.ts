@@ -158,11 +158,11 @@ export class CellPartsCollection extends Disposable {
 			part.renderCell(element);
 		}
 
-		this._scheduledOverlayRendering.value = DOM.modify(() => {
+		this._scheduledOverlayRendering.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
 				part.renderCell(element);
 			}
-		}, this.targetWindow);
+		});
 	}
 
 	unrenderCell(element: ICellViewModel): void {
@@ -200,11 +200,11 @@ export class CellPartsCollection extends Disposable {
 			part.updateState(viewCell, e);
 		}
 
-		this._scheduledOverlayUpdateState.value = DOM.modify(() => {
+		this._scheduledOverlayUpdateState.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
 				part.updateState(viewCell, e);
 			}
-		}, this.targetWindow);
+		});
 	}
 
 	updateForExecutionState(viewCell: ICellViewModel, e: ICellExecutionStateChangedEvent) {
@@ -212,10 +212,10 @@ export class CellPartsCollection extends Disposable {
 			part.updateForExecutionState(viewCell, e);
 		}
 
-		this._scheduledOverlayUpdateExecutionState.value = DOM.modify(() => {
+		this._scheduledOverlayUpdateExecutionState.value = DOM.modify(this.targetWindow, () => {
 			for (const part of this.overlayParts) {
 				part.updateForExecutionState(viewCell, e);
 			}
-		}, this.targetWindow);
+		});
 	}
 }

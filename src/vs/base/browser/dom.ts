@@ -184,14 +184,14 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 
 class AnimationFrameQueueItem implements IDisposable {
 
@@ -261,7 +261,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
+	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
 		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
 
@@ -280,7 +280,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		return item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
+	runAtThisOrScheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority?: number) => {
 		const targetWindowId = getWindowId(targetWindow);
 		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
@@ -292,17 +292,17 @@ class AnimationFrameQueueItem implements IDisposable {
 			currentQueue.push(item);
 			return item;
 		} else {
-			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);
+			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
 		}
 	};
 })();
 
-export function measure(callback: () => void, targetWindow: Window): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, targetWindow, 10000 /* must be early */);
+export function measure(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void, targetWindow: Window): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, targetWindow, -10000 /* must be late */);
+export function modify(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, -10000 /* must be late */);
 }
 
 /**
@@ -1487,13 +1487,13 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	return false;
 }
 
-export function animate(fn: () => void, targetWindow: Window): IDisposable {
+export function animate(targetWindow: Window, fn: () => void): IDisposable {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
+		stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
+	let stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	return toDisposable(() => stepDisposable.dispose());
 }
 
@@ -1621,7 +1621,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	if ($window.innerHeight === screen.height) {
+	if ($window.innerHeight === $window.screen.height) {
 		// if the height of the window matches the screen height, we can
 		// safely assume that the browser is fullscreen because no browser
 		// chrome is taking height away (e.g. like toolbars).
@@ -1630,7 +1630,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	if (platform.isMacintosh || platform.isLinux) {
 		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if ($window.outerHeight === screen.height && $window.outerWidth === screen.width) {
+		if ($window.outerHeight === $window.screen.height && $window.outerWidth === $window.screen.width) {
 			// if the height of the browser matches the screen height, we can
 			// only guess that we are in fullscreen. It is also possible that
 			// the user has turned off taskbars in the OS and the browser is

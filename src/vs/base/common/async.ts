@@ -1238,14 +1238,19 @@ export interface IdleDeadline {
  * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
  * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
  */
-export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+export let runWhenIdle: (targetWindow: typeof globalThis, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+
+/**
+ * @deprecated use `runWhenIdle` instead passing in the target window
+ */
+export let globalRunWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
 declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
 declare function cancelIdleCallback(handle: number): void;
 
 (function () {
 	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		runWhenIdle = (runner) => {
+		runWhenIdle = (targetWindow, runner) => {
 			setTimeout0(() => {
 				if (disposed) {
 					return;
@@ -1269,8 +1274,8 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	} else {
-		runWhenIdle = (runner, timeout?) => {
-			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+		runWhenIdle = (targetWindow, runner, timeout?) => {
+			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
 				dispose() {
@@ -1278,11 +1283,12 @@ declare function cancelIdleCallback(handle: number): void;
 						return;
 					}
 					disposed = true;
-					cancelIdleCallback(handle);
+					targetWindow.cancelIdleCallback(handle);
 				}
 			};
 		};
 	}
+	globalRunWhenIdle = (runner) => runWhenIdle(globalThis, runner);
 })();
 
 /**
@@ -1298,7 +1304,7 @@ export class IdleValue<T> {
 	private _value?: T;
 	private _error: unknown;
 
-	constructor(executor: () => T) {
+	constructor(targetWindow: typeof globalThis, executor: () => T) {
 		this._executor = () => {
 			try {
 				this._value = executor();
@@ -1308,7 +1314,7 @@ export class IdleValue<T> {
 				this._didRun = true;
 			}
 		};
-		this._handle = runWhenIdle(() => this._executor());
+		this._handle = runWhenIdle(targetWindow, () => this._executor());
 	}
 
 	dispose(): void {
@@ -1328,6 +1334,16 @@ export class IdleValue<T> {
 
 	get isInitialized(): boolean {
 		return this._didRun;
+	}
+}
+
+/**
+ * @deprecated use `IdleValue` instead passing in the target window
+ */
+export class GlobalIdleValue<T> extends IdleValue<T> {
+
+	constructor(executor: () => T) {
+		super(globalThis, executor);
 	}
 }
 

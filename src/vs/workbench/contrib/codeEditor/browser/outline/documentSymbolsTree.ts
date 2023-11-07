@@ -24,6 +24,7 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/tex
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IOutlineComparator, OutlineConfigKeys } from 'vs/workbench/services/outline/browser/outline';
 import { ThemeIcon } from 'vs/base/common/themables';
+import { mainWindow } from 'vs/base/browser/window';
 
 export type DocumentSymbolItem = OutlineGroup | OutlineElement;
 
@@ -251,7 +252,7 @@ export class DocumentSymbolFilter implements ITreeFilter<DocumentSymbolItem> {
 
 export class DocumentSymbolComparator implements IOutlineComparator<DocumentSymbolItem> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new IdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: DocumentSymbolItem, b: DocumentSymbolItem): number {
 		if (a instanceof OutlineGroup && b instanceof OutlineGroup) {
