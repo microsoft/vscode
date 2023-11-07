@@ -20,11 +20,12 @@ import { ByteSize } from 'vs/platform/files/common/files';
 import { ElectronIPCMainProcessService } from 'vs/platform/ipc/electron-sandbox/mainProcessService';
 import { ProcessExplorerData, ProcessExplorerStyles, ProcessExplorerWindowConfiguration } from 'vs/platform/issue/common/issue';
 import { INativeHostService } from 'vs/platform/native/common/native';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { applyZoom, zoomIn, zoomOut } from 'vs/platform/window/electron-sandbox/window';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { mainWindow } from 'vs/base/browser/window';
 
 const DEBUG_FLAGS_PATTERN = /\s--inspect(?:-brk|port)?=(?<port>\d+)?/;
 const DEBUG_PORT_PATTERN = /\s--inspect-port=(?<port>\d+)/;
@@ -262,7 +263,7 @@ class ProcessExplorer {
 				await this.createProcessTree(processRoots);
 			} else {
 				this.tree.setInput({ processes: { processRoots } });
-				this.tree.layout(window.innerHeight, window.innerWidth);
+				this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 			}
 
 			this.requestProcessList(0);
@@ -342,7 +343,7 @@ class ProcessExplorer {
 			});
 
 		this.tree.setInput({ processes: { processRoots } });
-		this.tree.layout(window.innerHeight, window.innerWidth);
+		this.tree.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		this.tree.onKeyDown(e => {
 			const event = new StandardKeyboardEvent(e);
 			if (event.keyCode === KeyCode.KeyE && event.altKey) {
@@ -356,11 +357,11 @@ class ProcessExplorer {
 			}
 		});
 
-		container.style.height = `${window.innerHeight}px`;
+		container.style.height = `${mainWindow.innerHeight}px`;
 
-		window.addEventListener('resize', () => {
-			container.style.height = `${window.innerHeight}px`;
-			this.tree?.layout(window.innerHeight, window.innerWidth);
+		mainWindow.addEventListener('resize', () => {
+			container.style.height = `${mainWindow.innerHeight}px`;
+			this.tree?.layout(mainWindow.innerHeight, mainWindow.innerWidth);
 		});
 	}
 

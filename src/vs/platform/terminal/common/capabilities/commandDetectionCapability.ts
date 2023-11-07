@@ -621,6 +621,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (this._currentCommand.commandStartMarker) {
 				this._commandMarkers.push(this._currentCommand.commandStartMarker);
 			}
+			// Fire this now to prevent issues like #197409
+			this._onCommandExecuted.fire();
 		}
 		this._evaluateCommandMarkersWindows();
 	}

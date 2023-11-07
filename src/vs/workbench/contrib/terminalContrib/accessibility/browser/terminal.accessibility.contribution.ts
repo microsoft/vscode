@@ -66,7 +66,7 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 	private _bufferTracker: BufferContentTracker | undefined;
 	private _bufferProvider: TerminalAccessibleBufferProvider | undefined;
 	private _xterm: Pick<IXtermTerminal, 'shellIntegration' | 'getFont'> & { raw: Terminal } | undefined;
-	private _onCommandExecutedShowListener: MutableDisposable<IDisposable> = new MutableDisposable();
+	private _onDidRunCommand: MutableDisposable<IDisposable> = new MutableDisposable();
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -129,14 +129,14 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 			return;
 		}
 		if (!this._configurationService.getValue(TerminalSettingId.AccessibleViewFocusOnCommandExecution)) {
-			this._onCommandExecutedShowListener.clear();
+			this._onDidRunCommand.clear();
 			return;
-		} else if (this._onCommandExecutedShowListener.value) {
+		} else if (this._onDidRunCommand.value) {
 			return;
 		}
 
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection)!;
-		this._onCommandExecutedShowListener.value = this._register(capability.onCommandExecuted(() => {
+		this._onDidRunCommand.value = this._register(capability.onCommandExecuted(() => {
 			if (this._instance.hasFocus) {
 				this.show();
 			}

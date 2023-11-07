@@ -167,6 +167,7 @@ import { IRemoteExtensionsScannerService } from 'vs/platform/remote/common/remot
 import { IRemoteSocketFactoryService, RemoteSocketFactoryService } from 'vs/platform/remote/common/remoteSocketFactoryService';
 import { EditorParts } from 'vs/workbench/browser/parts/editor/editorParts';
 import { TestAccessibleNotificationService } from 'vs/workbench/contrib/accessibility/browser/accessibleNotificationService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export function createFileEditorInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, undefined, undefined, undefined, undefined, undefined, undefined);
@@ -594,9 +595,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
 	hasContainer = true;
-	container: HTMLElement = window.document.body;
-	containers = [window.document.body];
-	activeContainer: HTMLElement = window.document.body;
+	container: HTMLElement = mainWindow.document.body;
+	containers = [mainWindow.document.body];
+	activeContainer: HTMLElement = mainWindow.document.body;
 
 	onDidChangeZenMode: Event<boolean> = Event.None;
 	onDidChangeCenteredLayout: Event<boolean> = Event.None;
