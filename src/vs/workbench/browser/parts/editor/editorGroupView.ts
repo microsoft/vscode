@@ -1936,7 +1936,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		} else {
 			// If there is no active pane in the group (it's the last group and it's empty)
 			// Trigger the change event when the active editor changes
-			const _onDidChange = new Emitter<void>();
+			const _onDidChange = disposables.add(new Emitter<void>());
 			onDidChange = _onDidChange.event;
 			disposables.add(this.onDidActiveEditorChange(() => _onDidChange.fire()));
 		}
