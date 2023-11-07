@@ -152,15 +152,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
-		// Hide if the marker doesn't exist or has been trimmed from the scrollback
 		const marker = command.marker;
-		if (!marker || marker.line === -1) {
-			this._setVisible(false);
-			return;
-		}
-
-		// Hide sticky scroll if it's on the same line
-		if (marker.line === this._xterm.raw.buffer.active.viewportY) {
+		if (
+			// The marker doesn't exist
+			!marker ||
+			// The marker was trimmed from the scrollback
+			marker.line === -1 ||
+			// Hide sticky scroll if it's on the same line
+			marker.line === this._xterm.raw.buffer.active.viewportY
+		) {
 			this._setVisible(false);
 			return;
 		}
@@ -192,37 +192,44 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 	}
 
-	private _ensureElement(): HTMLElement {
-		if (!this._element) {
-			this._element = document.createElement('div');
-			// TODO: Use display in a class over hide/show/setVisibility
-			this._element.classList.add('terminal-sticky-scroll');
-			// // TODO: Safety
-			this._xterm!.raw.element!.parentElement!.append(this._element);
-
-			const hoverOverlay = $('.hover-overlay');
-
-			// Scroll to the command on click
-			this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
-				if (this._xterm && this._currentStickyMarker) {
-					this._xterm.scrollToLine(this._currentStickyMarker.line, ScrollPosition.Middle);
-					this._xterm.markTracker.registerTemporaryDecoration(this._currentStickyMarker);
-				}
-			}));
-
-			// Instead of juggling decorations for hover styles, use the selection to indicate the
-			// hover state as the selection is inaccessible anyway
-			this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => this._stickyScrollOverlay?.selectAll()));
-			this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => this._stickyScrollOverlay?.clearSelection()));
-
-			// TODO: Add to a container outside the xterm instance?
-			// TODO: Remove !
-			this._stickyScrollOverlay!.open(this._element);
-
-			append(this._element, hoverOverlay);
+	private _ensureElement() {
+		if (
+			// The element is already created
+			this._element ||
+			// If the overlay is yet to be created, the terminal cannot be opened so defer to next call
+			!this._stickyScrollOverlay ||
+			// The xterm.js instance isn't opened yet
+			!this._xterm?.raw.element?.parentElement
+		) {
+			return;
 		}
 
-		return this._element;
+		const overlay = this._stickyScrollOverlay;
+
+		this._element = $('.terminal-sticky-scroll');
+		// // TODO: Safety
+		this._xterm!.raw.element!.parentElement!.append(this._element);
+
+		const hoverOverlay = $('.hover-overlay');
+
+		// Scroll to the command on click
+		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
+			if (this._xterm && this._currentStickyMarker) {
+				this._xterm.scrollToLine(this._currentStickyMarker.line, ScrollPosition.Middle);
+				this._xterm.markTracker.registerTemporaryDecoration(this._currentStickyMarker);
+			}
+		}));
+
+		// Instead of juggling decorations for hover styles, use the selection to indicate the
+		// hover state as the selection is inaccessible anyway
+		this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => overlay.selectAll()));
+		this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => overlay.clearSelection()));
+
+		// TODO: Add to a container outside the xterm instance?
+		// TODO: Remove !
+		this._stickyScrollOverlay.open(this._element);
+
+		append(this._element, hoverOverlay);
 	}
 
 	@throttle(0)
