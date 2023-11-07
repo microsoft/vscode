@@ -21,7 +21,6 @@ import { isWeb } from 'vs/base/common/platform';
 import { createBlobWorker } from 'vs/base/browser/defaultWorkerFactory';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITerminalBackendRegistry, TerminalExtensions } from 'vs/platform/terminal/common/terminal';
-import { $window } from 'vs/base/browser/window';
 
 /* __GDPR__FRAGMENT__
 	"IMemoryInfo" : {
@@ -545,7 +544,8 @@ export abstract class AbstractTimerService implements ITimerService {
 					const t1 = performance.now();
 					fib(24);
 					const value = Math.round(performance.now() - t1);
-					$window.postMessage({ value: tooSlow ? -1 : value });
+					// eslint-disable-next-line no-restricted-globals
+					postMessage({ value: tooSlow ? -1 : value });
 
 				}).toString();
 
