@@ -154,7 +154,7 @@ export interface IDetachedXTermOptions {
  * interface used for terminals attached to the terminal panel or editor) and
  * {@link IDetachedTerminalInstance} (a terminal used elsewhere in VS Code UI).
  */
-export interface IAnyTerminalInstance {
+export interface IBaseTerminalInstance {
 	readonly capabilities: ITerminalCapabilityStore;
 
 	/**
@@ -207,7 +207,7 @@ export interface IAnyTerminalInstance {
  * to represent terminals that appear in other parts of the VS Code UI outside
  * of the "Terminal" view or editors.
  */
-export interface IDetachedTerminalInstance extends IDisposable, IAnyTerminalInstance {
+export interface IDetachedTerminalInstance extends IDisposable, IBaseTerminalInstance {
 	readonly xterm: IDetachedXtermTerminal;
 
 	/**
@@ -529,7 +529,7 @@ export interface ISearchOptions {
 	incremental?: boolean;
 }
 
-export interface ITerminalInstance extends IAnyTerminalInstance {
+export interface ITerminalInstance extends IBaseTerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to uniquely identify
 	 * terminal instances within a window.

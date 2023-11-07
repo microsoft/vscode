@@ -28,7 +28,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 	 * Currently focused find widget. This is used to track action context since
 	 * 'active terminals' are only tracked for non-detached terminal instanecs.
 	 */
-	static activeFindWidget: TerminalFindContribution | null = null;
+	static activeFindWidget?: TerminalFindContribution;
 
 	static get(instance: ITerminalInstance | IDetachedTerminalInstance): TerminalFindContribution | null {
 		return instance.getContribution<TerminalFindContribution>(TerminalFindContribution.ID);
@@ -60,7 +60,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 				}
 			});
 			findWidget.focusTracker.onDidBlur(() => {
-				TerminalFindContribution.activeFindWidget = null;
+				TerminalFindContribution.activeFindWidget = undefined;
 				this._instance.resetScrollbarVisibility();
 			});
 
@@ -88,7 +88,7 @@ class TerminalFindContribution extends Disposable implements ITerminalContributi
 
 	override dispose() {
 		if (TerminalFindContribution.activeFindWidget === this) {
-			TerminalFindContribution.activeFindWidget = null;
+			TerminalFindContribution.activeFindWidget = undefined;
 		}
 		super.dispose();
 		this._findWidget.rawValue?.dispose();
