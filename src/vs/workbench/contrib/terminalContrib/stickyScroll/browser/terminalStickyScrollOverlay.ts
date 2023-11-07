@@ -5,13 +5,14 @@
 
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import type { IMarker, Terminal as RawXtermTerminal } from '@xterm/xterm';
+import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener, append } from 'vs/base/browser/dom';
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -20,6 +21,7 @@ import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
 import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TERMINAL_BACKGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { terminalStickyScrollBackground, terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
@@ -49,6 +51,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -59,14 +62,23 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._setState((buffer ?? this._xterm.raw.buffer.active).type === 'normal' ? OverlayState.On : OverlayState.Off);
 		}));
 
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+				this._syncOptions();
+			}
+		}));
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			this._syncOptions();
+		}));
+
 		// Eagerly create the overlay
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
 			const overlay = new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
-				allowProposedApi: true
+				allowProposedApi: true,
+				...this._getOptions()
 			});
-			this._syncOptions(overlay, this._xterm.raw);
 			this._stickyScrollOverlay = overlay;
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
@@ -154,7 +166,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		}
 
 		// TODO: Support multi-line prompts
-		// TODO: SUpport multi-line commands
+		// TODO: Support multi-line commands
 
 		if (this._stickyScrollOverlay) {
 			this._stickyScrollOverlay.write('\x1b[H\x1b[K');
@@ -167,9 +179,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._stickyScrollOverlay.write(content);
 				// Debug log to show the command
 				// this._stickyScrollOverlay.write(` [${command?.command}]`);
-
-				// TODO: Only sync options when needed
-				this._syncOptions(this._stickyScrollOverlay, this._xterm.raw);
 			}
 
 			if (command.exitCode !== undefined) {
@@ -194,7 +203,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			const hoverOverlay = $('.hover-overlay');
 
 			// Scroll to the command on click
-			this._register(addStandardDisposableListener(hoverOverlay, 'click', e => {
+			this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
 				if (this._xterm && this._currentStickyMarker) {
 					this._xterm.scrollToLine(this._currentStickyMarker.line, ScrollPosition.Middle);
 					this._xterm.markTracker.registerTemporaryDecoration(this._currentStickyMarker);
@@ -216,20 +225,28 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		return this._element;
 	}
 
-	private _syncOptions(target: RawXtermTerminal, copyFrom: RawXtermTerminal): void {
-		const o = copyFrom.options;
+	@throttle(0)
+	private _syncOptions(): void {
+		if (!this._stickyScrollOverlay) {
+			return;
+		}
+		this._stickyScrollOverlay.resize(this._xterm.raw.cols, 1);
+		this._stickyScrollOverlay.options = this._getOptions();
+	}
+
+	private _getOptions(): ITerminalOptions {
+		const o = this._xterm.raw.options;
 		const theme = this._themeService.getColorTheme();
 		// TODO: BG should be editor-aware
 		const terminalBackground = theme.getColor(terminalStickyScrollBackground) || theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
-		target.resize(copyFrom.cols, 1);
-		target.options = {
+		return {
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
 
 			// Selection is used for hover state in the overlay
 			theme: {
-				...this._xterm!.getXtermTheme(),
+				...this._xterm.getXtermTheme(),
 				background: terminalBackground?.toString(),
 				selectionBackground: theme.getColor(terminalStickyScrollHoverBackground)?.toString(),
 				selectionInactiveBackground: undefined
