@@ -278,6 +278,15 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
+	private async sendReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
+		try {
+			const data = await this.issueMainService.$sendReporterStatus(extension.id, extension.name);
+			return data;
+		} catch (e) {
+			throw e;
+		}
+	}
+
 	private setEventHandlers(): void {
 		this.addEventListener('issue-type', 'change', (event: Event) => {
 			const issueType = parseInt((<HTMLInputElement>event.target).value);
@@ -1132,6 +1141,15 @@ export class IssueReporter extends Disposable {
 				const matches = extensions.filter(extension => extension.id === selectedExtensionId);
 				if (matches.length) {
 					this.issueReporterModel.update({ selectedExtension: matches[0] });
+
+					// if extension is not activated and has a provider/handler w
+					if (!matches[0].hasIssueDataProviders && !matches[0].hasIssueUriRequestHandler) {
+						const toActivate = await this.sendReporterStatus(matches[0]);
+						matches[0].hasIssueDataProviders = toActivate[0];
+						matches[0].hasIssueUriRequestHandler = toActivate[1];
+						this.renderBlocks();
+					}
+
 					if (matches[0].hasIssueUriRequestHandler) {
 						this.updateIssueReporterUri(matches[0]);
 					} else if (matches[0].hasIssueDataProviders) {
@@ -1208,6 +1226,8 @@ export class IssueReporter extends Disposable {
 		const showLoading = this.getElementById('ext-loading')!;
 		show(showLoading);
 		showLoading.append(element);
+
+		this.renderBlocks();
 	}
 
 	private removeLoading(element: HTMLElement) {
