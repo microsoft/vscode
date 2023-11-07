@@ -436,6 +436,9 @@ export function registerChatCodeBlockActions() {
 				}],
 				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
+					mac: {
+						primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
+					},
 					weight: KeybindingWeight.EditorContrib,
 					when: CONTEXT_IN_CHAT_SESSION,
 				}]
