@@ -23,7 +23,6 @@
 }
 
 .terminal-sticky-scroll .xterm {
-	/* TODO: Remove !important */
 	position: relative !important;
 	pointer-events: none;
 	padding-bottom: 0 !important;

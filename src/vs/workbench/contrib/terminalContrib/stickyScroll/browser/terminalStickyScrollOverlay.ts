@@ -45,6 +45,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private _element?: HTMLElement;
 	private _currentStickyMarker?: IMarker;
+	private _currentContent?: string;
 
 	private _refreshListeners = this._register(new MutableDisposable());
 
@@ -118,7 +119,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._refreshListeners.value = combinedDisposable(
 				this._xterm.raw.onScroll(() => this._refresh()),
 				this._xterm.raw.onLineFeed(() => this._refresh()),
-				// TODO: This may not exist!!!
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -172,21 +172,22 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		if (this._stickyScrollOverlay) {
 			// Clear attrs, reset cursor position, clear right
-			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[K');
 			// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
 			const s = this._serializeAddon.serialize({
 				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
 			});
-			const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
 
-			// TODO: Don't write if it's the same
-			if (content) {
+			// Write content if it differs
+			const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
+			if (content && this._currentContent !== content) {
+				this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[K');
 				this._stickyScrollOverlay.write(content);
+				this._currentContent = content;
 				// Debug log to show the command
 				// this._stickyScrollOverlay.write(` [${command?.command}]`);
 			}
 
-			if (command.exitCode !== undefined) {
+			if (content && command.exitCode !== undefined) {
 				this._currentStickyMarker = marker;
 				this._setVisible(true);
 			} else {
