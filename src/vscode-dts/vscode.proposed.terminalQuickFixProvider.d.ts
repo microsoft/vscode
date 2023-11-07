@@ -43,10 +43,10 @@ declare module 'vscode' {
 		 */
 		terminalCommand: string;
 		/**
-		 * Whether the command should be executed or just inserted
+		 * Whether the command should be executed or just inserted (default)
 		 */
 		shouldExecute?: boolean;
-		constructor(terminalCommand: string);
+		constructor(terminalCommand: string, shouldExecute?: boolean);
 	}
 	export class TerminalQuickFixOpener {
 		/**
