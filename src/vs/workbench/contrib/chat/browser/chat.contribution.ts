@@ -93,7 +93,7 @@ configurationRegistry.registerConfiguration({
 	}
 });
 
-// TODO
+
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
 	EditorPaneDescriptor.create(
 		ChatEditor,

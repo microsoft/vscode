@@ -249,6 +249,7 @@ export function registerChatActions() {
 			const editorPaneDescriptor = editorPanesRegistry.getEditorPane(chatEditorInput);
 			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 			const editorPane = editorPaneDescriptor?.instantiate(instantiationService);
+			console.log('editorPane : ', editorPane);
 			if (!editorPane || !editorPane.group || !editorPane.input) {
 				return;
 			}
