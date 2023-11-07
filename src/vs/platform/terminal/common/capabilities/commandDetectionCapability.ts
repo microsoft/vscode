@@ -319,10 +319,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
 			return this._cwd;
 		}
-		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
-		// TODO: Use a reverse for loop to find the line to avoid creating another array
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
+
+		const command = this.getCommandForLine(line);
+		if (command && 'cwd' in command) {
+			return command.cwd;
+		}
+
+		return undefined;
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
