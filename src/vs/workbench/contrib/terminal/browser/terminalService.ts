@@ -29,7 +29,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { VirtualWorkspaceContext } from 'vs/workbench/common/contextkeys';
 import { IEditableData, IViewsService } from 'vs/workbench/common/views';
-import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, IXtermTerminal, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ICreateTerminalOptions, IDetachedTerminalInstance, IDetachedXTermOptions, IRequestAddInstanceToGroupEvent, ITerminalEditorService, ITerminalGroup, ITerminalGroupService, ITerminalInstance, ITerminalInstanceHost, ITerminalInstanceService, ITerminalLocationOptions, ITerminalService, ITerminalServiceNativeDelegate, TerminalConnectionState, TerminalEditorLocation } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { getCwdForSplit } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -52,7 +52,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
 import { ITimerService } from 'vs/workbench/services/timer/browser/timerService';
 import { mark } from 'vs/base/common/performance';
-import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
+import { DetachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
 
@@ -61,7 +61,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
-	private _detachedXterms = new Set<IXtermTerminal>();
+	private _detachedXterms = new Set<IDetachedTerminalInstance>();
 	private _terminalEditorActive: IContextKey<boolean>;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
@@ -94,7 +94,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	get instances(): ITerminalInstance[] {
 		return this._terminalGroupService.instances.concat(this._terminalEditorService.instances);
 	}
-	get detachedXterms(): Iterable<IXtermTerminal> {
+	get detachedInstances(): Iterable<IDetachedTerminalInstance> {
 		return this._detachedXterms;
 	}
 
@@ -1022,13 +1022,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 			xterm.raw.attachCustomKeyEventHandler(() => false);
 		}
 
-		this._detachedXterms.add(xterm);
+		const instance = new DetachedTerminal(xterm, options, this._instantiationService);
+		this._detachedXterms.add(instance);
 		const l = xterm.onDidDispose(() => {
-			this._detachedXterms.delete(xterm);
+			this._detachedXterms.delete(instance);
 			l.dispose();
 		});
 
-		return new DeatachedTerminal(xterm, options, this._instantiationService);
+		return instance;
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
