@@ -830,7 +830,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		xterm.raw.loadAddon(this._lineDataEventAddon!);
 	}
 
-	async runCommand(commandLine: string, addNewLine: boolean): Promise<void> {
+	async runCommand(commandLine: string, shouldExecute: boolean): Promise<void> {
 		// Determine whether to send ETX (ctrl+c) before running the command. This should always
 		// happen unless command detection can reliably say that a command is being entered and
 		// there is no content in the prompt
@@ -841,7 +841,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			await timeout(100);
 		}
 		// Use bracketed paste mode only when not running the command
-		await this.sendText(commandLine, addNewLine, !addNewLine);
+		await this.sendText(commandLine, shouldExecute, !shouldExecute);
 	}
 
 	async runRecent(type: 'command' | 'cwd', filterMode?: 'fuzzy' | 'contiguous', value?: string): Promise<void> {
@@ -1251,7 +1251,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this.xterm.raw.paste(currentText);
 	}
 
-	async sendText(text: string, addNewLine: boolean, bracketedPasteMode?: boolean): Promise<void> {
+	async sendText(text: string, shouldExecute: boolean, bracketedPasteMode?: boolean): Promise<void> {
 		// Apply bracketed paste sequences if the terminal has the mode enabled, this will prevent
 		// the text from triggering keybindings and ensure new lines are handled properly
 		if (bracketedPasteMode && this.xterm?.raw.modes.bracketedPasteMode) {
@@ -1260,7 +1260,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Normalize line endings to 'enter' press.
 		text = text.replace(/\r?\n/g, '\r');
-		if (addNewLine && !text.endsWith('\r')) {
+		if (shouldExecute && !text.endsWith('\r')) {
 			text += '\r';
 		}
 
@@ -1272,8 +1272,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._onDidRunText.fire();
 	}
 
-	async sendPath(originalPath: string | URI, addNewLine: boolean): Promise<void> {
-		return this.sendText(await this.preparePathForShell(originalPath), addNewLine);
+	async sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void> {
+		return this.sendText(await this.preparePathForShell(originalPath), shouldExecute);
 	}
 
 	async preparePathForShell(originalPath: string | URI): Promise<string> {

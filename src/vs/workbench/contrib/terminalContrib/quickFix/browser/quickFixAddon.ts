@@ -45,7 +45,7 @@ const quickFixClasses = [
 
 export interface ITerminalQuickFixAddon {
 	showMenu(): void;
-	onDidRequestRerunCommand: Event<{ command: string; addNewLine?: boolean }>;
+	onDidRequestRerunCommand: Event<{ command: string; shouldExecute?: boolean }>;
 	/**
 	 * Registers a listener on onCommandFinished scoped to a particular command or regular
 	 * expression and provides a callback to be executed for commands that match.
@@ -54,7 +54,7 @@ export interface ITerminalQuickFixAddon {
 }
 
 export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon, ITerminalQuickFixAddon {
-	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; addNewLine?: boolean }>();
+	private readonly _onDidRequestRerunCommand = new Emitter<{ command: string; shouldExecute?: boolean }>();
 	readonly onDidRequestRerunCommand = this._onDidRequestRerunCommand.event;
 
 	private _terminal: Terminal | undefined;

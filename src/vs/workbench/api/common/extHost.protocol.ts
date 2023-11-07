@@ -503,7 +503,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(extHostTerminalId: string, config: TerminalLaunchConfig): Promise<void>;
 	$dispose(id: ExtHostTerminalIdentifier): void;
 	$hide(id: ExtHostTerminalIdentifier): void;
-	$sendText(id: ExtHostTerminalIdentifier, text: string, addNewLine: boolean): void;
+	$sendText(id: ExtHostTerminalIdentifier, text: string, shouldExecute: boolean): void;
 	$show(id: ExtHostTerminalIdentifier, preserveFocus: boolean): void;
 	$registerProcessSupport(isSupported: boolean): void;
 	$registerProfileProvider(id: string, extensionIdentifier: string): void;
