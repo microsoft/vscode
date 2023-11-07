@@ -43,6 +43,7 @@ import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userD
 import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
+import { $window } from 'vs/base/browser/window';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -354,7 +355,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (this._store.isDisposed) {
 			return;
 		}
-		const disposable = this._register(runWhenIdle(async () => {
+		const disposable = this._register(runWhenIdle($window, async () => {
 			await this.doInitialize();
 			disposable.dispose();
 		}));

@@ -5,6 +5,7 @@
 
 import { Promises, RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
+import { $globalThis } from 'vs/base/common/globals';
 import { Disposable, DisposableStore, dispose, MutableDisposable } from 'vs/base/common/lifecycle';
 import { mark } from 'vs/base/common/performance';
 import { isUndefinedOrNull } from 'vs/base/common/types';
@@ -343,7 +344,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 	}
 
 	private doFlushWhenIdle(): void {
-		this.runFlushWhenIdle.value = runWhenIdle(() => {
+		this.runFlushWhenIdle.value = runWhenIdle($globalThis, () => {
 			if (this.shouldFlushWhenIdle()) {
 				this.flush();
 			}

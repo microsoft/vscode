@@ -21,6 +21,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ResourceMap } from 'vs/base/common/map';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { $globalThis } from 'vs/base/common/globals';
 
 export const AutoSaveAfterShortDelayContext = new RawContextKey<boolean>('autoSaveAfterShortDelayContext', false, true);
 
@@ -108,8 +109,8 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 
 	private currentHotExitConfig: string;
 
-	private readonly readonlyIncludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
-	private readonly readonlyExcludeMatcher = this._register(new IdleValue(() => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
+	private readonly readonlyIncludeMatcher = this._register(new IdleValue($globalThis, () => this.createReadonlyMatcher(FILES_READONLY_INCLUDE_CONFIG)));
+	private readonly readonlyExcludeMatcher = this._register(new IdleValue($globalThis, () => this.createReadonlyMatcher(FILES_READONLY_EXCLUDE_CONFIG)));
 	private configuredReadonlyFromPermissions: boolean | undefined;
 
 	private readonly sessionReadonlyOverrides = new ResourceMap<boolean>(resource => this.uriIdentityService.extUri.getComparisonKey(resource));

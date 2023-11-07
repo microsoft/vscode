@@ -10,6 +10,7 @@ import { runWhenIdle, IdleDeadline, DeferredPromise } from 'vs/base/common/async
 import { mark } from 'vs/base/common/performance';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { $globalThis } from 'vs/base/common/globals';
 
 /**
  * A workbench contribution that will be loaded when the workbench starts and disposed when the workbench shuts down.
@@ -155,7 +156,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 				this.safeCreateContribution(instantiationService, logService, environmentService, contribution, phase);
 				if (idle.timeRemaining() < 1) {
 					// time is up -> reschedule
-					runWhenIdle(instantiateSome, forcedTimeout);
+					runWhenIdle($globalThis, instantiateSome, forcedTimeout);
 					break;
 				}
 			}
@@ -169,7 +170,7 @@ class WorkbenchContributionsRegistry implements IWorkbenchContributionsRegistry 
 			}
 		};
 
-		runWhenIdle(instantiateSome, forcedTimeout);
+		runWhenIdle($globalThis, instantiateSome, forcedTimeout);
 	}
 
 	private safeCreateContribution(instantiationService: IInstantiationService, logService: ILogService, environmentService: IEnvironmentService, contribution: IConstructorSignature<IWorkbenchContribution>, phase: LifecyclePhase): void {

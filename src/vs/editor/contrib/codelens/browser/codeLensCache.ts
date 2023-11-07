@@ -13,6 +13,7 @@ import { CodeLensModel } from 'vs/editor/contrib/codelens/browser/codelens';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope, StorageTarget, WillSaveStateReason } from 'vs/platform/storage/common/storage';
+import { $window } from 'vs/base/browser/window';
 
 export const ICodeLensCache = createDecorator<ICodeLensCache>('ICodeLensCache');
 
@@ -52,7 +53,7 @@ export class CodeLensCache implements ICodeLensCache {
 
 		// remove old data
 		const oldkey = 'codelens/cache';
-		runWhenIdle(() => storageService.remove(oldkey, StorageScope.WORKSPACE));
+		runWhenIdle($window, () => storageService.remove(oldkey, StorageScope.WORKSPACE));
 
 		// restore lens data on start
 		const key = 'codelens/cache2';

@@ -24,6 +24,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { FileOperation, FileOperationEvent, IFileOperationEventWithMetadata, IFileService, IFileStatWithMetadata } from 'vs/platform/files/common/files';
+import { $globalThis } from 'vs/base/common/globals';
 
 export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchContribution {
 
@@ -37,7 +38,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+	private readonly resourceExcludeMatcher = this._register(new IdleValue($globalThis, () => {
 		const matcher = this._register(new ResourceGlobMatcher(
 			root => this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES, { resource: root }),
 			event => event.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES),

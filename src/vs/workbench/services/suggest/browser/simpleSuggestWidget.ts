@@ -251,12 +251,12 @@ export class SimpleSuggestWidget implements IDisposable {
 			// this._onDidSelect.resume();
 		}
 
-		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingLayout.clear();
 			this._layout(this.element.size);
 			// Reset focus border
 			// this._details.widget.domNode.classList.remove('focused');
-		}, dom.getWindow(this.element.domNode));
+		});
 	}
 
 	setLineContext(lineContext: LineContext): void {

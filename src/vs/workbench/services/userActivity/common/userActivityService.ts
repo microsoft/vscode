@@ -5,6 +5,7 @@
 
 import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
+import { $globalThis } from 'vs/base/common/globals';
 import { Disposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -60,7 +61,7 @@ export class UserActivityService extends Disposable implements IUserActivityServ
 
 	constructor(@IInstantiationService instantiationService: IInstantiationService) {
 		super();
-		this._register(runWhenIdle(() => userActivityRegistry.take(this, instantiationService)));
+		this._register(runWhenIdle($globalThis, () => userActivityRegistry.take(this, instantiationService)));
 	}
 
 	/** @inheritdoc */
