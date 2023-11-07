@@ -729,10 +729,6 @@
 						"message": "Use <targetWindow>.cancelIdleCallback to support multi-window scenarios."
 					},
 					{
-						"name": "queueMicrotask",
-						"message": "Use <context>.queueMicrotask to support multi-window scenarios."
-					},
-					{
 						"name": "window",
 						"message": "Be aware of multi-window scenarios: Use DOM.getWindow() or DOM.getActiveWindow() to obtain the correct window for the context you are in. Only use window.ts#mainWindow if you target the main window."
 					},

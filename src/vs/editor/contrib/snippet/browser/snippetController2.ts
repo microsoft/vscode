@@ -24,7 +24,6 @@ import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ISnippetEdit, SnippetSession } from './snippetSession';
-import { $window } from 'vs/base/browser/window';
 
 export interface ISnippetInsertOptions {
 	overwriteBefore: number;
@@ -268,7 +267,7 @@ export class SnippetController2 implements IEditorContribution {
 			this._choiceCompletions.enable();
 
 			// trigger suggest with the special choice completion provider
-			$window.queueMicrotask(() => {
+			queueMicrotask(() => {
 				showSimpleSuggestions(this._editor, this._choiceCompletions!.provider);
 			});
 		}

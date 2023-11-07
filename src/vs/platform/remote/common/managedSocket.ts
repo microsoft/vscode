@@ -5,7 +5,6 @@
 
 import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event, PauseableEmitter } from 'vs/base/common/event';
-import { $queueMicrotask } from 'vs/base/common/globals';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { ISocket, SocketCloseEvent, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
 
@@ -87,7 +86,7 @@ export abstract class ManagedSocket extends Disposable implements ISocket {
 
 	public onData: Event<VSBuffer> = (...args) => {
 		if (this.pausableDataEmitter.isPaused) {
-			$queueMicrotask(() => this.pausableDataEmitter.resume());
+			queueMicrotask(() => this.pausableDataEmitter.resume());
 		}
 		return this.pausableDataEmitter.event(...args);
 	};

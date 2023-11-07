@@ -14,7 +14,6 @@ import { workspaceSettingsSchemaId, launchSchemaId, tasksSchemaId } from 'vs/wor
 import { isObject } from 'vs/base/common/types';
 import { ExtensionIdentifierMap } from 'vs/platform/extensions/common/extensions';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { $queueMicrotask } from 'vs/base/common/globals';
 
 const jsonRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
@@ -140,7 +139,7 @@ defaultConfigurationExtPoint.setHandler((extensions, { added, removed }) => {
 
 	const configNow = _configDelta = {};
 	// schedule a HIGHLY unlikely task in case only the default configurations EXT point changes
-	$queueMicrotask(() => {
+	queueMicrotask(() => {
 		if (_configDelta === configNow) {
 			configurationRegistry.deltaConfiguration(_configDelta);
 			_configDelta = undefined;
