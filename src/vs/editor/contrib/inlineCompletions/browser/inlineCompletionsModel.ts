@@ -403,6 +403,13 @@ export class InlineCompletionsModel extends Disposable {
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);
 
+		// Create a local reference to the suggest completion
+		const suggestWidgetInlineCompletions = this._source.suggestWidgetInlineCompletions.get();
+		let clonedSuggest;
+		if (suggestWidgetInlineCompletions) {
+			clonedSuggest = suggestWidgetInlineCompletions.clone();
+		}
+
 		this._isAcceptingPartially = true;
 		try {
 			editor.pushUndoStop();
@@ -411,6 +418,8 @@ export class InlineCompletionsModel extends Disposable {
 			]);
 			const length = lengthOfText(partialText);
 			editor.setPosition(addPositions(position, length));
+		} catch (e) {
+			clonedSuggest?.dispose();
 		} finally {
 			this._isAcceptingPartially = false;
 		}
@@ -425,6 +434,10 @@ export class InlineCompletionsModel extends Disposable {
 				text.length,
 			);
 		}
+
+		// If already removed outside of the partial accept,
+		// this will dispose it also on extensionHost.
+		clonedSuggest?.dispose();
 	}
 
 	public handleSuggestAccepted(item: SuggestItemInfo) {
