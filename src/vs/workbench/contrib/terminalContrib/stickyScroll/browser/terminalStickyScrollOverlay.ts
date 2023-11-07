@@ -17,9 +17,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -52,6 +54,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _state: OverlayState = OverlayState.Off;
 
 	constructor(
+		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		private readonly _commandDetection: ICommandDetectionCapability,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
@@ -274,8 +277,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
 		const theme = this._themeService.getColorTheme();
-		// TODO: BG should be editor-aware
-		const terminalBackground = theme.getColor(terminalStickyScrollBackground) || theme.getColor(TERMINAL_BACKGROUND_COLOR) || theme.getColor(PANEL_BACKGROUND);
+		const terminalBackground = theme.getColor(terminalStickyScrollBackground) || theme.getColor(TERMINAL_BACKGROUND_COLOR) || (
+			theme.getColor(this._instance.target === TerminalLocation.Editor ? editorBackground : PANEL_BACKGROUND)
+		);
 		return {
 			cursorInactiveStyle: 'none',
 			scrollback: 0,

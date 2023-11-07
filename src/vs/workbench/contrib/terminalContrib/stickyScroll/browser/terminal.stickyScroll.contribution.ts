@@ -87,7 +87,7 @@ class TerminalStickyScrollContribution extends Disposable implements ITerminalCo
 
 	private _tryEnable(): void {
 		if (this._shouldBeEnabled()) {
-			this._overlay.value = this._instantiationService.createInstance(TerminalStickyScrollOverlay, this._xterm!, this._instance.capabilities.get(TerminalCapability.CommandDetection)!);
+			this._overlay.value = this._instantiationService.createInstance(TerminalStickyScrollOverlay, this._instance, this._xterm!, this._instance.capabilities.get(TerminalCapability.CommandDetection)!);
 		}
 	}
 
