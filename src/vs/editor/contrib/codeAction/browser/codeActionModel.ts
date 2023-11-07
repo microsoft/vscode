@@ -269,6 +269,10 @@ export class CodeActionModel extends Disposable {
 										return -1;
 									} else if (!a.action.isPreferred && b.action.isPreferred) {
 										return 1;
+									} else if (a.action.isAI && !b.action.isAI) {
+										return 1;
+									} else if (!a.action.isAI && b.action.isAI) {
+										return -1;
 									} else {
 										return 0;
 									}
