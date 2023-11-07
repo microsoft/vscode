@@ -821,9 +821,8 @@ export interface ITerminalInstance {
 	 * (shell) of the terminal instance.
 	 *
 	 * @param originalPath The path to send.
-	 * @param shouldExecute Whether to add a new line to the path being sent, this is normally required
-	 * to run a command in the terminal. The character(s) added are \n or \r\n depending on the
-	 * platform. This defaults to `true`.
+	 * @param shouldExecute Indicates that the text being sent should be executed rather than just inserted in the terminal.
+	 * The character(s) added are \n or \r\n, depending on the platform. This defaults to `true`.
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
