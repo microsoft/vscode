@@ -1677,7 +1677,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions

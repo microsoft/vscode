@@ -596,7 +596,7 @@ registerAction2(EditorActionsDefaultAction);
 
 export class HideEditorActionsAction extends Action2 {
 
-	static readonly ID = 'workbench.action.editorActionsHidden';
+	static readonly ID = 'workbench.action.hideEditorActions';
 
 	constructor() {
 		super({
@@ -617,6 +617,32 @@ export class HideEditorActionsAction extends Action2 {
 	}
 }
 registerAction2(HideEditorActionsAction);
+
+// --- Hide Editor Actions
+
+export class ShowEditorActionsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showEditorActions';
+
+	constructor() {
+		super({
+			id: ShowEditorActionsAction.ID,
+			title: {
+				value: localize('showEditorActons', "Show Editor Actions"),
+				original: 'Show Editor Actions'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden'),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+	}
+}
+registerAction2(ShowEditorActionsAction);
 
 // --- Editor Actions Position Submenu in View Appearance Menu
 

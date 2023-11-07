@@ -96,7 +96,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		compact: 22 as const
 	};
 
-	protected editorToolbarContainer: HTMLElement | undefined;
+	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
 	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
 	private readonly editorActionsDisposables = this._register(new DisposableStore());
@@ -160,11 +160,11 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add(...classes);
-		parent.appendChild(this.editorToolbarContainer);
+		this.editorActionsToolbarContainer = document.createElement('div');
+		this.editorActionsToolbarContainer.classList.add(...classes);
+		parent.appendChild(this.editorActionsToolbarContainer);
 
-		this.handleEditorActionToolBarVisibility(this.editorToolbarContainer);
+		this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
 	}
 
 	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
@@ -254,7 +254,12 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar?.setActions([], []);
+		if (!this.editorActionsEnabled) {
+			return;
+		}
+
+		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		editorActionsToolbar.setActions([], []);
 	}
 
 	protected enableGroupDragging(element: HTMLElement): void {
@@ -401,8 +406,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			oldOptions.editorActionsLocation !== newOptions.editorActionsLocation ||
 			oldOptions.showTabs !== newOptions.showTabs
 		) {
-			if (this.editorToolbarContainer) {
-				this.handleEditorActionToolBarVisibility(this.editorToolbarContainer);
+			if (this.editorActionsToolbarContainer) {
+				this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
 				this.updateEditorActionsToolbar();
 			}
 		}
