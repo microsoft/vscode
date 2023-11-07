@@ -132,7 +132,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 			get id() {
 				return controllerId;
 			},
-			createRunProfile: (label, group, runHandler, isDefault, tag?: vscode.TestTag | undefined, supportsContinuousRun?: boolean) => {
+			createRunProfile: (label, group, runHandler, isDefault, tag?: vscode.TestTag | undefined, supportsContinuousRun?: boolean, saveOnRun?: boolean) => {
 				// Derive the profile ID from a hash so that the same profile will tend
 				// to have the same hashes, allowing re-run requests to work across reloads.
 				let profileId = hash(label);
@@ -140,7 +140,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 					profileId++;
 				}
 
-				return new TestRunProfileImpl(this.proxy, profiles, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun);
+				return new TestRunProfileImpl(this.proxy, profiles, controllerId, profileId, label, group, runHandler, isDefault, tag, supportsContinuousRun, saveOnRun);
 			},
 			createTestItem(id, label, uri) {
 				return new TestItemImpl(controllerId, id, label, uri);
@@ -209,6 +209,7 @@ export class ExtHostTesting implements ExtHostTestingShape {
 				profileId: profile.profileId,
 				controllerId: profile.controllerId,
 			}],
+			saveOnRun: profile.saveOnRun,
 			exclude: req.exclude?.map(t => t.id),
 		}, token);
 	}
@@ -667,6 +668,7 @@ export class TestRunCoordinator {
 		this.proxy.$startedExtensionTestRun({
 			controllerId,
 			continuous: !!request.continuous,
+			saveOnRun: profile?.saveOnRun ?? true,
 			profile: profile && { group: profileGroupToBitset[profile.kind], id: profile.profileId },
 			exclude: request.exclude?.map(t => TestId.fromExtHostTestItem(t, collection.root.id).toString()) ?? [],
 			id: dto.id,
@@ -1030,6 +1032,17 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		}
 	}
 
+	public get saveOnRun() {
+		return this._saveOnRun;
+	}
+
+	public set saveOnRun(saveOnRun: boolean) {
+		if (saveOnRun !== this._isDefault) {
+			this._isDefault = saveOnRun;
+			this.#proxy.$updateTestRunConfig(this.controllerId, this.profileId, { saveOnRun });
+		}
+	}
+
 	public get isDefault() {
 		return this._isDefault;
 	}
@@ -1074,8 +1087,10 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 		public readonly kind: vscode.TestRunProfileKind,
 		public runHandler: (request: vscode.TestRunRequest, token: vscode.CancellationToken) => Thenable<void> | void,
 		private _isDefault = false,
+		private _saveOnRun = true,
 		public _tag: vscode.TestTag | undefined = undefined,
 		private _supportsContinuousRun = false,
+		private _saveOnRun = true,
 	) {
 		this.#proxy = proxy;
 		this.#profiles = profiles;
@@ -1093,6 +1108,7 @@ export class TestRunProfileImpl implements vscode.TestRunProfile {
 			label: _label,
 			group: groupBitset,
 			isDefault: _isDefault,
+			saveOnRun: _saveOnRun,
 			hasConfigurationHandler: false,
 			supportsContinuousRun: _supportsContinuousRun,
 		});

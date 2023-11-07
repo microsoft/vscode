@@ -200,6 +200,8 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
+	/** Whether to save all files before executing this run */
+	saveOnRun?: boolean;
 }
 
 export interface ITestService {

@@ -17131,6 +17131,12 @@ declare module 'vscode' {
 		supportsContinuousRun: boolean;
 
 		/**
+		 * Wether to save all unsaved files when running tests using this profile.
+		 * Defaults to true.
+		 */
+		saveOnRun: boolean;
+
+		/**
 		 * Associated tag for the profile. If this is set, only {@link TestItem}
 		 * instances with the same tag will be eligible to execute in this profile.
 		 */

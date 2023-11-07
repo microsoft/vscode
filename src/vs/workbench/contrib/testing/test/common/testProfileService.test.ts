@@ -43,6 +43,7 @@ suite('Workbench - TestProfileService', () => {
 			hasConfigurationHandler: false,
 			tag: null,
 			supportsContinuousRun: false,
+			saveOnRun: true,
 			...profile,
 		};
 
