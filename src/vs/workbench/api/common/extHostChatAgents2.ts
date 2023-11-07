@@ -7,6 +7,7 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { $queueMicrotask } from 'vs/base/common/globals';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -284,7 +285,7 @@ class ExtHostChatAgent {
 				return;
 			}
 			updateScheduled = true;
-			queueMicrotask(() => {
+			$queueMicrotask(() => {
 				this._proxy.$updateAgent(this._handle, {
 					description: this._description ?? '',
 					fullName: this._fullName,

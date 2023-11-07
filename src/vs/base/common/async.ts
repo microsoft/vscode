@@ -11,6 +11,7 @@ import { extUri as defaultExtUri, IExtUri } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { setTimeout0 } from 'vs/base/common/platform';
 import { MicrotaskDelay } from './symbols';
+import { $queueMicrotask } from 'vs/base/common/globals';
 
 export function isThenable<T>(obj: unknown): obj is Promise<T> {
 	return !!obj && typeof (obj as unknown as Promise<T>).then === 'function';
@@ -279,7 +280,7 @@ const timeoutDeferred = (timeout: number, fn: () => void): IScheduledLater => {
 
 const microtaskDeferred = (fn: () => void): IScheduledLater => {
 	let scheduled = true;
-	queueMicrotask(() => {
+	$queueMicrotask(() => {
 		if (scheduled) {
 			scheduled = false;
 			fn();
@@ -1715,7 +1716,7 @@ export class AsyncIterableObject<T> implements AsyncIterable<T> {
 		this._error = null;
 		this._onStateChanged = new Emitter<void>();
 
-		queueMicrotask(async () => {
+		$queueMicrotask(async () => {
 			const writer: AsyncIterableEmitter<T> = {
 				emitOne: (item) => this.emitOne(item),
 				emitMany: (items) => this.emitMany(items),

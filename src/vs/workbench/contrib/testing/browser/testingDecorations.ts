@@ -5,6 +5,7 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { renderStringAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { $window } from 'vs/base/browser/window';
 import { Action, IAction, Separator, SubmenuAction } from 'vs/base/common/actions';
 import { equals } from 'vs/base/common/arrays';
 import { RunOnceScheduler } from 'vs/base/common/async';
@@ -603,7 +604,7 @@ abstract class TitleLensContentWidget {
 	private viewZoneId?: string;
 
 	constructor(private readonly editor: ICodeEditor) {
-		queueMicrotask(() => {
+		$window.queueMicrotask(() => {
 			this.applyStyling();
 			this.editor.addContentWidget(this);
 		});

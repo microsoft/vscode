@@ -14,6 +14,7 @@ import { Orientation, Sizing, SplitView } from 'vs/base/browser/ui/splitview/spl
 import { ICompressedTreeElement, ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ITreeContextMenuEvent, ITreeNode } from 'vs/base/browser/ui/tree/tree';
+import { $window } from 'vs/base/browser/window';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { Delayer, Limiter, RunOnceScheduler } from 'vs/base/common/async';
 import { VSBuffer } from 'vs/base/common/buffer';
@@ -851,7 +852,7 @@ class TestResultsViewContent extends Disposable {
 		}));
 
 		if (initialSpitWidth) {
-			queueMicrotask(() => this.splitView.resizeView(0, initialSpitWidth));
+			$window.queueMicrotask(() => this.splitView.resizeView(0, initialSpitWidth));
 		}
 	}
 

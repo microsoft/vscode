@@ -25,6 +25,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { generateUuid } from 'vs/base/common/uuid';
 import { SnippetParser } from 'vs/editor/contrib/snippet/browser/snippetParser';
 import { MicrotaskDelay } from 'vs/base/common/symbols';
+import { $window } from 'vs/base/browser/window';
 
 export class CheckedStates<T extends object> {
 
@@ -433,7 +434,7 @@ export class BulkEditPreviewProvider implements ITextModelContentProvider {
 			// this is a little weird but otherwise editors and other cusomers
 			// will dispose my models before they should be disposed...
 			// And all of this is off the eventloop to prevent endless recursion
-			queueMicrotask(async () => {
+			$window.queueMicrotask(async () => {
 				this._disposables.add(await this._textModelResolverService.createModelReference(model!.uri));
 			});
 		}

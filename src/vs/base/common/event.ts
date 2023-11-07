@@ -6,6 +6,7 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { createSingleCallFunction } from 'vs/base/common/functional';
+import { $queueMicrotask } from 'vs/base/common/globals';
 import { combinedDisposable, Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
 import { IObservable, IObserver } from 'vs/base/common/observable';
@@ -276,7 +277,7 @@ export namespace Event {
 					} else {
 						if (handle === undefined) {
 							handle = 0;
-							queueMicrotask(doFire);
+							$queueMicrotask(doFire);
 						}
 					}
 				});
@@ -1007,7 +1008,7 @@ export class Emitter<T> {
 			if (this._listeners) {
 				if (_enableDisposeWithListenerWarning) {
 					const listeners = this._listeners;
-					queueMicrotask(() => {
+					$queueMicrotask(() => {
 						forEachListener(listeners, l => l.stack?.print());
 					});
 				}
@@ -1382,7 +1383,7 @@ export class MicrotaskEmitter<T> extends Emitter<T> {
 
 		this._queuedEvents.push(event);
 		if (this._queuedEvents.length === 1) {
-			queueMicrotask(() => {
+			$queueMicrotask(() => {
 				if (this._mergeFn) {
 					super.fire(this._mergeFn(this._queuedEvents));
 				} else {

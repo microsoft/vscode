@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as aria from 'vs/base/browser/ui/aria/aria';
+import { $window } from 'vs/base/browser/window';
 import { Action, IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { raceTimeout, RunOnceScheduler } from 'vs/base/common/async';
@@ -200,7 +201,7 @@ export class DebugService implements IDebugService {
 	}
 
 	private initContextKeys(contextKeyService: IContextKeyService): void {
-		queueMicrotask(() => {
+		$window.queueMicrotask(() => {
 			contextKeyService.bufferChangeEvents(() => {
 				this.debugType = CONTEXT_DEBUG_TYPE.bindTo(contextKeyService);
 				this.debugState = CONTEXT_DEBUG_STATE.bindTo(contextKeyService);

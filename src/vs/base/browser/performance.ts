@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { $window } from 'vs/base/browser/window';
+
 export namespace inputLatency {
 
 	// Measurements are recorded as totals, the average is calculated when the final measurements
@@ -42,7 +44,7 @@ export namespace inputLatency {
 		performance.mark('inputlatency/start');
 		performance.mark('keydown/start');
 		state.keydown = EventPhase.InProgress;
-		queueMicrotask(markKeyDownEnd);
+		$window.queueMicrotask(markKeyDownEnd);
 	}
 
 	/**
@@ -73,7 +75,7 @@ export namespace inputLatency {
 			// it looks like we didn't receive a `beforeinput`
 			onBeforeInput();
 		}
-		queueMicrotask(markInputEnd);
+		$window.queueMicrotask(markInputEnd);
 	}
 
 	function markInputEnd() {
@@ -108,7 +110,7 @@ export namespace inputLatency {
 			// Only measure the first render after keyboard input
 			performance.mark('render/start');
 			state.render = EventPhase.InProgress;
-			queueMicrotask(markRenderEnd);
+			$window.queueMicrotask(markRenderEnd);
 			/** Schedule Task B. See explanation in {@link recordIfFinished} */
 			scheduleRecordIfFinishedTask();
 		}

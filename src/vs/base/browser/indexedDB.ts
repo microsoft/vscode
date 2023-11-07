@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { mainWindow } from 'vs/base/browser/window';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { mark } from 'vs/base/common/performance';
@@ -55,7 +54,7 @@ export class IndexedDB {
 
 	private static doOpenDatabase(name: string, version: number | undefined, stores: string[]): Promise<IDBDatabase> {
 		return new Promise((c, e) => {
-			const request = mainWindow.indexedDB.open(name, version);
+			const request = indexedDB.open(name, version);
 			request.onerror = () => e(request.error);
 			request.onsuccess = () => {
 				const db = request.result;
@@ -79,13 +78,13 @@ export class IndexedDB {
 		});
 	}
 
-	private static deleteDatabase(indexedDB: IDBDatabase): Promise<void> {
+	private static deleteDatabase(database: IDBDatabase): Promise<void> {
 		return new Promise((c, e) => {
 			// Close any opened connections
-			indexedDB.close();
+			database.close();
 
 			// Delete the db
-			const deleteRequest = mainWindow.indexedDB.deleteDatabase(indexedDB.name);
+			const deleteRequest = indexedDB.deleteDatabase(database.name);
 			deleteRequest.onerror = (err) => e(deleteRequest.error);
 			deleteRequest.onsuccess = () => c();
 		});
