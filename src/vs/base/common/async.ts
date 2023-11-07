@@ -1274,7 +1274,7 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	} else {
-		runWhenIdle = (targetWindow, runner, timeout?) => {
+		runWhenIdle = (targetWindow: any, runner, timeout?) => {
 			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
