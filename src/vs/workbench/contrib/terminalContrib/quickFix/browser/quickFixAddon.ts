@@ -322,7 +322,7 @@ export async function getQuickFixesForCommand(
 	commandService: ICommandService,
 	openerService: IOpenerService,
 	labelService: ILabelService,
-	onDidRequestRerunCommand?: Emitter<{ command: string; addNewLine?: boolean }>,
+	onDidRequestRerunCommand?: Emitter<{ command: string; shouldExecute?: boolean }>,
 	getResolvedFixes?: (selector: ITerminalQuickFixOptions, lines?: string[]) => Promise<ITerminalQuickFix | ITerminalQuickFix[] | undefined>
 ): Promise<ITerminalAction[] | undefined> {
 	// Prevent duplicates by tracking added entries
@@ -384,7 +384,7 @@ export async function getQuickFixesForCommand(
 									run: () => {
 										onDidRequestRerunCommand?.fire({
 											command: fix.terminalCommand,
-											addNewLine: fix.shouldExecute ?? false
+											shouldExecute: fix.shouldExecute
 										});
 									},
 									tooltip: label,
