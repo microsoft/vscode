@@ -2160,15 +2160,16 @@ export interface ITerminalDimensionsDto {
 
 type SingleOrMany<T> = T[] | T;
 
-export interface ITerminalQuickFixExecuteTerminalCommandDto {
+export interface ITerminalQuickFixTerminalCommandDto {
 	terminalCommand: string;
+	shouldExecute?: boolean;
 }
 
 export interface ITerminalQuickFixOpenerDto {
 	uri: UriComponents;
 }
 
-export type TerminalQuickFix = ITerminalQuickFixExecuteTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto;
+export type TerminalQuickFix = ITerminalQuickFixTerminalCommandDto | ITerminalQuickFixOpenerDto | ICommandDto;
 
 export interface TerminalCommandMatchResultDto {
 	commandLine: string;

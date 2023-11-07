@@ -16,7 +16,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token indicating the result is no longer needed
 		 * @return Terminal quick fix(es) if any
 		 */
-		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<SingleOrMany<TerminalQuickFixExecuteTerminalCommand | TerminalQuickFixOpener | Command>>;
+		provideTerminalQuickFixes(commandMatchResult: TerminalCommandMatchResult, token: CancellationToken): ProviderResult<SingleOrMany<TerminalQuickFixTerminalCommand | TerminalQuickFixOpener | Command>>;
 	}
 
 
@@ -37,11 +37,15 @@ declare module 'vscode' {
 		export function registerTerminalQuickFixProvider(id: string, provider: TerminalQuickFixProvider): Disposable;
 	}
 
-	export class TerminalQuickFixExecuteTerminalCommand {
+	export class TerminalQuickFixTerminalCommand {
 		/**
-		 * The terminal command to run
+		 * The terminal command to insert or run
 		 */
 		terminalCommand: string;
+		/**
+		 * Whether the command should be executed or just inserted
+		 */
+		shouldExecute?: boolean;
 		constructor(terminalCommand: string);
 	}
 	export class TerminalQuickFixOpener {
