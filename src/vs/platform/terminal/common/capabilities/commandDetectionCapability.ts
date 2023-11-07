@@ -303,10 +303,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return undefined;
 		}
 
-		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
-		// TODO: Use a reverse for loop to find the line to avoid creating another array
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1);
+		// Iterate backwards through commands to find the right one
+		for (let i = this.commands.length - 1; i >= 0; i--) {
+			if (this.commands[i].marker!.line <= line - 1) {
+				return this.commands[i];
+			}
+		}
+
+		return undefined;
 	}
 
 	getCwdForLine(line: number): string | undefined {
