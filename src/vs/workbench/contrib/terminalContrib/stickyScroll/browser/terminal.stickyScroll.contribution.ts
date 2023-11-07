@@ -5,6 +5,7 @@
 
 import type { Terminal as RawXtermTerminal } from '@xterm/xterm';
 import { IDimension } from 'vs/base/browser/dom';
+import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -40,12 +41,11 @@ class TerminalStickyScrollContribution extends Disposable implements ITerminalCo
 	) {
 		super();
 
-		this._refreshState();
-		this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TerminalSettingId.EnableStickyScroll)) {
+		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSettingId.EnableStickyScroll)) {
 				this._refreshState();
 			}
-		});
+		}));
 	}
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
@@ -87,7 +87,6 @@ class TerminalStickyScrollContribution extends Disposable implements ITerminalCo
 
 	private _tryEnable(): void {
 		if (this._shouldBeEnabled()) {
-			// TODO: Ensure open has happened to prevent race condition where not attached
 			this._overlay.value = this._instantiationService.createInstance(TerminalStickyScrollOverlay, this._xterm!, this._instance.capabilities.get(TerminalCapability.CommandDetection)!);
 		}
 	}

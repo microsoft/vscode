@@ -40,7 +40,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _stickyScrollOverlay?: RawXtermTerminal;
 	private _serializeAddon?: SerializeAddonType;
 
-	private _canvasAddon = new MutableDisposable<CanvasAddonType>();
+	private _canvasAddon = this._register(new MutableDisposable<CanvasAddonType>());
 	private _pendingCanvasAddon?: CancelablePromise<void>;
 
 	private _element?: HTMLElement;
@@ -77,15 +77,15 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Eagerly create the overlay
 		TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService).then(ctor => {
-			this._stickyScrollOverlay = new ctor({
+			this._stickyScrollOverlay = this._register(new ctor({
 				rows: 1,
 				cols: this._xterm.raw.cols,
 				allowProposedApi: true,
 				...this._getOptions()
-			});
+			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
-				this._serializeAddon = new SerializeAddon();
+				this._serializeAddon = this._register(new SerializeAddon());
 				this._xterm.raw.loadAddon(this._serializeAddon);
 				// Trigger a render as the serialize addon is required to render
 				this._refresh();
