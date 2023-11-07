@@ -3601,28 +3601,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "link",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -3951,28 +3951,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "visited",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -4385,28 +4385,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "hover",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -4441,28 +4441,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "focus",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -4497,28 +4497,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "active",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -8879,28 +8879,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "link",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -8963,28 +8963,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "visited",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -10447,28 +10447,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "link",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
@@ -10699,28 +10699,28 @@
 		"c": ":",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css punctuation.definition.entity.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
 		"c": "visited",
 		"t": "source.css meta.selector.css entity.other.attribute-name.pseudo-class.css",
 		"r": {
-			"dark_plus": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_plus": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"dark_vs": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"light_vs": "entity.other.attribute-name.pseudo-class.css: #800000",
-			"hc_black": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"dark_modern": "entity.other.attribute-name.pseudo-class.css: #D7BA7D",
-			"hc_light": "entity.other.attribute-name.pseudo-class.css: #0F4A85",
-			"light_modern": "entity.other.attribute-name.pseudo-class.css: #800000"
+			"dark_plus": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_plus": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"dark_vs": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"light_vs": "source.css entity.other.attribute-name.pseudo-class: #800000",
+			"hc_black": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"dark_modern": "source.css entity.other.attribute-name.pseudo-class: #D7BA7D",
+			"hc_light": "source.css entity.other.attribute-name.pseudo-class: #0F4A85",
+			"light_modern": "source.css entity.other.attribute-name.pseudo-class: #800000"
 		}
 	},
 	{
