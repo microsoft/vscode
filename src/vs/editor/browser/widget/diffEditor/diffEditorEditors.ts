@@ -41,7 +41,7 @@ export class DiffEditorEditors extends Disposable {
 		this.original = this._register(this._createLeftHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.originalEditor || {}));
 		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
 
-		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => this.modified.getModel());
+		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),
