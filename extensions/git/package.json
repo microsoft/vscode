@@ -695,6 +695,12 @@
         "category": "Git"
       },
       {
+        "command": "git.timeline.openCommit",
+        "title": "%command.timelineOpenCommit%",
+        "icon": "$(wand)",
+        "category": "Git"
+      },
+      {
         "command": "git.rebaseAbort",
         "title": "%command.rebaseAbort%",
         "category": "Git",
@@ -752,6 +758,18 @@
       {
         "command": "git.openRepositoriesInParentFolders",
         "title": "%command.openRepositoriesInParentFolders%",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewChanges",
+        "title": "View Changes",
+        "icon": "$(search)",
+        "category": "Git"
+      },
+      {
+        "command": "git.viewStagedChanges",
+        "title": "View Staged Changes",
+        "icon": "$(search)",
         "category": "Git"
       }
     ],
@@ -1198,6 +1216,10 @@
           "when": "false"
         },
         {
+          "command": "git.timeline.openCommit",
+          "when": "false"
+        },
+        {
           "command": "git.closeAllDiffEditors",
           "when": "config.git.enabled && !git.missing && gitOpenRepositoryCount != 0"
         },
@@ -1224,6 +1246,14 @@
         {
           "command": "git.openRepositoriesInParentFolders",
           "when": "config.git.enabled && !git.missing && git.parentRepositoryCount != 0"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "false"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "false"
         }
       ],
       "scm/title": [
@@ -1390,6 +1420,16 @@
           "command": "git.stageAllUntracked",
           "when": "scmProvider == git && scmResourceGroup == untracked",
           "group": "inline@2"
+        },
+        {
+          "command": "git.viewStagedChanges",
+          "when": "scmProvider == git && scmResourceGroup == index",
+          "group": "inline@1"
+        },
+        {
+          "command": "git.viewChanges",
+          "when": "scmProvider == git && scmResourceGroup == workingTree",
+          "group": "inline@1"
         }
       ],
       "scm/resourceFolder/context": [
@@ -1768,9 +1808,19 @@
       ],
       "timeline/item/context": [
         {
+          "command": "git.timeline.openCommit",
+          "group": "inline",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
+        },
+        {
           "command": "git.timeline.openDiff",
-          "group": "1_actions",
+          "group": "1_actions@1",
           "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file\\b/ && !listMultiSelection"
+        },
+        {
+          "command": "git.timeline.openCommit",
+          "group": "1_actions@2",
+          "when": "config.git.enabled && !git.missing && timelineItem =~ /git:file:commit\\b/ && !listMultiSelection"
         },
         {
           "command": "git.timeline.compareWithSelected",

@@ -358,6 +358,11 @@ export class ViewZones extends ViewPart {
 
 		let hasVisibleZone = false;
 		for (const visibleWhitespace of visibleWhitespaces) {
+			if (!this._zones[visibleWhitespace.id]) {
+				// This zone got deleted in the meantime?
+				// TODO@hediet: This should not happen.
+				continue;
+			}
 			if (this._zones[visibleWhitespace.id].isInHiddenArea) {
 				continue;
 			}
