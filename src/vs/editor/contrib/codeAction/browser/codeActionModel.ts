@@ -252,7 +252,7 @@ export class CodeActionModel extends Disposable {
 												action.highlightRange = action.action.isPreferred;
 											}
 
-											if (codeActionSet.allActions !== actionsAtMarker.allActions) {
+											if (codeActionSet.allActions.length === 0) {
 												allCodeActions.push(...actionsAtMarker.allActions);
 											}
 
