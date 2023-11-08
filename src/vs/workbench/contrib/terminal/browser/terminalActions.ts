@@ -32,7 +32,7 @@ import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspac
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Direction, ICreateTerminalOptions, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
 import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -251,15 +251,15 @@ export function registerActiveInstanceAction(
  * This includes detached xterm terminals that are not managed by an {@link ITerminalInstance}.
  */
 export function registerActiveXtermAction(
-	options: IAction2Options & { run: (activeTerminal: IXtermTerminal, accessor: ServicesAccessor, instance?: ITerminalInstance, args?: unknown) => void | Promise<unknown> }
+	options: IAction2Options & { run: (activeTerminal: IXtermTerminal, accessor: ServicesAccessor, instance: ITerminalInstance | IDetachedTerminalInstance, args?: unknown) => void | Promise<unknown> }
 ): IDisposable {
 	const originalRun = options.run;
 	return registerTerminalAction({
 		...options,
 		run: (c, accessor, args) => {
-			const activeDetached = Iterable.find(c.service.detachedXterms, d => d.isFocused);
+			const activeDetached = Iterable.find(c.service.detachedInstances, d => d.xterm.isFocused);
 			if (activeDetached) {
-				return originalRun(activeDetached, accessor, undefined, args);
+				return originalRun(activeDetached.xterm, accessor, activeDetached, args);
 			}
 
 			const activeInstance = c.service.activeInstance;

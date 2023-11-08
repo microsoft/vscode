@@ -24,7 +24,7 @@ import { LogLevel } from 'vs/platform/log/common/log';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { TerminalStorageKeys } from 'vs/workbench/contrib/terminal/common/terminalStorageKeys';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
-import { MarkNavigationAddon } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
+import { MarkNavigationAddon, ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
 import { localize } from 'vs/nls';
 import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
@@ -149,6 +149,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	get findResult(): { resultIndex: number; resultCount: number } | undefined { return this._lastFindResult; }
 
 	get isStdinDisabled(): boolean { return !!this.raw.options.disableStdin; }
+	get isGpuAccelerated(): boolean { return !!(this._canvasAddon || this._webglAddon); }
 
 	private readonly _onDidRequestRunCommand = this._register(new Emitter<{ command: ITerminalCommand; copyAsHtml?: boolean; noNewLine?: boolean }>());
 	readonly onDidRequestRunCommand = this._onDidRequestRunCommand.event;
@@ -195,7 +196,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		private readonly _configHelper: TerminalConfigHelper,
 		cols: number,
 		rows: number,
-		private readonly _backgroundColorProvider: IXtermColorProvider,
+		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _capabilities: ITerminalCapabilityStore,
 		shellIntegrationNonce: string,
 		private readonly _terminalSuggestWidgetVisibleContextKey: IContextKey<boolean> | undefined,
@@ -224,7 +225,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			documentOverride: layoutService.container.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
-			theme: this._getXtermTheme(),
+			theme: this.getXtermTheme(),
 			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
 			fontWeight: config.fontWeight,
@@ -591,6 +592,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		this.raw.scrollToTop();
 	}
 
+	scrollToLine(line: number, position: ScrollPosition = ScrollPosition.Top): void {
+		this.markTracker.scrollToLine(line, position);
+	}
+
 	clearBuffer(): void {
 		this.raw.clear();
 		// xterm.js does not clear the first prompt, so trigger these to simulate
@@ -898,13 +903,13 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		};
 	}
 
-	private _getXtermTheme(theme?: IColorTheme): ITheme {
+	getXtermTheme(theme?: IColorTheme): ITheme {
 		if (!theme) {
 			theme = this._themeService.getColorTheme();
 		}
 
 		const foregroundColor = theme.getColor(TERMINAL_FOREGROUND_COLOR);
-		const backgroundColor = this._backgroundColorProvider.getBackgroundColor(theme);
+		const backgroundColor = this._xtermColorProvider.getBackgroundColor(theme);
 		const cursorColor = theme.getColor(TERMINAL_CURSOR_FOREGROUND_COLOR) || foregroundColor;
 		const cursorAccentColor = theme.getColor(TERMINAL_CURSOR_BACKGROUND_COLOR) || backgroundColor;
 		const selectionBackgroundColor = theme.getColor(TERMINAL_SELECTION_BACKGROUND_COLOR);
@@ -939,7 +944,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	private _updateTheme(theme?: IColorTheme): void {
-		this.raw.options.theme = this._getXtermTheme(theme);
+		this.raw.options.theme = this.getXtermTheme(theme);
 	}
 
 	refresh() {
