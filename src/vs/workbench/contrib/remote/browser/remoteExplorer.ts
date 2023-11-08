@@ -218,11 +218,12 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		return this.storageService.getBoolean(CAN_PROC_FALLBACK, StorageScope.WORKSPACE, true);
 	}
 
+	private alreadyForwarded: Set<string> | undefined;
 	private listenForPorts(environment: IRemoteAgentEnvironment | null) {
 		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid()) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
-				const autoForwardedCount = Array.from(this.remoteExplorerService.tunnelModel.forwarded.values()).filter(tunnel => tunnel.source.source === TunnelSource.Auto).length;
-				if (autoForwardedCount > 20) {
+				this.alreadyForwarded = this.procForwarder?.forwarded;
+				if (this.alreadyForwarded && this.alreadyForwarded.size > 20) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
 					this.setup(environment);
 					this.notificationService.notify({
@@ -257,10 +258,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		} else {
 			const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 			if (useProc()) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, undefined, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			} else if (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, this.alreadyForwarded, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			}
 			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
@@ -569,6 +570,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 
 	constructor(
 		private readonly unforwardOnly: boolean,
+		readonly alreadyAutoForwarded: Set<string> | undefined,
 		private readonly configurationService: IConfigurationService,
 		readonly remoteExplorerService: IRemoteExplorerService,
 		readonly notificationService: INotificationService,
@@ -581,7 +583,12 @@ class ProcAutomaticPortForwarding extends Disposable {
 	) {
 		super();
 		this.notifier = new OnAutoForwardedAction(notificationService, remoteExplorerService, openerService, externalOpenerService, tunnelService, hostService, logService, contextKeyService);
+		alreadyAutoForwarded?.forEach(port => this.autoForwarded.add(port));
 		this.initialize();
+	}
+
+	get forwarded(): Set<string> {
+		return this.autoForwarded;
 	}
 
 	private async initialize() {
