@@ -205,6 +205,7 @@ export class ActionWithDropdownActionViewItem extends ActionViewItem {
 
 			this.dropdownMenuActionViewItem = new DropdownMenuActionViewItem(this._register(new Action('dropdownAction', nls.localize('moreActions', "More Actions..."))), menuActionsProvider, this.contextMenuProvider, { classNames: ['dropdown', ...ThemeIcon.asClassNameArray(Codicon.dropDownButton), ...menuActionClassNames] });
 			this.dropdownMenuActionViewItem.render(this.element);
+			this._register(this.dropdownMenuActionViewItem);
 
 			this._register(addDisposableListener(this.element, EventType.KEY_DOWN, e => {
 				// If we don't have any actions then the dropdown is hidden so don't try to focus it #164050
