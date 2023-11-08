@@ -8,6 +8,7 @@ import * as path from 'path';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import * as yauzl from 'yauzl';
+import { createAsset } from './createAsset';
 
 function e(name: string): string {
 	const result = process.env[name];
@@ -181,6 +182,8 @@ export async function main() {
 					continue;
 				}
 
+				let artifactPath: string;
+
 				try {
 					console.log(`Processing ${artifact.name} (${artifact.resource.downloadUrl})`);
 
@@ -189,42 +192,33 @@ export async function main() {
 					await downloadArtifact(artifact, artifactZipPath);
 
 					console.log(`Extracting artifact...`);
-					const artifactPath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+					artifactPath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
 					const artifactSize = fs.statSync(artifactPath).size;
 
 					if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
 						throw new Error(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
 					}
-
-					const { product, os, arch, type } = match.groups!;
-					console.log('Publishing artifact:', { path: artifactPath, product, os, arch, type });
-
-					// TODO@joaomoreno! createasset
-
-					state.add(artifact.name);
 				} catch (err) {
 					console.error(err);
 					continue;
 				}
+
+				const { product, os, arch, type } = match.groups!;
+				console.log('Publishing artifact:', { path: artifactPath, product, os, arch, type });
+
+				await createAsset(product, os, arch, type, path.basename(artifactPath), artifactPath);
+
+				state.add(artifact.name);
 			}
 		}
 
 		const [timeline, artifacts2] = await Promise.all([getPipelineTimeline(), getPipelineArtifacts()]);
-
-		const stagesCompleted = new Set<string>();
-
-		for (const record of timeline.records) {
-			if (record.type === 'stage' && record.state === 'completed' && stages.has(record.name)) {
-				stagesCompleted.add(record.name);
-			}
-		}
+		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
 		if (stagesCompleted.size === stages.size && artifacts2.length === state.size) {
 			break;
 		}
 
-		console.log('Known timeline record types', [...new Set(timeline.records.map(r => r.type))]);
-		console.log('All stage timeline records', timeline.records.filter(r => r.type === 'stage'));
 		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
 		console.log(`Artifacts processed: ${state.size}/${artifacts2.length}`);
 

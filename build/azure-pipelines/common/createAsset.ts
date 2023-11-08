@@ -11,7 +11,7 @@ import * as mime from 'mime';
 import { CosmosClient } from '@azure/cosmos';
 import { ClientSecretCredential } from '@azure/identity';
 import { retry } from './retry';
-import { releaseAndProvision } from './prss';
+// import { releaseAndProvision } from './prss';
 
 interface Asset {
 	platform: string;
@@ -23,11 +23,6 @@ interface Asset {
 	sha256hash: string;
 	size: number;
 	supportsFastUpdate?: boolean;
-}
-
-if (process.argv.length !== 8) {
-	console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
-	process.exit(-1);
 }
 
 // Contains all of the logic for mapping details to our actual product names in CosmosDB
@@ -158,8 +153,7 @@ function getEnv(name: string): string {
 	return result;
 }
 
-async function main(): Promise<void> {
-	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
+export async function createAsset(product: string, os: string, arch: string, unprocessedType: string, fileName: string, filePath: string): Promise<void> {
 	// getPlatform needs the unprocessedType
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
@@ -262,23 +256,23 @@ async function main(): Promise<void> {
 		size
 	};
 
-	if (quality === 'insider') {
-		await releaseAndProvision(
-			process.env['RELEASE_TENANT_ID']!,
-			process.env['RELEASE_CLIENT_ID']!,
-			process.env['RELEASE_AUTH_CERT_SUBJECT_NAME']!,
-			process.env['RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME']!,
-			process.env['PROVISION_TENANT_ID']!,
-			process.env['PROVISION_AAD_USERNAME']!,
-			process.env['PROVISION_AAD_PASSWORD']!,
-			commit,
-			quality,
-			filePath
-		);
+	// if (quality === 'insider') {
+	// 	await releaseAndProvision(
+	// 		process.env['RELEASE_TENANT_ID']!,
+	// 		process.env['RELEASE_CLIENT_ID']!,
+	// 		process.env['RELEASE_AUTH_CERT_SUBJECT_NAME']!,
+	// 		process.env['RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME']!,
+	// 		process.env['PROVISION_TENANT_ID']!,
+	// 		process.env['PROVISION_AAD_USERNAME']!,
+	// 		process.env['PROVISION_AAD_PASSWORD']!,
+	// 		commit,
+	// 		quality,
+	// 		filePath
+	// 	);
 
-		asset.prssUrl = `${process.env['PRSS_CDN_URL']}/${quality}/${blobName}`;
-		console.log(`Successfully released on PRSS: ${asset.prssUrl}`);
-	}
+	// 	asset.prssUrl = `${process.env['PRSS_CDN_URL']}/${quality}/${blobName}`;
+	// 	console.log(`Successfully released on PRSS: ${asset.prssUrl}`);
+	// }
 
 	// Remove this if we ever need to rollback fast updates for windows
 	if (/win32/.test(platform)) {
@@ -292,12 +286,20 @@ async function main(): Promise<void> {
 	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
 
 	console.log(`  Done ✔️`);
+	console.log('Asset successfully created');
 }
 
-main().then(() => {
-	console.log('Asset successfully created');
-	process.exit(0);
-}, err => {
-	console.error(err);
-	process.exit(1);
-});
+if (require.main === module) {
+	if (process.argv.length !== 8) {
+		console.error('Usage: node createAsset.js PRODUCT OS ARCH TYPE NAME FILE');
+		process.exit(-1);
+	}
+
+	const [, , product, os, arch, unprocessedType, fileName, filePath] = process.argv;
+	createAsset(product, os, arch, unprocessedType, fileName, filePath).then(() => {
+		process.exit(0);
+	}, err => {
+		console.error(err);
+		process.exit(1);
+	});
+}
