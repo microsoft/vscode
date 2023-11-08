@@ -7,7 +7,7 @@ import * as browser from 'vs/base/browser/browser';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { AbstractIdleValue, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
@@ -227,6 +227,27 @@ export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runne
  * @return token that can be used to cancel the scheduled runner.
  */
 export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
+
+export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+	let iteration = 0;
+	const timer = targetWindow.setInterval(() => {
+		iteration++;
+		if ((typeof iterations === 'number' && iteration >= iterations) || handler() === true) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		targetWindow.clearInterval(timer);
+	});
+	return disposable;
+}
+
+export class WindowIntervalTimer extends IntervalTimer {
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow);
+	}
+}
 
 class AnimationFrameQueueItem implements IDisposable {
 
