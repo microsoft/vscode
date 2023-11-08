@@ -227,7 +227,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'commandPaletteTask',
-					title: localize('gettingStarted.commandPalette.title', "One shortcut to do everything"),
+					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
@@ -328,7 +328,7 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 				},
 				{
 					id: 'commandPaletteTaskWeb',
-					title: localize('gettingStarted.commandPalette.title', "One shortcut to do everything"),
+					title: localize('gettingStarted.commandPalette.title', "Unlock productivity with the Command Palette "),
 					description: localize('gettingStarted.commandPalette.description.interpolated', "Run commands without reaching for your mouse to accomplish any task in VS Code.\n{0}", Button(localize('commandPalette', "Open Command Palette"), 'command:workbench.action.showCommands')),
 					media: { type: 'svg', altText: 'Command Palette overlay for searching and executing commands.', path: 'commandPalette.svg' },
 				},
