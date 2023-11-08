@@ -209,8 +209,7 @@ export async function main() {
 			}
 		}
 
-		const timeline = await getPipelineTimeline();
-		console.log(timeline);
+		const [timeline, artifacts2] = await Promise.all([getPipelineTimeline(), getPipelineArtifacts()]);
 
 		const stagesCompleted = new Set<string>();
 
@@ -220,13 +219,12 @@ export async function main() {
 			}
 		}
 
-		const artifacts2 = await getPipelineArtifacts();
-		console.log(artifacts2);
-
 		if (stagesCompleted.size === stages.size && artifacts2.length === state.size) {
 			break;
 		}
 
+		console.log('Known timeline record types', [...new Set(timeline.records.map(r => r.type))]);
+		console.log('All stage timeline records', timeline.records.filter(r => r.type === 'stage'));
 		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
 		console.log(`Artifacts processed: ${state.size}/${artifacts2.length}`);
 
