@@ -96,7 +96,7 @@ steps:
       Write-Host "##vso[task.setvariable variable=RELEASE_REQUEST_SIGNING_CERT_SUBJECT_NAME]$RequestSigningCertSubjectName"
     displayName: Import certificates
 
-  - pwsh: build/azure-pipelines/product-publish.ps1
+  - pwsh: node build/azure-pipelines/common/publish.js
     env:
       GITHUB_TOKEN: "$(github-distro-mixin-password)"
       AZURE_TENANT_ID: "$(AZURE_TENANT_ID)"
