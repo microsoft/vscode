@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -1868,8 +1868,8 @@ class SyncControls extends Disposable {
 			this.updateLastSyncedTime();
 		}));
 
-		const updateLastSyncedTimer = this._register(new IntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000);
+		const updateLastSyncedTimer = this._register(new DOM.WindowIntervalTimer());
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, $window);
 
 		this.update();
 		this._register(this.userDataSyncService.onDidChangeStatus(() => {

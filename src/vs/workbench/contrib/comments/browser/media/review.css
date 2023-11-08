@@ -338,7 +338,7 @@
 	white-space: nowrap;
 	border: 0px;
 	outline: 1px solid transparent;
-	background-color: var(--vscode-peekViewTitle-background);
+	background-color: var(--vscode-editorCommentsWidget-replyButtonBackground);
 	color: var(--vscode-editor-foreground);
 	font-size: inherit;
 	font-family: var(--monaco-monospace-font);

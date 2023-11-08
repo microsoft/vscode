@@ -88,7 +88,6 @@ import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
-import { $window } from 'vs/base/browser/window';
 
 const enum Constants {
 	/**
@@ -1205,7 +1204,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		if (force || !$window.getSelection()?.toString()) {
+		if (force || !dom.getActiveWindow().getSelection()?.toString()) {
 			this.xterm.raw.focus();
 			this._onDidRequestFocus.fire();
 		}
@@ -1629,9 +1628,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		let retries = 0;
 		return new Promise<void>(r => {
-			const interval = setInterval(() => {
+			const interval = dom.disposableWindowInterval($window, () => {
 				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
-					clearInterval(interval);
+					interval.dispose();
 					r();
 				}
 			}, 20);
