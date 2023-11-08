@@ -1255,12 +1255,13 @@ export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) 
 					return;
 				}
 				const end = Date.now() + 15; // one frame at 64fps
-				runner(Object.freeze({
+				const deadline: IdleDeadline = {
 					didTimeout: true,
 					timeRemaining() {
 						return Math.max(0, end - Date.now());
 					}
-				}));
+				};
+				runner(Object.freeze(deadline));
 			});
 			let disposed = false;
 			return {
