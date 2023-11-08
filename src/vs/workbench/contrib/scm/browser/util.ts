@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'vs/base/common/path';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResource, ISCMRepository, ISCMResourceGroup, ISCMInput, ISCMActionButton, ISCMViewService } from 'vs/workbench/contrib/scm/common/scm';
 import { IMenu } from 'vs/platform/actions/common/actions';
 import { ActionBar, IActionViewItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -17,7 +18,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { Command } from 'vs/editor/common/languages';
 import { reset } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMHistoryItemChangeTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { URI } from 'vs/base/common/uri';
 import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
 

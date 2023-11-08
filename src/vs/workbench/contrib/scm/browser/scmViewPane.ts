@@ -10,6 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode, prepend } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/common/history';
 import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -96,7 +97,6 @@ import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
-import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement, SCMViewSeparatorElement } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
 
