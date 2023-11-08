@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
-import { timeout } from '../../utils';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -18,8 +17,7 @@ export function setup() {
 			terminal = app.workbench.terminal;
 			settingsEditor = app.workbench.settingsEditor;
 			await setTerminalTestSettings(app, [
-				['terminal.integrated.enableStickyScroll', 'true'],
-				['terminal.integrated.shellIntegration.enabled', 'true']
+				['terminal.integrated.enableStickyScroll', 'true']
 			]);
 		});
 
@@ -27,27 +25,53 @@ export function setup() {
 			await settingsEditor.clearUserSettings();
 		});
 
-		async function createShellIntegrationProfile() {
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.NewWithProfile, process.platform === 'win32' ? 'PowerShell' : 'bash');
-		}
-
 		it('should show sticky scroll when appropriate', async () => {
-			// There should not be a visible sticky scroll element initially
-			await createShellIntegrationProfile();
-			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.length === 0);
+			// Create the simplest system profile to get as little process interaction as possible
+			await terminal.createTerminal();
 
-			// Print a simple command in order to ensure shell integration sequences appear at the
-			// correct place. This helps avoid a race condition if too much data floods into the
-			// terminal before things are initialized.
-			await terminal.runCommandInTerminal('echo "start up"');
-			await terminal.waitForTerminalText(buffer => buffer.some(line => line.startsWith('start up')));
+			// Erase all content and reset cursor to top
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 
-			// Allow to settle, again to avoid race conditions (with conpty)
-			await timeout(500);
+			// Force windows pty mode off; assume all sequences are rendered in correct position
+			if (process.platform === 'win32') {
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
+			}
 
-			// Running ls should show the sticky scroll element
-			await terminal.runCommandInTerminal(process.platform === 'win32' ? `ls` : `ls -la`);
-			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.length === 1 && elements[0].textContent.indexOf('ls') >= 0);
+			// Write prompt, fill viewport, finish command
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}sticky scroll 1`);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}`);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\ndata`.repeat(50));
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('D;0')}`); // Success
+
+			// Print next prompt and validate, this is needed to finish the previous command
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}sticky scroll 2`);
+			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 1') >= 0));
+
+			// And again to verify the sticky scroll changes, this time with a failed command
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}`);
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\ndata`.repeat(50));
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('D;1')}`); // Fail
+
+			// Print next prompt and validate, this is needed to finish the previous command
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}`);
+			await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 2') >= 0));
 		});
 	});
+}
+
+function vsc(data: string) {
+	return setTextParams(`633;${data}`);
+}
+
+function setTextParams(data: string) {
+	return osc(`${data}\\x07`);
+}
+
+function osc(data: string) {
+	return `\\x1b]${data}`;
+}
+
+function csi(data: string) {
+	return `\\x1b[${data}`;
 }
