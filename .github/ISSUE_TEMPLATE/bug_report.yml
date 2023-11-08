@@ -19,7 +19,7 @@ body:
           required: false
         - label: Does this issue occur when all extensions are disabled? 🔧 Launch with `code --disable-extensions` to check.
           required: false
-        - label: " 🪓 Used 'Help: Start Extension Bisect' from Command Palette to try to identify the cause"
+        - label: " 🪓 Used <i><b>'Help: Start Extension Bisect'</b></i> from Command Palette to try to identify the cause"
           required: false
         - label: Not caused by 3rd party extensions. 📣 Issues caused by an extension need to be reported directly to the extension publisher. The 'Help > Report Issue' dialog can assist with this
           required: true
