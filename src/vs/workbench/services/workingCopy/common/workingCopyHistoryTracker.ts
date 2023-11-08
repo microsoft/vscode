@@ -37,7 +37,7 @@ export class WorkingCopyHistoryTracker extends Disposable implements IWorkbenchC
 
 	private readonly limiter = this._register(new Limiter(MAX_PARALLEL_HISTORY_IO_OPS));
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+	private readonly resourceExcludeMatcher = this._register(new IdleValue(globalThis, () => {
 		const matcher = this._register(new ResourceGlobMatcher(
 			root => this.configurationService.getValue(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES, { resource: root }),
 			event => event.affectsConfiguration(WorkingCopyHistoryTracker.SETTINGS.EXCLUDES),

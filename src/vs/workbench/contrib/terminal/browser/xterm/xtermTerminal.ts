@@ -45,6 +45,7 @@ import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableEle
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { $window } from 'vs/base/browser/window';
 
 const enum RenderConstants {
 	/**
@@ -645,9 +646,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
-				document.addEventListener('copy', listener);
-				document.execCommand('copy');
-				document.removeEventListener('copy', listener);
+				$window.document.addEventListener('copy', listener);
+				$window.document.execCommand('copy');
+				$window.document.removeEventListener('copy', listener);
 			} else {
 				await this._clipboardService.writeText(this.raw.getSelection());
 			}
@@ -979,13 +980,13 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 	// the use of canvas, window.devicePixelRatio needs to be used here in
 	// order to be precise. font.charWidth/charHeight alone as insufficient
 	// when window.devicePixelRatio changes.
-	const scaledWidthAvailable = width * window.devicePixelRatio;
+	const scaledWidthAvailable = width * $window.devicePixelRatio;
 
-	const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
+	const scaledCharWidth = font.charWidth * $window.devicePixelRatio + font.letterSpacing;
 	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
-	const scaledHeightAvailable = height * window.devicePixelRatio;
-	const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+	const scaledHeightAvailable = height * $window.devicePixelRatio;
+	const scaledCharHeight = Math.ceil(font.charHeight * $window.devicePixelRatio);
 	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 

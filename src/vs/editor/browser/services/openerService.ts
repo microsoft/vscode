@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
@@ -122,7 +123,7 @@ export class OpenerService implements IOpenerService {
 				if (matchesSomeScheme(href, Schemas.http, Schemas.https)) {
 					dom.windowOpenNoOpener(href);
 				} else {
-					window.location.href = href;
+					mainWindow.location.href = href;
 				}
 				return true;
 			}

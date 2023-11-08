@@ -45,6 +45,7 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
+import { getWindow } from 'vs/base/browser/dom';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -145,7 +146,7 @@ export class SuggestController implements IEditorContribution {
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
 		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
-		this.widget = this._toDispose.add(new IdleValue(() => {
+		this.widget = this._toDispose.add(new IdleValue(getWindow(editor.getDomNode()), () => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -218,11 +219,11 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Wire up text overtyping capture
-		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
+		this._overtypingCapturer = this._toDispose.add(new IdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
-		this._alternatives = this._toDispose.add(new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new IdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
 		}));
 

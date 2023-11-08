@@ -43,7 +43,7 @@ export class DiffEditorSash extends Disposable {
 		this._register(this._sash.onDidReset(() => this._sashRatio.set(undefined, undefined)));
 
 		this._register(autorun(reader => {
-			/** @description update sash layout */
+			/** @description DiffEditorSash.layoutSash */
 			const enabled = this._options.enableSplitViewResizing.read(reader);
 			this._sash.state = enabled ? SashState.Enabled : SashState.Disabled;
 			this.sashLeft.read(reader);

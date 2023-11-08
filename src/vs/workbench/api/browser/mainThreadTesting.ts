@@ -5,12 +5,13 @@
 
 import { VSBuffer } from 'vs/base/common/buffer';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
 import { URI } from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { MutableObservableValue } from 'vs/workbench/contrib/testing/common/observableValue';
-import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
+import { ExtensionRunTestsRequest, IFileCoverage, ITestItem, ITestMessage, ITestRunProfile, ITestRunTask, ResolvedTestRunRequest, TestResultState, TestRunProfileBitset, TestsDiffOp } from 'vs/workbench/contrib/testing/common/testTypes';
 import { TestCoverage } from 'vs/workbench/contrib/testing/common/testCoverage';
 import { ITestProfileService } from 'vs/workbench/contrib/testing/common/testProfileService';
 import { LiveTestResult } from 'vs/workbench/contrib/testing/common/testResult';
@@ -43,6 +44,21 @@ export class MainThreadTesting extends Disposable implements MainThreadTestingSh
 
 		this._register(this.testService.onDidCancelTestRun(({ runId }) => {
 			this.proxy.$cancelExtensionTestRun(runId);
+		}));
+
+		this._register(Event.debounce(testProfiles.onDidChange, (_last, e) => e)(() => {
+			const defaults = new Set([
+				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Run),
+				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Debug),
+				...testProfiles.getGroupDefaultProfiles(TestRunProfileBitset.Coverage),
+			]);
+
+			const obj: Record</* controller id */string, /* profile id */ number[]> = {};
+			for (const { controller, profiles } of this.testProfiles.all()) {
+				obj[controller.id] = profiles.filter(p => defaults.has(p)).map(p => p.profileId);
+			}
+
+			this.proxy.$setActiveRunProfiles(obj);
 		}));
 
 		this._register(resultService.onResultsChanged(evt => {

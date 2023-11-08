@@ -88,6 +88,7 @@ import { ISimpleSelectedSuggestion } from 'vs/workbench/services/suggest/browser
 import type { IMarker, Terminal as XTermTerminal } from '@xterm/xterm';
 import { AccessibilityCommandId } from 'vs/workbench/contrib/accessibility/common/accessibilityCommands';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
+import { $window } from 'vs/base/browser/window';
 
 const enum Constants {
 	/**
@@ -535,13 +536,13 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
-		let initialDataEventsTimeout: number | undefined = window.setTimeout(() => {
+		let initialDataEventsTimeout: number | undefined = dom.getWindow(this._container).setTimeout(() => {
 			initialDataEventsTimeout = undefined;
 			this._initialDataEvents = undefined;
 		}, 10000);
 		this._register(toDisposable(() => {
 			if (initialDataEventsTimeout) {
-				window.clearTimeout(initialDataEventsTimeout);
+				dom.getWindow(this._container).clearTimeout(initialDataEventsTimeout);
 			}
 		}));
 
@@ -611,7 +612,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return;
 		}
 
-		const computedStyle = window.getComputedStyle(this._container);
+		const computedStyle = dom.getWindow(this._container).getComputedStyle(this._container);
 		const width = parseInt(computedStyle.width);
 		const height = parseInt(computedStyle.height);
 
@@ -675,7 +676,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm?.raw.element) {
 			return undefined;
 		}
-		const computedStyle = window.getComputedStyle(this.xterm.raw.element);
+		const computedStyle = dom.getWindow(this.xterm.raw.element).getComputedStyle(this.xterm.raw.element);
 		const horizontalPadding = parseInt(computedStyle.paddingLeft) + parseInt(computedStyle.paddingRight);
 		const verticalPadding = parseInt(computedStyle.paddingTop) + parseInt(computedStyle.paddingBottom);
 		TerminalInstance._lastKnownCanvasDimensions = new dom.Dimension(
@@ -1210,7 +1211,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (!this.xterm) {
 			return;
 		}
-		if (force || !window.getSelection()?.toString()) {
+		if (force || !$window.getSelection()?.toString()) {
 			this.xterm.raw.focus();
 			this._onDidRequestFocus.fire();
 		}

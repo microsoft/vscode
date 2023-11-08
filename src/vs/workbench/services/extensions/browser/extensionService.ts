@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
@@ -201,7 +202,7 @@ export class ExtensionService extends AbstractExtensionService implements IExten
 		this._doStopExtensionHosts();
 
 		// If we are running extension tests, forward logs and exit code
-		const automatedWindow = window as unknown as IAutomatedWindow;
+		const automatedWindow = mainWindow as unknown as IAutomatedWindow;
 		if (typeof automatedWindow.codeAutomationExit === 'function') {
 			automatedWindow.codeAutomationExit(code, await getLogs(this._fileService, this._environmentService));
 		}

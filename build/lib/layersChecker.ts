@@ -52,6 +52,7 @@ const CORE_TYPES = [
 	'BigInt64Array',
 	'btoa',
 	'atob',
+	'origin',
 	'AbortController',
 	'AbortSignal',
 	'MessageChannel',
@@ -94,6 +95,23 @@ const RULES: IRule[] = [
 
 			// Safe access to postMessage() and friends
 			'MessageEvent',
+		],
+		disallowedTypes: NATIVE_TYPES,
+		disallowedDefinitions: [
+			'lib.dom.d.ts', // no DOM
+			'@types/node'	// no node.js
+		]
+	},
+
+	// Common: vs/base/common/async.ts
+	{
+		target: '**/vs/base/common/async.ts',
+		allowedTypes: [
+			...CORE_TYPES,
+
+			// Safe access to requestIdleCallback & cancelIdleCallback
+			'requestIdleCallback',
+			'cancelIdleCallback'
 		],
 		disallowedTypes: NATIVE_TYPES,
 		disallowedDefinitions: [

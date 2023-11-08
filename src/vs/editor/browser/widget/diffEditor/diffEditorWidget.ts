@@ -8,12 +8,13 @@ import { findLast } from 'vs/base/common/arraysFind';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, autorun, autorunWithStore, derived, derivedWithStore, disposableObservableValue, recomputeInitiallyAndOnChange, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableValue, recomputeInitiallyAndOnChange, subtransaction, transaction } from 'vs/base/common/observable';
 import 'vs/css!./style';
 import { IEditorConstructionOptions } from 'vs/editor/browser/config/editorConfiguration';
 import { ICodeEditor, IDiffEditor, IDiffEditorConstructionOptions, IMouseTargetViewZone } from 'vs/editor/browser/editorBrowser';
 import { EditorExtensionsRegistry, IDiffEditorContributionDescription } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { StableEditorScrollState } from 'vs/editor/browser/stableEditorScroll';
 import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 import { AccessibleDiffViewer } from 'vs/editor/browser/widget/diffEditor/accessibleDiffViewer';
 import { DiffEditorDecorations } from 'vs/editor/browser/widget/diffEditor/diffEditorDecorations';
@@ -22,7 +23,7 @@ import { HideUnchangedRegionsFeature } from 'vs/editor/browser/widget/diffEditor
 import { ViewZoneManager } from 'vs/editor/browser/widget/diffEditor/lineAlignment';
 import { MovedBlocksLinesPart } from 'vs/editor/browser/widget/diffEditor/movedBlocksLines';
 import { OverviewRulerPart } from 'vs/editor/browser/widget/diffEditor/overviewRulerPart';
-import { CSSStyle, ObservableElementSizeObserver, applyStyle, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
+import { CSSStyle, ObservableElementSizeObserver, applyStyle, applyViewZones, readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IDimension } from 'vs/editor/common/core/dimension';
 import { Position } from 'vs/editor/common/core/position';
@@ -59,7 +60,8 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		h('div.editor.modified@modified', { style: { position: 'absolute', height: '100%' } }),
 		h('div.accessibleDiffViewer@accessibleDiffViewer', { style: { position: 'absolute', height: '100%' } }),
 	]);
-	private readonly _diffModel = this._register(disposableObservableValue<DiffEditorViewModel | undefined>('diffModel', undefined));
+	private readonly _diffModel = observableValue<DiffEditorViewModel | undefined>(this, undefined);
+	private _shouldDisposeDiffModel = false;
 	public readonly onDidChangeModel = Event.fromObservableLight(this._diffModel);
 
 	public get onDidContentSizeChange() { return this._editors.onDidContentSizeChange; }
@@ -72,8 +74,6 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	private readonly _sash: IObservable<DiffEditorSash | undefined>;
 	private readonly _boundarySashes = observableValue<IBoundarySashes | undefined>(this, undefined);
-
-	private unchangedRangesFeature!: HideUnchangedRegionsFeature;
 
 	private _accessibleDiffViewerShouldBeVisible = observableValue(this, false);
 	private _accessibleDiffViewerVisible = derived(this, reader =>
@@ -163,29 +163,65 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		});
 		this._register(recomputeInitiallyAndOnChange(this._sash));
 
-		this._register(autorunWithStore((reader, store) => {
+		const unchangedRangesFeature = derivedWithStore((reader, store) => {
 			/** @description UnchangedRangesFeature */
-			this.unchangedRangesFeature = store.add(
-				this._instantiationService.createInstance(readHotReloadableExport(HideUnchangedRegionsFeature, reader), this._editors, this._diffModel, this._options)
-			);
-		}));
+			return store.add(this._instantiationService.createInstance(
+				readHotReloadableExport(HideUnchangedRegionsFeature, reader),
+				this._editors,
+				this._diffModel,
+				this._options
+			));
+		});
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description DiffEditorDecorations */
 			store.add(new (readHotReloadableExport(DiffEditorDecorations, reader))(this._editors, this._diffModel, this._options));
 		}));
-		this._register(autorunWithStore((reader, store) => {
+
+		const origViewZoneIdsToIgnore = new Set<string>();
+		const modViewZoneIdsToIgnore = new Set<string>();
+		let isUpdatingViewZones = false;
+		const viewZoneManager = derivedWithStore((reader, store) => {
 			/** @description ViewZoneManager */
-			store.add(this._instantiationService.createInstance(
+			return store.add(this._instantiationService.createInstance(
 				readHotReloadableExport(ViewZoneManager, reader),
 				getWindow(this._domElement),
 				this._editors,
 				this._diffModel,
 				this._options,
 				this,
-				() => this.unchangedRangesFeature.isUpdatingViewZones,
+				() => isUpdatingViewZones || unchangedRangesFeature.get().isUpdatingHiddenAreas,
+				origViewZoneIdsToIgnore,
+				modViewZoneIdsToIgnore,
 			));
-		}));
+		});
+		this._register(recomputeInitiallyAndOnChange(viewZoneManager));
+
+		const originalViewZones = derived((reader) => {
+			/** @description DiffEditorWidget.originalViewZones */
+			const orig = viewZoneManager.read(reader).viewZones.read(reader).orig;
+			const orig2 = unchangedRangesFeature.read(reader).viewZones.read(reader).origViewZones;
+			return orig.concat(orig2);
+		});
+		const modifiedViewZones = derived((reader) => {
+			/** @description DiffEditorWidget.modifiedViewZones */
+			const mod = viewZoneManager.read(reader).viewZones.read(reader).mod;
+			const mod2 = unchangedRangesFeature.read(reader).viewZones.read(reader).modViewZones;
+			return mod.concat(mod2);
+		});
+		this._register(applyViewZones(this._editors.original, originalViewZones, isUpdatingOrigViewZones => {
+			isUpdatingViewZones = isUpdatingOrigViewZones;
+		}, origViewZoneIdsToIgnore));
+		let scrollState: StableEditorScrollState | undefined;
+		this._register(applyViewZones(this._editors.modified, modifiedViewZones, isUpdatingModViewZones => {
+			isUpdatingViewZones = isUpdatingModViewZones;
+			if (!isUpdatingViewZones) {
+				scrollState = StableEditorScrollState.capture(this._editors.modified);
+			} else {
+				scrollState?.restore(this._editors.modified);
+				scrollState = undefined;
+			}
+		}, modViewZoneIdsToIgnore));
 
 		this._register(autorunWithStore((reader, store) => {
 			/** @description OverviewRulerPart */
@@ -276,11 +312,18 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 			}
 		}));
 
-		const isDiffUpToDate = this._diffModel.map((m, reader) => m?.isDiffUpToDate.read(reader));
+		const isDiffUpToDate = this._diffModel.map((m, reader) => /** @description DiffEditorWidgetHelper.isDiffUpToDate */ m?.isDiffUpToDate.read(reader));
 		this._register(autorunWithStore((reader, store) => {
+			/** @description DiffEditorWidgetHelper.ShowProgress */
 			if (isDiffUpToDate.read(reader) === false) {
 				const r = this._editorProgressService.show(true, 1000);
 				store.add(toDisposable(() => r.done()));
+			}
+		}));
+
+		this._register(toDisposable(() => {
+			if (this._shouldDisposeDiffModel) {
+				this._diffModel.get()?.dispose();
 			}
 		}));
 	}
@@ -385,18 +428,32 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 
 	override getModel(): IDiffEditorModel | null { return this._diffModel.get()?.model ?? null; }
 
-	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel): void {
+	override setModel(model: IDiffEditorModel | null | IDiffEditorViewModel, tx?: ITransaction): void {
 		if (!model && this._diffModel.get()) {
 			// Transitioning from a model to no-model
 			this._accessibleDiffViewer.close();
 		}
 
-		const vm = model ? ('model' in model) ? model : this.createViewModel(model) : undefined;
-		this._editors.original.setModel(vm ? vm.model.original : null);
-		this._editors.modified.setModel(vm ? vm.model.modified : null);
-		transaction(tx => {
-			this._diffModel.set(vm as (DiffEditorViewModel | undefined), tx);
-		});
+		const vm = model ? ('model' in model) ? { model, shouldDispose: false } : { model: this.createViewModel(model), shouldDispose: true } : undefined;
+
+		if (this._diffModel.get() !== vm?.model) {
+			subtransaction(tx, tx => {
+				/** @description DiffEditorWidget.setModel */
+				observableFromEvent.batchEventsGlobally(tx, () => {
+					this._editors.original.setModel(vm ? vm.model.model.original : null);
+					this._editors.modified.setModel(vm ? vm.model.model.modified : null);
+				});
+				const prevValue = this._diffModel.get();
+				const shouldDispose = this._shouldDisposeDiffModel;
+
+				this._shouldDisposeDiffModel = vm?.shouldDispose ?? false;
+				this._diffModel.set(vm?.model as (DiffEditorViewModel | undefined), tx);
+
+				if (shouldDispose) {
+					prevValue?.dispose();
+				}
+			});
+		}
 	}
 
 	/**

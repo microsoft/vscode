@@ -17,6 +17,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction } from 'vs/base/common/actions';
 import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { Schemas } from 'vs/base/common/network';
+import { $window } from 'vs/base/browser/window';
 
 class KernelInfo {
 
@@ -168,7 +169,7 @@ export class NotebookKernelService extends Disposable implements INotebookKernel
 
 	private _persistMementos(): void {
 		this._persistSoonHandle?.dispose();
-		this._persistSoonHandle = runWhenIdle(() => {
+		this._persistSoonHandle = runWhenIdle($window, () => {
 			this._storageService.store(NotebookKernelService._storageNotebookBinding, JSON.stringify(this._notebookBindings), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 		}, 100);
 	}

@@ -37,6 +37,7 @@ import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/Ou
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { mainWindow } from 'vs/base/browser/window';
 
 class NotebookOutlineTemplate {
 
@@ -177,7 +178,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new IdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;

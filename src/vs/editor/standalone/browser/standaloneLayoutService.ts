@@ -9,6 +9,7 @@ import { ILayoutService, ILayoutOffsetInfo } from 'vs/platform/layout/browser/la
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { coalesce } from 'vs/base/common/arrays';
+import { mainWindow } from 'vs/base/browser/window';
 
 class StandaloneLayoutService implements ILayoutService {
 	declare readonly _serviceBrand: undefined;
@@ -20,7 +21,7 @@ class StandaloneLayoutService implements ILayoutService {
 	private _dimension?: dom.IDimension;
 	get mainContainerDimension(): dom.IDimension {
 		if (!this._dimension) {
-			this._dimension = dom.getClientArea(window.document.body);
+			this._dimension = dom.getClientArea(mainWindow.document.body);
 		}
 
 		return this._dimension;

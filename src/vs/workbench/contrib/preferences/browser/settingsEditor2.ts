@@ -65,6 +65,7 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
+import { $window } from 'vs/base/browser/window';
 
 
 export const enum SettingsFocusContext {
@@ -1411,7 +1412,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			const element = document.querySelector('.context-view');
+			const element = $window.document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
 			}

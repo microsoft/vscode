@@ -106,7 +106,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
-	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
@@ -191,13 +190,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add('editor-actions');
-		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
-
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
+		// Create Editor Toolbar
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -1038,7 +1032,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
+			scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
 		}));
 
 		// Drop support
@@ -1622,9 +1616,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				let scheduledLayout: IDisposable;
 				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
 				} else {
-					scheduledLayout = runWhenIdle(layoutFunction);
+					scheduledLayout = runWhenIdle(getWindow(this.tabsContainer), layoutFunction);
 				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
@@ -1683,7 +1677,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions

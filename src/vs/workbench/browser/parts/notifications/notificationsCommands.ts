@@ -164,11 +164,11 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: ACCEPT_PRIMARY_ACTION_NOTIFICATION,
 		weight: KeybindingWeight.WorkbenchContrib,
-		when: ContextKeyExpr.and(NotificationFocusedContext),
+		when: ContextKeyExpr.or(NotificationFocusedContext, NotificationsToastsVisibleContext),
 		primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyA,
 		handler: (accessor) => {
 			const actionRunner = accessor.get(IInstantiationService).createInstance(NotificationActionRunner);
-			const notification = getNotificationFromContext(accessor.get(IListService));
+			const notification = getNotificationFromContext(accessor.get(IListService)) || firstOrDefault(model.notifications);
 			if (!notification) {
 				return;
 			}
