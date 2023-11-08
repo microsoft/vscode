@@ -17,7 +17,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
-import { getWindow } from 'vs/base/browser/dom';
+import { WindowIntervalTimer, getWindow } from 'vs/base/browser/dom';
 
 export class ViewCursors extends ViewPart {
 
@@ -69,7 +69,7 @@ export class ViewCursors extends ViewPart {
 		this._domNode.appendChild(this._primaryCursor.getDomNode());
 
 		this._startCursorBlinkAnimation = new TimeoutTimer();
-		this._cursorFlatBlinkInterval = new IntervalTimer();
+		this._cursorFlatBlinkInterval = new WindowIntervalTimer();
 
 		this._blinkingEnabled = false;
 
