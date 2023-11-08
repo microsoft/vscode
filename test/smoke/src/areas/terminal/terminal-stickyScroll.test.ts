@@ -27,15 +27,7 @@ export function setup() {
 
 		it('should show sticky scroll when appropriate', async () => {
 			// Create the simplest system profile to get as little process interaction as possible
-			await terminal.createTerminal();
-
-			// Erase all content and reset cursor to top
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
-
-			// Force windows pty mode off; assume all sequences are rendered in correct position
-			if (process.platform === 'win32') {
-				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('P;IsWindows=False')}`);
-			}
+			await terminal.createEmptyTerminal();
 
 			// Write prompt, fill viewport, finish command
 			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}sticky scroll 1`);
@@ -70,8 +62,4 @@ function setTextParams(data: string) {
 
 function osc(data: string) {
 	return `\\x1b]${data}`;
-}
-
-function csi(data: string) {
-	return `\\x1b[${data}`;
 }
