@@ -25,13 +25,14 @@ export function setup() {
 			await settingsEditor.clearUserSettings();
 		});
 
-		it('should inherit cwd when split and update the tab description - alt click', async () => {
+		it('should show sticky scroll when appropriate', async () => {
 			// There should not be a visible sticky scroll element initially
 			await terminal.createTerminal();
 			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.length === 0);
 
 			// Running ls should show the sticky scroll element
-			await terminal.runCommandInTerminal(`ls`);
+			await terminal.runCommandInTerminal(`ls`); // Long in pwsh
+			await terminal.runCommandInTerminal(`ls -la`); // Long in bash/zsh
 			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.length === 1 && elements[0].textContent.indexOf('ls') >= 0);
 		});
 	});
