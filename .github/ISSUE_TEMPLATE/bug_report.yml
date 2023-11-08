@@ -1,23 +1,65 @@
 name: Bug report
-about: Create a report to help us improve
+description: Create a report to help us improve
+labels: [ 'bug' ]
+title: "bug: "
 
----
-<!-- ⚠️⚠️ Do Not Delete This! bug_report_template ⚠️⚠️ -->
-<!-- Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/ -->
-<!-- 🕮 Read our guide about submitting issues: https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions -->
-<!-- 🔎 Search existing issues to avoid creating duplicates. -->
-<!-- 🧪 Test using the latest Insiders build to see if your issue has already been fixed: https://code.visualstudio.com/insiders/ -->
-<!-- 💡 Instead of creating your report here, use 'Report Issue' from the 'Help' menu in VS Code to pre-fill useful information. -->
-<!-- 🔧 Launch with `code --disable-extensions` to check. -->
----
-Does this issue occur when all extensions are disabled?: Yes/No
+body:
+  - type: checkboxes
+    id: reporter-agreement
+    attributes:
+      label: Reporter Agreement
+      options:
+        - label: Agreed to [Rules Of Conduct](https://opensource.microsoft.com/codeofconduct/)
+          required: true
+        - label: Not a Duplicate Issue!.🔎 Search for existing issues over [here](https://github.com/microsoft/vscode/issues)
+          required: true
+        - label: Read our guide about [submitting issues](https://github.com/microsoft/vscode/wiki/Submitting-Bugs-and-Suggestions)
+          required: true
+        - label: 🧪 Tested using the latest [Insiders build]( https://code.visualstudio.com/insiders/) to see if your issue has already been fixed
+          required: false
+        - label: Does this issue occur when all extensions are disabled? 🔧 Launch with `code --disable-extensions` to check.
+          required: false
+        - label: 🪓 Used 'Help: Start Extension Bisect' from Command Palette to try to identify the cause.
+          required: false
+        - label: Not caused by 3rd party extensions. 📣 Issues caused by an extension need to be reported directly to the extension publisher. The 'Help > Report Issue' dialog can assist with this
+          required: true
 
-<!-- 🪓 If you answered No above, use 'Help: Start Extension Bisect' from Command Palette to try to identify the cause. -->
-<!-- 📣 Issues caused by an extension need to be reported directly to the extension publisher. The 'Help > Report Issue' dialog can assist with this. -->
-- VS Code Version:
-- OS Version:
+  - type: textarea
+    id: feature
+    attributes:
+      label: "Describe the feature"
+      description: "explain the feature, usecases in detail"
+    validations:
+      required: true
 
-Steps to Reproduce:
+  - type: input
+    id: vscode-version
+    attributes:
+      label: vscode version
+      description: What version of VSCode are you using?
+      placeholder: |
+        ex.1.84.1 2b35e1e6d88f1ce073683991d1eff5284a32690f arm64
+    validations:
+      required: true
 
-1.
-2.
+  - type: input
+    id: os-version
+    attributes:
+      label: OS version
+      description: What version of OS are you using?
+      placeholder: ex. 13.2.1 (22D68)
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-did-you-do
+    render: markdown
+    attributes:
+      label: "What did you do?"
+      description: "If possible, provide a recipe for reproducing the error"
+      placeholder: |
+        Steps to Reproduce:
+          1.
+          2.
+    validations:
+      required: true

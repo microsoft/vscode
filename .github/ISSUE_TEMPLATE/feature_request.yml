@@ -10,9 +10,9 @@ body:
     attributes:
       label: Reporter Agreement
       options:
-        - label: [Rules Of Conduct](https://opensource.microsoft.com/codeofconduct/)
+        - label: Agreed to [Rules Of Conduct](https://opensource.microsoft.com/codeofconduct/)
           required: true
-        - label: Not a Duplicate Issue!. Search for existing issues over [here](https://github.com/microsoft/vscode/issues)
+        - label: Not a Duplicate Issue!. 🔎 Search for existing issues over [here](https://github.com/microsoft/vscode/issues)
           required: true
 
   - type: textarea
