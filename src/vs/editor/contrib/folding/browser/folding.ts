@@ -1221,21 +1221,14 @@ for (let i = 1; i <= 7; i++) {
 }
 
 CommandsRegistry.registerCommand('_getFoldedRanges', async function (accessor, ...args) {
-	const [resource] = args;
-	if (!(resource instanceof URI)) {
-		throw illegalArgument();
-	}
-
 	const codeEditorService = accessor.get(ICodeEditorService);
-	const codeEditorsList = codeEditorService.listCodeEditors();
-
-	const editors = codeEditorsList.filter((value) => value.getModel()?.uri.toString() === resource.toString());
-	if (editors.length !== 1) {
+	const editor = codeEditorService.getFocusedCodeEditor();
+	if (!editor) {
 		return undefined;
 	}
 
 
-	const foldingController = FoldingController.get(editors[0]);
+	const foldingController = FoldingController.get(editor);
 	if (!foldingController) {
 		return undefined;
 	}
@@ -1243,6 +1236,7 @@ CommandsRegistry.registerCommand('_getFoldedRanges', async function (accessor, .
 	const foldingModelPromise = foldingController.getFoldingModel();
 	if (!foldingModelPromise) {
 		return undefined;
+
 	}
 
 	const foldingModel = await foldingModelPromise;

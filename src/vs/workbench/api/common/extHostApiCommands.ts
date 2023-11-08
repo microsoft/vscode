@@ -353,7 +353,7 @@ const newCommands: ApiCommand[] = [
 
 	new ApiCommand(
 		'vscode.getFoldedRanges', '_getFoldedRanges', 'Get folded ranges',
-		[ApiCommandArgument.Uri],
+		[],
 		new ApiCommandResult<languages.FoldingRange[] | undefined, vscode.FoldingRange[] | undefined>('A promise that resolves to an array of FoldingRange objects', (result, args) => {
 			if (result) {
 				return result.map(typeConverters.FoldingRange.to);
