@@ -57,7 +57,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		this._refreshState();
 	}
 
-	layout(xterm: IXtermTerminal & { raw: RawXtermTerminal }, dimension: IDimension): void {
+	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		this._refreshState();
 	}
 

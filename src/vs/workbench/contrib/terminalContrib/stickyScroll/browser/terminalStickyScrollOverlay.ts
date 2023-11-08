@@ -123,7 +123,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _setVisible(isVisible: boolean) {
-		console.log('setVisible', isVisible);
 		if (isVisible) {
 			this._ensureElement();
 			// The GPU acceleration state may be changes at any time and there is no event to listen
@@ -135,8 +134,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	@throttle(0)
 	private _refresh(): void {
-		console.log('refresh');
-		if (!this._xterm?.raw?.element || !this._serializeAddon) {
+		if (!this._xterm?.raw?.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
 
@@ -147,7 +145,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Sticky scroll only works with non-partial commands
 		if (!command || !('marker' in command)) {
-			console.log('1');
 			this._setVisible(false);
 			return;
 		}
@@ -161,39 +158,33 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// Hide sticky scroll if it's on the same line
 			marker.line === this._xterm.raw.buffer.active.viewportY
 		) {
-			console.log('2');
 			this._setVisible(false);
 			return;
 		}
+
 		// TODO: Support multi-line prompts
 		// TODO: Support multi-line commands
 
-		if (this._stickyScrollOverlay) {
-			// Clear attrs, reset cursor position, clear right
-			// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
-			const s = this._serializeAddon.serialize({
-				scrollback: this._xterm.raw.buffer.active.baseY - marker.line
-			});
+		// Clear attrs, reset cursor position, clear right
+		// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
+		const s = this._serializeAddon.serialize({
+			scrollback: this._xterm.raw.buffer.active.baseY - marker.line
+		});
 
-			// Write content if it differs
-			const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
-			if (content && this._currentContent !== content) {
-				this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[K');
-				this._stickyScrollOverlay.write(content);
-				this._currentContent = content;
-				// Debug log to show the command
-				// this._stickyScrollOverlay.write(` [${command?.command}]`);
-			}
+		// Write content if it differs
+		const content = s ? s.substring(0, s.indexOf('\r')) : undefined;
+		if (content && this._currentContent !== content) {
+			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[K');
+			this._stickyScrollOverlay.write(content);
+			this._currentContent = content;
+			// Debug log to show the command
+			// this._stickyScrollOverlay.write(` [${command?.command}]`);
+		}
 
-			if (content && command.exitCode !== undefined) {
-				this._currentStickyMarker = marker;
-				this._setVisible(true);
-			} else {
-				console.log('3');
-				this._setVisible(false);
-			}
+		if (content && command.exitCode !== undefined) {
+			this._currentStickyMarker = marker;
+			this._setVisible(true);
 		} else {
-			console.log('4');
 			this._setVisible(false);
 		}
 	}
