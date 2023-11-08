@@ -723,7 +723,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					selectRange(_range);
 					try {
 						document.designMode = 'On';
-						document.execCommand('removeFormat', false, undefined);
+						$window.document.execCommand('removeFormat', false, undefined);
 						document.designMode = 'Off';
 						$window.getSelection()?.removeAllRanges();
 					} catch (e) {
@@ -734,7 +734,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					selectRange(_range);
 					try {
 						document.designMode = 'On';
-						document.execCommand('removeFormat', false, undefined);
+						$window.document.execCommand('removeFormat', false, undefined);
 						$window.document.execCommand('hiliteColor', false, color);
 						document.designMode = 'Off';
 						$window.getSelection()?.removeAllRanges();

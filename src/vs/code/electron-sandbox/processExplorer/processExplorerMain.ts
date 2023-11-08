@@ -275,7 +275,7 @@ class ProcessExplorer {
 	}
 
 	private setEventHandlers(data: ProcessExplorerData): void {
-		document.onkeydown = (e: KeyboardEvent) => {
+		mainWindow.document.onkeydown = (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
 			// Cmd/Ctrl + w closes issue window

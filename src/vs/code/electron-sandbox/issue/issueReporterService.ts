@@ -397,7 +397,7 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		document.onkeydown = async (e: KeyboardEvent) => {
+		mainWindow.document.onkeydown = async (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = isMacintosh ? e.metaKey : e.ctrlKey;
 			// Cmd/Ctrl+Enter previews issue and closes window
 			if (cmdOrCtrlKey && e.keyCode === 13) {

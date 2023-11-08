@@ -783,6 +783,34 @@
 					{
 						"selector": "MemberExpression[object.name='document'][property.name='querySelectorAll']",
 						"message": "Use <targetWindow>.document.querySelectorAll to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementFromPoint']",
+						"message": "Use <targetWindow>.document.elementFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='elementsFromPoint']",
+						"message": "Use <targetWindow>.document.elementsFromPoint to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeydown']",
+						"message": "Use <targetWindow>.document.onkeydown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onkeyup']",
+						"message": "Use <targetWindow>.document.onkeyup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmousedown']",
+						"message": "Use <targetWindow>.document.onmousedown to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='onmouseup']",
+						"message": "Use <targetWindow>.document.onmouseup to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='execCommand']",
+						"message": "Use <targetWindow>.document.execCommand to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
 					}
 				],
 				"no-restricted-globals": [
