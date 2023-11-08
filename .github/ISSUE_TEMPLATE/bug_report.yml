@@ -56,7 +56,7 @@ body:
     attributes:
       label: "What did you do?"
       description: "If possible, provide a recipe for reproducing the error"
-      placeholder: |
+      value: |
         Steps to Reproduce:
           1.
           2.
