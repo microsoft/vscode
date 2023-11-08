@@ -82,7 +82,7 @@ class WorkbenchHostService extends Disposable implements IHostService {
 			// Emit via interval: immediately when opening an auxiliary window,
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
-			disposables.add(disposableInterval(() => {
+			disposables.add(disposableInterval(window, () => {
 				const hasFocus = window.document.hasFocus();
 				if (hasFocus) {
 					emitter.fire(window.vscodeWindowId);
