@@ -528,7 +528,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
