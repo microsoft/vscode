@@ -51,7 +51,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	splitOnDragAndDrop: true,
 	centeredLayoutFixedWidth: false,
 	doubleClickTabToToggleEditorGroupSizes: 'expand',
-	showEditorActionsInTitleBar: 'noTabs',
+	editorActionsLocation: 'default',
 	wrapTabs: false,
 	enablePreviewFromQuickOpen: false,
 	scrollToSwitchTabs: false,
@@ -150,7 +150,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 		'splitInGroupLayout': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitInGroupLayout'], ['vertical', 'horizontal']),
 		'splitSizing': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['splitSizing'], ['distribute', 'split', 'auto']),
 		'doubleClickTabToToggleEditorGroupSizes': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['doubleClickTabToToggleEditorGroupSizes'], ['maximize', 'expand', 'off']),
-		'showEditorActionsInTitleBar': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['showEditorActionsInTitleBar'], ['noTabs', 'never']),
+		'editorActionsLocation': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['editorActionsLocation'], ['default', 'titleBar', 'hidden']),
 		'autoLockGroups': new SetVerifier<string>(DEFAULT_EDITOR_PART_OPTIONS['autoLockGroups']),
 
 		'limit': new ObjectVerifier<IEditorPartLimitOptions>(DEFAULT_EDITOR_PART_OPTIONS['limit'], {

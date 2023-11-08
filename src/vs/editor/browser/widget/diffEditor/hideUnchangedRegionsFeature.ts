@@ -13,12 +13,12 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, autorun, autorunWithStore, derived, derivedWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { isDefined } from 'vs/base/common/types';
-import { ICodeEditor, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
 import { DiffEditorOptions } from 'vs/editor/browser/widget/diffEditor/diffEditorOptions';
 import { DiffEditorViewModel, UnchangedRegion } from 'vs/editor/browser/widget/diffEditor/diffEditorViewModel';
 import { OutlineModel } from 'vs/editor/browser/widget/diffEditor/outlineModel';
-import { DisposableCancellationTokenSource, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle, applyViewZones } from 'vs/editor/browser/widget/diffEditor/utils';
+import { DisposableCancellationTokenSource, IObservableViewZone, PlaceholderViewZone, ViewZoneOverlayWidget, applyObservableDecorations, applyStyle } from 'vs/editor/browser/widget/diffEditor/utils';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { LineRange } from 'vs/editor/common/core/lineRange';
 import { Position } from 'vs/editor/common/core/position';
@@ -29,15 +29,23 @@ import { IModelDecorationOptions, IModelDeltaDecoration, ITextModel } from 'vs/e
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { localize } from 'vs/nls';
 
+/**
+ * Make sure to add the view zones to the editor!
+ */
 export class HideUnchangedRegionsFeature extends Disposable {
-	private _isUpdatingViewZones = false;
-	public get isUpdatingViewZones(): boolean { return this._isUpdatingViewZones; }
-
 	private readonly _modifiedOutlineSource = derivedWithStore(this, (reader, store) => {
 		const m = this._editors.modifiedModel.read(reader);
 		if (!m) { return undefined; }
 		return store.add(new OutlineSource(this._languageFeaturesService, m));
 	});
+
+	public readonly viewZones: IObservable<{
+		origViewZones: IObservableViewZone[];
+		modViewZones: IObservableViewZone[];
+	}>;
+
+	private _isUpdatingHiddenAreas = false;
+	public get isUpdatingHiddenAreas() { return this._isUpdatingHiddenAreas; }
 
 	constructor(
 		private readonly _editors: DiffEditorEditors,
@@ -73,13 +81,13 @@ export class HideUnchangedRegionsFeature extends Disposable {
 
 		const unchangedRegions = this._diffModel.map((m, reader) => m?.diff.read(reader)?.mappings.length === 0 ? [] : m?.unchangedRegions.read(reader) ?? []);
 
-		const viewZones = derivedWithStore(this, (reader, store) => {
+		this.viewZones = derivedWithStore(this, (reader, store) => {
 			/** @description view Zones */
 			const modifiedOutlineSource = this._modifiedOutlineSource.read(reader);
 			if (!modifiedOutlineSource) { return { origViewZones: [], modViewZones: [] }; }
 
-			const origViewZones: IViewZone[] = [];
-			const modViewZones: IViewZone[] = [];
+			const origViewZones: IObservableViewZone[] = [];
+			const modViewZones: IObservableViewZone[] = [];
 			const sideBySide = this._options.renderSideBySide.read(reader);
 
 			const curUnchangedRegions = unchangedRegions.read(reader);
@@ -172,14 +180,16 @@ export class HideUnchangedRegionsFeature extends Disposable {
 			return result;
 		})));
 
-		this._register(applyViewZones(this._editors.original, viewZones.map(v => v.origViewZones), v => this._isUpdatingViewZones = v));
-		this._register(applyViewZones(this._editors.modified, viewZones.map(v => v.modViewZones), v => this._isUpdatingViewZones = v));
-
 		this._register(autorun((reader) => {
 			/** @description update folded unchanged regions */
 			const curUnchangedRegions = unchangedRegions.read(reader);
-			this._editors.original.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
-			this._editors.modified.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			this._isUpdatingHiddenAreas = true;
+			try {
+				this._editors.original.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenOriginalRange(reader).toInclusiveRange()).filter(isDefined));
+				this._editors.modified.setHiddenAreas(curUnchangedRegions.map(r => r.getHiddenModifiedRange(reader).toInclusiveRange()).filter(isDefined));
+			} finally {
+				this._isUpdatingHiddenAreas = false;
+			}
 		}));
 
 		this._register(this._editors.modified.onMouseUp(event => {

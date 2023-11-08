@@ -670,6 +670,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._onCommandExecuted.fire();
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {

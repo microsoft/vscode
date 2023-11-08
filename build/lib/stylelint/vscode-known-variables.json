@@ -109,6 +109,7 @@
 		"--vscode-diffEditor-unchangedCodeBackground",
 		"--vscode-diffEditor-unchangedRegionBackground",
 		"--vscode-diffEditor-unchangedRegionForeground",
+		"--vscode-diffEditor-unchangedRegionShadow",
 		"--vscode-diffEditorGutter-insertedLineBackground",
 		"--vscode-diffEditorGutter-removedLineBackground",
 		"--vscode-diffEditorOverview-insertedForeground",

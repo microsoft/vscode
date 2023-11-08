@@ -8,7 +8,6 @@ import { IIconLabelValueOptions, IconLabel } from 'vs/base/browser/ui/iconLabel/
 import { IKeyboardNavigationLabelProvider, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
 import { IDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { IdleValue } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore, createMatches } from 'vs/base/common/filters';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -37,6 +36,8 @@ import { OutlineEntry } from 'vs/workbench/contrib/notebook/browser/viewModel/Ou
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
+import { mainWindow } from 'vs/base/browser/window';
+import { WindowIdleValue } from 'vs/base/browser/dom';
 
 class NotebookOutlineTemplate {
 
@@ -177,7 +178,7 @@ class NotebookQuickPickProvider implements IQuickPickDataSource<OutlineEntry> {
 
 class NotebookComparator implements IOutlineComparator<OutlineEntry> {
 
-	private readonly _collator = new IdleValue<Intl.Collator>(() => new Intl.Collator(undefined, { numeric: true }));
+	private readonly _collator = new WindowIdleValue<Intl.Collator>(mainWindow, () => new Intl.Collator(undefined, { numeric: true }));
 
 	compareByPosition(a: OutlineEntry, b: OutlineEntry): number {
 		return a.index - b.index;

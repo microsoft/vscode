@@ -1534,7 +1534,7 @@ class TerminalMessagePeek extends Disposable implements IPeekOutputRenderer {
 
 	private attachTerminalToDom(terminal: IDetachedTerminalInstance) {
 		terminal.xterm.write('\x1b[?25l'); // hide cursor
-		dom.scheduleAtNextAnimationFrame(() => this.layoutTerminal(terminal), dom.getWindow(this.container));
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(this.container), () => this.layoutTerminal(terminal));
 		terminal.attachToElement(this.container, { enableGpu: false });
 	}
 

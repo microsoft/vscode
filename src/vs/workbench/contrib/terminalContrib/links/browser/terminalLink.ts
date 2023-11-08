@@ -13,6 +13,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TerminalLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { IHoverAction } from 'vs/workbench/services/hover/browser/hover';
+import { $window } from 'vs/base/browser/window';
 
 export class TerminalLink extends DisposableStore implements ILink {
 	decorations: ILinkDecorations;
@@ -110,7 +111,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 			}
 
 			// Reset the scheduler if the mouse moves too much
-			if (Math.abs(e.pageX - origin.x) > window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > window.devicePixelRatio * 2) {
+			if (Math.abs(e.pageX - origin.x) > $window.devicePixelRatio * 2 || Math.abs(e.pageY - origin.y) > $window.devicePixelRatio * 2) {
 				origin.x = e.pageX;
 				origin.y = e.pageY;
 				this._tooltipScheduler?.schedule();
