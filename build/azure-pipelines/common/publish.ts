@@ -78,9 +78,7 @@ async function getPipelineArtifacts(): Promise<Artifact[]> {
 		throw new Error(`Failed to fetch artifacts: ${res.statusText}`);
 	}
 
-	const artifacts = await res.json() as Artifact[];
-	console.log('GOT ARTIFACTS', artifacts);
-
+	const { value: artifacts } = await res.json() as { readonly value: Artifact[] };
 	return artifacts.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
@@ -102,7 +100,6 @@ async function getPipelineTimeline(): Promise<Timeline> {
 	}
 
 	const result = await res.json() as Timeline;
-	console.log('GOT TIMELINE', result);
 	return result;
 }
 
