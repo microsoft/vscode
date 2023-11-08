@@ -8,7 +8,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ResourceMap } from 'vs/base/common/map';
 import { equals } from 'vs/base/common/objects';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
-import { Queue, Barrier, runWhenIdle, Promises, Delayer } from 'vs/base/common/async';
+import { Queue, Barrier, Promises, Delayer } from 'vs/base/common/async';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { IWorkspaceContextService, Workspace as BaseWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent, WorkspaceFolder, toWorkspaceFolder, isWorkspaceFolder, IWorkspaceFoldersWillChangeEvent, IEmptyWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, IWorkspaceIdentifier, IAnyWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ConfigurationModel, ConfigurationChangeEvent, mergeChanges } from 'vs/platform/configuration/common/configurationModels';
@@ -46,6 +46,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
 import { $window } from 'vs/base/browser/window';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
 	return (userDataProfile.isDefault || userDataProfile.useDefaultFlags?.settings)
@@ -577,7 +578,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
 			// Reload local user configuration again to load user tasks
-			this._register(runWhenIdle($window, () => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
+			this._register(runWhenWindowIdle($window, () => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
 		}
 	}
 

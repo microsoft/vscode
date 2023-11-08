@@ -33,7 +33,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async setValue(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));
@@ -47,11 +47,11 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async isActiveElement(selector: string): Promise<boolean> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
-		if (element !== document.activeElement) {
+		if (element !== mainWindow.document.activeElement) {
 			const chain: string[] = [];
-			let el = document.activeElement;
+			let el = mainWindow.document.activeElement;
 
 			while (el) {
 				const tagName = el.tagName;
@@ -69,7 +69,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getElements(selector: string, recursive: boolean): Promise<IElement[]> {
-		const query = document.querySelectorAll(selector);
+		const query = mainWindow.document.querySelectorAll(selector);
 		const result: IElement[] = [];
 		for (let i = 0; i < query.length; i++) {
 			const element = query.item(i);
@@ -119,7 +119,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async typeInEditor(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Editor not found: ${selector}`);
@@ -139,7 +139,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async getTerminalBuffer(selector: string): Promise<string[]> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Terminal not found: ${selector}`);
@@ -160,7 +160,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	async writeInTerminal(selector: string, text: string): Promise<void> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			throw new Error(`Element not found: ${selector}`);
@@ -191,7 +191,7 @@ export class BrowserWindowDriver implements IWindowDriver {
 	}
 
 	protected async _getElementXY(selector: string, offset?: { x: number; y: number }): Promise<{ x: number; y: number }> {
-		const element = document.querySelector(selector);
+		const element = mainWindow.document.querySelector(selector);
 
 		if (!element) {
 			return Promise.reject(new Error(`Element not found: ${selector}`));

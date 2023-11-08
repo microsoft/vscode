@@ -621,8 +621,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (this._currentCommand.commandStartMarker) {
 				this._commandMarkers.push(this._currentCommand.commandStartMarker);
 			}
-			// Fire this now to prevent issues like #197409
-			this._onCommandExecuted.fire();
 		}
 		this._evaluateCommandMarkersWindows();
 	}
@@ -642,6 +640,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._onCommandExecuted.fire();
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {

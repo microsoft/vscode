@@ -1635,9 +1635,9 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		let retries = 0;
 		return new Promise<void>(r => {
-			const interval = setInterval(() => {
+			const interval = dom.disposableWindowInterval($window, () => {
 				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
-					clearInterval(interval);
+					interval.dispose();
 					r();
 				}
 			}, 20);

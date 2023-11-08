@@ -275,7 +275,7 @@ class ProcessExplorer {
 	}
 
 	private setEventHandlers(data: ProcessExplorerData): void {
-		document.onkeydown = (e: KeyboardEvent) => {
+		mainWindow.document.onkeydown = (e: KeyboardEvent) => {
 			const cmdOrCtrlKey = data.platform === 'darwin' ? e.metaKey : e.ctrlKey;
 
 			// Cmd/Ctrl + w closes issue window
@@ -299,7 +299,7 @@ class ProcessExplorer {
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
-		const container = document.getElementById('process-list');
+		const container = mainWindow.document.getElementById('process-list');
 		if (!container) {
 			return;
 		}
@@ -477,7 +477,7 @@ class ProcessExplorer {
 		styleElement.textContent = content.join('\n');
 
 		if (styles.color) {
-			document.body.style.color = styles.color;
+			mainWindow.document.body.style.color = styles.color;
 		}
 	}
 
@@ -517,7 +517,7 @@ class ProcessExplorer {
 					selectionPids.length = 0;
 					selectionPids.push(pid);
 				}
-				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				const rows = selectionPids?.map(e => mainWindow.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
 					this.nativeHostService.writeClipboardText(text.join('\n'));
@@ -528,7 +528,7 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copyAll', "Copy All"),
 			click: () => {
-				const processList = document.getElementById('process-list');
+				const processList = mainWindow.document.getElementById('process-list');
 				if (processList) {
 					this.nativeHostService.writeClipboardText(processList.innerText);
 				}
@@ -593,7 +593,7 @@ function createCodiconStyleSheet() {
 
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
+	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 	createCodiconStyleSheet();
 	applyZoom(configuration.data.zoomLevel);
 

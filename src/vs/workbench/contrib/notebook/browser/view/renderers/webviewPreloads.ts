@@ -146,7 +146,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	// check if an input element is focused within the output element
 	const checkOutputInputFocus = () => {
 
-		const activeElement = document.activeElement;
+		const activeElement = $window.document.activeElement;
 		if (!activeElement) {
 			return;
 		}
@@ -258,8 +258,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	document.body.addEventListener('click', handleInnerClick);
-	document.body.addEventListener('focusin', checkOutputInputFocus);
+	$window.document.body.addEventListener('click', handleInnerClick);
+	$window.document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -360,7 +360,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
 				for (const entry of entries) {
-					if (!document.body.contains(entry.target)) {
+					if (!$window.document.body.contains(entry.target)) {
 						continue;
 					}
 
@@ -492,10 +492,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	function focusFirstFocusableOrContainerInOutput(cellOrOutputId: string, alternateId?: string) {
-		const cellOutputContainer = document.getElementById(cellOrOutputId) ??
-			(alternateId ? document.getElementById(alternateId!) : undefined);
+		const cellOutputContainer = $window.document.getElementById(cellOrOutputId) ??
+			(alternateId ? $window.document.getElementById(alternateId!) : undefined);
 		if (cellOutputContainer) {
-			if (cellOutputContainer.contains(document.activeElement)) {
+			if (cellOutputContainer.contains($window.document.activeElement)) {
 				return;
 			}
 
@@ -723,7 +723,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					selectRange(_range);
 					try {
 						document.designMode = 'On';
-						document.execCommand('removeFormat', false, undefined);
+						$window.document.execCommand('removeFormat', false, undefined);
 						document.designMode = 'Off';
 						$window.getSelection()?.removeAllRanges();
 					} catch (e) {
@@ -734,7 +734,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					selectRange(_range);
 					try {
 						document.designMode = 'On';
-						document.execCommand('removeFormat', false, undefined);
+						$window.document.execCommand('removeFormat', false, undefined);
 						$window.document.execCommand('hiliteColor', false, color);
 						document.designMode = 'Off';
 						$window.getSelection()?.removeAllRanges();
@@ -948,8 +948,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		currentMatchIndex: number;
 	}
 
-	const matchColor = $window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).color;
-	const currentMatchColor = $window.getComputedStyle(document.getElementById('_defaultColorPalatte')!).backgroundColor;
+	const matchColor = $window.getComputedStyle($window.document.getElementById('_defaultColorPalatte')!).color;
+	const currentMatchColor = $window.getComputedStyle($window.document.getElementById('_defaultColorPalatte')!).backgroundColor;
 
 	class JSHighlighter implements IHighlighter {
 		private _activeHighlightInfo: Map<string, IHighlightInfo>;
@@ -999,7 +999,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (!!match && !!sel && match.highlightResult) {
 				let offset = 0;
 				try {
-					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const outputOffset = $window.document.getElementById(match.id)!.getBoundingClientRect().top;
 					const tempRange = document.createRange();
 					tempRange.selectNode(match.highlightResult.range.startContainer);
 
@@ -1015,7 +1015,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 
 				match.highlightResult?.update(currentMatchColor, match.isShadow ? undefined : 'current-find-match');
 
-				document.getSelection()?.removeAllRanges();
+				$window.document.getSelection()?.removeAllRanges();
 				postNotebookMessage('didFindHighlightCurrent', {
 					offset
 				});
@@ -1034,7 +1034,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose() {
-			document.getSelection()?.removeAllRanges();
+			$window.document.getSelection()?.removeAllRanges();
 			this._activeHighlightInfo.forEach(highlightInfo => {
 				highlightInfo.matches.forEach(match => {
 					match.highlightResult?.dispose();
@@ -1109,7 +1109,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			if (match) {
 				let offset = 0;
 				try {
-					const outputOffset = document.getElementById(match.id)!.getBoundingClientRect().top;
+					const outputOffset = $window.document.getElementById(match.id)!.getBoundingClientRect().top;
 					match.originalRange.startContainer.parentElement?.scrollIntoView({ behavior: 'auto', block: 'end', inline: 'nearest' });
 					const rangeOffset = match.originalRange.getBoundingClientRect().top;
 					offset = rangeOffset - outputOffset;
@@ -1138,7 +1138,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		dispose(): void {
-			document.getSelection()?.removeAllRanges();
+			$window.document.getSelection()?.removeAllRanges();
 			this._currentMatchesHighlight.clear();
 			this._matchesHighlight.clear();
 		}
@@ -1239,7 +1239,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		const matches: IFindMatch[] = [];
 
 		const range = document.createRange();
-		range.selectNodeContents(document.getElementById('findStart')!);
+		range.selectNodeContents($window.document.getElementById('findStart')!);
 		const sel = $window.getSelection();
 		sel?.removeAllRanges();
 		sel?.addRange(range);
@@ -1347,7 +1347,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 									break;
 								}
 
-								if (node.id === 'container' || node === document.body) {
+								if (node.id === 'container' || node === $window.document.body) {
 									break;
 								}
 							}
@@ -1363,7 +1363,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		_highlighter.addHighlights(matches, options.ownerID);
-		document.getSelection()?.removeAllRanges();
+		$window.document.getSelection()?.removeAllRanges();
 
 		viewModel.toggleDragDropEnabled(currentOptions.dragAndDropEnabled);
 
@@ -1381,7 +1381,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 	};
 
 	const copyOutputImage = async (outputId: string, altOutputId: string, retries = 5) => {
-		if (!document.hasFocus() && retries > 0) {
+		if (!$window.document.hasFocus() && retries > 0) {
 			// copyImage can be called from outside of the webview, which means this function may be running whilst the webview is gaining focus.
 			// Since navigator.clipboard.write requires the document to be focused, we need to wait for focus.
 			// We cannot use a listener, as there is a high chance the focus is gained during the setup of the listener resulting in us missing it.
@@ -1390,8 +1390,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 
 		try {
-			const image = document.getElementById(outputId)?.querySelector('img')
-				?? document.getElementById(altOutputId)?.querySelector('img');
+			const image = $window.document.getElementById(outputId)?.querySelector('img')
+				?? $window.document.getElementById(altOutputId)?.querySelector('img');
 			if (image) {
 				await navigator.clipboard.write([new ClipboardItem({
 					'image/png': new Promise((resolve) => {
@@ -1492,7 +1492,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			case 'clear':
 				renderers.clearAll();
 				viewModel.clearAll();
-				document.getElementById('container')!.innerText = '';
+				$window.document.getElementById('container')!.innerText = '';
 				break;
 
 			case 'clearOutput': {
@@ -1544,10 +1544,10 @@ async function webviewPreloads(ctx: PreloadContext) {
 				focusFirstFocusableOrContainerInOutput(event.data.cellOrOutputId, event.data.alternateId);
 				break;
 			case 'decorations': {
-				let outputContainer = document.getElementById(event.data.cellId);
+				let outputContainer = $window.document.getElementById(event.data.cellId);
 				if (!outputContainer) {
 					viewModel.ensureOutputCell(event.data.cellId, -100000, true);
-					outputContainer = document.getElementById(event.data.cellId);
+					outputContainer = $window.document.getElementById(event.data.cellId);
 				}
 				outputContainer?.classList.add(...event.data.addedClassNames);
 				outputContainer?.classList.remove(...event.data.removedClassNames);
@@ -1560,7 +1560,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				renderers.getRenderer(event.data.rendererId)?.receiveMessage(event.data.message);
 				break;
 			case 'notebookStyles': {
-				const documentStyle = document.documentElement.style;
+				const documentStyle = $window.document.documentElement.style;
 
 				for (let i = documentStyle.length - 1; i >= 0; i--) {
 					const property = documentStyle[i];
@@ -1940,7 +1940,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		public async render(item: ExtendedOutputItem, preferredRendererId: string | undefined, element: HTMLElement, signal: AbortSignal): Promise<void> {
 			const primaryRenderer = this.findRenderer(preferredRendererId, item);
 			if (!primaryRenderer) {
-				const errorMessage = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => item.mime);
+				const errorMessage = ($window.document.documentElement.style.getPropertyValue('--notebook-cell-renderer-not-found-error') || '').replace('$0', () => item.mime);
 				this.showRenderError(item, element, errorMessage);
 				return;
 			}
@@ -1972,7 +1972,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			}
 
 			// All renderers have failed and there is nothing left to fallback to
-			const errorMessage = (document.documentElement.style.getPropertyValue('--notebook-cell-renderer-fallbacks-exhausted') || '').replace('$0', () => item.mime);
+			const errorMessage = ($window.document.documentElement.style.getPropertyValue('--notebook-cell-renderer-fallbacks-exhausted') || '').replace('$0', () => item.mime);
 			this.showRenderError(item, element, errorMessage);
 		}
 
@@ -2293,7 +2293,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				}]
 			});
 
-			const root = document.getElementById('container')!;
+			const root = $window.document.getElementById('container')!;
 			const markupCell = document.createElement('div');
 			markupCell.className = 'markup';
 			markupCell.style.position = 'absolute';
@@ -2461,7 +2461,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private readonly outputElements = new Map</*outputId*/ string, OutputContainer>();
 
 		constructor(cellId: string) {
-			const container = document.getElementById('container')!;
+			const container = $window.document.getElementById('container')!;
 
 			const upperWrapperElement = createFocusSink(cellId);
 			container.appendChild(upperWrapperElement);
@@ -2754,12 +2754,12 @@ async function webviewPreloads(ctx: PreloadContext) {
 		private dragOverlay?: HTMLElement;
 
 		constructor() {
-			document.addEventListener('dragover', e => {
+			$window.document.addEventListener('dragover', e => {
 				// Allow dropping dragged markup cells
 				e.preventDefault();
 			});
 
-			document.addEventListener('drop', e => {
+			$window.document.addEventListener('drop', e => {
 				e.preventDefault();
 
 				const drag = this.currentDrag;
@@ -2798,7 +2798,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				this.dragOverlay.style.width = '100%';
 				this.dragOverlay.style.height = '100%';
 				this.dragOverlay.style.background = 'transparent';
-				document.body.appendChild(this.dragOverlay);
+				$window.document.body.appendChild(this.dragOverlay);
 			}
 			(e.target as HTMLElement).style.zIndex = `${overlayZIndex + 1}`;
 			(e.target as HTMLElement).classList.add('dragging');
@@ -2840,7 +2840,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				document.body.removeChild(this.dragOverlay);
+				$window.document.body.removeChild(this.dragOverlay);
 				this.dragOverlay = undefined;
 			}
 
