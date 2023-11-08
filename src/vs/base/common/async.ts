@@ -1240,7 +1240,7 @@ type IdleApi = Pick<typeof globalThis, 'requestIdleCallback' | 'cancelIdleCallba
  * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
  * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
  *
- * **Note** that there is `dom.ts#runWhenWindowIdle` which better suited when running inside a browser
+ * **Note** that there is `dom.ts#runWhenWindowIdle` which is better suited when running inside a browser
  * context
  */
 export let runWhenGlobalIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
@@ -1335,7 +1335,7 @@ export abstract class AbstractIdleValue<T> {
 /**
  * An `IdleValue` that always uses the current window (which might be throttled or inactive)
  *
- * **Note** that there is `dom.ts#WindowIdleValue` which better suited when running inside a browser
+ * **Note** that there is `dom.ts#WindowIdleValue` which is better suited when running inside a browser
  * context
  */
 export class GlobalIdleValue<T> extends AbstractIdleValue<T> {
