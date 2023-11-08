@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, SourceControlInputBoxActionButton, ThemeIcon, l10n } from 'vscode';
+import { CancellationToken, Disposable, Event, EventEmitter, Uri, workspace, SourceControlInputBoxActionButton, ThemeIcon, l10n, SourceControlInputBoxValueProvider, SourceControlInputBoxValueProviderContext } from 'vscode';
 import { CommitMessageProvider, Status, Repository as ApiRepository } from './api/git';
 import { Repository } from './repository';
 import { dispose } from './util';
@@ -54,6 +54,31 @@ export class TestCommitMessageProvider implements CommitMessageProvider {
 		}
 
 		return previousCount + 1;
+	}
+
+}
+
+export class TestCommitMessageProvider2 implements SourceControlInputBoxValueProvider {
+
+	readonly icon = new ThemeIcon('rocket');
+	readonly label = 'Generate Commit Message (Test)';
+
+	async provideValue(sourceControlId: string, context: SourceControlInputBoxValueProviderContext[], token: CancellationToken): Promise<string | undefined> {
+		console.log('Repository id: ', sourceControlId);
+		console.log('Repository context: ', context);
+
+		if (token.isCancellationRequested) {
+			return undefined;
+		}
+
+		return new Promise(resolve => {
+			token.onCancellationRequested(() => resolve(undefined));
+
+			setTimeout(() => {
+				const attemptCount = 0;
+				resolve(`Test commit message (Attempt No. ${attemptCount})`);
+			}, 3000);
+		});
 	}
 
 }

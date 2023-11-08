@@ -1170,6 +1170,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			},
+			registerSourceControlInputBoxValueProvider(provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'scmInputBoxValueProvider');
+				return extHostSCM.registerSourceControlInputBoxValueProvider(extension, provider);
 			}
 		};
 

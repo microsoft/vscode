@@ -10,7 +10,7 @@ import { IDisposable, Disposable, DisposableStore, combinedDisposable, dispose, 
 import { ViewPane, IViewPaneOptions, ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { append, $, Dimension, asCSSUrl, trackFocus, clearNode } from 'vs/base/browser/dom';
 import { IListVirtualDelegate, IIdentityProvider } from 'vs/base/browser/ui/list/list';
-import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
+import { ISCMResourceGroup, ISCMResource, InputValidationType, ISCMRepository, ISCMInput, IInputValidation, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, ISCMService, SCMInputChangeReason, VIEW_PANE_ID, ISCMActionButton, ISCMActionButtonDescriptor, ISCMRepositorySortKey, REPOSITORIES_VIEW_PANE_ID, ISCMInputValueProviderContext, ISCMInputValueProvider } from 'vs/workbench/contrib/scm/common/scm';
 import { ResourceLabels, IResourceLabel, IFileLabelOptions } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -96,6 +96,7 @@ import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { IProgressService, ProgressLocation } from 'vs/platform/progress/common/progress';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1307,6 +1308,66 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class SCMInputToolBar {
+
+	private readonly actionBar: ActionBar;
+
+	private readonly _onDidChange = new Emitter<void>();
+	readonly onDidChange: Event<void> = this._onDidChange.event;
+
+	private readonly disposables = new DisposableStore();
+
+	constructor(
+		container: HTMLElement,
+		private readonly input: ISCMInput,
+		@ISCMService readonly scmService: ISCMService,
+		@IProgressService private readonly progressService: IProgressService,
+	) {
+		this.actionBar = new ActionBar(container);
+		this.disposables.add(this.actionBar);
+
+		scmService.onDidChangeInputValueProviders(this.onDidChangeInputValueProviders, this, this.disposables);
+		this.onDidChangeInputValueProviders();
+	}
+
+	private onDidChangeInputValueProviders(): void {
+		this.actionBar.clear();
+
+		for (const provider of this.scmService.inputValueProviders) {
+			const action = new Action(
+				'id',
+				provider.label,
+				ThemeIcon.asClassName(Codicon.sparkle),
+				true,//input.actionButton.enabled,
+				() => this.provideValue(provider)
+			);
+
+			this.actionBar.push(action, { icon: true, label: false });
+		}
+
+		this._onDidChange.fire();
+	}
+
+	private async provideValue(provider: ISCMInputValueProvider): Promise<void> {
+		this.progressService.withProgress({ location: ProgressLocation.Scm }, async () => {
+			const context: ISCMInputValueProviderContext[] =
+				this.input.repository.provider.groups.map(g => ({
+					resourceGroupId: g.id, resources: g.resources.map(r => r.sourceUri)
+				}));
+
+			const value = await provider.provideValue(this.input.repository.id, context);
+			if (value) {
+				this.input.setValue(value, false);
+			}
+		});
+	}
+
+	dispose(): void {
+		this.disposables.dispose();
+	}
+
+}
+
 class SCMInputWidget {
 
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
@@ -1492,6 +1553,11 @@ class SCMInputWidget {
 
 		this.repositoryDisposables.add(input.onDidChangeActionButton(onDidChangeActionButton, this));
 		onDidChangeActionButton();
+
+		// Toolbar (New)
+		const toolbar = this.instantiationService.createInstance(SCMInputToolBar, this.toolbarContainer, input);
+		this.repositoryDisposables.add(toolbar.onDidChange(() => this.layout()));
+		this.repositoryDisposables.add(toolbar);
 	}
 
 	get selections(): Selection[] | null {

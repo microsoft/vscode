@@ -81,6 +81,17 @@ export interface ISCMProvider extends IDisposable {
 	getOriginalResource(uri: URI): Promise<URI | null>;
 }
 
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
+}
+
+export interface ISCMInputValueProvider {
+	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined>;
+}
+
 export const enum InputValidationType {
 	Error = 0,
 	Warning = 1,
@@ -173,6 +184,11 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 	getRepository(id: string): ISCMRepository | undefined;
+
+	readonly onDidChangeInputValueProviders: Event<void>;
+	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
+
+	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {
