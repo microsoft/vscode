@@ -2508,13 +2508,9 @@ export class SCMViewPane extends ViewPane {
 			return;
 		} else if (isSCMHistoryItemGroupTreeElement(e.element)) {
 			this.scmViewService.focus(e.element.repository);
-
-			// TODO@lszomoru: focus the history item group
 			return;
 		} else if (isSCMHistoryItemTreeElement(e.element)) {
 			this.scmViewService.focus(e.element.historyItemGroup.repository);
-
-			// TODO@lszomoru: focus the history item
 			return;
 		} else if (isSCMHistoryItemChangeTreeElement(e.element)) {
 			if (e.element.originalUri && e.element.modifiedUri) {
@@ -2661,15 +2657,16 @@ export class SCMViewPane extends ViewPane {
 				const menu = menus.getResourceFolderMenu(element.context);
 				actions = collectContextMenuActions(menu);
 			}
-		} else if (isSCMHistoryItemGroupTreeElement(element)) {
-			// TODO@lszomoru - wire up the context menu
-		} else if (isSCMHistoryItemTreeElement(element)) {
-			// TODO@lszomoru - wire up the context menu
-		} else if (isSCMHistoryItemChangeTreeElement(element)) {
-			// TODO@lszomoru - wire up the context menu
-		} else if (isSCMHistoryItemChangeNode(element)) {
-			// TODO@lszomoru - wire up the context menu
 		}
+		// else if (isSCMHistoryItemGroupTreeElement(element)) {
+		// 	// TODO@lszomoru - wire up the context menu
+		// } else if (isSCMHistoryItemTreeElement(element)) {
+		// 	// TODO@lszomoru - wire up the context menu
+		// } else if (isSCMHistoryItemChangeTreeElement(element)) {
+		// 	// TODO@lszomoru - wire up the context menu
+		// } else if (isSCMHistoryItemChangeNode(element)) {
+		// 	// TODO@lszomoru - wire up the context menu
+		// }
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
