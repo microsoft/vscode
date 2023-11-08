@@ -137,8 +137,9 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	@throttle(0)
 	private _refresh(): void {
-		this._logService.info('TESTING: _refresh - ENABLE!');
-		if (!this._xterm?.raw?.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
+		this._logService.info('TESTING: _refresh', this._stickyScrollOverlay, this._serializeAddon);
+		this._logService.info('TESTING: _refresh (xterm)', this._xterm.raw.element, this._xterm.raw.element?.parentElement);
+		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
 
