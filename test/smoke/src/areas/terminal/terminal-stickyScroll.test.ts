@@ -44,9 +44,10 @@ export function setup() {
 			// not edge case race conditions on terminal start up
 			async function pollForCommandAndOutput(command: string, exitCode: number): Promise<void> {
 				const data = generateCommandAndOutput(command, exitCode);
+				let element;
 				for (let i = 0; i < 10; i++) {
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
-					const element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
+					element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
 					if (element && element.textContent.indexOf(`Prompt> ${command}`) >= 0) {
 						return;
 					}
