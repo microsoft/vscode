@@ -375,7 +375,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onIssueReporterOpened',
-						body: 'onIssueReporterOpened:${1:issueReporterID}',
+						body: 'onIssueReporterOpened',
 						description: nls.localize('vscode.extension.activationEvents.onIssueReporterOpened', 'An activation event emitted when the issue reporter is opened.'),
 					},
 					{

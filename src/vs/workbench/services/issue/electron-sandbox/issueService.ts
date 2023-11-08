@@ -59,7 +59,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 			const result = await this.getIssueTemplate(request.extensionId, CancellationToken.None);
 			ipcRenderer.send(request.replyChannel, result);
 		});
-		ipcRenderer.on('vscode:sendReporterStatus', async (event, arg) => {
+		ipcRenderer.on('vscode:triggerReporterStatus', async (event, arg) => {
 			const extensionId = arg.extensionId;
 			const extension = await this.extensionService.getExtension(extensionId);
 			if (extension) {
@@ -73,7 +73,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				}
 			}
 			const result = [this._providers.has(extensionId.toLowerCase()), this._handlers.has(extensionId.toLowerCase())];
-			ipcRenderer.send('vscode:receiveReporterStatus', result);
+			ipcRenderer.send('vscode:triggerReporterStatusResponse', result);
 		});
 	}
 

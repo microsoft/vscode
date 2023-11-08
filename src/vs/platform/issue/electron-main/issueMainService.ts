@@ -5,7 +5,7 @@
 
 import { BrowserWindow, BrowserWindowConstructorOptions, contentTracing, Display, IpcMainEvent, screen } from 'electron';
 import { arch, release, type } from 'os';
-import { Promises, timeout } from 'vs/base/common/async';
+import { Promises, raceTimeout, timeout } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { randomPath } from 'vs/base/common/extpath';
 import { DisposableStore } from 'vs/base/common/lifecycle';
@@ -442,24 +442,15 @@ export class IssueMainService implements IIssueMainService {
 		});
 	}
 
-	async $sendReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
+	async $getReporterStatus(extensionId: string, extensionName: string): Promise<boolean[]> {
+		const defaultResult = [false, false];
 		const window = this.issueReporterWindowCheck();
-		const replyChannel = `vscode:sendReporterStatus`;
-		return Promises.withAsyncBody<boolean[]>(async (resolve) => {
-			const cts = new CancellationTokenSource();
-			const result = [false, false];
-			window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-			validatedIpcMain.on('vscode:receiveReporterStatus', (_: unknown, data: boolean[]) => {
-				resolve(data);
-			});
-			try {
-				await timeout(2000);
-				cts.cancel();
-				resolve(result);
-			} finally {
-				validatedIpcMain.removeHandler(replyChannel);
-			}
-		});
+		const replyChannel = `vscode:triggerReporterStatus`;
+		const cts = new CancellationTokenSource();
+		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => cts.cancel());
+
+		return (result ?? defaultResult) as boolean[];
 	}
 
 	async $closeReporter(): Promise<void> {

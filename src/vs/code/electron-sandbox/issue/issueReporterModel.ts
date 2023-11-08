@@ -123,10 +123,14 @@ ${this.getInfos()}
 	private getInfos(): string {
 		let info = '';
 
-		const isBugOrPerformanceIssue = this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue;
-		const isNotOnMarketPlace = !this._data.fileOnMarketplace;
+		if (this._data.fileOnMarketplace) {
+			return info;
+		}
 
-		if (isBugOrPerformanceIssue && isNotOnMarketPlace) {
+		const isBugOrPerformanceIssue = this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue;
+		// const isNotOnMarketPlace = !this._data.fileOnMarketplace;
+
+		if (isBugOrPerformanceIssue) {
 			if (this._data.includeExtensionData && this._data.extensionData) {
 				info += this.getExtensionData();
 			}
@@ -136,7 +140,7 @@ ${this.getInfos()}
 			}
 		}
 
-		if (this._data.issueType === IssueType.PerformanceIssue && isNotOnMarketPlace) {
+		if (this._data.issueType === IssueType.PerformanceIssue) {
 			if (this._data.includeProcessInfo) {
 				info += this.generateProcessInfoMd();
 			}
@@ -146,7 +150,7 @@ ${this.getInfos()}
 			}
 		}
 
-		if (isBugOrPerformanceIssue && isNotOnMarketPlace) {
+		if (isBugOrPerformanceIssue) {
 			if (!this._data.fileOnExtension && this._data.includeExtensions) {
 				info += this.generateExtensionsMd();
 			}

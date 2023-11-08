@@ -278,12 +278,12 @@ export class IssueReporter extends Disposable {
 		}
 	}
 
-	private async sendReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
+	private async getReporterStatus(extension: IssueReporterExtensionData): Promise<boolean[]> {
 		try {
-			const data = await this.issueMainService.$sendReporterStatus(extension.id, extension.name);
+			const data = await this.issueMainService.$getReporterStatus(extension.id, extension.name);
 			return data;
 		} catch (e) {
-			throw e;
+			return [false, false];
 		}
 	}
 
@@ -1144,7 +1144,7 @@ export class IssueReporter extends Disposable {
 
 					// if extension does not have provider/handles, will check for either. If extension is already active, IPC will return [false, false] and will proceed as normal.
 					if (!matches[0].hasIssueDataProviders && !matches[0].hasIssueUriRequestHandler) {
-						const toActivate = await this.sendReporterStatus(matches[0]);
+						const toActivate = await this.getReporterStatus(matches[0]);
 						matches[0].hasIssueDataProviders = toActivate[0];
 						matches[0].hasIssueUriRequestHandler = toActivate[1];
 						this.renderBlocks();
