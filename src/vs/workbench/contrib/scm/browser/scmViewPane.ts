@@ -2901,20 +2901,23 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			// History item groups
-			const historyProvider = inputOrElement.provider.historyProvider;
-			const historyItemGroup = historyProvider?.currentHistoryItemGroup;
-			if (historyProvider && historyItemGroup) {
-				const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
-				if (historyItemGroups.some(h => h.count ?? 0 > 0)) {
-					// Separator
-					children.push({
-						label: 'Incoming/Outgoing',
-						repository: inputOrElement,
-						type: 'separator'
-					} as SCMViewSeparatorElement);
-				}
+			if (this.showSyncInformation().incoming || this.showSyncInformation().outgoing) {
+				const historyProvider = inputOrElement.provider.historyProvider;
+				const historyItemGroup = historyProvider?.currentHistoryItemGroup;
 
-				children.push(...historyItemGroups);
+				if (historyProvider && historyItemGroup) {
+					const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
+					if (historyItemGroups.some(h => h.count ?? 0 > 0)) {
+						// Separator
+						children.push({
+							label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
+							repository: inputOrElement,
+							type: 'separator'
+						} as SCMViewSeparatorElement);
+					}
+
+					children.push(...historyItemGroups);
+				}
 			}
 
 			return children;
