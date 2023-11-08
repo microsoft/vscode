@@ -2974,7 +2974,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			children.push({
 				id: historyItemGroupBase.id,
 				label: `$(cloud-download) ${historyItemGroupBase.label}`,
-				description: localize('incoming', "Incoming Changes"),
+				// description: localize('incoming', "Incoming Changes"),
 				ancestor: ancestor?.id,
 				count: ancestor?.behind ?? 0,
 				repository: element,
@@ -2987,7 +2987,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			children.push({
 				id: currentHistoryItemGroup.id,
 				label: `$(cloud-upload) ${currentHistoryItemGroup.label}`,
-				description: localize('outgoing', "Outgoing Changes"),
+				// description: localize('outgoing', "Outgoing Changes"),
 				ancestor: ancestor?.id,
 				count: ancestor?.ahead ?? 0,
 				repository: element,
