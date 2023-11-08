@@ -1,10 +1,26 @@
 name: Feature request
-about: Suggest an idea for this project
+description: Suggest an idea for this project
+title: "feat: "
+labels: ["feature-request"]
 
----
 
-<!-- ⚠️⚠️ Do Not Delete This! feature_request_template ⚠️⚠️ -->
-<!-- Please read our Rules of Conduct: https://opensource.microsoft.com/codeofconduct/ -->
-<!-- Please search existing issues to avoid creating duplicates. -->
+body:
+  - type: checkboxes
+    id: reporter-agreement
+    attributes:
+      label: Reporter Agreement
+      options:
+        - label: [Rules Of Conduct](https://opensource.microsoft.com/codeofconduct/)
+          required: true
+        - label: Not a Duplicate Issue!. Search for existing issues over [here](https://github.com/microsoft/vscode/issues)
+          required: true
 
-<!-- Describe the feature you'd like. -->
+  - type: textarea
+    id: feature
+    attributes:
+      label: "Describe the feature"
+      description: "explain the feature, usecases in detail"
+    validations:
+      required: true
+
+
