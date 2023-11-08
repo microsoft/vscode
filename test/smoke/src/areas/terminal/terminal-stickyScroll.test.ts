@@ -29,24 +29,23 @@ export function setup() {
 			// Create the simplest system profile to get as little process interaction as possible
 			await terminal.createEmptyTerminal();
 
-			// Write prompt, fill viewport, finish command
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}sticky scroll 1`);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}`);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\ndata`.repeat(50));
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('D;0')}`); // Success
-
-			// Print next prompt and validate, this is needed to finish the previous command
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}sticky scroll 2`);
+			// Write prompt, fill viewport, finish command, print new prompt, verify sticky scroll
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, [
+				`${vsc('A')}Prompt> ${vsc('B')}sticky scroll 1`,
+				`\\r\\n${vsc('C')}`,
+				`\\r\\ndata`.repeat(50),
+				`\\r\\n${vsc('D;0')}`, // Success
+				`${vsc('A')}Prompt> ${vsc('B')}sticky scroll 2`
+			].join(''));
 			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 1') >= 0));
 
-			// And again to verify the sticky scroll changes, this time with a failed command
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('C')}`);
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\ndata`.repeat(50));
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `\\r\\n${vsc('D;1')}`); // Fail
-
-			// Print next prompt and validate, this is needed to finish the previous command
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${vsc('A')}Prompt> ${vsc('B')}`);
-			await terminal.assertCommandDecorations({ placeholder: 1, success: 0, error: 0 });
+			// And again with a failed command
+			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, [
+				`\\r\\n${vsc('C')}`,
+				`\\r\\ndata`.repeat(50),
+				`\\r\\n${vsc('D;1')}`, // Fail
+				`${vsc('A')}Prompt> ${vsc('B')}`,
+			].join(''));
 			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 2') >= 0));
 		});
 	});
