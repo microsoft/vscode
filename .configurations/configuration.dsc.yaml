@@ -65,3 +65,20 @@ properties:
       settings:
         PackageDirectory: '${WinGetConfigRoot}\..\'
   configurationVersion: 0.2.0
+settings:
+        productId: Microsoft.VisualStudio.Product.BuildTools
+        channelId: VisualStudio.17.Release
+        includeRecommended: true
+        components:
+          - Microsoft.VisualStudio.Workload.VCTools
+    - resource: codeDsc/codeInstall
+      dependsOn:
+        - disk
+      directives:
+        description: Install code dependencies 
+        allowPrerelease: true
+      settings:
+        PackageDirectory: '${WigetConfig_Root}\..\'
+  configurationVersion: 0.4.0
+  
+  
