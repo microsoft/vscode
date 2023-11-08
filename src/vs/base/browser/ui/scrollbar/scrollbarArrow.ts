@@ -5,9 +5,10 @@
 
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { Widget } from 'vs/base/browser/ui/widget';
-import { IntervalTimer, TimeoutTimer } from 'vs/base/common/async';
+import { TimeoutTimer } from 'vs/base/common/async';
 import { ThemeIcon } from 'vs/base/common/themables';
 import * as dom from 'vs/base/browser/dom';
+import { WindowIntervalTimer } from 'vs/base/browser/async';
 
 /**
  * The arrow image size.
@@ -33,7 +34,7 @@ export class ScrollbarArrow extends Widget {
 	private _onActivate: () => void;
 	public bgDomNode: HTMLElement;
 	public domNode: HTMLElement;
-	private _pointerdownRepeatTimer: IntervalTimer;
+	private _pointerdownRepeatTimer: WindowIntervalTimer;
 	private _pointerdownScheduleRepeatTimer: TimeoutTimer;
 	private _pointerMoveMonitor: GlobalPointerMoveMonitor;
 
@@ -83,7 +84,7 @@ export class ScrollbarArrow extends Widget {
 		this._register(dom.addStandardDisposableListener(this.bgDomNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 		this._register(dom.addStandardDisposableListener(this.domNode, dom.EventType.POINTER_DOWN, (e) => this._arrowPointerDown(e)));
 
-		this._pointerdownRepeatTimer = this._register(new IntervalTimer());
+		this._pointerdownRepeatTimer = this._register(new WindowIntervalTimer());
 		this._pointerdownScheduleRepeatTimer = this._register(new TimeoutTimer());
 	}
 

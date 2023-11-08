@@ -23,7 +23,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { AnchorAlignment, AnchorAxisAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import { runWhenIdle } from 'vs/base/common/async';
 import { Lazy } from 'vs/base/common/lazy';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -44,6 +43,7 @@ import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
 import { $window } from 'vs/base/browser/window';
+import { runWhenWindowIdle } from 'vs/base/browser/async';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -355,7 +355,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (this._store.isDisposed) {
 			return;
 		}
-		const disposable = this._register(runWhenIdle($window, async () => {
+		const disposable = this._register(runWhenWindowIdle($window, async () => {
 			await this.doInitialize();
 			disposable.dispose();
 		}));

@@ -37,9 +37,9 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
-import { disposableInterval } from 'vs/base/common/async';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
+import { disposableWindowInterval } from 'vs/base/browser/async';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -230,7 +230,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
 			if (isAuxiliaryWindow(window)) {
-				disposables.add(disposableInterval(window, () => {
+				disposables.add(disposableWindowInterval(window, () => {
 					const hasFocus = window.document.hasFocus();
 					if (hasFocus) {
 						emitter.fire(windowId);

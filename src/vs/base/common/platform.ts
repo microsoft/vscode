@@ -163,6 +163,7 @@ export const isNative = _isNative;
 export const isElectron = _isElectron;
 export const isWeb = _isWeb;
 export const isWebWorker = (_isWeb && typeof $globalThis.importScripts === 'function');
+export const webWorkerOrigin = isWebWorker ? $globalThis.origin : undefined;
 export const isIOS = _isIOS;
 export const isMobile = _isMobile;
 /**
@@ -259,7 +260,7 @@ export const setTimeout0 = (() => {
 			$globalThis.postMessage({ vscodeScheduleAsyncWork: myId }, '*');
 		};
 	}
-	return (callback: () => void) => setTimeout(callback);
+	return (callback: () => void, context = globalThis) => context.setTimeout(callback);
 })();
 
 export const enum OperatingSystem {
