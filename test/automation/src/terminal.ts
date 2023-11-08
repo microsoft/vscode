@@ -150,6 +150,11 @@ export class Terminal {
 	async createEmptyTerminal(expectedLocation?: 'editor' | 'panel'): Promise<void> {
 		await this.createTerminal(expectedLocation);
 
+		// Run a command to ensure the shell has started, this is used to ensure the shell's data
+		// does not leak into the "empty terminal"
+		await this.runCommandInTerminal('echo "initialized"');
+		await this.waitForTerminalText(buffer => buffer.some(line => line.startsWith('initialized')));
+
 		// Erase all content and reset cursor to top
 		await this.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, `${csi('2J')}${csi('H')}`);
 
