@@ -210,6 +210,8 @@ export async function main() {
 		}
 
 		const timeline = await getPipelineTimeline();
+		console.log(timeline);
+
 		const stagesCompleted = new Set<string>();
 
 		for (const record of timeline.records) {
@@ -219,10 +221,14 @@ export async function main() {
 		}
 
 		const artifacts2 = await getPipelineArtifacts();
+		console.log(artifacts2);
 
 		if (stagesCompleted.size === stages.size && artifacts2.length === state.size) {
 			break;
 		}
+
+		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
+		console.log(`Artifacts processed: ${state.size}/${artifacts2.length}`);
 
 		await new Promise(c => setTimeout(c, 10_000));
 	}
