@@ -588,12 +588,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
 		}
-
-		if (dependencyTask.configurationProperties.hide) {
-			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
-		} else {
-			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
-		}
 	}
 
 	private async _getDependencyPromise(task: IActiveTerminalData): Promise<ITaskSummary> {
