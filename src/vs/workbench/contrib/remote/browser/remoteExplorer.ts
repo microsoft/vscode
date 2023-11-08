@@ -231,7 +231,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 						severity: Severity.Info,
 						actions: {
 							primary: [
-								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Switch back to `process` based automatic port forwarding"), undefined, true, async () => {
+								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Switch back to process based automatic port forwarding"), undefined, true, async () => {
 									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
 									// this.storageService.store(CAN_PROC_FALLBACK, false, StorageScope.WORKSPACE, StorageTarget.USER);
 									this.portListener?.dispose();
