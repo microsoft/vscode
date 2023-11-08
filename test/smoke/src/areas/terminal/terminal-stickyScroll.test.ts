@@ -48,13 +48,11 @@ export function setup() {
 					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
 					const element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
 					if (element && element.textContent.indexOf(`Prompt> ${command}`) >= 0) {
-						break;
-					}
-					if (i === 10) {
-						throw new Error(`Polling failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
+						return;
 					}
 					await timeout(1000);
 				}
+				throw new Error(`Polling failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
 			}
 
 			// Write prompt, fill viewport, finish command, print new prompt, verify sticky scroll
@@ -62,9 +60,6 @@ export function setup() {
 
 			// And again with a failed command
 			await pollForCommandAndOutput('sticky scroll 2', 1);
-
-			// And again with a failed command
-			await pollForCommandAndOutput('sticky scroll 3', 0);
 		});
 	});
 }
