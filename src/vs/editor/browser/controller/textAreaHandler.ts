@@ -818,7 +818,7 @@ export class TextAreaHandler extends ViewPart {
 
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
 
-		if (platform.isMacintosh) {
+		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._doRender({
@@ -927,28 +927,28 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(document: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
+function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}
 
-	const container = document.createElement('div');
+	const container = targetDocument.createElement('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
-	const regularDomNode = document.createElement('span');
+	const regularDomNode = targetDocument.createElement('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
 	regularDomNode.append(text);
 	container.appendChild(regularDomNode);
 
-	document.body.appendChild(container);
+	targetDocument.body.appendChild(container);
 
 	const res = regularDomNode.offsetWidth;
 
-	document.body.removeChild(container);
+	targetDocument.body.removeChild(container);
 
 	return res;
 }

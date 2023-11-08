@@ -19,7 +19,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ICreateContributedTerminalProfileOptions, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalLocationString, TitleEventSource } from 'vs/platform/terminal/common/terminal';
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { iconForeground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
@@ -55,6 +55,7 @@ import { mark } from 'vs/base/common/performance';
 import { DeatachedTerminal } from 'vs/workbench/contrib/terminal/browser/detachedTerminal';
 import { ITerminalCapabilityImplMap, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { createInstanceCapabilityEventMultiplexer } from 'vs/workbench/contrib/terminal/browser/terminalEvents';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class TerminalService extends Disposable implements ITerminalService {
 	declare _serviceBrand: undefined;
@@ -228,7 +229,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this.initializePrimaryBackend();
 
 		// Create async as the class depends on `this`
-		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, document.head)));
+		timeout(0).then(() => this._register(this._instantiationService.createInstance(TerminalEditorStyle, mainWindow.document.head)));
 	}
 
 	async showProfileQuickPick(type: 'setDefault' | 'createInstance', cwd?: string | URI): Promise<ITerminalInstance | undefined> {
@@ -944,12 +945,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const shellLaunchConfig = config && 'extensionIdentifier' in config ? {} : this._terminalInstanceService.convertProfileToShellLaunchConfig(config || {});
 
 		// Get the contributed profile if it was provided
-		let contributedProfile = config && 'extensionIdentifier' in config ? config : undefined;
-
-		// Get the default profile as a contributed profile if it exists
-		if (!contributedProfile && (!options || !options.config)) {
-			contributedProfile = await this._terminalProfileService.getContributedDefaultProfile(shellLaunchConfig);
-		}
+		const contributedProfile = await this._getContributedProfile(shellLaunchConfig, options);
 
 		const splitActiveTerminal = typeof options?.location === 'object' && 'splitActiveTerminal' in options.location ? options.location.splitActiveTerminal : typeof options?.location === 'object' ? 'parentTerminal' in options.location : false;
 
@@ -967,7 +963,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 			await this.createContributedTerminalProfile(contributedProfile.extensionIdentifier, contributedProfile.id, {
 				icon: contributedProfile.icon,
 				color: contributedProfile.color,
-				location
+				location,
+				cwd: shellLaunchConfig.cwd,
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
@@ -997,6 +994,14 @@ export class TerminalService extends Disposable implements ITerminalService {
 			return this._splitTerminal(shellLaunchConfig, location, parent);
 		}
 		return this._createTerminal(shellLaunchConfig, location, options);
+	}
+
+	private async _getContributedProfile(shellLaunchConfig: IShellLaunchConfig, options?: ICreateTerminalOptions): Promise<IExtensionTerminalProfile | undefined> {
+		if (options?.config && 'extensionIdentifier' in options.config) {
+			return options.config;
+		}
+
+		return this._terminalProfileService.getContributedDefaultProfile(shellLaunchConfig);
 	}
 
 	async createDetachedTerminal(options: IDetachedXTermOptions): Promise<IDetachedTerminalInstance> {
@@ -1195,8 +1200,7 @@ class TerminalEditorStyle extends Themable {
 	) {
 		super(_themeService);
 		this._registerListeners();
-		this._styleElement = document.createElement('style');
-		container.appendChild(this._styleElement);
+		this._styleElement = dom.createStyleSheet(container);
 		this._register(toDisposable(() => container.removeChild(this._styleElement)));
 		this.updateStyles();
 	}

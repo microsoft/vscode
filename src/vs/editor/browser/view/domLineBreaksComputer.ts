@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { createTrustedTypesPolicy } from 'vs/base/browser/trustedTypes';
+import { $window } from 'vs/base/browser/window';
 import { CharCode } from 'vs/base/common/charCode';
 import * as strings from 'vs/base/common/strings';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
@@ -139,7 +140,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		containerDomNode.style.wordBreak = 'inherit';
 		containerDomNode.style.overflowWrap = 'break-word';
 	}
-	document.body.appendChild(containerDomNode);
+	$window.document.body.appendChild(containerDomNode);
 
 	const range = document.createRange();
 	const lineDomNodes = Array.prototype.slice.call(containerDomNode.children, 0);
@@ -183,7 +184,7 @@ function createLineBreaks(requests: string[], fontInfo: FontInfo, tabSize: numbe
 		result[i] = new ModelLineProjectionData(injectionOffsets, injectionOptions, breakOffsets, breakOffsetsVisibleColumn, wrappedTextIndentLength);
 	}
 
-	document.body.removeChild(containerDomNode);
+	$window.document.body.removeChild(containerDomNode);
 	return result;
 }
 

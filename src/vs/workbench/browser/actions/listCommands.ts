@@ -18,14 +18,16 @@ import { ITreeNode } from 'vs/base/browser/ui/tree/tree';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Table } from 'vs/base/browser/ui/table/tableWidget';
 import { AbstractTree, TreeFindMode } from 'vs/base/browser/ui/tree/abstractTree';
+import { isActiveElement } from 'vs/base/browser/dom';
 
 function ensureDOMFocus(widget: ListWidget | undefined): void {
 	// it can happen that one of the commands is executed while
 	// DOM focus is within another focusable control within the
 	// list/tree item. therefor we should ensure that the
 	// list/tree has DOM focus again after the command ran.
-	if (widget && widget.getHTMLElement() !== document.activeElement) {
-		widget.domFocus();
+	const element = widget?.getHTMLElement();
+	if (element && !isActiveElement(element)) {
+		widget?.domFocus();
 	}
 }
 

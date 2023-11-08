@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes } from 'vs/base/browser/dom';
-import { timeout } from 'vs/base/common/async';
+import { $, asCssValueWithDefault, h, multibyteAwareBtoa, trackAttributes, copyAttributes, disposableWindowInterval } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
+import { DeferredPromise, timeout } from 'vs/base/common/async';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 
 suite('dom', () => {
@@ -334,6 +335,52 @@ suite('dom', () => {
 			assert.strictEqual(elementTarget.getAttribute('bar'), null);
 
 			disposable.dispose();
+		});
+	});
+
+	suite('disposableWindowInterval', () => {
+		test('basics', async () => {
+			let count = 0;
+			const promise = new DeferredPromise<void>();
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+				if (count === 3) {
+					promise.complete(undefined);
+					return true;
+				} else {
+					return false;
+				}
+			}, 0, 10);
+
+			await promise.p;
+			assert.strictEqual(count, 3);
+			interval.dispose();
+		});
+
+		test('iterations', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 0);
+
+			await timeout(5);
+			assert.strictEqual(count, 0);
+			interval.dispose();
+		});
+
+		test('dispose', async () => {
+			let count = 0;
+			const interval = disposableWindowInterval(mainWindow, () => {
+				count++;
+
+				return false;
+			}, 0, 10);
+
+			interval.dispose();
+			await timeout(5);
+			assert.strictEqual(count, 0);
 		});
 	});
 });

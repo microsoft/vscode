@@ -383,6 +383,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 	}
 
 	private handleInvalidContentError({ profile, syncResource: source }: IUserDataSyncResource): void {
+		if (this.userDataProfileService.currentProfile.id !== profile.id) {
+			return;
+		}
 		const key = `${profile.id}:${source}`;
 		if (this.invalidContentErrorDisposables.has(key)) {
 			return;
@@ -425,19 +428,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		this.globalActivityBadgeDisposable.clear();
 
 		let badge: IBadge | undefined = undefined;
-		let clazz: string | undefined;
 		let priority: number | undefined = undefined;
 
 		if (this.userDataSyncService.conflicts.length && this.userDataSyncEnablementService.isEnabled()) {
 			badge = new NumberBadge(this.getConflictsCount(), () => localize('has conflicts', "{0}: Conflicts Detected", SYNC_TITLE.value));
 		} else if (this.turningOnSync) {
 			badge = new ProgressBadge(() => localize('turning on syncing', "Turning on Settings Sync..."));
-			clazz = 'progress-badge';
 			priority = 1;
 		}
 
 		if (badge) {
-			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, clazz, priority });
+			this.globalActivityBadgeDisposable.value = this.activityService.showGlobalActivity({ badge, priority });
 		}
 	}
 
@@ -451,7 +452,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 		}
 
 		if (badge) {
-			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, clazz: undefined, priority: undefined });
+			this.accountBadgeDisposable.value = this.activityService.showAccountsActivity({ badge, priority: undefined });
 		}
 	}
 
@@ -906,17 +907,17 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					disposables.add(quickPick);
 					const items: Array<QuickPickItem> = [];
 					if (that.userDataSyncService.conflicts.length) {
-						items.push({ id: showConflictsCommandId, label: `${SYNC_TITLE}: ${that.getShowConflictsTitle().original}` });
+						items.push({ id: showConflictsCommandId, label: `${SYNC_TITLE.value}: ${that.getShowConflictsTitle().original}` });
 						items.push({ type: 'separator' });
 					}
-					items.push({ id: configureSyncCommand.id, label: `${SYNC_TITLE}: ${configureSyncCommand.title.original}` });
-					items.push({ id: showSyncSettingsCommand.id, label: `${SYNC_TITLE}: ${showSyncSettingsCommand.title.original}` });
-					items.push({ id: showSyncedDataCommand.id, label: `${SYNC_TITLE}: ${showSyncedDataCommand.title.original}` });
+					items.push({ id: configureSyncCommand.id, label: `${SYNC_TITLE.value}: ${configureSyncCommand.title.original}` });
+					items.push({ id: showSyncSettingsCommand.id, label: `${SYNC_TITLE.value}: ${showSyncSettingsCommand.title.original}` });
+					items.push({ id: showSyncedDataCommand.id, label: `${SYNC_TITLE.value}: ${showSyncedDataCommand.title.original}` });
 					items.push({ type: 'separator' });
-					items.push({ id: syncNowCommand.id, label: `${SYNC_TITLE}: ${syncNowCommand.title.original}`, description: syncNowCommand.description(that.userDataSyncService) });
+					items.push({ id: syncNowCommand.id, label: `${SYNC_TITLE.value}: ${syncNowCommand.title.original}`, description: syncNowCommand.description(that.userDataSyncService) });
 					if (that.userDataSyncEnablementService.canToggleEnablement()) {
 						const account = that.userDataSyncWorkbenchService.current;
-						items.push({ id: turnOffSyncCommand.id, label: `${SYNC_TITLE}: ${turnOffSyncCommand.title.original}`, description: account ? `${account.accountName} (${that.authenticationService.getLabel(account.authenticationProviderId)})` : undefined });
+						items.push({ id: turnOffSyncCommand.id, label: `${SYNC_TITLE.value}: ${turnOffSyncCommand.title.original}`, description: account ? `${account.accountName} (${that.authenticationService.getLabel(account.authenticationProviderId)})` : undefined });
 					}
 					quickPick.items = items;
 					disposables.add(quickPick.onDidAccept(() => {

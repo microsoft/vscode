@@ -201,7 +201,7 @@ export class TerminalTabbedView extends Disposable {
 		offscreenCanvas.height = 1;
 		const ctx = offscreenCanvas.getContext('2d');
 		if (ctx) {
-			const style = window.getComputedStyle(this._tabListElement);
+			const style = dom.getWindow(this._tabListElement).getComputedStyle(this._tabListElement);
 			ctx.font = `${style.fontStyle} ${style.fontSize} ${style.fontFamily}`;
 			const maxInstanceWidth = this._terminalGroupService.instances.reduce((p, c) => {
 				return Math.max(p, ctx.measureText(c.title + (c.description || '')).width + this._getAdditionalWidth(c));
@@ -285,16 +285,15 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _addSashListener() {
-		let interval: number;
+		let interval: IDisposable;
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
-				interval = window.setInterval(() => {
+				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
 					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
-				window.clearInterval(interval);
-				interval = 0;
+				interval.dispose();
 			})
 		];
 	}
@@ -419,10 +418,10 @@ export class TerminalTabbedView extends Disposable {
 			event.stopImmediatePropagation();
 			this._cancelContextMenu = false;
 		}));
-		this._register(dom.addDisposableListener(document, 'keydown', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(terminalContainer.ownerDocument, 'keydown', (event: KeyboardEvent) => {
 			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
-		this._register(dom.addDisposableListener(document, 'keyup', (event: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(terminalContainer.ownerDocument, 'keyup', (event: KeyboardEvent) => {
 			terminalContainer.classList.toggle('alt-active', !!event.altKey);
 		}));
 		this._register(dom.addDisposableListener(parentDomElement, 'keyup', (event: KeyboardEvent) => {
@@ -475,21 +474,24 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	focus() {
-		if (this._terminalService.connectionState === TerminalConnectionState.Connecting) {
-			// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
-			// be focused. So wait for connection to finish, then focus.
-			const activeElement = document.activeElement;
+		if (this._terminalService.connectionState === TerminalConnectionState.Connected) {
+			this._focus();
+			return;
+		}
+
+		// If the terminal is waiting to reconnect to remote terminals, then there is no TerminalInstance yet that can
+		// be focused. So wait for connection to finish, then focus.
+		const previousActiveElement = this._tabListElement.ownerDocument.activeElement;
+		if (previousActiveElement) {
+			// TODO: Improve lifecycle management this event should be disposed after first fire
 			this._register(this._terminalService.onDidChangeConnectionState(() => {
 				// Only focus the terminal if the activeElement has not changed since focus() was called
-				// TODO hack
-				if (document.activeElement === activeElement) {
+				// TODO: Hack
+				if (dom.isActiveElement(previousActiveElement)) {
 					this._focus();
 				}
 			}));
-
-			return;
 		}
-		this._focus();
 	}
 
 	focusHover() {

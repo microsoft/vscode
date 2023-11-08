@@ -64,14 +64,14 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 
 		this._register(this.contextKeyService.onDidChangeContext(e => {
-			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY]))) {
+			if (e.affectsSome(new Set([CONTEXT_DEBUG_UX_KEY, 'inDebugMode']))) {
 				this.updateTitleArea();
 			}
 		}));
 
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.toolBarLocation')) {
+			if (e.affectsConfiguration('debug.toolBarLocation') || e.affectsConfiguration('debug.hideLauncherWhileDebugging')) {
 				this.updateTitleArea();
 			}
 		}));
@@ -164,8 +164,19 @@ export class DebugViewPaneContainer extends ViewPaneContainer {
 }
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_UX.notEqualsTo('simple'), WorkbenchStateContext.notEqualsTo('empty'),
-		ContextKeyExpr.or(CONTEXT_DEBUG_STATE.isEqualTo('inactive'), ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked'))),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+		CONTEXT_DEBUG_UX.notEqualsTo('simple'),
+		WorkbenchStateContext.notEqualsTo('empty'),
+		ContextKeyExpr.or(
+			CONTEXT_DEBUG_STATE.isEqualTo('inactive'),
+			ContextKeyExpr.notEquals('config.debug.toolBarLocation', 'docked')
+		),
+		ContextKeyExpr.or(
+			ContextKeyExpr.not('config.debug.hideLauncherWhileDebugging'),
+			ContextKeyExpr.not('inDebugMode')
+		)
+	),
 	order: 10,
 	group: 'navigation',
 	command: {
@@ -263,7 +274,14 @@ registerAction2(class extends Action2 {
 });
 
 MenuRegistry.appendMenuItem(MenuId.ViewContainerTitle, {
-	when: ContextKeyExpr.and(ContextKeyExpr.equals('viewContainer', VIEWLET_ID), CONTEXT_DEBUG_STATE.notEqualsTo('inactive'), ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked')),
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals('viewContainer', VIEWLET_ID),
+		CONTEXT_DEBUG_STATE.notEqualsTo('inactive'),
+		ContextKeyExpr.or(
+			ContextKeyExpr.equals('config.debug.toolBarLocation', 'docked'),
+			ContextKeyExpr.has('config.debug.hideLauncherWhileDebugging')
+		)
+	),
 	order: 10,
 	command: {
 		id: SELECT_AND_START_ID,

@@ -6,7 +6,7 @@
 import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -18,8 +18,8 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { EditorCommandsContextActionRunner, IToolbarActions, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { EditorCommandsContextActionRunner, EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsControl';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { IDisposable, dispose, DisposableStore, combinedDisposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -31,15 +31,15 @@ import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platf
 import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { MergeGroupMode, IMergeGroupOptions, GroupsArrangement, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent } from 'vs/base/browser/dom';
+import { MergeGroupMode, IMergeGroupOptions, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { coalesce, insert } from 'vs/base/common/arrays';
@@ -106,7 +106,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
-	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
@@ -144,7 +143,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@INotificationService notificationService: INotificationService,
-		@IMenuService menuService: IMenuService,
 		@IQuickInputService quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
@@ -154,7 +152,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, menuService, quickInputService, themeService, editorResolverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -192,13 +190,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add('editor-actions');
-		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
-
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
+		// Create Editor Toolbar
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -746,7 +739,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Redraw tabs when other options change
 		if (
 			oldOptions.labelFormat !== newOptions.labelFormat ||
-			oldOptions.tabCloseButton !== newOptions.tabCloseButton ||
+			oldOptions.tabActionLocation !== newOptions.tabActionLocation ||
+			oldOptions.tabActionCloseVisibility !== newOptions.tabActionCloseVisibility ||
+			oldOptions.tabActionUnpinVisibility !== newOptions.tabActionUnpinVisibility ||
 			oldOptions.tabSizing !== newOptions.tabSizing ||
 			oldOptions.pinnedTabSizing !== newOptions.pinnedTabSizing ||
 			oldOptions.showIcons !== newOptions.showIcons ||
@@ -992,9 +987,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (editor && this.tabsModel.isPinned(editor)) {
-					if (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes) {
-						this.groupsView.arrangeGroups(GroupsArrangement.TOGGLE, this.groupView);
+					switch (this.groupsView.partOptions.doubleClickTabToToggleEditorGroupSizes) {
+						case 'maximize':
+							this.groupsView.toggleMaximizeGroup(this.groupView);
+							break;
+						case 'expand':
+							this.groupsView.toggleExpandGroup(this.groupView);
+							break;
+						case 'off':
+							break;
 					}
+
 				} else {
 					this.groupView.pinEditor(editor);
 				}
@@ -1029,7 +1032,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'));
+			scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
 		}));
 
 		// Drop support
@@ -1314,7 +1317,18 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		this.redrawTabLabel(editor, tabIndex, tabContainer, tabLabelWidget, tabLabel);
 
 		// Action
-		const tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
+		const hasUnpinAction = isTabSticky && options.tabActionUnpinVisibility;
+		const hasCloseAction = !hasUnpinAction && options.tabActionCloseVisibility;
+		const hasAction = hasUnpinAction || hasCloseAction;
+
+		let tabAction;
+		if (hasAction) {
+			tabAction = hasUnpinAction ? this.unpinEditorAction : this.closeEditorAction;
+		} else {
+			// Even if the action is not visible, add it as it contains the dirty indicator
+			tabAction = isTabSticky ? this.unpinEditorAction : this.closeEditorAction;
+		}
+
 		if (!tabActionBar.hasAction(tabAction)) {
 			if (!tabActionBar.isEmpty()) {
 				tabActionBar.clear();
@@ -1323,10 +1337,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabActionBar.push(tabAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(tabAction) });
 		}
 
-		// Settings
-		const tabActionsVisibility = isTabSticky && options.pinnedTabSizing === 'compact' ? 'off' /* treat sticky compact tabs as tabCloseButton: 'off' */ : options.tabCloseButton;
-		for (const option of ['off', 'left', 'right']) {
-			tabContainer.classList.toggle(`tab-actions-${option}`, tabActionsVisibility === option);
+		tabContainer.classList.toggle(`pinned-action-off`, isTabSticky && !hasUnpinAction);
+		tabContainer.classList.toggle(`close-action-off`, !hasUnpinAction && !hasCloseAction);
+
+		for (const option of ['left', 'right']) {
+			tabContainer.classList.toggle(`tab-actions-${option}`, hasAction && options.tabActionLocation === option);
 		}
 
 		const tabSizing = isTabSticky && options.pinnedTabSizing === 'shrink' ? 'shrink' /* treat sticky shrink tabs as tabSizing: 'shrink' */ : options.tabSizing;
@@ -1586,15 +1601,25 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		Object.assign(this.dimensions, dimensions);
 
 		if (this.visible) {
-			// The layout of tabs can be an expensive operation because we access DOM properties
-			// that can result in the browser doing a full page layout to validate them. To buffer
-			// this a little bit we try at least to schedule this work on the next animation frame.
 			if (!this.layoutScheduler.value) {
-				const scheduledLayout = (this.lifecycleService.phase > LifecyclePhase.Restored ? scheduleAtNextAnimationFrame : runWhenIdle)(() => {
+
+				// The layout of tabs can be an expensive operation because we access DOM properties
+				// that can result in the browser doing a full page layout to validate them. To buffer
+				// this a little bit we try at least to schedule this work on the next animation frame
+				// when we have restored or when idle otherwise.
+
+				const layoutFunction = () => {
 					this.doLayout(this.dimensions, this.layoutScheduler.value?.options /* ensure to pick up latest options */);
 
 					this.layoutScheduler.clear();
-				});
+				};
+
+				let scheduledLayout: IDisposable;
+				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
+					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
+				} else {
+					scheduledLayout = runWhenWindowIdle(getWindow(this.tabsContainer), layoutFunction);
+				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
 			}
@@ -1652,7 +1677,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
@@ -2060,7 +2085,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-			dropHandler.handleDrop(e, () => this.groupView, () => this.groupView.focus(), options);
+			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
 		}
 	}
 

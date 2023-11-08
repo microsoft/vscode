@@ -149,6 +149,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 		const matchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		const unmatchedRecommendations: IStringDictionary<IFileOpenCondition[]> = {};
 		let listenOnLanguageChange = false;
+		const languageId = model.getLanguageId();
 
 		for (const [extensionId, conditions] of extensionRecommendationEntries) {
 			const conditionsByPattern: IFileOpenCondition[] = [];
@@ -165,7 +166,7 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 				}
 
 				if (isLanguageCondition) {
-					if ((<IFileLanguageCondition>condition).languages.includes(model.getLanguageId())) {
+					if ((<IFileLanguageCondition>condition).languages.includes(languageId)) {
 						languageMatched = true;
 					}
 				}
@@ -178,12 +179,13 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 					processedPathGlobs.set(pathGlob, pathGlobMatched);
 				}
 
-				if (!languageMatched && !pathGlobMatched) {
-					// If the language is not matched and the path glob is not matched, then we don't need to check the other conditions
+				let matched = languageMatched || pathGlobMatched;
+
+				// If the resource has pattern (extension) and not matched, then we don't need to check the other conditions
+				if (pattern && !matched) {
 					continue;
 				}
 
-				let matched = true;
 				if (matched && condition.whenInstalled) {
 					if (!condition.whenInstalled.every(id => installed.some(local => areSameExtensions({ id }, local.identifier)))) {
 						matched = false;
@@ -226,7 +228,9 @@ export class FileBasedRecommendations extends ExtensionRecommendations {
 			}
 		}
 
-		this.recommendationsByPattern.set(pattern, recommendationsByPattern);
+		if (pattern) {
+			this.recommendationsByPattern.set(pattern, recommendationsByPattern);
+		}
 		if (Object.keys(unmatchedRecommendations).length) {
 			if (listenOnLanguageChange) {
 				const disposables = new DisposableStore();

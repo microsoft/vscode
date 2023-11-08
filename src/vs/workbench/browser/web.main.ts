@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { mark } from 'vs/base/common/performance';
-import { domContentLoaded, detectFullscreen, getCookieValue } from 'vs/base/browser/dom';
+import { domContentLoaded, detectFullscreen, getCookieValue, getWindow } from 'vs/base/browser/dom';
 import { assertIsDefined } from 'vs/base/common/types';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ILogService, ConsoleLogger, getLogLevel, ILoggerService, ILogger } from 'vs/platform/log/common/log';
@@ -95,6 +95,7 @@ import { EncryptionService } from 'vs/workbench/services/encryption/browser/encr
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserMain extends Disposable {
 
@@ -119,7 +120,7 @@ export class BrowserMain extends Disposable {
 	async open(): Promise<IWorkbench> {
 
 		// Init services and wait for DOM to be ready in parallel
-		const [services] = await Promise.all([this.initServices(), domContentLoaded()]);
+		const [services] = await Promise.all([this.initServices(), domContentLoaded(getWindow(this.domElement))]);
 
 		// Create Workbench
 		const workbench = new Workbench(this.domElement, undefined, services.serviceCollection, services.logService);
@@ -467,7 +468,7 @@ export class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataProvider);
 
 		// Local file access (if supported by browser)
-		if (WebFileSystemAccess.supported(window)) {
+		if (WebFileSystemAccess.supported(mainWindow)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 

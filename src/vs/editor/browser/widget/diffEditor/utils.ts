@@ -7,7 +7,7 @@ import { IDimension } from 'vs/base/browser/dom';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
+import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -91,10 +91,10 @@ export class ObservableElementSizeObserver extends Disposable {
 	private readonly elementSizeObserver: ElementSizeObserver;
 
 	private readonly _width: ISettableObservable<number>;
-	public get width(): ISettableObservable<number> { return this._width; }
+	public get width(): IObservable<number> { return this._width; }
 
 	private readonly _height: ISettableObservable<number>;
-	public get height(): ISettableObservable<number> { return this._height; }
+	public get height(): IObservable<number> { return this._height; }
 
 	constructor(element: HTMLElement | null, dimension: IDimension | undefined) {
 		super();
@@ -123,7 +123,7 @@ export class ObservableElementSizeObserver extends Disposable {
 	}
 }
 
-export function animatedObservable(base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
+export function animatedObservable(targetWindow: Window, base: IObservable<number, boolean>, store: DisposableStore): IObservable<number> {
 	let targetVal = base.get();
 	let startVal = targetVal;
 	let curVal = targetVal;
@@ -144,7 +144,7 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 	}, (reader, s) => {
 		/** @description update value */
 		if (animationFrame !== undefined) {
-			cancelAnimationFrame(animationFrame);
+			targetWindow.cancelAnimationFrame(animationFrame);
 			animationFrame = undefined;
 		}
 
@@ -160,7 +160,7 @@ export function animatedObservable(base: IObservable<number, boolean>, store: Di
 		curVal = Math.floor(easeOutExpo(passedMs, startVal, targetVal - startVal, durationMs));
 
 		if (passedMs < durationMs) {
-			animationFrame = requestAnimationFrame(update);
+			animationFrame = targetWindow.requestAnimationFrame(update);
 		} else {
 			curVal = targetVal;
 		}
@@ -208,7 +208,11 @@ export abstract class ViewZoneOverlayWidget extends Disposable {
 }
 
 export interface IObservableViewZone extends IViewZone {
+	// Causes the view zone to relayout.
 	onChange?: IObservable<unknown>;
+
+	// Tells a view zone its id.
+	setZoneId?(zoneId: string): void;
 }
 
 export class PlaceholderViewZone implements IObservableViewZone {
@@ -313,37 +317,43 @@ export function observeHotReloadableExports(values: any[], reader: IReader | und
 	}
 }
 
-export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void): IDisposable {
+export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObservableViewZone[]>, setIsUpdating?: (isUpdatingViewZones: boolean) => void, zoneIds?: Set<string>): IDisposable {
 	const store = new DisposableStore();
 	const lastViewZoneIds: string[] = [];
 
-	store.add(autorun(reader => {
+	store.add(autorunWithStore((reader, store) => {
 		/** @description applyViewZones */
 		const curViewZones = viewZones.read(reader);
 
 		const viewZonIdsPerViewZone = new Map<IObservableViewZone, string>();
 		const viewZoneIdPerOnChangeObservable = new Map<IObservable<unknown>, string>();
 
+		// Add/remove view zones
 		if (setIsUpdating) { setIsUpdating(true); }
 		editor.changeViewZones(a => {
-			for (const id of lastViewZoneIds) { a.removeZone(id); }
+			for (const id of lastViewZoneIds) { a.removeZone(id); zoneIds?.delete(id); }
 			lastViewZoneIds.length = 0;
 
 			for (const z of curViewZones) {
 				const id = a.addZone(z);
+				if (z.setZoneId) {
+					z.setZoneId(id);
+				}
 				lastViewZoneIds.push(id);
+				zoneIds?.add(id);
 				viewZonIdsPerViewZone.set(z, id);
 			}
 		});
 		if (setIsUpdating) { setIsUpdating(false); }
 
+		// Layout zone on change
 		store.add(autorunHandleChanges({
 			createEmptyChangeSummary() {
-				return [] as string[];
+				return { zoneIds: [] as string[] };
 			},
 			handleChange(context, changeSummary) {
 				const id = viewZoneIdPerOnChangeObservable.get(context.changedObservable);
-				if (id !== undefined) { changeSummary.push(id); }
+				if (id !== undefined) { changeSummary.zoneIds.push(id); }
 				return true;
 			},
 		}, (reader, changeSummary) => {
@@ -355,7 +365,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 				}
 			}
 			if (setIsUpdating) { setIsUpdating(true); }
-			editor.changeViewZones(a => { for (const id of changeSummary) { a.layoutZone(id); } });
+			editor.changeViewZones(a => { for (const id of changeSummary.zoneIds) { a.layoutZone(id); } });
 			if (setIsUpdating) { setIsUpdating(false); }
 		}));
 	}));
@@ -364,6 +374,7 @@ export function applyViewZones(editor: ICodeEditor, viewZones: IObservable<IObse
 		dispose() {
 			if (setIsUpdating) { setIsUpdating(true); }
 			editor.changeViewZones(a => { for (const id of lastViewZoneIds) { a.removeZone(id); } });
+			zoneIds?.clear();
 			if (setIsUpdating) { setIsUpdating(false); }
 		}
 	});

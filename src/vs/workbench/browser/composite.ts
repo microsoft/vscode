@@ -152,7 +152,7 @@ export abstract class Composite extends Component implements IComposite {
 		if (container) {
 			// Make sure to focus the window of the container
 			// because it is possible that the composite is
-			// opened in a auxiliary window that is not focussed.
+			// opened in a auxiliary window that is not focused.
 			focusWindow(container);
 		}
 	}
@@ -167,13 +167,6 @@ export abstract class Composite extends Component implements IComposite {
 	 * draggable corner areas with inner sashes.
 	 */
 	abstract setBoundarySashes(sashes: IBoundarySashes): void;
-
-	/**
-	 * Update the styles of the contents of this composite.
-	 */
-	override updateStyles(): void {
-		super.updateStyles();
-	}
 
 	/**
 	 *

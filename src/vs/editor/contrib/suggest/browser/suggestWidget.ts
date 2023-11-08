@@ -566,7 +566,7 @@ export class SuggestWidget implements IDisposable {
 			this._onDidSelect.resume();
 		}
 
-		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+		this._pendingLayout.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingLayout.clear();
 			this._layout(this.element.size);
 			// Reset focus border
@@ -710,7 +710,7 @@ export class SuggestWidget implements IDisposable {
 	}
 
 	showDetails(loading: boolean): void {
-		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(() => {
+		this._pendingShowDetails.value = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.element.domNode), () => {
 			this._pendingShowDetails.clear();
 			this._details.show();
 			if (loading) {

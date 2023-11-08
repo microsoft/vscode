@@ -13,7 +13,7 @@ import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/termin
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -373,14 +373,16 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// On Windows track all cursor movements after the command start sequence
 		this._commandMarkers.length = 0;
 
+		let prompt: string | undefined = this._getWindowsPrompt();
 		// Conpty could have the wrong cursor position at this point.
-		if (!this._cursorOnNextLine() || !this._cursorLineLooksLikeWindowsPrompt()) {
+		if (!this._cursorOnNextLine() || !prompt) {
 			this._windowsPromptPollingInProcess = true;
-			// Poll for 200ms until the cursor position is correct.
+			// Poll for 1000ms until the cursor position is correct.
 			let i = 0;
-			for (; i < 20; i++) {
-				await timeout(10);
-				if (!this._windowsPromptPollingInProcess || this._cursorOnNextLine() && this._cursorLineLooksLikeWindowsPrompt()) {
+			for (; i < 50; i++) {
+				await timeout(20);
+				prompt = this._getWindowsPrompt();
+				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
 						this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows polling cancelled');
 					}
@@ -388,8 +390,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				}
 			}
 			this._windowsPromptPollingInProcess = false;
-			if (i === 20) {
-				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._cursorLineLooksLikeWindowsPrompt());
+			if (i >= 50) {
+				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
+			} else if (prompt) {
+				// use the regex to set the position as it's possible input has occurred
+				this._currentCommand.commandStartX = prompt.length;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -423,22 +428,60 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _cursorOnNextLine(): boolean {
 		const lastCommand = this.commands.at(-1);
 
+		// There is only a single command, so this check is unnecessary
 		if (!lastCommand) {
-			return false;
+			return true;
 		}
+
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		// If the cursor position is within the last command, we should poll.
 		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
 		return cursorYAbsolute > lastCommandYAbsolute;
 	}
 
-	private _cursorLineLooksLikeWindowsPrompt(): boolean {
+	private _getWindowsPrompt(): string | undefined {
 		const line = this._terminal.buffer.active.getLine(this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY);
 		if (!line) {
-			return false;
+			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(PS.+>)|([A-Z]:\\.*>)/) !== null;
+		// TODO: fine tune prompt regex to accomodate for unique configurations.
+		const lineText = line.translateToString(true);
+		if (!lineText) {
+			return;
+		}
+
+		// PowerShell
+		const pwshPrompt = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/)?.groups?.prompt;
+		if (pwshPrompt) {
+			const adjustedPrompt = this._adjustPrompt(pwshPrompt, lineText, '>');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Custom prompts like starship end in the common \u276f character
+		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
+		if (customPrompt) {
+			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Command Prompt
+		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
+		return cmdMatch?.groups?.prompt;
+	}
+
+	private _adjustPrompt(prompt: string | undefined, lineText: string, char: string): string | undefined {
+		if (!prompt) {
+			return;
+		}
+		// Conpty may not 'render' the space at the end of the prompt
+		if (lineText === prompt && prompt.endsWith(char)) {
+			prompt += ' ';
+		}
+		return prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
@@ -597,6 +640,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._onCommandExecuted.fire();
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {

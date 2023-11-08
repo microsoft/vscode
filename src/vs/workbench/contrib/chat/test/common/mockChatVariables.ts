@@ -24,7 +24,7 @@ export class MockChatVariablesService implements IChatVariablesService {
 	}
 
 	getDynamicReferences(sessionId: string): readonly IDynamicReference[] {
-		throw new Error('Method not implemented.');
+		return [];
 	}
 
 	async resolveVariables(prompt: IParsedChatRequest, model: IChatModel, token: CancellationToken): Promise<IChatVariableResolveResult> {

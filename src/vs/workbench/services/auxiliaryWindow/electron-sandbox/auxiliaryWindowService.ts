@@ -5,64 +5,60 @@
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { BrowserAuxiliaryWindowService, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { getGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
+import { ISandboxGlobals } from 'vs/base/parts/sandbox/electron-sandbox/globals';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { INativeHostService } from 'vs/platform/native/common/native';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { getActiveWindow } from 'vs/base/browser/dom';
+import { CodeWindow } from 'vs/base/browser/window';
 
-type AuxiliaryWindow = Window & typeof globalThis & {
-	moveTop: () => void;
+type NativeAuxiliaryWindow = CodeWindow & {
+	readonly vscode: ISandboxGlobals;
 };
-
-export function isAuxiliaryWindow(obj: unknown): obj is AuxiliaryWindow {
-	const candidate = obj as AuxiliaryWindow | undefined;
-
-	return typeof candidate?.moveTop === 'function';
-}
 
 export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService {
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@INativeHostService private readonly nativeHostService: INativeHostService,
+		@IDialogService dialogService: IDialogService
 	) {
-		super(layoutService, environmentService);
+		super(layoutService, dialogService);
 	}
 
-
-	protected override applyCSS(auxiliaryWindow: AuxiliaryWindow, disposables: DisposableStore): void {
-		super.applyCSS(auxiliaryWindow, disposables);
+	protected override create(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore) {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
-		getGlobals(auxiliaryWindow)?.webFrame?.setZoomLevel(windowZoomLevel);
+		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
+
+		return super.create(auxiliaryWindow, disposables);
 	}
 
-	protected override patchMethods(auxiliaryWindow: AuxiliaryWindow): void {
-		super.patchMethods(auxiliaryWindow);
+	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+	}
+
+	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
+		await super.patchMethods(auxiliaryWindow);
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
+		// https://github.com/electron/electron/issues/25578
+		const that = this;
 		const originalWindowFocus = auxiliaryWindow.focus.bind(auxiliaryWindow);
 		auxiliaryWindow.focus = function () {
 			originalWindowFocus();
 
-			getGlobals(auxiliaryWindow)?.ipcRenderer.send('vscode:focusAuxiliaryWindow');
+			if (getActiveWindow() !== auxiliaryWindow) {
+				that.nativeHostService.focusWindow({ targetWindowId: auxiliaryWindow.vscodeWindowId });
+			}
 		};
-
-		// Add a method to move window to the top (TODO@bpasero better to go entirely through native host service)
-		Object.defineProperty(auxiliaryWindow, 'moveTop', {
-			value: () => {
-				getGlobals(auxiliaryWindow)?.ipcRenderer.send('vscode:moveAuxiliaryWindowTop');
-			},
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
 	}
 }
 

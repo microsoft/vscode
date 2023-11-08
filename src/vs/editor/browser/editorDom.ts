@@ -7,10 +7,11 @@ import * as dom from 'vs/base/browser/dom';
 import { GlobalPointerMoveMonitor } from 'vs/base/browser/globalPointerMoveMonitor';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { asCssVariable } from 'vs/platform/theme/common/colorRegistry';
 import { ThemeColor } from 'vs/base/common/themables';
+import { $window } from 'vs/base/browser/window';
 
 /**
  * Coordinates relative to the whole document (e.g. mouse event's pageX and pageY)
@@ -24,7 +25,7 @@ export class PageCoordinates {
 	) { }
 
 	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - window.scrollX, this.y - window.scrollY);
+		return new ClientCoordinates(this.x - $window.scrollX, this.y - $window.scrollY);
 	}
 }
 
@@ -44,7 +45,7 @@ export class ClientCoordinates {
 	) { }
 
 	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + window.scrollX, this.clientY + window.scrollY);
+		return new PageCoordinates(this.clientX + $window.scrollX, this.clientY + $window.scrollY);
 	}
 }
 
@@ -358,7 +359,8 @@ export interface CssProperties {
 
 class RefCountedCssRule {
 	private _referenceCount: number = 0;
-	private _styleElement: HTMLStyleElement;
+	private _styleElement: HTMLStyleElement | undefined;
+	private _styleElementDisposables: DisposableStore;
 
 	constructor(
 		public readonly key: string,
@@ -366,10 +368,8 @@ class RefCountedCssRule {
 		_containerElement: HTMLElement | undefined,
 		public readonly properties: CssProperties,
 	) {
-		this._styleElement = dom.createStyleSheet(
-			_containerElement
-		);
-
+		this._styleElementDisposables = new DisposableStore();
+		this._styleElement = dom.createStyleSheet(_containerElement, undefined, this._styleElementDisposables);
 		this._styleElement.textContent = this.getCssText(this.className, this.properties);
 	}
 
@@ -392,7 +392,8 @@ class RefCountedCssRule {
 	}
 
 	public dispose(): void {
-		this._styleElement.remove();
+		this._styleElementDisposables.dispose();
+		this._styleElement = undefined;
 	}
 
 	public increaseRefCount(): void {

@@ -74,6 +74,7 @@ import { IFeaturedExtension } from 'vs/base/common/product';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionIdentifier } from 'vs/platform/extensions/common/extensions';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { $window } from 'vs/base/browser/window';
 
 const SLIDE_TRANSITION_TIME_MS = 250;
 const configurationKey = 'workbench.startupEditor';
@@ -221,8 +222,18 @@ export class GettingStartedPage extends EditorPane {
 		const rerender = () => {
 			this.gettingStartedCategories = this.gettingStartedService.getWalkthroughs();
 			this.featuredExtensions = this.featuredExtensionService.getExtensions();
-
-			this.buildSlideThrottle.queue(async () => await this.buildCategoriesSlide());
+			if (this.currentWalkthrough) {
+				const existingSteps = this.currentWalkthrough.steps.map(step => step.id);
+				const newCategory = this.gettingStartedCategories.find(category => this.currentWalkthrough?.id === category.id);
+				if (newCategory) {
+					const newSteps = newCategory.steps.map(step => step.id);
+					if (!equals(newSteps, existingSteps)) {
+						this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+					}
+				}
+			} else {
+				this.buildSlideThrottle.queue(() => this.buildCategoriesSlide());
+			}
 		};
 
 		this._register(this.extensionManagementService.onDidInstallExtensions(async (result) => {
@@ -275,7 +286,7 @@ export class GettingStartedPage extends EditorPane {
 			ourStep.done = step.done;
 
 			if (category.id === this.currentWalkthrough?.id) {
-				const badgeelements = assertIsDefined(document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
+				const badgeelements = assertIsDefined($window.document.querySelectorAll(`[data-done-step-id="${step.id}"]`));
 				badgeelements.forEach(badgeelement => {
 					if (step.done) {
 						badgeelement.parentElement?.setAttribute('aria-checked', 'true');
@@ -1165,7 +1176,7 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	private updateCategoryProgress() {
-		document.querySelectorAll('.category-progress').forEach(element => {
+		$window.document.querySelectorAll('.category-progress').forEach(element => {
 			const categoryID = element.getAttribute('x-data-category-id');
 			const category = this.gettingStartedCategories.find(category => category.id === categoryID);
 			if (!category) { throw Error('Could not find category with ID ' + categoryID); }
@@ -1225,9 +1236,9 @@ export class GettingStartedPage extends EditorPane {
 
 		this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'runStepAction', argument: href, walkthroughId: this.currentWalkthrough?.id });
 
-		const fullSize = this.groupsService.contentDimension;
+		const fullSize = this.group ? this.groupsService.getPart(this.group).contentDimension : undefined;
 
-		if (toSide && fullSize.width > 700) {
+		if (toSide && fullSize && fullSize.width > 700) {
 			if (this.groupsService.count === 1) {
 				const sideGroup = this.groupsService.addGroup(this.groupsService.groups[0], GroupDirection.RIGHT);
 				this.groupsService.activateGroup(sideGroup);
@@ -1574,7 +1585,9 @@ export class GettingStartedPage extends EditorPane {
 	}
 
 	override focus() {
-		const active = document.activeElement;
+		super.focus();
+
+		const active = this.container.ownerDocument.activeElement;
 
 		let parent = this.container.parentElement;
 		while (parent && parent !== active) {
@@ -1586,8 +1599,6 @@ export class GettingStartedPage extends EditorPane {
 			// This prevents us from stealing back focus from other focused elements such as quick pick due to delayed load.
 			this.container.focus();
 		}
-
-		super.focus();
 	}
 }
 

@@ -30,6 +30,8 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
+import { getActiveElement, getWindow } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -160,7 +162,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	}
 
 	if (editor.hasOutputTextSelection()) {
-		document.execCommand('copy');
+		$window.document.execCommand('copy');
 		return true;
 	}
 
@@ -308,7 +310,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	private _focusInsideEmebedMonaco(editor: INotebookEditor) {
-		const windowSelection = window.getSelection();
+		const windowSelection = getWindow(editor.getDomNode()).getSelection();
 
 		if (windowSelection?.rangeCount !== 1) {
 			return false;
@@ -342,7 +344,7 @@ export class NotebookClipboardContribution extends Disposable {
 	runCopyAction(accessor: ServicesAccessor) {
 		const loggerService = accessor.get(ILogService);
 
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			_log(loggerService, '[NotebookEditor] focus is on input or textarea element, bypass');
 			return false;
@@ -364,7 +366,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runPasteAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}
@@ -385,7 +387,7 @@ export class NotebookClipboardContribution extends Disposable {
 	}
 
 	runCutAction(accessor: ServicesAccessor) {
-		const activeElement = <HTMLElement>document.activeElement;
+		const activeElement = <HTMLElement>getActiveElement();
 		if (activeElement && ['input', 'textarea'].indexOf(activeElement.tagName.toLowerCase()) >= 0) {
 			return false;
 		}

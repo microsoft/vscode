@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from 'xterm';
-import type { CanvasAddon as CanvasAddonType } from 'xterm-addon-canvas';
-import type { ISearchOptions, SearchAddon as SearchAddonType } from 'xterm-addon-search';
-import type { Unicode11Addon as Unicode11AddonType } from 'xterm-addon-unicode11';
-import type { WebglAddon as WebglAddonType } from 'xterm-addon-webgl';
-import type { SerializeAddon as SerializeAddonType } from 'xterm-addon-serialize';
-import type { ImageAddon as ImageAddonType } from 'xterm-addon-image';
+import type { IBuffer, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, LogLevel as XtermLogLevel } from '@xterm/xterm';
+import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
+import type { ISearchOptions, SearchAddon as SearchAddonType } from '@xterm/addon-search';
+import type { Unicode11Addon as Unicode11AddonType } from '@xterm/addon-unicode11';
+import type { WebglAddon as WebglAddonType } from '@xterm/addon-webgl';
+import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
+import type { ImageAddon as ImageAddonType } from '@xterm/addon-image';
 import * as dom from 'vs/base/browser/dom';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -43,7 +43,9 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { debounce } from 'vs/base/common/decorators';
 import { MouseWheelClassifier } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IMouseWheelEvent, StandardWheelEvent } from 'vs/base/browser/mouseEvent';
-import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
+import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
+import { $window } from 'vs/base/browser/window';
 
 const enum RenderConstants {
 	/**
@@ -178,7 +180,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	}
 
 	public get isFocused() {
-		return !!this.raw.element?.contains(document.activeElement);
+		if (!this.raw.element) {
+			return false;
+		}
+		return dom.isAncestorOfActiveElement(this.raw.element);
 	}
 
 	/**
@@ -204,7 +209,8 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService
+		@IAccessibleNotificationService private readonly _accessibleNotificationService: IAccessibleNotificationService,
+		@ILayoutService layoutService: ILayoutService
 	) {
 		super();
 		const font = this._configHelper.getFont(undefined, true);
@@ -215,6 +221,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 			allowProposedApi: true,
 			cols,
 			rows,
+			documentOverride: layoutService.container.ownerDocument,
 			altClickMovesCursor: config.altClickMovesCursor && editorOptions.multiCursorModifier === 'alt',
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
@@ -590,7 +597,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 		// the prompt being written
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handlePromptStart();
 		this._capabilities.get(TerminalCapability.CommandDetection)?.handleCommandStart();
-		this._accessibilityService.alertCleared();
+		this._accessibleNotificationService.notify(AccessibleNotificationEvent.Clear);
 	}
 
 	hasSelection(): boolean {
@@ -639,9 +646,9 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 					e.clipboardData.setData('text/html', textAsHtml);
 					e.preventDefault();
 				}
-				document.addEventListener('copy', listener);
-				document.execCommand('copy');
-				document.removeEventListener('copy', listener);
+				$window.document.addEventListener('copy', listener);
+				$window.document.execCommand('copy');
+				$window.document.removeEventListener('copy', listener);
 			} else {
 				await this._clipboardService.writeText(this.raw.getSelection());
 			}
@@ -759,7 +766,7 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	protected async _getCanvasAddonConstructor(): Promise<typeof CanvasAddonType> {
 		if (!CanvasAddon) {
-			CanvasAddon = (await importAMDNodeModule<typeof import('xterm-addon-canvas')>('xterm-addon-canvas', 'lib/xterm-addon-canvas.js')).CanvasAddon;
+			CanvasAddon = (await importAMDNodeModule<typeof import('@xterm/addon-canvas')>('@xterm/addon-canvas', 'lib/xterm-addon-canvas.js')).CanvasAddon;
 		}
 		return CanvasAddon;
 	}
@@ -785,35 +792,35 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 
 	protected async _getImageAddonConstructor(): Promise<typeof ImageAddonType> {
 		if (!ImageAddon) {
-			ImageAddon = (await importAMDNodeModule<typeof import('xterm-addon-image')>('xterm-addon-image', 'lib/xterm-addon-image.js')).ImageAddon;
+			ImageAddon = (await importAMDNodeModule<typeof import('@xterm/addon-image')>('@xterm/addon-image', 'lib/addon-image.js')).ImageAddon;
 		}
 		return ImageAddon;
 	}
 
 	protected async _getSearchAddonConstructor(): Promise<typeof SearchAddonType> {
 		if (!SearchAddon) {
-			SearchAddon = (await importAMDNodeModule<typeof import('xterm-addon-search')>('xterm-addon-search', 'lib/xterm-addon-search.js')).SearchAddon;
+			SearchAddon = (await importAMDNodeModule<typeof import('@xterm/addon-search')>('@xterm/addon-search', 'lib/addon-search.js')).SearchAddon;
 		}
 		return SearchAddon;
 	}
 
 	protected async _getUnicode11Constructor(): Promise<typeof Unicode11AddonType> {
 		if (!Unicode11Addon) {
-			Unicode11Addon = (await importAMDNodeModule<typeof import('xterm-addon-unicode11')>('xterm-addon-unicode11', 'lib/xterm-addon-unicode11.js')).Unicode11Addon;
+			Unicode11Addon = (await importAMDNodeModule<typeof import('@xterm/addon-unicode11')>('@xterm/addon-unicode11', 'lib/addon-unicode11.js')).Unicode11Addon;
 		}
 		return Unicode11Addon;
 	}
 
 	protected async _getWebglAddonConstructor(): Promise<typeof WebglAddonType> {
 		if (!WebglAddon) {
-			WebglAddon = (await importAMDNodeModule<typeof import('xterm-addon-webgl')>('xterm-addon-webgl', 'lib/xterm-addon-webgl.js')).WebglAddon;
+			WebglAddon = (await importAMDNodeModule<typeof import('@xterm/addon-webgl')>('@xterm/addon-webgl', 'lib/addon-webgl.js')).WebglAddon;
 		}
 		return WebglAddon;
 	}
 
 	protected async _getSerializeAddonConstructor(): Promise<typeof SerializeAddonType> {
 		if (!SerializeAddon) {
-			SerializeAddon = (await importAMDNodeModule<typeof import('xterm-addon-serialize')>('xterm-addon-serialize', 'lib/xterm-addon-serialize.js')).SerializeAddon;
+			SerializeAddon = (await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js')).SerializeAddon;
 		}
 		return SerializeAddon;
 	}
@@ -973,13 +980,13 @@ export function getXtermScaledDimensions(font: ITerminalFont, width: number, hei
 	// the use of canvas, window.devicePixelRatio needs to be used here in
 	// order to be precise. font.charWidth/charHeight alone as insufficient
 	// when window.devicePixelRatio changes.
-	const scaledWidthAvailable = width * window.devicePixelRatio;
+	const scaledWidthAvailable = width * $window.devicePixelRatio;
 
-	const scaledCharWidth = font.charWidth * window.devicePixelRatio + font.letterSpacing;
+	const scaledCharWidth = font.charWidth * $window.devicePixelRatio + font.letterSpacing;
 	const cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
-	const scaledHeightAvailable = height * window.devicePixelRatio;
-	const scaledCharHeight = Math.ceil(font.charHeight * window.devicePixelRatio);
+	const scaledHeightAvailable = height * $window.devicePixelRatio;
+	const scaledCharHeight = Math.ceil(font.charHeight * $window.devicePixelRatio);
 	const scaledLineHeight = Math.floor(scaledCharHeight * font.lineHeight);
 	const rows = Math.max(Math.floor(scaledHeightAvailable / scaledLineHeight), 1);
 

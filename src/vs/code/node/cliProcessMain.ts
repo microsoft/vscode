@@ -57,7 +57,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
 import { UserDataProfilesReadonlyService } from 'vs/platform/userDataProfile/node/userDataProfile';
-import { resolveMachineId } from 'vs/platform/telemetry/node/telemetryUtils';
+import { resolveMachineId, resolveSqmId } from 'vs/platform/telemetry/node/telemetryUtils';
 import { ExtensionsProfileScannerService } from 'vs/platform/extensionManagement/node/extensionsProfileScannerService';
 import { LogService } from 'vs/platform/log/common/logService';
 import { LoggerService } from 'vs/platform/log/node/loggerService';
@@ -184,6 +184,7 @@ class CliMain extends Disposable {
 				logService.error(error);
 			}
 		}
+		const sqmId = await resolveSqmId(stateService, logService);
 
 		// Initialize user data profiles after initializing the state
 		userDataProfilesService.init();
@@ -219,7 +220,7 @@ class CliMain extends Disposable {
 			const config: ITelemetryServiceConfig = {
 				appenders,
 				sendErrorTelemetry: false,
-				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, isInternal),
+				commonProperties: resolveCommonProperties(release(), hostname(), process.arch, productService.commit, productService.version, machineId, sqmId, isInternal),
 				piiPaths: getPiiPathsFromEnvironment(environmentService)
 			};
 
