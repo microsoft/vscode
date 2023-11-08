@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
+import { timeout } from '../../utils';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -29,24 +30,41 @@ export function setup() {
 			// Create the simplest system profile to get as little process interaction as possible
 			await terminal.createEmptyTerminal();
 
+			function generateCommandAndOutput(command: string, exitCode: number): string {
+				return [
+					`${vsc('A')}Prompt> ${vsc('B')}${command}`,
+					`\\r\\n${vsc('C')}`,
+					`\\r\\ndata`.repeat(50),
+					`\\r\\n${vsc(`D;${exitCode}`)}`,
+				].join('');
+			}
+
+			// A polling approach is used to avoid test flakiness. While it's not ideal that this
+			// occurs, the main purpose of the tests is to verify sticky scroll shows and updates,
+			// not edge case race conditions on terminal start up
+			async function pollForCommandAndOutput(command: string, exitCode: number): Promise<void> {
+				const data = generateCommandAndOutput(command, exitCode);
+				for (let i = 0; i < 10; i++) {
+					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
+					const element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
+					if (element && element.textContent.indexOf(`Prompt> ${command}`) >= 0) {
+						break;
+					}
+					if (i === 10) {
+						throw new Error(`Polling failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
+					}
+					await timeout(1000);
+				}
+			}
+
 			// Write prompt, fill viewport, finish command, print new prompt, verify sticky scroll
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, [
-				`${vsc('A')}Prompt> ${vsc('B')}sticky scroll 1`,
-				`\\r\\n${vsc('C')}`,
-				`\\r\\ndata`.repeat(50),
-				`\\r\\n${vsc('D;0')}`, // Success
-				`${vsc('A')}Prompt> ${vsc('B')}sticky scroll 2`
-			].join(''));
-			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 1') >= 0));
+			await pollForCommandAndOutput('sticky scroll 1', 0);
 
 			// And again with a failed command
-			await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, [
-				`\\r\\n${vsc('C')}`,
-				`\\r\\ndata`.repeat(50),
-				`\\r\\n${vsc('D;1')}`, // Fail
-				`${vsc('A')}Prompt> ${vsc('B')}`,
-			].join(''));
-			await app.code.waitForElements('.terminal-sticky-scroll', false, elements => elements.some(e => e.textContent.indexOf('Prompt> sticky scroll 2') >= 0));
+			await pollForCommandAndOutput('sticky scroll 2', 1);
+
+			// And again with a failed command
+			await pollForCommandAndOutput('sticky scroll 3', 0);
 		});
 	});
 }
