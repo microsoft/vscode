@@ -11,8 +11,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { ITerminalContribution, ITerminalInstance, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalInstance, TerminalInstanceColorProvider } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
@@ -41,6 +42,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ITerminalLogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -89,8 +91,10 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 	}
 
 	private _tryEnable(): void {
+		this._logService.info('TESTING: _tryEnable');
 		if (this._shouldBeEnabled()) {
 			const xtermCtorEventually = TerminalInstance.getXtermConstructor(this._keybindingService, this._contextKeyService);
+			this._logService.info('TESTING: _tryEnable - ENABLE!');
 			this._overlay.value = this._instantiationService.createInstance(
 				TerminalStickyScrollOverlay,
 				this._xterm!,
