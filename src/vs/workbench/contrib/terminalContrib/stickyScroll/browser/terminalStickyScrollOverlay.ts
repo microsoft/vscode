@@ -123,6 +123,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _setVisible(isVisible: boolean) {
+		console.log('setVisible', isVisible);
 		if (isVisible) {
 			this._ensureElement();
 			// The GPU acceleration state may be changes at any time and there is no event to listen
@@ -134,6 +135,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	@throttle(0)
 	private _refresh(): void {
+		console.log('refresh');
 		if (!this._xterm?.raw?.element || !this._serializeAddon) {
 			return;
 		}
@@ -145,6 +147,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Sticky scroll only works with non-partial commands
 		if (!command || !('marker' in command)) {
+			console.log('1');
 			this._setVisible(false);
 			return;
 		}
@@ -158,6 +161,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// Hide sticky scroll if it's on the same line
 			marker.line === this._xterm.raw.buffer.active.viewportY
 		) {
+			console.log('2');
 			this._setVisible(false);
 			return;
 		}
@@ -185,9 +189,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._currentStickyMarker = marker;
 				this._setVisible(true);
 			} else {
+				console.log('3');
 				this._setVisible(false);
 			}
 		} else {
+			console.log('4');
 			this._setVisible(false);
 		}
 	}
