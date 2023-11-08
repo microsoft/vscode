@@ -85,6 +85,7 @@ export interface ICommonNativeHostService {
 	minimizeWindow(): Promise<void>;
 	moveWindowTop(options?: INativeOptions): Promise<void>;
 	positionWindow(position: IRectangle, options?: INativeOptions): Promise<void>;
+	hasWindowAt(x: number, y: number): Promise<boolean>;
 
 	/**
 	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.

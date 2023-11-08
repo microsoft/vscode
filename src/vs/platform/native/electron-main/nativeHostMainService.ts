@@ -258,6 +258,18 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async hasWindowAt(firstArg: number | undefined, x: number, y: number): Promise<boolean> {
+		for (const windows of [this.windowsMainService.getWindows(), this.auxiliaryWindowsMainService.getWindows()]) {
+			for (const window of windows) {
+				if (window.contains(x, y)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
+	}
+
 	async updateWindowControls(windowId: number | undefined, options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
 		const window = this.codeWindowById(windowId);
 		if (window) {

@@ -86,6 +86,11 @@ export interface IHostService {
 	 */
 	moveTop(targetWindow: Window): Promise<void>;
 
+	/**
+	 * Figure out if a window is opened at the provided location.
+	 */
+	hasWindowAt(x: number, y: number): Promise<boolean>;
+
 	//#endregion
 
 	//#region Lifecycle

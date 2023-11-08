@@ -31,6 +31,8 @@ export interface IBaseWindow extends IDisposable {
 
 	readonly isFullScreen: boolean;
 	toggleFullScreen(): void;
+
+	contains(x: number, y: number): boolean;
 }
 
 export interface ICodeWindow extends IBaseWindow {
