@@ -31,6 +31,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { showWindowLogActionId } from 'vs/workbench/services/log/common/logConstants';
 import { getActiveElement, getWindow } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 
 let _logging: boolean = false;
 function toggleLogging() {
@@ -161,7 +162,7 @@ export function runCopyCells(accessor: ServicesAccessor, editor: INotebookEditor
 	}
 
 	if (editor.hasOutputTextSelection()) {
-		document.execCommand('copy');
+		$window.document.execCommand('copy');
 		return true;
 	}
 

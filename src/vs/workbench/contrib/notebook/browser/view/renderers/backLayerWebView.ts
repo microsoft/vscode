@@ -55,6 +55,7 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { getWindow } from 'vs/base/browser/dom';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
@@ -547,7 +548,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _initialize(content: string): Promise<void> {
-		if (!document.body.contains(this.element)) {
+		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 

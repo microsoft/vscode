@@ -21,6 +21,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
+import { $window } from 'vs/base/browser/window';
 
 export class SelectionClipboard extends Disposable implements IEditorContribution {
 	private static readonly SELECTION_LENGTH_LIMIT = 65536;
@@ -94,7 +95,7 @@ class SelectionClipboardPastePreventer implements IWorkbenchContribution {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		if (platform.isLinux) {
-			document.addEventListener('mouseup', (e) => {
+			$window.document.addEventListener('mouseup', (e) => {
 				if (e.button === 1) {
 					// middle button
 					const config = configurationService.getValue<{ selectionClipboard: boolean }>('editor');

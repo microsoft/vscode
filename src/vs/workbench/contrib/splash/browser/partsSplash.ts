@@ -96,15 +96,15 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
-		const element = document.getElementById(PartsSplash._splashElementId);
+		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
-		const defaultStyles = document.head.getElementsByClassName('initialShellColors');
+		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		if (defaultStyles.length) {
-			document.head.removeChild(defaultStyles[0]);
+			mainWindow.document.head.removeChild(defaultStyles[0]);
 		}
 	}
 }
