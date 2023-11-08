@@ -47,7 +47,7 @@ body:
     attributes:
       label: OS version
       description: What version of OS are you using?
-      placeholder: ex. 13.2.1 (22D68)
+      placeholder: ex. MacOS Ventura 13.2.1 (22D68)
     validations:
       required: true
 
