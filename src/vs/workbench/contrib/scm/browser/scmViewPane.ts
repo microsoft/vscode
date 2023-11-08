@@ -2658,15 +2658,6 @@ export class SCMViewPane extends ViewPane {
 				actions = collectContextMenuActions(menu);
 			}
 		}
-		// else if (isSCMHistoryItemGroupTreeElement(element)) {
-		// 	// TODO@lszomoru - wire up the context menu
-		// } else if (isSCMHistoryItemTreeElement(element)) {
-		// 	// TODO@lszomoru - wire up the context menu
-		// } else if (isSCMHistoryItemChangeTreeElement(element)) {
-		// 	// TODO@lszomoru - wire up the context menu
-		// } else if (isSCMHistoryItemChangeNode(element)) {
-		// 	// TODO@lszomoru - wire up the context menu
-		// }
 
 		const actionRunner = new RepositoryPaneActionRunner(() => this.getSelectedResources());
 		actionRunner.onWillRun(() => this.tree.domFocus());
