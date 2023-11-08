@@ -330,10 +330,10 @@ export class Workbench extends Layout {
 		]);
 
 		this.container.classList.add(...workbenchClasses);
-		document.body.classList.add(platformClass); // used by our fonts
+		mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
-			document.body.classList.add('web');
+			mainWindow.document.body.classList.add('web');
 		}
 
 		// Apply font aliasing

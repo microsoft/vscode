@@ -576,7 +576,7 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(document.body, {
+	create(mainWindow.document.body, {
 		...config,
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,

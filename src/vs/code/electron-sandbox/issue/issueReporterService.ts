@@ -222,8 +222,8 @@ export class IssueReporter extends Disposable {
 		}
 
 		styleTag.textContent = content.join('\n');
-		document.head.appendChild(styleTag);
-		document.body.style.color = styles.color || '';
+		mainWindow.document.head.appendChild(styleTag);
+		mainWindow.document.body.style.color = styles.color || '';
 	}
 
 	private handleExtensionData(extensions: IssueReporterExtensionData[]) {

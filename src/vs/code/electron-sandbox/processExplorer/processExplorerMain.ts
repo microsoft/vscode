@@ -477,7 +477,7 @@ class ProcessExplorer {
 		styleElement.textContent = content.join('\n');
 
 		if (styles.color) {
-			document.body.style.color = styles.color;
+			mainWindow.document.body.style.color = styles.color;
 		}
 	}
 
@@ -593,7 +593,7 @@ function createCodiconStyleSheet() {
 
 export function startup(configuration: ProcessExplorerWindowConfiguration): void {
 	const platformClass = configuration.data.platform === 'win32' ? 'windows' : configuration.data.platform === 'linux' ? 'linux' : 'mac';
-	document.body.classList.add(platformClass); // used by our fonts
+	mainWindow.document.body.classList.add(platformClass); // used by our fonts
 	createCodiconStyleSheet();
 	applyZoom(configuration.data.zoomLevel);
 

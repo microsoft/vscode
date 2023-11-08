@@ -258,8 +258,8 @@ async function webviewPreloads(ctx: PreloadContext) {
 		}
 	};
 
-	document.body.addEventListener('click', handleInnerClick);
-	document.body.addEventListener('focusin', checkOutputInputFocus);
+	$window.document.body.addEventListener('click', handleInnerClick);
+	$window.document.body.addEventListener('focusin', checkOutputInputFocus);
 
 	interface RendererContext extends rendererApi.RendererContext<unknown> {
 		readonly onDidChangeSettings: Event<RenderOptions>;
@@ -360,7 +360,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 		constructor() {
 			this._observer = new ResizeObserver(entries => {
 				for (const entry of entries) {
-					if (!document.body.contains(entry.target)) {
+					if (!$window.document.body.contains(entry.target)) {
 						continue;
 					}
 
@@ -1347,7 +1347,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 									break;
 								}
 
-								if (node.id === 'container' || node === document.body) {
+								if (node.id === 'container' || node === $window.document.body) {
 									break;
 								}
 							}
@@ -2798,7 +2798,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 				this.dragOverlay.style.width = '100%';
 				this.dragOverlay.style.height = '100%';
 				this.dragOverlay.style.background = 'transparent';
-				document.body.appendChild(this.dragOverlay);
+				$window.document.body.appendChild(this.dragOverlay);
 			}
 			(e.target as HTMLElement).style.zIndex = `${overlayZIndex + 1}`;
 			(e.target as HTMLElement).classList.add('dragging');
@@ -2840,7 +2840,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 			});
 
 			if (this.dragOverlay) {
-				document.body.removeChild(this.dragOverlay);
+				$window.document.body.removeChild(this.dragOverlay);
 				this.dragOverlay = undefined;
 			}
 

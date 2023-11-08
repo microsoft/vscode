@@ -13,6 +13,7 @@ import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage'
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
 
 suite('Workbench parts', () => {
 
@@ -110,11 +111,11 @@ suite('Workbench parts', () => {
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
-		document.body.appendChild(fixture);
+		mainWindow.document.body.appendChild(fixture);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		mainWindow.document.body.removeChild(fixture);
 		disposables.clear();
 	});
 

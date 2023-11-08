@@ -1547,14 +1547,15 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
 	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const activeWindow = getActiveWindow();
 	const anchor = document.createElement('a');
-	document.body.appendChild(anchor);
+	activeWindow.document.body.appendChild(anchor);
 	anchor.download = name;
 	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
-	setTimeout(() => document.body.removeChild(anchor));
+	setTimeout(() => activeWindow.document.body.removeChild(anchor));
 }
 
 export function triggerUpload(): Promise<FileList | undefined> {
@@ -1563,8 +1564,9 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		// In order to upload to the browser, create a
 		// input element of type `file` and click it
 		// to gather the selected files
+		const activeWindow = getActiveWindow();
 		const input = document.createElement('input');
-		document.body.appendChild(input);
+		activeWindow.document.body.appendChild(input);
 		input.type = 'file';
 		input.multiple = true;
 
@@ -1576,7 +1578,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.click();
 
 		// Ensure to remove the element from DOM eventually
-		setTimeout(() => document.body.removeChild(input));
+		setTimeout(() => activeWindow.document.body.removeChild(input));
 	});
 }
 
