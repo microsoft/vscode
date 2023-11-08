@@ -121,7 +121,7 @@ suite('Workbench parts', () => {
 
 	test('Creation', () => {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = disposables.add(new MyPart(b));
@@ -158,26 +158,26 @@ suite('Workbench parts', () => {
 
 	test('Part Layout with Title and Content', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart2());
 		part.create(b);
 
-		assert(document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	test('Part Layout with Content only', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart3());
 		part.create(b);
 
-		assert(!document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(!mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

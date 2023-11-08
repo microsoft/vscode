@@ -299,7 +299,7 @@ class ProcessExplorer {
 	}
 
 	private async createProcessTree(processRoots: MachineProcessInformation[]): Promise<void> {
-		const container = document.getElementById('process-list');
+		const container = mainWindow.document.getElementById('process-list');
 		if (!container) {
 			return;
 		}
@@ -517,7 +517,7 @@ class ProcessExplorer {
 					selectionPids.length = 0;
 					selectionPids.push(pid);
 				}
-				const rows = selectionPids?.map(e => document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
+				const rows = selectionPids?.map(e => mainWindow.document.getElementById(`pid-${e}`)).filter(e => !!e) as HTMLElement[];
 				if (rows) {
 					const text = rows.map(e => e.innerText).filter(e => !!e) as string[];
 					this.nativeHostService.writeClipboardText(text.join('\n'));
@@ -528,7 +528,7 @@ class ProcessExplorer {
 		items.push({
 			label: localize('copyAll', "Copy All"),
 			click: () => {
-				const processList = document.getElementById('process-list');
+				const processList = mainWindow.document.getElementById('process-list');
 				if (processList) {
 					this.nativeHostService.writeClipboardText(processList.innerText);
 				}

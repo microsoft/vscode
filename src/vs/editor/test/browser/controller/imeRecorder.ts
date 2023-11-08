@@ -12,8 +12,8 @@ import { mainWindow } from 'vs/base/browser/window';
 
 (() => {
 
-	const startButton = <HTMLButtonElement>document.getElementById('startRecording')!;
-	const endButton = <HTMLButtonElement>document.getElementById('endRecording')!;
+	const startButton = <HTMLButtonElement>mainWindow.document.getElementById('startRecording')!;
+	const endButton = <HTMLButtonElement>mainWindow.document.getElementById('endRecording')!;
 
 	let inputarea: HTMLTextAreaElement;
 	const disposables = new DisposableStore();

@@ -794,7 +794,7 @@ export function getActiveDocument(): Document {
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(document => document.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
 export function getActiveWindow(): CodeWindow {
@@ -831,7 +831,7 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
-export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
@@ -844,7 +844,7 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
-	if (container === document.head) {
+	if (container === mainWindow.document.head) {
 		const globalStylesheetClones = new Set<HTMLStyleElement>();
 		globalStylesheets.set(style, globalStylesheetClones);
 
@@ -945,7 +945,7 @@ export const sharedMutationObserver = new class {
 	}
 };
 
-export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
+export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
@@ -1614,7 +1614,7 @@ export interface IDetectedFullscreen {
 export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
-	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+	if ($window.document.fullscreenElement || (<any>$window.document).webkitFullscreenElement || (<any>$window.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
 
