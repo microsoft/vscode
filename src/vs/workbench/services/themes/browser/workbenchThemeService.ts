@@ -41,6 +41,7 @@ import { IUserDataInitializationService } from 'vs/workbench/services/userData/b
 import { getIconsStyleSheet } from 'vs/platform/theme/browser/iconsStyleSheet';
 import { asCssVariableName, getColorRegistry } from 'vs/platform/theme/common/colorRegistry';
 import { ILanguageService } from 'vs/editor/common/languages/language';
+import { mainWindow } from 'vs/base/browser/window';
 
 // implementation
 
@@ -871,7 +872,7 @@ class ThemeFileWatcher {
 }
 
 function _applyRules(styleSheetContent: string, rulesClassName: string) {
-	const themeStyles = document.head.getElementsByClassName(rulesClassName);
+	const themeStyles = mainWindow.document.head.getElementsByClassName(rulesClassName);
 	if (themeStyles.length === 0) {
 		const elStyle = createStyleSheet();
 		elStyle.className = rulesClassName;

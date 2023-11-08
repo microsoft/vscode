@@ -871,7 +871,7 @@ suite('Async', () => {
 		test('basics', async () => {
 			let count = 0;
 			const promise = new async.DeferredPromise<void>();
-			const interval = async.disposableInterval(() => {
+			const interval = async.disposableInterval(globalThis, () => {
 				count++;
 				if (count === 3) {
 					promise.complete(undefined);
@@ -888,7 +888,7 @@ suite('Async', () => {
 
 		test('iterations', async () => {
 			let count = 0;
-			const interval = async.disposableInterval(() => {
+			const interval = async.disposableInterval(globalThis, () => {
 				count++;
 
 				return false;
@@ -901,7 +901,7 @@ suite('Async', () => {
 
 		test('dispose', async () => {
 			let count = 0;
-			const interval = async.disposableInterval(() => {
+			const interval = async.disposableInterval(globalThis, () => {
 				count++;
 
 				return false;

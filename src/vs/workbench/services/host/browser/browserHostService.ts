@@ -230,7 +230,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
 			if (isAuxiliaryWindow(window)) {
-				disposables.add(disposableInterval(() => {
+				disposables.add(disposableInterval(window, () => {
 					const hasFocus = window.document.hasFocus();
 					if (hasFocus) {
 						emitter.fire(windowId);

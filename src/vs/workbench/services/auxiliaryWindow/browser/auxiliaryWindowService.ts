@@ -162,7 +162,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
-		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+		const originalCSPMetaTag = mainWindow.document.querySelector('meta[http-equiv="Content-Security-Policy"]');
 		if (originalCSPMetaTag) {
 			const csp = createMetaElement(auxiliaryWindow.document.head);
 			copyAttributes(originalCSPMetaTag, csp);
@@ -189,7 +189,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		for (const originalNode of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 			cloneNode(originalNode);
 		}
 
@@ -200,7 +200,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Listen to new stylesheets as they are being added or removed in the main window
 		// and apply to child window (including changes to existing stylesheets elements)
-		disposables.add(sharedMutationObserver.observe(document.head, disposables, { childList: true, subtree: true })(mutations => {
+		disposables.add(sharedMutationObserver.observe(mainWindow.document.head, disposables, { childList: true, subtree: true })(mutations => {
 			for (const mutation of mutations) {
 				if (
 					mutation.type !== 'childList' ||						// only interested in added/removed nodes
@@ -248,8 +248,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes
-		disposables.add(trackAttributes(document.documentElement, auxiliaryWindow.document.documentElement));
-		disposables.add(trackAttributes(document.body, auxiliaryWindow.document.body));
+		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
+		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
 		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
 
 		mark('code/auxiliaryWindow/didApplyHTML');

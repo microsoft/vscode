@@ -17,6 +17,7 @@ import * as viewEvents from 'vs/editor/common/viewEvents';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { isHighContrast } from 'vs/platform/theme/common/theme';
 import { CursorChangeReason } from 'vs/editor/common/cursorEvents';
+import { getWindow } from 'vs/base/browser/dom';
 
 export class ViewCursors extends ViewPart {
 
@@ -253,7 +254,7 @@ export class ViewCursors extends ViewPart {
 					} else {
 						this._show();
 					}
-				}, ViewCursors.BLINK_INTERVAL);
+				}, ViewCursors.BLINK_INTERVAL, getWindow(this._domNode.domNode));
 			} else {
 				this._startCursorBlinkAnimation.setIfNotSet(() => {
 					this._blinkingEnabled = true;

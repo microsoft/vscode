@@ -90,8 +90,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
-			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted

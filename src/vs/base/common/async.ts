@@ -522,16 +522,16 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	return disposable;
 }
 
-export function disposableInterval(handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
+export function disposableInterval(context: typeof globalThis, handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
 	let iteration = 0;
-	const timer = setInterval(() => {
+	const timer = context.setInterval(() => {
 		iteration++;
 		if (iteration >= iterations || handler()) {
 			disposable.dispose();
 		}
 	}, interval);
 	const disposable = toDisposable(() => {
-		clearInterval(timer);
+		context.clearInterval(timer);
 	});
 	return disposable;
 }
@@ -894,28 +894,27 @@ export class TimeoutTimer implements IDisposable {
 
 export class IntervalTimer implements IDisposable {
 
-	private _token: any;
+	private disposable: IDisposable | undefined = undefined;
 
-	constructor() {
-		this._token = -1;
+	cancel(): void {
+		this.disposable?.dispose();
+		this.disposable = undefined;
+	}
+
+	cancelAndSet(runner: () => void, interval: number, context = globalThis): void {
+		this.cancel();
+		const handle = context.setInterval(() => {
+			runner();
+		}, interval);
+
+		this.disposable = toDisposable(() => {
+			context.clearInterval(handle);
+			this.disposable = undefined;
+		});
 	}
 
 	dispose(): void {
 		this.cancel();
-	}
-
-	cancel(): void {
-		if (this._token !== -1) {
-			clearInterval(this._token);
-			this._token = -1;
-		}
-	}
-
-	cancelAndSet(runner: () => void, interval: number): void {
-		this.cancel();
-		this._token = setInterval(() => {
-			runner();
-		}, interval);
 	}
 }
 
@@ -1274,7 +1273,7 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	} else {
-		runWhenIdle = (targetWindow, runner, timeout?) => {
+		runWhenIdle = (targetWindow: any, runner, timeout?) => {
 			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {

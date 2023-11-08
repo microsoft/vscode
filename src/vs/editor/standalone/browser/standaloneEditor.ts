@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { splitLines } from 'vs/base/common/strings';
 import { URI } from 'vs/base/common/uri';
@@ -352,7 +353,7 @@ export function colorizeElement(domNode: HTMLElement, options: IColorizerElement
 export function colorize(text: string, languageId: string, options: IColorizerOptions): Promise<string> {
 	const languageService = StandaloneServices.get(ILanguageService);
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorize(languageService, text, languageId, options);
 }
 
@@ -361,7 +362,7 @@ export function colorize(text: string, languageId: string, options: IColorizerOp
  */
 export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize: number = 4): string {
 	const themeService = <StandaloneThemeService>StandaloneServices.get(IStandaloneThemeService);
-	themeService.registerEditorContainer(document.body);
+	themeService.registerEditorContainer(mainWindow.document.body);
 	return Colorizer.colorizeModelLine(model, lineNumber, tabSize);
 }
 
