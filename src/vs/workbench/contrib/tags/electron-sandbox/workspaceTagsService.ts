@@ -1266,8 +1266,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 
 	private tagJavaDependency(groupId: string, artifactId: string, prefix: string, tags: Tags): void {
 		for (const javaLibrary of JavaLibrariesToLookFor) {
-			if ((groupId === javaLibrary.groupId || new RegExp(javaLibrary.groupId).test(groupId)) &&
-				(artifactId === javaLibrary.artifactId || new RegExp(javaLibrary.artifactId).test(artifactId))) {
+			if (javaLibrary.predicate(groupId, artifactId)) {
 				tags[prefix + javaLibrary.tag] = true;
 				return;
 			}
