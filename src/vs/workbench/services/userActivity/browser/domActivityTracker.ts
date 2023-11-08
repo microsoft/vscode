@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
-import { IntervalTimer } from 'vs/base/common/async';
+import { $window } from 'vs/base/browser/window';
 import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IUserActivityService } from 'vs/workbench/services/userActivity/common/userActivityService';
 
@@ -33,7 +33,7 @@ export class DomActivityTracker extends Disposable {
 		super();
 
 		let intervalsWithoutActivity = MIN_INTERVALS_WITHOUT_ACTIVITY;
-		const intervalTimer = this._register(new IntervalTimer());
+		const intervalTimer = this._register(new dom.WindowIntervalTimer());
 		const activeMutex = this._register(new MutableDisposable());
 		activeMutex.value = userActivityService.markActive();
 
@@ -48,7 +48,7 @@ export class DomActivityTracker extends Disposable {
 			// if was inactive, they've now returned
 			if (intervalsWithoutActivity === MIN_INTERVALS_WITHOUT_ACTIVITY) {
 				activeMutex.value = userActivityService.markActive();
-				intervalTimer.cancelAndSet(onInterval, CHECK_INTERVAL);
+				intervalTimer.cancelAndSet(onInterval, CHECK_INTERVAL, $window);
 			}
 
 			intervalsWithoutActivity = 0;

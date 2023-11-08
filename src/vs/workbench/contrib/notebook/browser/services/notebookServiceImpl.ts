@@ -42,6 +42,7 @@ import { DiffEditorInputFactoryFunction, EditorInputFactoryFunction, EditorInput
 import { IExtensionService, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { IExtensionPointUser } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { InstallRecommendedExtensionAction } from 'vs/workbench/contrib/extensions/browser/extensionsActions';
+import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
 export class NotebookProviderInfoStore extends Disposable {
 
@@ -62,7 +63,8 @@ export class NotebookProviderInfoStore extends Disposable {
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IFileService private readonly _fileService: IFileService,
-		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService
+		@INotebookEditorModelResolverService private readonly _notebookEditorModelResolverService: INotebookEditorModelResolverService,
+		@IUriIdentityService private readonly uriIdentService: IUriIdentityService,
 	) {
 		super();
 
@@ -178,12 +180,18 @@ export class NotebookProviderInfoStore extends Disposable {
 			};
 			const notebookEditorInputFactory: EditorInputFactoryFunction = ({ resource, options }) => {
 				const data = CellUri.parse(resource);
-				let notebookUri: URI = resource;
+				let notebookUri: URI;
+
 				let cellOptions: IResourceEditorInput | undefined;
+				let preferredResource = resource;
 
 				if (data) {
-					notebookUri = data.notebook;
+					// resource is a notebook cell
+					notebookUri = this.uriIdentService.asCanonicalUri(data.notebook);
+					preferredResource = data.notebook;
 					cellOptions = { resource, options };
+				} else {
+					notebookUri = this.uriIdentService.asCanonicalUri(resource);
 				}
 
 				if (!cellOptions) {
@@ -191,8 +199,10 @@ export class NotebookProviderInfoStore extends Disposable {
 				}
 
 				const notebookOptions = { ...options, cellOptions } as INotebookEditorOptions;
-				return { editor: NotebookEditorInput.create(this._instantiationService, notebookUri, notebookProviderInfo.id), options: notebookOptions };
+				const editor = NotebookEditorInput.getOrCreate(this._instantiationService, notebookUri, preferredResource, notebookProviderInfo.id);
+				return { editor, options: notebookOptions };
 			};
+
 			const notebookUntitledEditorFactory: UntitledEditorInputFactoryFunction = async ({ resource, options }) => {
 				const ref = await this._notebookEditorModelResolverService.resolve({ untitledResource: resource }, notebookProviderInfo.id);
 
@@ -202,7 +212,7 @@ export class NotebookProviderInfoStore extends Disposable {
 					ref!.dispose();
 				});
 
-				return { editor: NotebookEditorInput.create(this._instantiationService, ref.object.resource, notebookProviderInfo.id), options };
+				return { editor: NotebookEditorInput.getOrCreate(this._instantiationService, ref.object.resource, undefined, notebookProviderInfo.id), options };
 			};
 			const notebookDiffEditorInputFactory: DiffEditorInputFactoryFunction = ({ modified, original, label, description }) => {
 				return { editor: NotebookDiffEditorInput.create(this._instantiationService, modified.resource!, label, description, original.resource!, notebookProviderInfo.id) };

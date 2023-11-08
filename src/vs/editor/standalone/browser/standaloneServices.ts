@@ -92,6 +92,7 @@ import { LogService } from 'vs/platform/log/common/logService';
 import { getEditorFeatures } from 'vs/editor/common/editorFeatures';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionKind, IEnvironmentService, IExtensionHostDebugParams } from 'vs/platform/environment/common/environment';
+import { mainWindow } from 'vs/base/browser/window';
 
 class SimpleModel implements IResolvedTextEditorModel {
 
@@ -257,7 +258,7 @@ class StandaloneDialogService implements IDialogService {
 			messageText = messageText + '\n\n' + detail;
 		}
 
-		return window.confirm(messageText);
+		return mainWindow.confirm(messageText);
 	}
 
 	prompt<T>(prompt: IPromptWithCustomCancel<T>): Promise<IPromptResultWithCancel<T>>;
@@ -527,7 +528,7 @@ export class StandaloneKeybindingService extends AbstractKeybindingService {
 	}
 
 	protected _documentHasFocus(): boolean {
-		return document.hasFocus();
+		return mainWindow.document.hasFocus();
 	}
 
 	private _toNormalizedKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

@@ -99,7 +99,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		private description: string | undefined,
 		private preferredLanguageId: string | undefined,
 		private preferredContents: string | undefined,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
@@ -160,7 +160,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		this.preferredLanguageId = undefined;
 
 		if (!this.modelReference) {
-			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
+			this.modelReference = this.textModelService.createModelReference(this.resource);
 		}
 
 		const ref = await this.modelReference;

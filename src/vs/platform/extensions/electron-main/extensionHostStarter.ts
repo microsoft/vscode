@@ -97,11 +97,12 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 		return { id };
 	}
 
-	async start(id: string, opts: IExtensionHostProcessOptions): Promise<void> {
+	async start(id: string, opts: IExtensionHostProcessOptions): Promise<{ pid: number | undefined }> {
 		if (this._shutdown) {
 			throw canceled();
 		}
-		this._getExtHost(id).start({
+		const extHost = this._getExtHost(id);
+		extHost.start({
 			...opts,
 			type: 'extensionHost',
 			entryPoint: 'vs/workbench/api/node/extensionHostProcess',
@@ -111,6 +112,8 @@ export class ExtensionHostStarter implements IDisposable, IExtensionHostStarter 
 			forceAllocationsToV8Sandbox: true,
 			correlationId: id
 		});
+		const pid = await Event.toPromise(extHost.onSpawn);
+		return { pid };
 	}
 
 	async enableInspectPort(id: string): Promise<boolean> {

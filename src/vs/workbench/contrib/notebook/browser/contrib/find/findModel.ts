@@ -281,7 +281,7 @@ export class FindModel extends Disposable {
 			const index = this._notebookEditor.getCellIndex(findMatch.cell);
 			if (index !== undefined) {
 				// const range: ICellRange = { start: index, end: index + 1 };
-				this._notebookEditor.revealCellOffsetInCenterAsync(findMatch.cell, outputOffset ?? 0);
+				this._notebookEditor.revealCellOffsetInCenter(findMatch.cell, outputOffset ?? 0);
 			}
 		} else {
 			const match = findMatch.getMatch(matchIndex) as FindMatch;

@@ -7,10 +7,11 @@ import { coalesce } from 'vs/base/common/arrays';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import type { Terminal, IMarker, ITerminalAddon, IDecoration } from 'xterm';
+import type { Terminal, IMarker, ITerminalAddon, IDecoration } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
+import { getWindow } from 'vs/base/browser/dom';
 
 enum Boundary {
 	Top,
@@ -241,7 +242,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 							element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
 						}
 						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getComputedStyle(this._terminal.element).paddingLeft}`;
+							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 						}
 					}
 				});

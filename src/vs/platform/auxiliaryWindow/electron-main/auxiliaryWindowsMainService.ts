@@ -10,6 +10,7 @@ import { validatedIpcMain } from 'vs/base/parts/ipc/electron-main/ipcMain';
 import { AuxiliaryWindow, IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
 import { IAuxiliaryWindowsMainService } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ILogService } from 'vs/platform/log/common/log';
 import { defaultBrowserWindowOptions, getLastFocused } from 'vs/platform/windows/electron-main/windows';
 
 export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService {
@@ -19,7 +20,8 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 	private readonly windows = new Map<number, AuxiliaryWindow>();
 
 	constructor(
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService
 	) {
 		this.registerListeners();
 	}
@@ -35,6 +37,8 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		app.on('browser-window-created', (_event, browserWindow) => {
 			const auxiliaryWindow = this.getWindowById(browserWindow.id);
 			if (auxiliaryWindow) {
+				this.logService.trace('[aux window] app.on("browser-window-created"): Trying to claim auxiliary window');
+
 				auxiliaryWindow.tryClaimWindow();
 			}
 		});
@@ -42,6 +46,8 @@ export class AuxiliaryWindowsMainService implements IAuxiliaryWindowsMainService
 		validatedIpcMain.handle('vscode:registerAuxiliaryWindow', async (event, mainWindowId: number) => {
 			const auxiliaryWindow = this.getWindowById(event.sender.id);
 			if (auxiliaryWindow) {
+				this.logService.trace('[aux window] vscode:registerAuxiliaryWindow: Registering auxiliary window to main window');
+
 				auxiliaryWindow.parentId = mainWindowId;
 			}
 

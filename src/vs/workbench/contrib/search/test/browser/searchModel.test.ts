@@ -30,7 +30,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { NotebookEditorWidgetService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorServiceImpl';
 import { createFileUriFromPathFromRoot, getRootName } from 'vs/workbench/contrib/search/test/browser/searchTestCommon';
-import { ICellMatch, IFileMatchWithCells, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { INotebookCellMatchWithModel, INotebookFileMatchWithModel, contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
 import { CellKind } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { ICellViewModel } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { FindMatch, IReadonlyTextBuffer } from 'vs/editor/common/model';
@@ -226,7 +226,7 @@ suite('SearchModel', () => {
 	}
 
 
-	function notebookSearchServiceWithInfo(results: IFileMatchWithCells[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
+	function notebookSearchServiceWithInfo(results: INotebookFileMatchWithModel[], tokenSource: CancellationTokenSource | undefined): INotebookSearchService {
 		return <INotebookSearchService>{
 			_serviceBrand: undefined,
 			notebookSearch(query: ITextQuery, token: CancellationToken | undefined, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): {
@@ -238,7 +238,7 @@ suite('SearchModel', () => {
 				if (disposable) {
 					store.add(disposable);
 				}
-				const localResults = new ResourceMap<IFileMatchWithCells | null>(uri => uri.path);
+				const localResults = new ResourceMap<INotebookFileMatchWithModel | null>(uri => uri.path);
 
 				results.forEach(r => {
 					localResults.set(r.resource, r);
@@ -354,14 +354,14 @@ suite('SearchModel', () => {
 			}
 		}
 		];
-		const cellMatchMd: ICellMatch = {
+		const cellMatchMd: INotebookCellMatchWithModel = {
 			cell: mdInputCell,
 			index: 0,
 			contentResults: contentMatchesToTextSearchMatches(findMatchMds, mdInputCell),
 			webviewResults: []
 		};
 
-		const cellMatchCode: ICellMatch = {
+		const cellMatchCode: INotebookCellMatchWithModel = {
 			cell: codeCell,
 			index: 1,
 			contentResults: contentMatchesToTextSearchMatches(findMatchCodeCells, codeCell),
@@ -388,12 +388,11 @@ suite('SearchModel', () => {
 		assert.ok(notebookFileMatches[4].range().equalsRange(new Range(1, 8, 1, 12)));
 
 		notebookFileMatches.forEach(match => match instanceof MatchInNotebook);
-		// assert(notebookFileMatches[0] instanceof MatchInNotebook);
-		assert((notebookFileMatches[0] as MatchInNotebook).cell.id === 'mdInputCell');
-		assert((notebookFileMatches[1] as MatchInNotebook).cell.id === 'codeCell');
-		assert((notebookFileMatches[2] as MatchInNotebook).cell.id === 'codeCell');
-		assert((notebookFileMatches[3] as MatchInNotebook).cell.id === 'codeCell');
-		assert((notebookFileMatches[4] as MatchInNotebook).cell.id === 'codeCell');
+		assert((notebookFileMatches[0] as MatchInNotebook).cell?.id === 'mdInputCell');
+		assert((notebookFileMatches[1] as MatchInNotebook).cell?.id === 'codeCell');
+		assert((notebookFileMatches[2] as MatchInNotebook).cell?.id === 'codeCell');
+		assert((notebookFileMatches[3] as MatchInNotebook).cell?.id === 'codeCell');
+		assert((notebookFileMatches[4] as MatchInNotebook).cell?.id === 'codeCell');
 
 		const mdCellMatchProcessed = (notebookFileMatches[0] as MatchInNotebook).cellParent;
 		const codeCellMatchProcessed = (notebookFileMatches[1] as MatchInNotebook).cellParent;
@@ -598,7 +597,7 @@ suite('SearchModel', () => {
 		return { resource: createFileUriFromPathFromRoot(resource), results };
 	}
 
-	function aRawMatchWithCells(resource: string, ...cells: ICellMatch[]) {
+	function aRawMatchWithCells(resource: string, ...cells: INotebookCellMatchWithModel[]) {
 		return { resource: createFileUriFromPathFromRoot(resource), cellResults: cells };
 	}
 

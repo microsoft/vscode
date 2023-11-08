@@ -922,8 +922,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			nodesToForget.set(child.element as T, child);
 
 			if (this.identityProvider) {
-				const collapsed = this.tree.isCollapsed(child);
-				childrenTreeNodesById.set(child.id!, { node: child, collapsed });
+				childrenTreeNodesById.set(child.id!, { node: child, collapsed: this.tree.hasElement(child) && this.tree.isCollapsed(child) });
 			}
 		}
 

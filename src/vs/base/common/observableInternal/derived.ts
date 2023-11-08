@@ -13,6 +13,9 @@ const defaultEqualityComparer: EqualityComparer<any> = (a, b) => a === b;
 
 /**
  * Creates an observable that is derived from other observables.
+ * The value is only recomputed when absolutely needed.
+ *
+ * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
  */
 export function derived<T>(computeFn: (reader: IReader) => T): IObservable<T>;
 export function derived<T>(owner: object, computeFn: (reader: IReader) => T): IObservable<T>;
@@ -34,6 +37,19 @@ export function derivedOpts<T>(
 	return new Derived(options.owner, options.debugName, computeFn, undefined, undefined, undefined, options.equalityComparer ?? defaultEqualityComparer);
 }
 
+/**
+ * Represents an observable that is derived from other observables.
+ * The value is only recomputed when absolutely needed.
+ *
+ * {@link computeFn} should start with a JS Doc using `@description` to name the derived.
+ *
+ * Use `createEmptyChangeSummary` to create a "change summary" that can collect the changes.
+ * Use `handleChange` to add a reported change to the change summary.
+ * The compute function is given the last change summary.
+ * The change summary is discarded after the compute function was called.
+ *
+ * @see derived
+ */
 export function derivedHandleChanges<T, TChangeSummary>(
 	options: {
 		owner?: object;

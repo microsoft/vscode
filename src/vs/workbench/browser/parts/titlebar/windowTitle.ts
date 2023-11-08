@@ -47,6 +47,15 @@ export class WindowTitle extends Disposable {
 
 	get value() { return this.title ?? ''; }
 	get workspaceName() { return this.labelService.getWorkspaceLabel(this.contextService.getWorkspace()); }
+	get fileName() {
+		const activeEditor = this.editorService.activeEditor;
+		if (!activeEditor) {
+			return undefined;
+		}
+		const fileName = activeEditor.getTitle(Verbosity.SHORT);
+		const dirty = activeEditor?.isDirty() && !activeEditor.isSaving() ? WindowTitle.TITLE_DIRTY : '';
+		return `${dirty}${fileName}`;
+	}
 
 	private title: string | undefined;
 	private titleIncludesFocusedView: boolean = false;

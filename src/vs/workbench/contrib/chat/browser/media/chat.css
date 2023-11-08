@@ -185,6 +185,18 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.hc-black .interactive-item-container .value .rendered-markdown a code,
+.hc-light .interactive-item-container .value .rendered-markdown a code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.hc-black .interactive-item-container .value .rendered-markdown a:hover,
+.hc-black .interactive-item-container .value .rendered-markdown a:active,
+.hc-light .interactive-item-container .value .rendered-markdown a:hover,
+.hc-light .interactive-item-container .value .rendered-markdown a:active {
+	color: var(--vscode-textPreformat-foreground);
+}
+
 .interactive-list {
 	overflow: hidden;
 }
@@ -472,6 +484,10 @@
 	border-bottom-left-radius: 6px;
 }
 
+.quick-input-widget .interactive-response {
+	min-height: 86px;
+}
+
 /* #endregion */
 
 .interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
@@ -501,7 +517,6 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
 	border: none;
 	border-radius: 4px;
@@ -526,10 +541,10 @@
 	gap: 6px;
 }
 
+.interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 4px;
 	margin-bottom: 8px;
 }
 
