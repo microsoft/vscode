@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Application, Terminal, SettingsEditor, TerminalCommandIdWithValue } from '../../../../automation';
-import { timeout } from '../../utils';
 import { setTerminalTestSettings } from './terminal-helpers';
 
 export function setup() {
@@ -42,25 +41,21 @@ export function setup() {
 			// A polling approach is used to avoid test flakiness. While it's not ideal that this
 			// occurs, the main purpose of the tests is to verify sticky scroll shows and updates,
 			// not edge case race conditions on terminal start up
-			async function pollForCommandAndOutput(command: string, exitCode: number): Promise<void> {
+			async function checkCommandAndOutput(command: string, exitCode: number): Promise<void> {
 				const data = generateCommandAndOutput(command, exitCode);
-				let element;
-				for (let i = 0; i < 10; i++) {
-					await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
-					element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
-					if (element && element.textContent.indexOf(`Prompt> ${command}`) >= 0) {
-						return;
-					}
-					await timeout(1000);
+				await terminal.runCommandWithValue(TerminalCommandIdWithValue.WriteDataToTerminal, data);
+				const element = await app.code.getElement('.terminal-sticky-scroll .xterm-rows');
+				if (element && element.textContent.indexOf(`Prompt> ${command}`) >= 0) {
+					return;
 				}
-				throw new Error(`Polling failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
+				throw new Error(`Failed for command ${command}, exitcode ${exitCode}, text content ${element?.textContent}`);
 			}
 
 			// Write prompt, fill viewport, finish command, print new prompt, verify sticky scroll
-			await pollForCommandAndOutput('sticky scroll 1', 0);
+			await checkCommandAndOutput('sticky scroll 1', 0);
 
 			// And again with a failed command
-			await pollForCommandAndOutput('sticky scroll 2', 1);
+			await checkCommandAndOutput('sticky scroll 2', 1);
 		});
 	});
 }

@@ -13,9 +13,7 @@ import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ScrollPosition } from 'vs/workbench/contrib/terminal/browser/xterm/markNavigationAddon';
@@ -54,7 +52,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		xtermCtor: Promise<typeof XTermTerminal>,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITerminalLogService private readonly _logService: ILogService,
 	) {
 		super();
 
@@ -137,8 +134,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	@throttle(0)
 	private _refresh(): void {
-		this._logService.info('TESTING: _refresh', this._stickyScrollOverlay, this._serializeAddon);
-		this._logService.info('TESTING: _refresh (xterm)', this._xterm.raw.element, this._xterm.raw.element?.parentElement);
 		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
@@ -150,7 +145,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Sticky scroll only works with non-partial commands
 		if (!command || !('marker' in command)) {
-			this._logService.info('TESTING: _refresh - false 1');
 			this._setVisible(false);
 			return;
 		}
@@ -164,7 +158,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// Hide sticky scroll if it's on the same line
 			marker.line === this._xterm.raw.buffer.active.viewportY
 		) {
-			this._logService.info('TESTING: _refresh - false 2');
 			this._setVisible(false);
 			return;
 		}
@@ -190,10 +183,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		if (content && command.exitCode !== undefined) {
 			this._currentStickyMarker = marker;
-			this._logService.info('TESTING: _refresh - true');
 			this._setVisible(true);
 		} else {
-			this._logService.info('TESTING: _refresh - false 3');
 			this._setVisible(false);
 		}
 	}
