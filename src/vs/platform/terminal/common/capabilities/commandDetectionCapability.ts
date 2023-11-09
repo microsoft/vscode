@@ -603,6 +603,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			command = '';
 		}
 
+		if (this._isWindowsPty) {
+			this._postHandleCommandFinishedWindows();
+		}
+
 		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
 			const timestamp = Date.now();
@@ -673,6 +677,54 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
 		// Fire this now to prevent issues like #197409
 		this._onCommandExecuted.fire();
+	}
+
+	private _postHandleCommandFinishedWindows(): void {
+		const command = this._currentCommand.command;
+		const commandLine = this._currentCommand.commandStartMarker?.line;
+		const executedLine = this._currentCommand.commandExecutedMarker?.line;
+		if (
+			!command || command.length === 0 ||
+			commandLine === undefined || commandLine === -1 ||
+			executedLine === undefined || executedLine === -1
+		) {
+			return;
+		}
+
+		// TODO: How to deal with line continuations?
+		// TODO: Support multi-line commands and wrapped command edge cases
+
+		// At this point we know what command was run provided the command line sequence was sent
+		// though, so scan lines to try to determine the actual end of the prompt. It should never
+		// be more than a viewport away due to how conpty renders.
+		for (let i = executedLine; i >= commandLine; i--) {
+			const line = this._terminal.buffer.active.getLine(i);
+			if (!line) {
+				break;
+			}
+			const text = line.translateToString(true);
+			let success = true;
+
+			if (text.length < command.length) {
+				continue;
+			}
+
+			for (let j = 0; j < command.length; j++) {
+				// TODO: text array out of bounds
+				if (text[text.length - j - 1] === command[command.length - j]) {
+					success = false;
+					break;
+				}
+			}
+			if (success) {
+				// To align with how most shells word, ideally command executed happens at the
+				// beginning on the following line, after \r\n was written.
+				// This is offset as markers are registered relative to cursor.
+				this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(i - (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY) + 1);
+				this._currentCommand.commandExecutedX = 0;
+				break;
+			}
+		}
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
