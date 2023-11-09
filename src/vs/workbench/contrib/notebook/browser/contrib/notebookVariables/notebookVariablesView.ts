@@ -18,15 +18,20 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
+import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
+import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+export class NotebookVariablesView extends ViewPane {
 
-export class VariablesPanel extends ViewPane {
-
-	static readonly ID = 'variablesView';
-	static readonly TITLE: ILocalizedString = nls.localize2('remote.tunnel', "Ports");
+	static readonly ID = 'notebookVariablesView';
+	static readonly TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
 
 	constructor(
 		options: IViewPaneOptions,
+		@IEditorService private readonly editorService: IEditorService,
+		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -41,24 +46,35 @@ export class VariablesPanel extends ViewPane {
 	) {
 		super(options, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, telemetryService);
 
+		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange));
+	}
 
+	private handleActiveEditorChange() {
+		const activeEditorPane = this.editorService.activeEditorPane;
+		if (activeEditorPane && activeEditorPane.getId() === 'workbench.editor.notebook') {
+			const notebookModel = getNotebookEditorFromEditorPane(activeEditorPane)?.textModel;
+			if (notebookModel) {
+				const selectedKernel = this.notebookKernelService.getMatchingKernel(notebookModel).selected;
+				console.log(selectedKernel?.id);
+			}
+		}
 	}
 }
 
 export class VariablesPanelDescriptor implements IViewDescriptor {
-	readonly id = VariablesPanel.ID;
-	readonly name: ILocalizedString = VariablesPanel.TITLE;
-	readonly ctorDescriptor: SyncDescriptor<VariablesPanel>;
+	readonly id = NotebookVariablesView.ID;
+	readonly name: ILocalizedString = NotebookVariablesView.TITLE;
+	readonly ctorDescriptor: SyncDescriptor<NotebookVariablesView>;
 	readonly canToggleVisibility = true;
 	readonly hideByDefault = false;
-	// group is not actually used for views that are not extension contributed. Use order instead.
-	readonly group = 'details@0';
-	// -500 comes from the remote explorer viewOrderDelegate
-	readonly order = -500;
+	readonly order = 500;
 	readonly remoteAuthority?: string | string[];
 	readonly canMoveView = true;
+	readonly containerIcon = variablesViewIcon;
 
 	constructor() {
-		this.ctorDescriptor = new SyncDescriptor(VariablesPanel);
+		this.ctorDescriptor = new SyncDescriptor(NotebookVariablesView);
 	}
 }
+
+
