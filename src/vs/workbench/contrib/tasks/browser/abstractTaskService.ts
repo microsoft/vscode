@@ -494,7 +494,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 			}
 		});
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
-			this._showOutput();
+			this._showOutput(undefined, true);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.build', async () => {
@@ -636,15 +636,19 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 		this._workspace = setup[4];
 	}
 
-	protected _showOutput(runSource: TaskRunSource = TaskRunSource.User): void {
+	protected _showOutput(runSource: TaskRunSource = TaskRunSource.User, userRequested?: boolean): void {
 		if (!VirtualWorkspaceContext.getValue(this._contextKeyService) && ((runSource === TaskRunSource.User) || (runSource === TaskRunSource.ConfigurationChange))) {
-			this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
-				[{
-					label: nls.localize('showOutput', "Show output"),
-					run: () => {
-						this._outputService.showChannel(this._outputChannel.id, true);
-					}
-				}]);
+			if (userRequested) {
+				this._outputService.showChannel(this._outputChannel.id, true);
+			} else {
+				this._notificationService.prompt(Severity.Warning, nls.localize('taskServiceOutputPrompt', 'There are task errors. See the output for details.'),
+					[{
+						label: nls.localize('showOutput', "Show output"),
+						run: () => {
+							this._outputService.showChannel(this._outputChannel.id, true);
+						}
+					}]);
+			}
 		}
 	}
 
