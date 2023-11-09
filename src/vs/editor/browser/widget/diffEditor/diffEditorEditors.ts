@@ -25,6 +25,9 @@ export class DiffEditorEditors extends Disposable {
 	private readonly _onDidContentSizeChange = this._register(new Emitter<IContentSizeChangedEvent>());
 	public get onDidContentSizeChange() { return this._onDidContentSizeChange.event; }
 
+	public readonly modifiedScrollTop: IObservable<number>;
+	public readonly modifiedScrollHeight: IObservable<number>;
+
 	public readonly modifiedModel: IObservable<ITextModel | null>;
 
 	constructor(
@@ -42,6 +45,9 @@ export class DiffEditorEditors extends Disposable {
 		this.modified = this._register(this._createRightHandSideEditor(_options.editorOptions.get(), codeEditorWidgetOptions.modifiedEditor || {}));
 
 		this.modifiedModel = observableFromEvent(this.modified.onDidChangeModel, () => /** @description modified.model */ this.modified.getModel());
+
+		this.modifiedScrollTop = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollTop */ this.modified.getScrollTop());
+		this.modifiedScrollHeight = observableFromEvent(this.modified.onDidScrollChange, () => /** @description modified.getScrollHeight */ this.modified.getScrollHeight());
 
 		this._register(autorunHandleChanges({
 			createEmptyChangeSummary: () => ({} as IDiffEditorConstructionOptions),

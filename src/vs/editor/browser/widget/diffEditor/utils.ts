@@ -4,14 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IDimension } from 'vs/base/browser/dom';
+import { findLast } from 'vs/base/common/arraysFind';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { isHotReloadEnabled, registerHotReloadHandler } from 'vs/base/common/hotReload';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { IObservable, IReader, ISettableObservable, autorun, autorunHandleChanges, autorunOpts, autorunWithStore, observableFromEvent, observableSignalFromEvent, observableValue, transaction } from 'vs/base/common/observable';
 import { ElementSizeObserver } from 'vs/editor/browser/config/elementSizeObserver';
 import { ICodeEditor, IOverlayWidget, IViewZone } from 'vs/editor/browser/editorBrowser';
+import { Position } from 'vs/editor/common/core/position';
+import { Range } from 'vs/editor/common/core/range';
+import { DetailedLineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
+import { LengthObj } from 'vs/editor/common/model/bracketPairsTextModelPart/bracketPairsTree/length';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyValue, RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export function joinCombine<T>(arr1: readonly T[], arr2: readonly T[], keySelector: (val: T) => number, combine: (v1: T, v2: T) => T): readonly T[] {
 	if (arr1.length === 0) {
@@ -386,4 +392,58 @@ export class DisposableCancellationTokenSource extends CancellationTokenSource {
 	public override dispose() {
 		super.dispose(true);
 	}
+}
+
+export function translatePosition(posInOriginal: Position, mappings: DetailedLineRangeMapping[]): Range {
+	const mapping = findLast(mappings, m => m.original.startLineNumber <= posInOriginal.lineNumber);
+	if (!mapping) {
+		// No changes before the position
+		return Range.fromPositions(posInOriginal);
+	}
+
+	if (mapping.original.endLineNumberExclusive <= posInOriginal.lineNumber) {
+		const newLineNumber = posInOriginal.lineNumber - mapping.original.endLineNumberExclusive + mapping.modified.endLineNumberExclusive;
+		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
+	}
+
+	if (!mapping.innerChanges) {
+		// Only for legacy algorithm
+		return Range.fromPositions(new Position(mapping.modified.startLineNumber, 1));
+	}
+
+	const innerMapping = findLast(mapping.innerChanges, m => m.originalRange.getStartPosition().isBeforeOrEqual(posInOriginal));
+	if (!innerMapping) {
+		const newLineNumber = posInOriginal.lineNumber - mapping.original.startLineNumber + mapping.modified.startLineNumber;
+		return Range.fromPositions(new Position(newLineNumber, posInOriginal.column));
+	}
+
+	if (innerMapping.originalRange.containsPosition(posInOriginal)) {
+		return innerMapping.modifiedRange;
+	} else {
+		const l = lengthBetweenPositions(innerMapping.originalRange.getEndPosition(), posInOriginal);
+		return Range.fromPositions(addLength(innerMapping.modifiedRange.getEndPosition(), l));
+	}
+}
+
+function lengthBetweenPositions(position1: Position, position2: Position): LengthObj {
+	if (position1.lineNumber === position2.lineNumber) {
+		return new LengthObj(0, position2.column - position1.column);
+	} else {
+		return new LengthObj(position2.lineNumber - position1.lineNumber, position2.column - 1);
+	}
+}
+
+function addLength(position: Position, length: LengthObj): Position {
+	if (length.lineCount === 0) {
+		return new Position(position.lineNumber, position.column + length.columnCount);
+	} else {
+		return new Position(position.lineNumber + length.lineCount, length.columnCount + 1);
+	}
+}
+
+export function bindContextKey<T extends ContextKeyValue>(key: RawContextKey<T>, service: IContextKeyService, computeValue: (reader: IReader) => T): IDisposable {
+	const boundKey = key.bindTo(service);
+	return autorunOpts({ debugName: () => `Update ${key.key}` }, reader => {
+		boundKey.set(computeValue(reader));
+	});
 }
