@@ -34,8 +34,15 @@ export const enum ViewDimUnfocusedOpacityProperties {
 }
 
 export const enum AccessibilityVoiceChatSettingId {
-	ListeningDuration = 'accessibility.voiceChat.listeningDuration',
+	SpeechTimeout = 'accessibility.voiceChat.speechTimeout',
 }
+
+export const enum AccessibilityVoiceChatSpeechTimeoutProperties {
+	Default = 1200,
+	Minimum = 0,
+	Maximum = 10000
+}
+
 
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
@@ -152,12 +159,12 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
-		[AccessibilityVoiceChatSettingId.ListeningDuration]: {
-			'markdownDescription': localize('voiceChat.listeningDuration', "The duration in milliseconds to listen for voice chat commands. Set to 0 to disable."),
+		[AccessibilityVoiceChatSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voiceChat.speechTimeout', "Define the duration for which the voice chat remains active after you stop speaking, the input is automatically accepted when voice chat is closed. Set to 0 to disable this feature."),
 			'type': 'number',
-			'default': 1200,
-			'minimum': 0,
-			'maximum': 10000,
+			'default': AccessibilityVoiceChatSpeechTimeoutProperties.Default,
+			'minimum': AccessibilityVoiceChatSpeechTimeoutProperties.Minimum,
+			'maximum': AccessibilityVoiceChatSpeechTimeoutProperties.Maximum,
 			'tags': ['accessibility']
 		}
 	}

@@ -39,6 +39,7 @@ import { ColorScheme } from 'vs/platform/theme/common/theme';
 import { Color } from 'vs/base/common/color';
 import { contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { AccessibilityVoiceChatSpeechTimeoutProperties } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 
 const CONTEXT_VOICE_CHAT_GETTING_READY = new RawContextKey<boolean>('voiceChatGettingReady', false, { type: 'boolean', description: localize('voiceChatGettingReady', "True when getting ready for receiving voice input from the microphone for voice chat.") });
 const CONTEXT_VOICE_CHAT_IN_PROGRESS = new RawContextKey<boolean>('voiceChatInProgress', false, { type: 'boolean', description: localize('voiceChatInProgress', "True when voice recording from microphone is in progress for voice chat.") });
@@ -64,6 +65,14 @@ interface IVoiceChatSessionController {
 
 	setInputPlaceholder(text: string): void;
 	clearInputPlaceholder(): void;
+}
+
+interface IVoiceChatSessionConfig {
+	readonly voiceChatTimeout: number; // in milliseconds
+}
+
+interface IRawConfig {
+	readonly voiceChatOptions?: IVoiceChatSessionConfig;
 }
 
 class VoiceChatSessionControllerFactory {
@@ -242,6 +251,23 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
+
+	private static _getVoiceChatSessionOptions(config: IRawConfig): IVoiceChatSessionConfig {
+		let timeoutValue = AccessibilityVoiceChatSpeechTimeoutProperties.Default;
+		if (typeof config.voiceChatOptions?.voiceChatTimeout === 'number') {
+			if (config.voiceChatOptions.voiceChatTimeout < AccessibilityVoiceChatSpeechTimeoutProperties.Minimum) {
+				timeoutValue = AccessibilityVoiceChatSpeechTimeoutProperties.Minimum;
+			}
+			if (config.voiceChatOptions.voiceChatTimeout > AccessibilityVoiceChatSpeechTimeoutProperties.Maximum) {
+				timeoutValue = AccessibilityVoiceChatSpeechTimeoutProperties.Maximum;
+			}
+		}
+		return {
+			voiceChatTimeout: timeoutValue
+		};
+
+	}
+
 	async start(controller: IVoiceChatSessionController): Promise<void> {
 		this.stop();
 
@@ -266,8 +292,11 @@ class VoiceChatSessions {
 
 		let inputValue = controller.getInput();
 
-		const delay = this.configurationService.getValue<number>('accessibility.voiceChat.listeningDuration');
-		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), delay));
+		const voiceChatOptions = this.configurationService.getValue<IVoiceChatSessionConfig>('accessibility.voiceChat');
+
+		const { voiceChatTimeout } = VoiceChatSessions._getVoiceChatSessionOptions({ voiceChatOptions });
+
+		const acceptTranscriptionScheduler = session.disposables.add(new RunOnceScheduler(() => session.controller.acceptInput(), voiceChatTimeout));
 		session.disposables.add(speechToTextSession.onDidChange(({ status, text }) => {
 			if (cts.token.isCancellationRequested) {
 				return;
@@ -280,18 +309,14 @@ class VoiceChatSessions {
 				case SpeechToTextStatus.Recognizing:
 					if (text) {
 						session.controller.updateInput([inputValue, text].join(' '));
-						if (delay > 0) {
-							acceptTranscriptionScheduler.schedule();
-						}
+						if (voiceChatTimeout > 0) { acceptTranscriptionScheduler.cancel(); }
 					}
 					break;
 				case SpeechToTextStatus.Recognized:
 					if (text) {
 						inputValue = [inputValue, text].join(' ');
 						session.controller.updateInput(inputValue);
-						if (delay > 0) {
-							acceptTranscriptionScheduler.schedule();
-						}
+						if (voiceChatTimeout > 0) { acceptTranscriptionScheduler.schedule(); }
 					}
 					break;
 				case SpeechToTextStatus.Stopped:
