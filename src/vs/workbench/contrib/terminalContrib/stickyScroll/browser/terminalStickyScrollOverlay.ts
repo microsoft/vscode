@@ -15,7 +15,7 @@ import { findNthOccurrenceIndex } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getPromptSize } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -166,7 +166,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// TODO: Support multi-line commands
 
 		// Determine prompt length
-		const promptRowCount = getPromptSize(command, this._xterm.raw.buffer.active);
+		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 
 		// Clear attrs, reset cursor position, clear right
 		// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon

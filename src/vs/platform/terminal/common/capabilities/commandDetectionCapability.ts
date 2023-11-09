@@ -886,7 +886,7 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
-export function getPromptSize(command: ITerminalCommand, buffer: IBuffer): number {
+export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
 	if (!command.marker) {
 		return 1;
 	}
