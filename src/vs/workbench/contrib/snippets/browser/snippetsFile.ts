@@ -16,8 +16,7 @@ import { relativePath } from 'vs/base/common/resources';
 import { isObject } from 'vs/base/common/types';
 import { tail } from 'vs/base/common/arrays';
 import { Iterable } from 'vs/base/common/iterator';
-import { $window } from 'vs/base/browser/window';
-import { WindowIdleValue } from 'vs/base/browser/dom';
+import { WindowIdleValue, getActiveWindow } from 'vs/base/browser/dom';
 
 class SnippetBodyInsights {
 
@@ -118,7 +117,7 @@ export class Snippet {
 		readonly extensionId?: ExtensionIdentifier,
 	) {
 		this.prefixLow = prefix.toLowerCase();
-		this._bodyInsights = new WindowIdleValue($window, () => new SnippetBodyInsights(this.body));
+		this._bodyInsights = new WindowIdleValue(getActiveWindow(), () => new SnippetBodyInsights(this.body));
 	}
 
 	get codeSnippet(): string {
