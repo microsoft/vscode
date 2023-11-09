@@ -522,20 +522,6 @@ export function disposableTimeout(handler: () => void, timeout = 0, store?: Disp
 	return disposable;
 }
 
-export function disposableInterval(handler: () => boolean /* stop interval */, interval: number, iterations: number): IDisposable {
-	let iteration = 0;
-	const timer = setInterval(() => {
-		iteration++;
-		if (iteration >= iterations || handler()) {
-			disposable.dispose();
-		}
-	}, interval);
-	const disposable = toDisposable(() => {
-		clearInterval(timer);
-	});
-	return disposable;
-}
-
 /**
  * Runs the provided list of promise factories in sequential order. The returned
  * promise will complete to an array of results from each promise.
@@ -894,28 +880,27 @@ export class TimeoutTimer implements IDisposable {
 
 export class IntervalTimer implements IDisposable {
 
-	private _token: any;
+	private disposable: IDisposable | undefined = undefined;
 
-	constructor() {
-		this._token = -1;
+	cancel(): void {
+		this.disposable?.dispose();
+		this.disposable = undefined;
+	}
+
+	cancelAndSet(runner: () => void, interval: number, context = globalThis): void {
+		this.cancel();
+		const handle = context.setInterval(() => {
+			runner();
+		}, interval);
+
+		this.disposable = toDisposable(() => {
+			context.clearInterval(handle);
+			this.disposable = undefined;
+		});
 	}
 
 	dispose(): void {
 		this.cancel();
-	}
-
-	cancel(): void {
-		if (this._token !== -1) {
-			clearInterval(this._token);
-			this._token = -1;
-		}
-	}
-
-	cancelAndSet(runner: () => void, interval: number): void {
-		this.cancel();
-		this._token = setInterval(() => {
-			runner();
-		}, interval);
 	}
 }
 
@@ -1220,6 +1205,9 @@ export interface IdleDeadline {
 	timeRemaining(): number;
 }
 
+type IdleApi = Pick<typeof globalThis, 'requestIdleCallback' | 'cancelIdleCallback'>;
+
+
 /**
  * Execute the callback the next time the browser is idle, returning an
  * {@link IDisposable} that will cancel the callback when disposed. This wraps
@@ -1237,26 +1225,29 @@ export interface IdleDeadline {
  * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
  * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
  * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
+ *
+ * **Note** that there is `dom.ts#runWhenWindowIdle` which is better suited when running inside a browser
+ * context
  */
-export let runWhenIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
+export let runWhenGlobalIdle: (callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
-declare function requestIdleCallback(callback: (args: IdleDeadline) => void, options?: { timeout: number }): number;
-declare function cancelIdleCallback(handle: number): void;
+export let _runWhenIdle: (targetWindow: IdleApi, callback: (idle: IdleDeadline) => void, timeout?: number) => IDisposable;
 
 (function () {
-	if (typeof requestIdleCallback !== 'function' || typeof cancelIdleCallback !== 'function') {
-		runWhenIdle = (runner) => {
+	if (typeof globalThis.requestIdleCallback !== 'function' || typeof globalThis.cancelIdleCallback !== 'function') {
+		_runWhenIdle = (_targetWindow, runner) => {
 			setTimeout0(() => {
 				if (disposed) {
 					return;
 				}
 				const end = Date.now() + 15; // one frame at 64fps
-				runner(Object.freeze({
+				const deadline: IdleDeadline = {
 					didTimeout: true,
 					timeRemaining() {
 						return Math.max(0, end - Date.now());
 					}
-				}));
+				};
+				runner(Object.freeze(deadline));
 			});
 			let disposed = false;
 			return {
@@ -1269,8 +1260,8 @@ declare function cancelIdleCallback(handle: number): void;
 			};
 		};
 	} else {
-		runWhenIdle = (runner, timeout?) => {
-			const handle: number = requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
+		_runWhenIdle = (targetWindow: IdleApi, runner, timeout?) => {
+			const handle: number = targetWindow.requestIdleCallback(runner, typeof timeout === 'number' ? { timeout } : undefined);
 			let disposed = false;
 			return {
 				dispose() {
@@ -1278,18 +1269,15 @@ declare function cancelIdleCallback(handle: number): void;
 						return;
 					}
 					disposed = true;
-					cancelIdleCallback(handle);
+					targetWindow.cancelIdleCallback(handle);
 				}
 			};
 		};
 	}
+	runWhenGlobalIdle = (runner) => _runWhenIdle(globalThis, runner);
 })();
 
-/**
- * An implementation of the "idle-until-urgent"-strategy as introduced
- * here: https://philipwalton.com/articles/idle-until-urgent/
- */
-export class IdleValue<T> {
+export abstract class AbstractIdleValue<T> {
 
 	private readonly _executor: () => void;
 	private readonly _handle: IDisposable;
@@ -1298,7 +1286,7 @@ export class IdleValue<T> {
 	private _value?: T;
 	private _error: unknown;
 
-	constructor(executor: () => T) {
+	constructor(targetWindow: IdleApi, executor: () => T) {
 		this._executor = () => {
 			try {
 				this._value = executor();
@@ -1308,7 +1296,7 @@ export class IdleValue<T> {
 				this._didRun = true;
 			}
 		};
-		this._handle = runWhenIdle(() => this._executor());
+		this._handle = _runWhenIdle(targetWindow, () => this._executor());
 	}
 
 	dispose(): void {
@@ -1328,6 +1316,19 @@ export class IdleValue<T> {
 
 	get isInitialized(): boolean {
 		return this._didRun;
+	}
+}
+
+/**
+ * An `IdleValue` that always uses the current window (which might be throttled or inactive)
+ *
+ * **Note** that there is `dom.ts#WindowIdleValue` which is better suited when running inside a browser
+ * context
+ */
+export class GlobalIdleValue<T> extends AbstractIdleValue<T> {
+
+	constructor(executor: () => T) {
+		super(globalThis, executor);
 	}
 }
 

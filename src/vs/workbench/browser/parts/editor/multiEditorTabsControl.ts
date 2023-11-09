@@ -32,14 +32,14 @@ import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdenti
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { coalesce, insert } from 'vs/base/common/arrays';
@@ -106,7 +106,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
-	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
@@ -191,13 +190,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add('editor-actions');
-		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
-
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
+		// Create Editor Toolbar
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -1038,7 +1032,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
+			scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
 		}));
 
 		// Drop support
@@ -1622,9 +1616,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				let scheduledLayout: IDisposable;
 				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
 				} else {
-					scheduledLayout = runWhenIdle(layoutFunction);
+					scheduledLayout = runWhenWindowIdle(getWindow(this.tabsContainer), layoutFunction);
 				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
@@ -1683,7 +1677,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions

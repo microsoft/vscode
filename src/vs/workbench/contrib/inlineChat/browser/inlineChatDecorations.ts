@@ -24,6 +24,7 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
+import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -43,6 +44,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
 		this._gutterDecoration = ModelDecorationOptions.register({
@@ -59,6 +61,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
@@ -108,15 +111,19 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
-		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, editor.getModel().uri);
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(editor.getModel().getLineContent(selection.startLineNumber)) && !isInlineChatVisible;
+		const model = editor.getModel();
+		const uri = model.uri;
+		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, uri);
+		const startLineNumber = selection.startLineNumber;
+		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
+		const isEnabled = selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) && !isInlineChatVisible && !hasBreakpoint;
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
-				this._addGutterDecoration(selection.startLineNumber);
+				this._addGutterDecoration(startLineNumber);
 			} else {
-				const decorationRange = editor.getModel().getDecorationRange(this._gutterDecorationID);
-				if (decorationRange?.startLineNumber !== selection.startLineNumber) {
-					this._updateGutterDecoration(this._gutterDecorationID, selection.startLineNumber);
+				const decorationRange = model.getDecorationRange(this._gutterDecorationID);
+				if (decorationRange?.startLineNumber !== startLineNumber) {
+					this._updateGutterDecoration(this._gutterDecorationID, startLineNumber);
 				}
 			}
 		} else if (this._gutterDecorationID) {

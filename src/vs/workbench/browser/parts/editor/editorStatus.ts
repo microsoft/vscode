@@ -562,7 +562,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 		if (!this.toRender) {
 			this.toRender = changed;
 
-			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(() => {
+			this.delayedRender.value = runAtThisOrScheduleAtNextAnimationFrame(mainWindow, () => {
 				this.delayedRender.clear();
 
 				const toRender = this.toRender;
@@ -570,7 +570,7 @@ export class EditorStatus extends Disposable implements IWorkbenchContribution {
 				if (toRender) {
 					this.doRenderNow();
 				}
-			}, mainWindow);
+			});
 		} else {
 			this.toRender.combine(changed);
 		}

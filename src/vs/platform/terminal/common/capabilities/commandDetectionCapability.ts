@@ -286,16 +286,46 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this.__isCommandStorageDisabled = true;
 	}
 
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined {
+		// Handle the current partial command first, anything below it's prompt is considered part
+		// of the current command
+		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
+			return this._currentCommand;
+		}
+
+		// No commands
+		if (this._commands.length === 0) {
+			return undefined;
+		}
+
+		// Line is before any registered commands
+		if (this._commands[0].marker!.line > line) {
+			return undefined;
+		}
+
+		// Iterate backwards through commands to find the right one
+		for (let i = this.commands.length - 1; i >= 0; i--) {
+			if (this.commands[i].marker!.line <= line - 1) {
+				return this.commands[i];
+			}
+		}
+
+		return undefined;
+	}
+
 	getCwdForLine(line: number): string | undefined {
 		// Handle the current partial command first, anything below it's prompt is considered part
 		// of the current command
 		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
 			return this._cwd;
 		}
-		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
-		// TODO: Use a reverse for loop to find the line to avoid creating another array
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
+
+		const command = this.getCommandForLine(line);
+		if (command && 'cwd' in command) {
+			return command.cwd;
+		}
+
+		return undefined;
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
@@ -621,8 +651,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (this._currentCommand.commandStartMarker) {
 				this._commandMarkers.push(this._currentCommand.commandStartMarker);
 			}
-			// Fire this now to prevent issues like #197409
-			this._onCommandExecuted.fire();
 		}
 		this._evaluateCommandMarkersWindows();
 	}
@@ -642,6 +670,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._onCommandExecuted.fire();
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {

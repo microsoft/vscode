@@ -114,7 +114,7 @@ export class BrowserMain extends Disposable {
 	private init(): void {
 
 		// Browser config
-		setFullscreen(!!detectFullscreen());
+		setFullscreen(!!detectFullscreen(mainWindow));
 	}
 
 	async open(): Promise<IWorkbench> {

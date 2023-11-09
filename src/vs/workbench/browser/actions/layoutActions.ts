@@ -534,6 +534,125 @@ MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
 	order: 10
 });
 
+// --- Show Editor Actions in Title Bar
+
+export class EditorActionsTitleBarAction extends Action2 {
+
+	static readonly ID = 'workbench.action.editorActionsTitleBar';
+
+	constructor() {
+		super({
+			id: EditorActionsTitleBarAction.ID,
+			title: {
+				value: localize('moveEditorActionsToTitleBar', "Move Editor Actions to Title Bar"),
+				original: 'Move Editor Actions to Title Bar'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'titleBar').negate(),
+				ContextKeyExpr.equals('config.window.style', 'native').negate(),
+			),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'titleBar');
+	}
+}
+registerAction2(EditorActionsTitleBarAction);
+
+// --- Editor Actions Default Position
+
+export class EditorActionsDefaultAction extends Action2 {
+
+	static readonly ID = 'workbench.action.editorActionsDefault';
+
+	constructor() {
+		super({
+			id: EditorActionsDefaultAction.ID,
+			title: {
+				value: localize('moveEditorActionsToTabBar', "Move Editor Actions to Tab Bar"),
+				original: 'Move Editor Actions to Tab Bar'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'default').negate(),
+				ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(),
+			),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+	}
+}
+registerAction2(EditorActionsDefaultAction);
+
+// --- Hide Editor Actions
+
+export class HideEditorActionsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.hideEditorActions';
+
+	constructor() {
+		super({
+			id: HideEditorActionsAction.ID,
+			title: {
+				value: localize('hideEditorActons', "Hide Editor Actions"),
+				original: 'Hide Editor Actions'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden').negate(),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'hidden');
+	}
+}
+registerAction2(HideEditorActionsAction);
+
+// --- Hide Editor Actions
+
+export class ShowEditorActionsAction extends Action2 {
+
+	static readonly ID = 'workbench.action.showEditorActions';
+
+	constructor() {
+		super({
+			id: ShowEditorActionsAction.ID,
+			title: {
+				value: localize('showEditorActons', "Show Editor Actions"),
+				original: 'Show Editor Actions'
+			},
+			category: Categories.View,
+			precondition: ContextKeyExpr.equals('config.workbench.editor.editorActionsLocation', 'hidden'),
+			f1: true
+		});
+	}
+
+	run(accessor: ServicesAccessor): Promise<void> {
+		const configurationService = accessor.get(IConfigurationService);
+		return configurationService.updateValue('workbench.editor.editorActionsLocation', 'default');
+	}
+}
+registerAction2(ShowEditorActionsAction);
+
+// --- Editor Actions Position Submenu in View Appearance Menu
+
+MenuRegistry.appendMenuItem(MenuId.MenubarAppearanceMenu, {
+	submenu: MenuId.EditorActionsPositionSubmenu,
+	title: localize('editorActionsPosition', "Editor Actions Position"),
+	group: '3_workbench_layout_move',
+	order: 11
+});
+
 // --- Toggle Pinned Tabs On Separate Row
 
 registerAction2(class extends Action2 {

@@ -35,6 +35,7 @@ import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { getActiveDocument } from 'vs/base/browser/dom';
 
 export namespace OpenLocalFileCommand {
 	export const ID = 'workbench.action.files.openLocalFile';
@@ -679,7 +680,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 			this.activeItem = quickPickItem;
 			if (force) {
 				// clear any selected text
-				document.execCommand('insertText', false, '');
+				getActiveDocument().execCommand('insertText', false, '');
 			}
 			return false;
 		} else if (!force && (itemBasename.length >= startingBasename.length) && equalsIgnoreCase(itemBasename.substr(0, startingBasename.length), startingBasename)) {
@@ -715,7 +716,7 @@ export class SimpleFileDialog implements ISimpleFileDialog {
 
 	private insertText(wholeValue: string, insertText: string) {
 		if (this.filePickBox.inputHasFocus()) {
-			document.execCommand('insertText', false, insertText);
+			getActiveDocument().execCommand('insertText', false, insertText);
 			if (this.filePickBox.value !== wholeValue) {
 				this.filePickBox.value = wholeValue;
 				this.handleValueChange(wholeValue);
