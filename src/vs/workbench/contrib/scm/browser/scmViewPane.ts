@@ -1713,10 +1713,14 @@ class SCMInputWidget {
 		// Keep model in sync with API
 		textModel.setValue(input.value);
 		this.repositoryDisposables.add(input.onDidChange(({ value, reason }) => {
-			if (value === textModel.getValue()) { // circuit breaker
+			const currentValue = textModel.getValue();
+			if (value === currentValue) { // circuit breaker
 				return;
 			}
-			this.inputEditor.pushUndoStop();
+
+			if (currentValue !== '') {
+				this.inputEditor.pushUndoStop();
+			}
 			this.inputEditor.executeEdits(null, [EditOperation.replace(textModel.getFullModelRange(), value)]);
 			this.inputEditor.pushUndoStop();
 
