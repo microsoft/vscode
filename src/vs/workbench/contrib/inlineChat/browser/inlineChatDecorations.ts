@@ -27,7 +27,7 @@ import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineC
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
-const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
+const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
@@ -73,7 +73,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _registerGutterDecoration(isTransparent: boolean): ModelDecorationOptions {
 		return ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(isTransparent ? GUTTER_INLINE_CHAT_TRANSPARENT_ICON : GUTTER_INLINE_CHAT_ICON),
+			glyphMarginClassName: ThemeIcon.asClassName(isTransparent ? GUTTER_INLINE_CHAT_TRANSPARENT_ICON : GUTTER_INLINE_CHAT_OPAQUE_ICON),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
