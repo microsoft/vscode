@@ -238,9 +238,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 								}),
 								new Action('showPortSourceSetting', nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"), undefined, true, async () => {
 									await this.preferencesService.openSettings({
-										revealSetting: {
-											key: 'remote.autoForwardPortsSource'
-										}
+										query: 'remote.autoForwardPortsSource'
 									});
 								})
 							]
