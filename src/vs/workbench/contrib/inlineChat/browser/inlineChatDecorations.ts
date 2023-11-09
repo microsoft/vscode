@@ -25,6 +25,9 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
+import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
 
@@ -44,7 +47,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IDebugService private readonly _debugService: IDebugService
+		@IDebugService private readonly _debugService: IDebugService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
 	) {
 		super();
 		this._gutterDecoration = ModelDecorationOptions.register({
@@ -109,13 +113,27 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		decorationUpdateScheduler.schedule();
 	}
 
-	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
+	private async _onSelectionOrContentChanged(editor: IActiveCodeEditor): Promise<void> {
 		const selection = editor.getSelection();
 		const model = editor.getModel();
 		const uri = model.uri;
 		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, uri);
 		const startLineNumber = selection.startLineNumber;
 		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
+		// Should be enabled also when covering completely a word of interest
+		const startPosition = selection.getStartPosition();
+		const word = this._editor.getConfiguredWordAtPosition(startPosition);
+		const references = await getReferencesAtPosition(this.languageFeaturesService.referenceProvider, model, startPosition, false, CancellationToken.None);
+		const definitions = await getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, startPosition, CancellationToken.None);
+		const implementations = await getImplementationsAtPosition(this.languageFeaturesService.implementationProvider, model, startPosition, CancellationToken.None);
+		const declarations = await getDeclarationsAtPosition(this.languageFeaturesService.declarationProvider, model, startPosition, CancellationToken.None);
+
+		console.log('word : ', word);
+		console.log('references : ', references);
+		console.log('definitions : ', definitions);
+		console.log('implementations : ', implementations);
+		console.log('declarations : ', declarations);
+		//
 		const isEnabled = selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) && !isInlineChatVisible && !hasBreakpoint;
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
