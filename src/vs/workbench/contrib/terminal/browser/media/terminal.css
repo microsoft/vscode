@@ -502,11 +502,19 @@
 }
 
 .terminal-scroll-highlight-outline {
-	border: 1px solid #ffffff;
+	border-left: 1px solid #ffffff;
+	border-right: 1px solid #ffffff;
 	pointer-events: none;
 }
+.terminal-scroll-highlight-outline.top {
+	border-top: 1px solid #ffffff;
+}
+.terminal-scroll-highlight-outline.bottom {
+	border-bottom: 1px solid #ffffff;
+}
 
-.terminal-scroll-highlight {
+.terminal-scroll-highlight,
+.terminal-scroll-highlight.terminal-scroll-highlight-outline {
 	border-color: var(--vscode-focusBorder);
 }
 .hc-black .xterm-find-result-decoration,

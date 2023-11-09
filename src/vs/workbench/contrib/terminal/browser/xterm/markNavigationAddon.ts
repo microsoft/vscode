@@ -6,12 +6,13 @@
 import { coalesce } from 'vs/base/common/arrays';
 import { Disposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { ITerminalCapabilityStore, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getWindow } from 'vs/base/browser/dom';
+import { getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 enum Boundary {
 	Top,
@@ -65,6 +66,14 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			markers = arr;
 		}
 		return markers;
+	}
+
+	private _findCommand(marker: IMarker): ITerminalCommand | undefined {
+		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandCapability) {
+			return commandCapability.commands.find(e => e.marker?.line === marker.line);
+		}
+		return undefined;
 	}
 
 	clearMarker(): void {
@@ -137,7 +146,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._scrollToCommand(this._currentMarker, scrollPosition);
 	}
 
 	scrollToNextMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
@@ -183,43 +192,65 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._scrollToCommand(this._currentMarker, scrollPosition);
 	}
 
-	private _scrollToMarker(marker: IMarker, position: ScrollPosition, endMarker?: IMarker, hideDecoration?: boolean): void {
+	private _scrollToCommand(marker: IMarker, position: ScrollPosition): void {
+		const command = this._findCommand(marker);
+		if (command) {
+			this.revealCommand(command, position);
+		} else {
+			this._scrollToMarker(marker, position);
+		}
+	}
+
+	private _scrollToMarker(start: IMarker | number, position: ScrollPosition, end?: IMarker | number, hideDecoration?: boolean): void {
 		if (!this._terminal) {
 			return;
 		}
-		if (!this._isMarkerInViewport(this._terminal, marker)) {
-			const line = this.getTargetScrollLine(marker.line, position);
+		if (!this._isMarkerInViewport(this._terminal, start)) {
+			const line = this.getTargetScrollLine(toLineIndex(start), position);
 			this._terminal.scrollToLine(line);
 		}
 		if (!hideDecoration) {
-			this.registerTemporaryDecoration(marker, endMarker);
+			this.registerTemporaryDecoration(start, end);
 		}
 	}
 
-	private _createMarkerForOffset(marker: IMarker, offset: number): IMarker {
-		if (offset === 0) {
+	private _createMarkerForOffset(marker: IMarker | number, offset: number): IMarker {
+		if (offset === 0 && isMarker(marker)) {
 			return marker;
 		} else {
-			const offsetMarker = this._terminal?.registerMarker(-this._terminal.buffer.active.cursorY + marker.line - this._terminal.buffer.active.baseY + offset);
+			const offsetMarker = this._terminal?.registerMarker(-this._terminal.buffer.active.cursorY + toLineIndex(marker) - this._terminal.buffer.active.baseY + offset);
 			if (offsetMarker) {
 				return offsetMarker;
 			} else {
-				throw new Error(`Could not register marker with offset ${marker.line}, ${offset}`);
+				throw new Error(`Could not register marker with offset ${toLineIndex(marker)}, ${offset}`);
 			}
 		}
 	}
 
-	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void {
+	revealCommand(command: ITerminalCommand, position: ScrollPosition = ScrollPosition.Middle): void {
+		if (!this._terminal || !command.marker) {
+			return;
+		}
+
+		const promptRowCount = getPromptRowCount(command, this._terminal.buffer.active);
+		this._scrollToMarker(
+			command.marker.line - (promptRowCount - 1),
+			position,
+			command.marker
+		);
+	}
+
+	registerTemporaryDecoration(marker: IMarker | number, endMarker?: IMarker | number): void {
 		if (!this._terminal) {
 			return;
 		}
 		this._resetNavigationDecorations();
 		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
-		const startLine = marker.line;
-		const decorationCount = endMarker ? endMarker.line - startLine + 1 : 1;
+		const startLine = toLineIndex(marker);
+		const decorationCount = endMarker ? toLineIndex(endMarker) - startLine + 1 : 1;
 
 		for (let i = 0; i < decorationCount; i++) {
 			const decoration = this._terminal.registerDecoration({
@@ -236,14 +267,18 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				decoration.onRender(element => {
 					if (!renderedElement) {
 						renderedElement = element;
-						if (decorationCount > 1) {
-							element.classList.add('terminal-scroll-highlight');
-						} else {
-							element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						if (i === 0) {
+							element.classList.add('top');
 						}
-						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
+						if (i === decorationCount - 1) {
+							element.classList.add('bottom');
 						}
+					} else {
+						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+					}
+					if (this._terminal?.element) {
+						element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 					}
 				});
 				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
@@ -270,9 +305,10 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return line;
 	}
 
-	private _isMarkerInViewport(terminal: Terminal, marker: IMarker) {
+	private _isMarkerInViewport(terminal: Terminal, marker: IMarker | number) {
 		const viewportY = terminal.buffer.active.viewportY;
-		return marker.line >= viewportY && marker.line < viewportY + terminal.rows;
+		const line = toLineIndex(marker);
+		return line >= viewportY && line < viewportY + terminal.rows;
 	}
 
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void {
@@ -473,4 +509,12 @@ export function selectLines(xterm: Terminal, start: IMarker | Boundary, end: IMa
 	endLine -= 1;
 
 	xterm.selectLines(startLine, endLine);
+}
+
+function isMarker(value: IMarker | number): value is IMarker {
+	return typeof value !== 'number';
+}
+
+function toLineIndex(line: IMarker | number): number {
+	return isMarker(line) ? line.line : line;
 }

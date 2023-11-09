@@ -10,6 +10,7 @@ import { IDisposable } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
 import { RefType, Status } from './api/git';
+import { emojify, ensureEmojis } from './emoji';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -83,6 +84,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
 
+		await ensureEmojis();
+
 		const historyItems = commits.length === 0 ? [] : [summary];
 		historyItems.push(...commits.map(commit => {
 			const newLineIndex = commit.message.indexOf('\n');
@@ -91,9 +94,9 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
-				label: subject,
+				label: emojify(subject),
 				description: commit.authorName,
-				icon: new ThemeIcon('account'),
+				icon: new ThemeIcon('git-commit'),
 				timestamp: commit.authorDate?.getTime()
 			};
 		}));
