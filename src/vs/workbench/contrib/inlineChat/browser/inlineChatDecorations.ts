@@ -35,7 +35,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
 
-	public static readonly GUTTER_SETTING_ID = 'inlineChat.enableGutterIcon';
+	public static readonly GUTTER_ENABLEMENT_SETTING_ID = 'inlineChat.enableGutterIcon';
 	public static readonly GUTTER_SHOW_ON_SETTING_ID = 'inlineChat.showGutterIconOn';
 	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
 
@@ -49,7 +49,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		super();
 		this._registerGutterDecoration();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
-			const affectsEnablement = e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID);
+			const affectsEnablement = e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_ENABLEMENT_SETTING_ID);
 			const affectsShowingMode = e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID);
 			if (!affectsEnablement && !affectsShowingMode) {
 				return;
@@ -72,7 +72,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _registerGutterDecoration(): void {
 		this._gutterDecoration = ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(this._showGutterIconOnMode() === ShowGutterIconOn.Always ? GUTTER_INLINE_CHAT_ICON : GUTTER_INLINE_CHAT_TRANSPARENT_ICON),
+			glyphMarginClassName: ThemeIcon.asClassName(this._showGutterIconOnSetting() === ShowGutterIconOn.Always ? GUTTER_INLINE_CHAT_ICON : GUTTER_INLINE_CHAT_TRANSPARENT_ICON),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
@@ -93,7 +93,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || !this._isSettingEnabled() || !this._hasProvider()) {
+		if (!this._editor.hasModel() || !this._isGutterIconEnabledSetting() || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
@@ -138,11 +138,11 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}
 	}
 
-	private _isSettingEnabled(): boolean {
-		return this._configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID);
+	private _isGutterIconEnabledSetting(): boolean {
+		return this._configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_ENABLEMENT_SETTING_ID);
 	}
 
-	private _showGutterIconOnMode(): ShowGutterIconOn {
+	private _showGutterIconOnSetting(): ShowGutterIconOn {
 		return this._configurationService.getValue<ShowGutterIconOn>(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID);
 	}
 
@@ -190,6 +190,6 @@ GutterActionsRegistry.registerGutterActionsGenerator(({ lineNumber, editor, acce
 		localize('toggleShowGutterIcon', "Toggle Inline Chat Icon"),
 		undefined,
 		true,
-		() => { configurationService.updateValue(InlineChatDecorationsContribution.GUTTER_SETTING_ID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID)); }
+		() => { configurationService.updateValue(InlineChatDecorationsContribution.GUTTER_ENABLEMENT_SETTING_ID, !configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_ENABLEMENT_SETTING_ID)); }
 	));
 });
