@@ -34,7 +34,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecoration: IModelDecorationOptions;
 
-	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
+	public static readonly GUTTER_SETTING_ID = 'inlineChat.enableGutterIcon';
+	public static readonly GUTTER_SHOW_ON_SETTING_ID = 'inlineChat.showGutterIconOn';
 	private static readonly GUTTER_ICON_CLASSNAME = 'codicon-inline-chat';
 
 	constructor(
@@ -52,7 +53,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
-			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)) {
+			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)
+				&& !e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID)) {
 				return;
 			}
 			this._onEnablementOrModelChanged();

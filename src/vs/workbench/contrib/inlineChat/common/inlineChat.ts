@@ -186,6 +186,11 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
+export const enum ShowGutterIconOn {
+	Always = 'always',
+	MouseOver = 'mouseover',
+}
+
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -213,10 +218,20 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: true,
 			type: 'boolean'
 		},
-		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Show/hide a gutter icon for spawning inline chat on empty lines."),
+		'inlineChat.enableGutterIcon': {
+			description: localize('enableGutterIcon', "Enable/disable a gutter icon for spawning inline chat on empty lines."),
 			default: false,
 			type: 'boolean'
+		},
+		'inlineChat.showGutterIconOn': {
+			description: localize('showGutterIconOn', "Controls when the gutter icon for spawning inline chat is shown. Requires inlineChat.showGutterIcon to be enabled."),
+			default: ShowGutterIconOn.Always,
+			type: 'string',
+			enum: [ShowGutterIconOn.Always, ShowGutterIconOn.MouseOver],
+			markdownEnumDescriptions: [
+				localize('showGutterIconOn.always', "Always show the gutter icon."),
+				localize('showGutterIconOn.mouseover', "Show the gutter icon when the mouse is over the gutter."),
+			]
 		}
 	}
 });
