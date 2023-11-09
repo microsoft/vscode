@@ -497,7 +497,7 @@ export interface IResourceMultiDiffEditorInput extends IBaseUntypedEditorInput {
 	/**
 	 * The list of resources to compare.
 	 */
-	readonly resources: (IResourceDiffEditorInput & { resource: URI })[];
+	readonly resources: (IResourceDiffEditorInput & { readonly resource: URI })[];
 }
 
 export type IResourceMergeEditorInputSide = (IResourceEditorInput | ITextResourceEditorInput) & { detail?: string };

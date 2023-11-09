@@ -651,8 +651,6 @@ function registerOpenEditorAPICommands(): void {
 
 	CommandsRegistry.registerCommand('_workbench.changes', async (accessor: ServicesAccessor, title: string, resources: [UriComponents, UriComponents?, UriComponents?][]) => {
 		const editorService = accessor.get(IEditorService);
-		// const editorGroupService = accessor.get(IEditorGroupsService);
-		// const configurationService = accessor.get(IConfigurationService);
 
 		const editor: (IResourceDiffEditorInput & { resource: URI })[] = [];
 		for (const [label, original, modified] of resources) {
