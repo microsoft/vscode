@@ -186,7 +186,6 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		});
 
 		// Write content if it differs
-		// const content = s ? s.substring(0, findNthOccurrenceIndex(s, '\r', promptRowCount)) : undefined;
 		if (content && this._currentContent !== content) {
 			if (this._stickyScrollOverlay.rows !== promptRowCount) {
 				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, promptRowCount);
