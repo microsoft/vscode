@@ -560,13 +560,12 @@ export interface IEditorOptions {
 	/**
 	 * Enable semantic occurrences highlight.
 	 * Defaults to true.
+	 * 'multiFile'  triggers occurrence highlighting across valid open documents
+	 * 'singleFile' triggers occurrence highlighting in the current document
+	 * false is an alias for 'off'
+	 * true  is an alias for 'singleFile'
 	 */
-	occurrencesHighlight?: boolean;
-	/**
-	 * Sets the mode for occurrence highlighting..
-	 * Defaults to 'singleFile'.
-	 */
-	occurrencesHighlightMode?: 'singleFile' | 'multiFile';
+	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
 	 * Show code lens
 	 * Defaults to true.
@@ -1732,6 +1731,51 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 }
 
 //#endregion
+
+// // #region occurrenceHighlighting
+
+// /**
+//  * @internal
+//  */
+// export class EditorOccurrenceHighlightOption extends BaseEditorOption<EditorOption.occurrencesHighlight, boolean | string, string> {
+
+// 	constructor() {
+// 		super(
+// 			EditorOption.occurrencesHighlight, 'occurrencesHighlight', 'singleFile',
+// 			{
+// 				anyOf: [
+// 					{
+// 						type: 'boolean',
+// 						description: nls.localize('occurrencesHighlight', "Enables/Disables the highlighting of semantic symbol occurrences. Highlight is applied only against the current file."),
+// 					},
+// 					{
+// 						type: 'string',
+// 						description: nls.localize('occurrencesHighlightSettings', "Explicit settings for highlighting scope.")
+// 					}
+// 				],
+// 				description: nls.localize('occurrencesHighlightGeneral', "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property."),
+// 				default: 'singleFile'
+// 			}
+// 		);
+// 	}
+
+// 	public validate(input: string | boolean): string {
+// 		if (typeof input === 'string') {
+// 			if (input === 'off' || input === 'singleFile' || input === 'multiFile') {
+// 				return input;
+// 			}
+// 		}
+// 		if (typeof input === 'boolean') {
+// 			if (input) {
+// 				return 'singleFile';
+// 			}
+// 			return 'off';
+// 		}
+// 		return this.defaultValue;
+// 	}
+// }
+
+// //#endregion
 
 //#region fontVariations
 
@@ -5122,7 +5166,6 @@ export const enum EditorOption {
 	multiCursorPaste,
 	multiCursorLimit,
 	occurrencesHighlight,
-	occurrencesHighlightMode,
 	overviewRulerBorder,
 	overviewRulerLanes,
 	padding,
@@ -5618,20 +5661,17 @@ export const EditorOptions = {
 			markdownDescription: nls.localize('multiCursorLimit', "Controls the max number of cursors that can be in an active editor at once.")
 		}
 	)),
-	occurrencesHighlight: register(new EditorBooleanOption(
-		EditorOption.occurrencesHighlight, 'occurrencesHighlight', true,
-		{ description: nls.localize('occurrencesHighlight', "Controls whether the editor should highlight semantic symbol occurrences.") }
-	)),
-	occurrencesHighlightMode: register(new EditorStringEnumOption(
-		EditorOption.occurrencesHighlightMode, 'occurrencesHighlightMode',
-		'singleFile' as 'singleFile' | 'multiFile',
-		['singleFile', 'multiFile'] as const,
+	occurrencesHighlight: register(new EditorStringEnumOption(
+		EditorOption.occurrencesHighlight, 'occurrencesHighlight',
+		'singleFile' as 'off' | 'singleFile' | 'multiFile',
+		['off', 'singleFile', 'multiFile'] as const,
 		{
 			markdownEnumDescriptions: [
-				nls.localize('occurrencesHighlightMode.singleFile', "Highlights occurrences only in the current file."),
-				nls.localize('occurrencesHighlightMode.multiFile', "Experimental: Highlights occurrences across all valid open files.")
+				nls.localize('occurrencesHighlight.off', "Does not highlight occurrences."),
+				nls.localize('occurrencesHighlight.singleFile', "Highlights occurrences only in the current file."),
+				nls.localize('occurrencesHighlight.multiFile', "Experimental: Highlights occurrences across all valid open files.")
 			],
-			markdownDescription: nls.localize('occurrencesHighlightMode', "Controls whether occurrences should be highlighted across multiple files.")
+			markdownDescription: nls.localize('occurrencesHighlight', "Controls whether occurrences should be highlighted across open files.")
 		}
 	)),
 	overviewRulerBorder: register(new EditorBooleanOption(

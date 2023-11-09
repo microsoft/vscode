@@ -1317,7 +1317,7 @@ declare namespace monaco.editor {
 		 * Controls whether completions should be computed based on words in the document.
 		 * Defaults to true.
 		 */
-		wordBasedSuggestions?: boolean;
+		wordBasedSuggestions?: 'off' | 'currentDocument' | 'matchingDocuments' | 'allDocuments';
 		/**
 		 * Controls whether word based completions should be included from opened documents of the same language or any language.
 		 */
@@ -3539,13 +3539,12 @@ declare namespace monaco.editor {
 		/**
 		 * Enable semantic occurrences highlight.
 		 * Defaults to true.
+		 * 'multiFile'  triggers occurrence highlighting across valid open documents
+		 * 'singleFile' triggers occurrence highlighting in the current document
+		 * false is an alias for 'off'
+		 * true  is an alias for 'singleFile'
 		 */
-		occurrencesHighlight?: boolean;
-		/**
-		 * Sets the mode for occurrence highlighting..
-		 * Defaults to 'singleFile'.
-		 */
-		occurrencesHighlightMode?: 'singleFile' | 'multiFile';
+		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 		/**
 		 * Show code lens
 		 * Defaults to true.
@@ -4802,74 +4801,73 @@ declare namespace monaco.editor {
 		multiCursorPaste = 78,
 		multiCursorLimit = 79,
 		occurrencesHighlight = 80,
-		occurrencesHighlightMode = 81,
-		overviewRulerBorder = 82,
-		overviewRulerLanes = 83,
-		padding = 84,
-		pasteAs = 85,
-		parameterHints = 86,
-		peekWidgetDefaultFocus = 87,
-		definitionLinkOpensInPeek = 88,
-		quickSuggestions = 89,
-		quickSuggestionsDelay = 90,
-		readOnly = 91,
-		readOnlyMessage = 92,
-		renameOnType = 93,
-		renderControlCharacters = 94,
-		renderFinalNewline = 95,
-		renderLineHighlight = 96,
-		renderLineHighlightOnlyWhenFocus = 97,
-		renderValidationDecorations = 98,
-		renderWhitespace = 99,
-		revealHorizontalRightPadding = 100,
-		roundedSelection = 101,
-		rulers = 102,
-		scrollbar = 103,
-		scrollBeyondLastColumn = 104,
-		scrollBeyondLastLine = 105,
-		scrollPredominantAxis = 106,
-		selectionClipboard = 107,
-		selectionHighlight = 108,
-		selectOnLineNumbers = 109,
-		showFoldingControls = 110,
-		showUnused = 111,
-		snippetSuggestions = 112,
-		smartSelect = 113,
-		smoothScrolling = 114,
-		stickyScroll = 115,
-		stickyTabStops = 116,
-		stopRenderingLineAfter = 117,
-		suggest = 118,
-		suggestFontSize = 119,
-		suggestLineHeight = 120,
-		suggestOnTriggerCharacters = 121,
-		suggestSelection = 122,
-		tabCompletion = 123,
-		tabIndex = 124,
-		unicodeHighlighting = 125,
-		unusualLineTerminators = 126,
-		useShadowDOM = 127,
-		useTabStops = 128,
-		wordBreak = 129,
-		wordSeparators = 130,
-		wordWrap = 131,
-		wordWrapBreakAfterCharacters = 132,
-		wordWrapBreakBeforeCharacters = 133,
-		wordWrapColumn = 134,
-		wordWrapOverride1 = 135,
-		wordWrapOverride2 = 136,
-		wrappingIndent = 137,
-		wrappingStrategy = 138,
-		showDeprecated = 139,
-		inlayHints = 140,
-		editorClassName = 141,
-		pixelRatio = 142,
-		tabFocusMode = 143,
-		layoutInfo = 144,
-		wrappingInfo = 145,
-		defaultColorDecorators = 146,
-		colorDecoratorsActivatedOn = 147,
-		inlineCompletionsAccessibilityVerbose = 148
+		overviewRulerBorder = 81,
+		overviewRulerLanes = 82,
+		padding = 83,
+		pasteAs = 84,
+		parameterHints = 85,
+		peekWidgetDefaultFocus = 86,
+		definitionLinkOpensInPeek = 87,
+		quickSuggestions = 88,
+		quickSuggestionsDelay = 89,
+		readOnly = 90,
+		readOnlyMessage = 91,
+		renameOnType = 92,
+		renderControlCharacters = 93,
+		renderFinalNewline = 94,
+		renderLineHighlight = 95,
+		renderLineHighlightOnlyWhenFocus = 96,
+		renderValidationDecorations = 97,
+		renderWhitespace = 98,
+		revealHorizontalRightPadding = 99,
+		roundedSelection = 100,
+		rulers = 101,
+		scrollbar = 102,
+		scrollBeyondLastColumn = 103,
+		scrollBeyondLastLine = 104,
+		scrollPredominantAxis = 105,
+		selectionClipboard = 106,
+		selectionHighlight = 107,
+		selectOnLineNumbers = 108,
+		showFoldingControls = 109,
+		showUnused = 110,
+		snippetSuggestions = 111,
+		smartSelect = 112,
+		smoothScrolling = 113,
+		stickyScroll = 114,
+		stickyTabStops = 115,
+		stopRenderingLineAfter = 116,
+		suggest = 117,
+		suggestFontSize = 118,
+		suggestLineHeight = 119,
+		suggestOnTriggerCharacters = 120,
+		suggestSelection = 121,
+		tabCompletion = 122,
+		tabIndex = 123,
+		unicodeHighlighting = 124,
+		unusualLineTerminators = 125,
+		useShadowDOM = 126,
+		useTabStops = 127,
+		wordBreak = 128,
+		wordSeparators = 129,
+		wordWrap = 130,
+		wordWrapBreakAfterCharacters = 131,
+		wordWrapBreakBeforeCharacters = 132,
+		wordWrapColumn = 133,
+		wordWrapOverride1 = 134,
+		wordWrapOverride2 = 135,
+		wrappingIndent = 136,
+		wrappingStrategy = 137,
+		showDeprecated = 138,
+		inlayHints = 139,
+		editorClassName = 140,
+		pixelRatio = 141,
+		tabFocusMode = 142,
+		layoutInfo = 143,
+		wrappingInfo = 144,
+		defaultColorDecorators = 145,
+		colorDecoratorsActivatedOn = 146,
+		inlineCompletionsAccessibilityVerbose = 147
 	}
 
 	export const EditorOptions: {
@@ -4955,8 +4953,7 @@ declare namespace monaco.editor {
 		multiCursorModifier: IEditorOption<EditorOption.multiCursorModifier, 'altKey' | 'metaKey' | 'ctrlKey'>;
 		multiCursorPaste: IEditorOption<EditorOption.multiCursorPaste, 'spread' | 'full'>;
 		multiCursorLimit: IEditorOption<EditorOption.multiCursorLimit, number>;
-		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, boolean>;
-		occurrencesHighlightMode: IEditorOption<EditorOption.occurrencesHighlightMode, 'singleFile' | 'multiFile'>;
+		occurrencesHighlight: IEditorOption<EditorOption.occurrencesHighlight, 'off' | 'singleFile' | 'multiFile'>;
 		overviewRulerBorder: IEditorOption<EditorOption.overviewRulerBorder, boolean>;
 		overviewRulerLanes: IEditorOption<EditorOption.overviewRulerLanes, number>;
 		padding: IEditorOption<EditorOption.padding, Readonly<Required<IEditorPaddingOptions>>>;
