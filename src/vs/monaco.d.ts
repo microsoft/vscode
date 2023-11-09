@@ -3538,11 +3538,10 @@ declare namespace monaco.editor {
 		selectionHighlight?: boolean;
 		/**
 		 * Enable semantic occurrences highlight.
-		 * Defaults to true.
-		 * 'multiFile'  triggers occurrence highlighting across valid open documents
+		 * Defaults to 'singleFile'.
+		 * 'off' disables occurrence highlighting
 		 * 'singleFile' triggers occurrence highlighting in the current document
-		 * false is an alias for 'off'
-		 * true  is an alias for 'singleFile'
+		 * 'multiFile'  triggers occurrence highlighting across valid open documents
 		 */
 		occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 		/**

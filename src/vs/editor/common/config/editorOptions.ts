@@ -559,11 +559,10 @@ export interface IEditorOptions {
 	selectionHighlight?: boolean;
 	/**
 	 * Enable semantic occurrences highlight.
-	 * Defaults to true.
-	 * 'multiFile'  triggers occurrence highlighting across valid open documents
+	 * Defaults to 'singleFile'.
+	 * 'off' disables occurrence highlighting
 	 * 'singleFile' triggers occurrence highlighting in the current document
-	 * false is an alias for 'off'
-	 * true  is an alias for 'singleFile'
+	 * 'multiFile'  triggers occurrence highlighting across valid open documents
 	 */
 	occurrencesHighlight?: 'off' | 'singleFile' | 'multiFile';
 	/**
@@ -1731,51 +1730,6 @@ export class EditorFontLigatures extends BaseEditorOption<EditorOption.fontLigat
 }
 
 //#endregion
-
-// // #region occurrenceHighlighting
-
-// /**
-//  * @internal
-//  */
-// export class EditorOccurrenceHighlightOption extends BaseEditorOption<EditorOption.occurrencesHighlight, boolean | string, string> {
-
-// 	constructor() {
-// 		super(
-// 			EditorOption.occurrencesHighlight, 'occurrencesHighlight', 'singleFile',
-// 			{
-// 				anyOf: [
-// 					{
-// 						type: 'boolean',
-// 						description: nls.localize('occurrencesHighlight', "Enables/Disables the highlighting of semantic symbol occurrences. Highlight is applied only against the current file."),
-// 					},
-// 					{
-// 						type: 'string',
-// 						description: nls.localize('occurrencesHighlightSettings', "Explicit settings for highlighting scope.")
-// 					}
-// 				],
-// 				description: nls.localize('occurrencesHighlightGeneral', "Configures font ligatures or font features. Can be either a boolean to enable/disable ligatures or a string for the value of the CSS 'font-feature-settings' property."),
-// 				default: 'singleFile'
-// 			}
-// 		);
-// 	}
-
-// 	public validate(input: string | boolean): string {
-// 		if (typeof input === 'string') {
-// 			if (input === 'off' || input === 'singleFile' || input === 'multiFile') {
-// 				return input;
-// 			}
-// 		}
-// 		if (typeof input === 'boolean') {
-// 			if (input) {
-// 				return 'singleFile';
-// 			}
-// 			return 'off';
-// 		}
-// 		return this.defaultValue;
-// 	}
-// }
-
-// //#endregion
 
 //#region fontVariations
 
