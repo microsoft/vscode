@@ -52,13 +52,13 @@ import { IProcessDataEvent, IProcessPropertyMap, IReconnectionProperties, IShell
 import { formatMessageForTerminal } from 'vs/platform/terminal/common/terminalStrings';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { getIconRegistry } from 'vs/platform/theme/common/iconRegistry';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IColorTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceTrustRequestService } from 'vs/platform/workspace/common/workspaceTrust';
 import { PANEL_BACKGROUND, SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { IViewDescriptorService, IViewsService, ViewContainerLocation } from 'vs/workbench/common/views';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
-import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IRequestAddInstanceToGroupEvent, ITerminalContribution, ITerminalInstance, IXtermColorProvider, TerminalDataTransfers } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalLaunchHelpAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
 import { TerminalEditorInput } from 'vs/workbench/contrib/terminal/browser/terminalEditorInput';
@@ -718,22 +718,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			this._configHelper,
 			this._cols,
 			this._rows,
-			{
-				getBackgroundColor: (theme) => {
-					const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
-					if (terminalBackground) {
-						return terminalBackground;
-					}
-					if (this.target === TerminalLocation.Editor) {
-						return theme.getColor(editorBackground);
-					}
-					const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
-					if (location === ViewContainerLocation.Panel) {
-						return theme.getColor(PANEL_BACKGROUND);
-					}
-					return theme.getColor(SIDE_BAR_BACKGROUND);
-				}
-			},
+			this._scopedInstantiationService.createInstance(TerminalInstanceColorProvider, this),
 			this.capabilities,
 			this._processManager.shellIntegrationNonce,
 			this._terminalSuggestWidgetVisibleContextKey,
@@ -901,6 +886,15 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		this._wrapperElement.xterm = xterm.raw;
 
 		const screenElement = xterm.attachToElement(xtermElement);
+
+		// Fire xtermOpen on all contributions
+		for (const contribution of this._contributions.values()) {
+			if (!this.xterm) {
+				this._xtermReadyPromise.then(xterm => contribution.xtermOpen?.(xterm));
+			} else {
+				contribution.xtermOpen?.(this.xterm);
+			}
+		}
 
 		this._register(xterm.shellIntegration.onDidChangeStatus(() => {
 			if (this.hasFocus) {
@@ -1634,7 +1628,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 		let retries = 0;
 		return new Promise<void>(r => {
-			const interval = dom.disposableWindowInterval($window, () => {
+			const interval = dom.disposableWindowInterval(dom.getActiveWindow().window, () => {
 				if (this._latestXtermWriteData === this._latestXtermParseData || ++retries === 5) {
 					interval.dispose();
 					r();
@@ -2564,4 +2558,28 @@ export function parseExitResult(
 	}
 
 	return { code, message };
+}
+
+
+export class TerminalInstanceColorProvider implements IXtermColorProvider {
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		@IViewDescriptorService private readonly _viewDescriptorService: IViewDescriptorService,
+	) {
+	}
+
+	getBackgroundColor(theme: IColorTheme) {
+		const terminalBackground = theme.getColor(TERMINAL_BACKGROUND_COLOR);
+		if (terminalBackground) {
+			return terminalBackground;
+		}
+		if (this._instance.target === TerminalLocation.Editor) {
+			return theme.getColor(editorBackground);
+		}
+		const location = this._viewDescriptorService.getViewLocationById(TERMINAL_VIEW_ID)!;
+		if (location === ViewContainerLocation.Panel) {
+			return theme.getColor(PANEL_BACKGROUND);
+		}
+		return theme.getColor(SIDE_BAR_BACKGROUND);
+	}
 }

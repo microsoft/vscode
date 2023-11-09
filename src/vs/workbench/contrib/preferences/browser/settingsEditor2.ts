@@ -65,7 +65,6 @@ import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
-import { $window } from 'vs/base/browser/window';
 
 
 export const enum SettingsFocusContext {
@@ -1412,7 +1411,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			const element = $window.document.querySelector('.context-view');
+			const element = DOM.getWindow(this.settingsTree.getHTMLElement()).document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
 			}
@@ -1869,7 +1868,7 @@ class SyncControls extends Disposable {
 		}));
 
 		const updateLastSyncedTimer = this._register(new DOM.WindowIntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, $window);
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, DOM.getWindow(container));
 
 		this.update();
 		this._register(this.userDataSyncService.onDidChangeStatus(() => {

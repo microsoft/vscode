@@ -390,8 +390,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-category {
 	display: flex;
-	padding: 10px 0 20px 12px;
-	margin: 0;
+	margin-bottom: 24px;
 	min-height: auto;
 }
 
@@ -414,7 +413,6 @@
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step {
 	display: flex;
 	width: 100%;
-	margin: 8px 0;
 	overflow: hidden;
 	border-radius: 6px;
 }
@@ -482,8 +480,10 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message {
+	display: flex;
 	color: var(--vscode-descriptionForeground);
 	font-size: 12px;
+	margin-top: 12px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .shortcut-message .keybinding {
@@ -529,7 +529,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .gettingStartedDetailsContent {
 	height: 100%;
-	max-width: 1600px;
+	max-width: 1200px;
 	margin: 0 auto;
 	padding: 0 32px;
 	display: grid;
@@ -760,7 +760,7 @@
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .done-next-container {
 	display: flex;
-	padding: 8px 16px 16px;
+	padding: 16px;
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .button-link {
@@ -852,11 +852,10 @@
 }
 
 .monaco-workbench .part.editor>.content .gettingStartedContainer .gettingStartedSlideDetails .getting-started-step .step-description-container .monaco-button {
-	height: 26px;
+	height: 24px;
 	width: fit-content;
 	display: flex;
 	padding: 0 11px;
-	margin-bottom: 12px;
 	align-items: center;
 	min-width: max-content;
 }

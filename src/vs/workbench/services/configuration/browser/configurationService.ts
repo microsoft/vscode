@@ -45,7 +45,7 @@ import { IUserDataProfile, IUserDataProfilesService } from 'vs/platform/userData
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { workbenchConfigurationNodeBase } from 'vs/workbench/common/configuration';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 import { runWhenWindowIdle } from 'vs/base/browser/dom';
 
 function getLocalUserConfigurationScopes(userDataProfile: IUserDataProfile, hasRemote: boolean): ConfigurationScope[] | undefined {
@@ -578,7 +578,7 @@ export class WorkspaceService extends Disposable implements IWorkbenchConfigurat
 
 		if (!this.localUserConfiguration.hasTasksLoaded) {
 			// Reload local user configuration again to load user tasks
-			this._register(runWhenWindowIdle($window, () => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
+			this._register(runWhenWindowIdle(mainWindow, () => this.reloadLocalUserConfiguration(false, this._configuration.localUserConfiguration)));
 		}
 	}
 
