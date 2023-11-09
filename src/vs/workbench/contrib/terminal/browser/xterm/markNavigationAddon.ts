@@ -68,6 +68,14 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return markers;
 	}
 
+	private _findCommand(marker: IMarker): ITerminalCommand | undefined {
+		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandCapability) {
+			return commandCapability.commands.find(e => e.marker?.line === marker.line);
+		}
+		return undefined;
+	}
+
 	clearMarker(): void {
 		// Clear the current marker so successive focus/selection actions are performed from the
 		// bottom of the buffer
@@ -138,7 +146,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._scrollToCommand(this._currentMarker, scrollPosition);
 	}
 
 	scrollToNextMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
@@ -184,7 +192,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 
 		this._currentMarker = this._getMarkers(skipEmptyCommands)[markerIndex];
-		this._scrollToMarker(this._currentMarker, scrollPosition);
+		this._scrollToCommand(this._currentMarker, scrollPosition);
+	}
+
+	private _scrollToCommand(marker: IMarker, position: ScrollPosition): void {
+		const command = this._findCommand(marker);
+		if (command) {
+			this.revealCommand(command, position);
+		} else {
+			this._scrollToMarker(marker, position);
+		}
 	}
 
 	private _scrollToMarker(start: IMarker | number, position: ScrollPosition, end?: IMarker | number, hideDecoration?: boolean): void {
@@ -250,14 +267,18 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				decoration.onRender(element => {
 					if (!renderedElement) {
 						renderedElement = element;
-						if (decorationCount > 1) {
-							element.classList.add('terminal-scroll-highlight');
-						} else {
-							element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						if (i === 0) {
+							element.classList.add('top');
 						}
-						if (this._terminal?.element) {
-							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
+						if (i === decorationCount - 1) {
+							element.classList.add('bottom');
 						}
+					} else {
+						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+					}
+					if (this._terminal?.element) {
+						element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 					}
 				});
 				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
