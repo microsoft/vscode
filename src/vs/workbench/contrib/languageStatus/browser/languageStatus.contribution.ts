@@ -227,7 +227,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 				const hoverTarget = $window.document.querySelector('.monaco-workbench .context-view');
 				if (hoverTarget instanceof HTMLElement) {
 					const observer = new MutationObserver(() => {
-						if (document.contains(element)) {
+						if ($window.document.contains(element)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}

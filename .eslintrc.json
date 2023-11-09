@@ -261,6 +261,7 @@
 				"src/**/{browser,electron-sandbox}/*.ts"
 			],
 			"rules": {
+				"local/code-no-global-document-listener": "warn",
 				"no-restricted-syntax": [
 					"warn",
 					{
@@ -282,6 +283,10 @@
 					{
 						"selector": "MemberExpression[object.name='document'][property.name='activeElement']",
 						"message": "Use <targetWindow>.document.activeElement to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
+					},
+					{
+						"selector": "MemberExpression[object.name='document'][property.name='contains']",
+						"message": "Use <targetWindow>.document.contains to support multi-window scenarios. Resolve targetWindow with DOM.getWindow(element) or DOM.getActiveWindow() or use the predefined mainWindow constant."
 					},
 					{
 						"selector": "MemberExpression[object.name='document'][property.name='styleSheets']",

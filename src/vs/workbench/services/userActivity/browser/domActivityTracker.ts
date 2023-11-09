@@ -54,9 +54,9 @@ export class DomActivityTracker extends Disposable {
 			intervalsWithoutActivity = 0;
 		};
 
-		this._register(dom.addDisposableListener(document, 'touchstart', onActivity, eventListenerOptions));
-		this._register(dom.addDisposableListener(document, 'mousedown', onActivity, eventListenerOptions));
-		this._register(dom.addDisposableListener(document, 'keydown', onActivity, eventListenerOptions));
+		this._register(dom.addDisposableListener($window.document, 'touchstart', onActivity, eventListenerOptions));
+		this._register(dom.addDisposableListener($window.document, 'mousedown', onActivity, eventListenerOptions));
+		this._register(dom.addDisposableListener($window.document, 'keydown', onActivity, eventListenerOptions));
 
 		onActivity();
 	}

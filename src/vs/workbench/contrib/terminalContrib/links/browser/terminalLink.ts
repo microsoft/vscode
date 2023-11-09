@@ -64,12 +64,12 @@ export class TerminalLink extends DisposableStore implements ILink {
 	hover(event: MouseEvent, text: string): void {
 		// Listen for modifier before handing it off to the hover to handle so it gets disposed correctly
 		this._hoverListeners = new DisposableStore();
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keydown', e => {
+		this._hoverListeners.add(dom.addDisposableListener($window.document, 'keydown', e => {
 			if (!e.repeat && this._isModifierDown(e)) {
 				this._enableDecorations();
 			}
 		}));
-		this._hoverListeners.add(dom.addDisposableListener(document, 'keyup', e => {
+		this._hoverListeners.add(dom.addDisposableListener($window.document, 'keyup', e => {
 			if (!e.repeat && !this._isModifierDown(e)) {
 				this._disableDecorations();
 			}
@@ -102,7 +102,7 @@ export class TerminalLink extends DisposableStore implements ILink {
 		}
 
 		const origin = { x: event.pageX, y: event.pageY };
-		this._hoverListeners.add(dom.addDisposableListener(document, dom.EventType.MOUSE_MOVE, e => {
+		this._hoverListeners.add(dom.addDisposableListener($window.document, dom.EventType.MOUSE_MOVE, e => {
 			// Update decorations
 			if (this._isModifierDown(e)) {
 				this._enableDecorations();
