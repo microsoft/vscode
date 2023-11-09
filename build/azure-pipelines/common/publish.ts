@@ -41,7 +41,7 @@ class State {
 
 		if (previousState) {
 			const previousStatePath = path.join(pipelineWorkspacePath, previousState.name, previousState.name + '.txt');
-			fs.readFileSync(previousStatePath, 'utf8').split(/\n/).forEach(name => this.set.add(name));
+			fs.readFileSync(previousStatePath, 'utf8').split(/\n/).filter(name => !!name).forEach(name => this.set.add(name));
 		}
 
 		const stageAttempt = e('SYSTEM_STAGEATTEMPT');
@@ -100,26 +100,30 @@ interface Timeline {
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
-	const res = await fetch(`${e('BUILDS_API_URL')}timeline?api-version=6.0`, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
+	return await retry(async () => {
+		const res = await fetch(`${e('BUILDS_API_URL')}timeline?api-version=6.0`, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
 
-	if (!res.ok) {
-		throw new Error(`Failed to fetch artifacts: ${res.statusText}`);
-	}
+		if (!res.ok) {
+			throw new Error(`Failed to fetch artifacts: ${res.statusText}`);
+		}
 
-	const result = await res.json() as Timeline;
-	return result;
+		const result = await res.json() as Timeline;
+		return result;
+	});
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
-	const res = await fetch(artifact.resource.downloadUrl, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
+	return await retry(async () => {
+		const res = await fetch(artifact.resource.downloadUrl, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
 
-	if (!res.ok) {
-		throw new Error(`Failed to download artifact: ${res.statusText}`);
-	}
+		if (!res.ok) {
+			throw new Error(`Failed to download artifact: ${res.statusText}`);
+		}
 
-	const istream = Readable.fromWeb(res.body as any);
-	const ostream = fs.createWriteStream(downloadPath);
-	await finished(istream.pipe(ostream));
+		const istream = Readable.fromWeb(res.body as any);
+		const ostream = fs.createWriteStream(downloadPath);
+		await finished(istream.pipe(ostream));
+	});
 }
 
 async function unzip(packagePath: string, outputPath: string): Promise<string> {
