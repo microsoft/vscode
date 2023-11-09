@@ -61,6 +61,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
