@@ -33,6 +33,10 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Maximum = 1
 }
 
+export const enum AccessibilityVoiceChatSettingId {
+	ListeningDuration = 'accessibility.voiceChat.listeningDuration',
+}
+
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
@@ -148,6 +152,14 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
+		[AccessibilityVoiceChatSettingId.ListeningDuration]: {
+			'markdownDescription': localize('voiceChat.listeningDuration', "The duration in milliseconds to listen for voice chat commands. Set to 0 to disable."),
+			'type': 'number',
+			'default': 1200,
+			'minimum': 0,
+			'maximum': 10000,
+			'tags': ['accessibility']
+		}
 	}
 };
 
