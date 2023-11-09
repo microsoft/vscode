@@ -12,7 +12,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IUserDataProfilesService, reviveProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
 import {
 	IUserDataManualSyncTask, IUserDataSyncResourceConflicts, IUserDataSyncResourceError, IUserDataSyncResource, ISyncResourceHandle, IUserDataSyncTask, IUserDataSyncService,
-	SyncResource, SyncStatus, UserDataSyncError
+	SyncResource, SyncStatus, UserDataSyncError, IUserDataSyncStoreManagementService
 } from 'vs/platform/userDataSync/common/userDataSync';
 
 type ManualSyncTaskEvent<T> = { manualSyncTaskId: string; data: T };
@@ -150,9 +150,11 @@ export class UserDataSyncChannelClient extends Disposable implements IUserDataSy
 
 	constructor(
 		userDataSyncChannel: IChannel,
+		@IUserDataSyncStoreManagementService userDataSyncStoreManagementService: IUserDataSyncStoreManagementService,
 		@IUserDataProfilesService private readonly userDataProfilesService: IUserDataProfilesService,
 	) {
 		super();
+		this._status = userDataSyncStoreManagementService.userDataSyncStore ? SyncStatus.Idle : SyncStatus.Uninitialized;
 		this.channel = {
 			call<T>(command: string, arg?: any, cancellationToken?: CancellationToken): Promise<T> {
 				return userDataSyncChannel.call(command, arg, cancellationToken)
