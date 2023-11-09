@@ -144,16 +144,34 @@
 	padding-right: 4px;
 }
 
-.scm-sync-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
+.scm-view .monaco-list-row .history-item .monaco-icon-label .icon-container {
 	display: flex;
 	font-size: 14px;
 	padding-right: 4px;
 }
 
-.scm-sync-view .monaco-list-row .history-item .monaco-icon-label .avatar {
+.scm-view .monaco-list-row .history-item .monaco-icon-label .avatar {
 	width: 14px;
 	height: 14px;
 	border-radius: 14px;
+}
+
+.scm-view .monaco-list-row .separator-container {
+	display: flex;
+	align-items: center;
+	padding-left: 11px;
+}
+
+.scm-view .monaco-list-row .separator-container .label-name {
+	font-size: 10px;
+}
+
+.scm-view .monaco-list-row .separator-container .separator {
+	display: flex;
+	flex-grow: 1;
+	height: 0;
+	margin-left: 6px;
+	border-top: 1px solid var(--vscode-sideBar-border);
 }
 
 .scm-view .monaco-list-row .history > .name,
