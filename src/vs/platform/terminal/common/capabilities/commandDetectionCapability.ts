@@ -611,6 +611,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				isTrusted: !!this._currentCommand.isTrusted,
+				promptStartMarker: this._currentCommand.promptStartMarker,
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -683,6 +684,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	serialize(): ISerializedCommandDetectionCapability {
 		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
 			return {
+				promptStartLine: e.promptStartMarker?.line,
 				startLine: e.marker?.line,
 				startX: undefined,
 				endLine: e.endMarker?.line,
@@ -699,6 +701,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		});
 		if (this._currentCommand.commandStartMarker) {
 			commands.push({
+				promptStartLine: this._currentCommand.promptStartMarker?.line,
 				startLine: this._currentCommand.commandStartMarker.line,
 				startX: this._currentCommand.commandStartX,
 				endLine: undefined,
@@ -729,10 +732,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (!marker) {
 				continue;
 			}
+			const promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			// Partial command
 			if (!e.endLine) {
 				this._currentCommand.commandStartMarker = marker;
 				this._currentCommand.commandStartX = e.startX;
+				if (promptStartMarker) {
+					this._currentCommand.promptStartMarker = promptStartMarker;
+				}
 				this._cwd = e.cwd;
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
@@ -743,6 +750,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const newCommand: ITerminalCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
 				isTrusted: e.isTrusted,
+				promptStartMarker,
 				marker,
 				endMarker,
 				executedMarker,
