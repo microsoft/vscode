@@ -23,6 +23,7 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		super();
 	}
 	acceptRequest(): number {
+		this._requestId++;
 		this._audioCueService.playAudioCue(AudioCue.chatRequestSent, { allowManyInParallel: true });
 		this._pendingCueMap.set(this._requestId, this._register(this._instantiationService.createInstance(AudioCueScheduler)));
 		return this._requestId;
@@ -38,7 +39,6 @@ export class ChatAccessibilityService extends Disposable implements IChatAccessi
 		}
 		const errorDetails = isPanelChat && response.errorDetails ? ` ${response.errorDetails.message}` : '';
 		status(responseContent + errorDetails);
-		this._requestId++;
 	}
 }
 
