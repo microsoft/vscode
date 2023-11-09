@@ -186,7 +186,7 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
-export const enum ShowGutterIconWhen {
+export const enum ShowGutterIcon {
 	Always = 'always',
 	MouseOver = 'mouseover',
 	Never = 'never'
@@ -219,15 +219,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			default: true,
 			type: 'boolean'
 		},
-		'inlineChat.showGutterIconWhen': {
-			description: localize('showGutterIconWhen', "Controls when the gutter icon for spawning inline chat is shown."),
-			default: ShowGutterIconWhen.Always,
+		'inlineChat.showGutterIcon': {
+			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
+			default: ShowGutterIcon.Always,
 			type: 'string',
-			enum: [ShowGutterIconWhen.Always, ShowGutterIconWhen.MouseOver, ShowGutterIconWhen.Never],
+			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
 			markdownEnumDescriptions: [
-				localize('showGutterIconWhen.always', "Always show the gutter icon."),
-				localize('showGutterIconWhen.mouseover', "Show the gutter icon when the mouse is over the icon."),
-				localize('showGutterIconWhen.never', "Never show the gutter icon."),
+				localize('showGutterIcon.always', "Always show the gutter icon."),
+				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
+				localize('showGutterIcon.never', "Never show the gutter icon."),
 			]
 		}
 	}
