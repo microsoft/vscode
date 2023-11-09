@@ -177,13 +177,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return containers;
 	}
 
-	private getContainerFromDocument(document: Document): HTMLElement {
-		if (document === this.container.ownerDocument) {
+	private getContainerFromDocument(targetDocument: Document): HTMLElement {
+		if (targetDocument === this.container.ownerDocument) {
 			// main window
 			return this.container;
 		} else {
 			// auxiliary window
-			return document.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
+			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
 		}
 	}
 

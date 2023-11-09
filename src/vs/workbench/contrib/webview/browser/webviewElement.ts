@@ -103,7 +103,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 		if (!this._focused) {
 			return false;
 		}
-		if (document.activeElement && document.activeElement !== this.element) {
+		if ($window.document.activeElement && $window.document.activeElement !== this.element) {
 			// looks like https://github.com/microsoft/vscode/issues/132641
 			// where the focus is actually not in the `<iframe>`
 			return false;
@@ -827,7 +827,7 @@ export class WebviewElement extends Disposable implements IWebview, WebviewFindD
 				return;
 			}
 
-			if (document.activeElement && document.activeElement !== this.element && document.activeElement?.tagName !== 'BODY') {
+			if ($window.document.activeElement && $window.document.activeElement !== this.element && $window.document.activeElement?.tagName !== 'BODY') {
 				return;
 			}
 

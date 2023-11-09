@@ -2552,6 +2552,11 @@ export class Repository {
 		return commits[0];
 	}
 
+	async getCommitFiles(ref: string): Promise<string[]> {
+		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
+		return result.stdout.split('\n').filter(l => !!l);
+	}
+
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
 		const result = await this.exec(['rev-list', '--count', '--left-right', range]);
 		const [ahead, behind] = result.stdout.trim().split('\t');

@@ -193,32 +193,34 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			placeholder: res.placeholder,
 		};
 
-		if (ExtHostInteractiveEditor._isMessageResponse(res)) {
-			return {
-				...stub,
-				id,
-				type: InlineChatResponseType.Message,
-				message: typeConvert.MarkdownString.from(res.contents),
-			};
-		}
+		if (ExtHostInteractiveEditor._isEditResponse(res)) {
+			const { edits, contents } = res;
+			const message = contents !== undefined ? typeConvert.MarkdownString.from(contents) : undefined;
+			if (edits instanceof extHostTypes.WorkspaceEdit) {
+				return {
+					...stub,
+					id,
+					type: InlineChatResponseType.BulkEdit,
+					edits: typeConvert.WorkspaceEdit.from(edits),
+					message
+				};
 
-		const { edits } = res;
-		if (edits instanceof extHostTypes.WorkspaceEdit) {
-			return {
-				...stub,
-				id,
-				type: InlineChatResponseType.BulkEdit,
-				edits: typeConvert.WorkspaceEdit.from(edits),
-			};
-
-		} else {
-			return {
-				...stub,
-				id,
-				type: InlineChatResponseType.EditorEdit,
-				edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
-			};
+			} else {
+				return {
+					...stub,
+					id,
+					type: InlineChatResponseType.EditorEdit,
+					edits: (<vscode.TextEdit[]>edits).map(typeConvert.TextEdit.from),
+					message
+				};
+			}
 		}
+		return {
+			...stub,
+			id,
+			type: InlineChatResponseType.Message,
+			message: typeConvert.MarkdownString.from(res.contents),
+		};
 	}
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
@@ -235,7 +237,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		// TODO@jrieken remove this
 	}
 
-	private static _isMessageResponse(thing: any): thing is vscode.InteractiveEditorMessageResponse {
-		return typeof thing === 'object' && typeof (<vscode.InteractiveEditorMessageResponse>thing).contents === 'object';
+	private static _isEditResponse(thing: any): thing is vscode.InteractiveEditorResponse {
+		return typeof thing === 'object' && typeof (<vscode.InteractiveEditorResponse>thing).edits === 'object';
 	}
 }

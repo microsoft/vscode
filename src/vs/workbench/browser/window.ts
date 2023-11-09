@@ -75,12 +75,12 @@ export class BrowserWindow extends Disposable {
 
 		// Fullscreen (Browser)
 		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
+			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
 		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen());
+			setFullscreen(!!detectFullscreen(mainWindow));
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
@@ -90,8 +90,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
-			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted

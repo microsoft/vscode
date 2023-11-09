@@ -170,7 +170,8 @@ const ModulesToLookFor = [
 	'@azure/web-pubsub',
 	'@azure/web-pubsub-client',
 	'@azure/web-pubsub-client-protobuf',
-	'@azure/web-pubsub-express'
+	'@azure/web-pubsub-express',
+	'@azure/openai'
 ];
 
 const PyMetaModulesToLookFor = [
@@ -206,6 +207,7 @@ const PyModulesToLookFor = [
 	'azure-cognitiveservices-nspkg',
 	'azure-cognitiveservices-language-nspkg',
 	'azure-cognitiveservices-knowledge-nspkg',
+	'azure-containerregistry',
 	'azure-communication-identity',
 	'azure-communication-phonenumbers',
 	'azure-communication-email',
@@ -538,6 +540,7 @@ export class WorkspaceTagsService implements IWorkspaceTagsService {
 			"workspace.npm.@azure/web-pubsub-client" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/web-pubsub-client-protobuf" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.@azure/web-pubsub-express" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"workspace.npm.@azure/openai" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-macos" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.npm.react-native-windows" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 			"workspace.bower" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },

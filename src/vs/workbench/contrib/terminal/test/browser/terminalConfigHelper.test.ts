@@ -10,6 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
 
 class TestTerminalConfigHelper extends TerminalConfigHelper {
 	set linuxDistro(distro: LinuxDistro) {
@@ -28,7 +29,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 
 	setup(() => {
 		store = new DisposableStore();
-		fixture = document.body;
+		fixture = mainWindow.document.body;
 	});
 	teardown(() => store.dispose());
 
