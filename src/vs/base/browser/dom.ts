@@ -2035,6 +2035,7 @@ export interface IDragAndDropObserverCallbacks {
 	readonly onDragLeave: (e: DragEvent) => void;
 	readonly onDrop: (e: DragEvent) => void;
 	readonly onDragEnd: (e: DragEvent) => void;
+	readonly onDrag?: (e: DragEvent) => void;
 	readonly onDragOver?: (e: DragEvent, dragDuration: number) => void;
 }
 
@@ -2091,6 +2092,10 @@ export class DragAndDropObserver extends Disposable {
 			this.dragStartTime = 0;
 
 			this.callbacks.onDrop(e);
+		}));
+
+		this._register(addDisposableListener(this.element, EventType.DRAG, (e: DragEvent) => {
+			this.callbacks.onDrag?.(e);
 		}));
 	}
 }

@@ -1027,8 +1027,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				e.dataTransfer.effectAllowed = 'copyMove';
 			}
 
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.doFillResourceDataTransfers([editor], e);
+			// Apply some datatransfer types to allow for dragging
+			// the element outside of the application only when
+			// Shift-key is pressed, otherwise disable to support
+			// opening auxillary editor groups.
+			if (e.shiftKey) {
+				this.doFillResourceDataTransfers([editor], e);
+			}
 
 			// Fixes https://github.com/microsoft/vscode/issues/18733
 			tab.classList.add('dragged');
@@ -1036,6 +1041,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}));
 
 		// Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
 		disposables.add(new DragAndDropObserver(tab, {
 			onDragEnter: e => {
 
@@ -1094,22 +1100,35 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tab, false, tabIndex);
 			},
 
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
 			onDragEnd: async e => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, tabIndex);
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 
+				if (lastDragEvent?.shiftKey ?? e.shiftKey) {
+					return; // disable aux windows with shift key
+				}
+
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
 					position: { x: e.screenX, y: e.screenY, width: 800, height: 600 }
 				});
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				const targetGroup = auxiliaryEditorPart.activeGroup;
 				if (editor) {
-					this.groupView.moveEditor(editor, auxiliaryEditorPart.activeGroup);
-				}
+					if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {
+						this.groupView.moveEditor(editor, targetGroup);
+					} else {
+						this.groupView.copyEditor(editor, targetGroup);
+					}
 
-				auxiliaryEditorPart.activeGroup.focus();
+					targetGroup.focus();
+				}
 			},
 
 			onDrop: e => {
