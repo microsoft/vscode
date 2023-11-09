@@ -385,6 +385,7 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
 		updateWholeRangeDecoration();
 
+		this._zone.value.widget.updateContext(this._activeSession);
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));

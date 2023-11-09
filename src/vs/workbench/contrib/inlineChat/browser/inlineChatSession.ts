@@ -6,6 +6,7 @@
 import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
 import { TextEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
@@ -231,6 +232,15 @@ export class Session {
 			}
 		}
 		return result;
+	}
+
+	toJSON() {
+		return {
+			$mid: MarshalledId.InlineChatSessionContext,
+			providerName: this.provider.label,
+			sessionId: this.session.id,
+			responseId: (this.lastExchange?.response && this.lastExchange.response instanceof ReplyResponse) ? this.lastExchange.response.raw.id : undefined,
+		};
 	}
 }
 

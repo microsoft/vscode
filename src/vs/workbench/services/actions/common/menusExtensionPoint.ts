@@ -339,6 +339,18 @@ const apiMenus: IAPIMenu[] = [
 		description: localize('menus.mergeEditorResult', "The result toolbar of the merge editor"),
 		proposed: 'contribMergeEditorMenus'
 	},
+	{
+		key: 'chat/message/title',
+		id: MenuId.ChatMessageTitle,
+		description: localize('chat.message.title', "The contributed chat message title menu"),
+		proposed: 'contribChatMenu'
+	},
+	{
+		key: 'inlineChat/feedback',
+		id: MenuId.for('inlineChatWidget.feedback'),
+		description: localize('inlineChat.feedback', "The contributed inline chat feedback menu"),
+		proposed: 'contribChatMenu'
+	}
 ];
 
 namespace schema {

@@ -7,6 +7,7 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -16,6 +17,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
+import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -36,10 +38,30 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	constructor(
 		mainContext: IMainContext,
+		commands: ExtHostCommands,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
+
+		commands.registerArgumentProcessor({
+			processArgument: (arg) => {
+				if (arg && arg.$mid === MarshalledId.ChatResponseContext) {
+					if (!arg.agentId || !arg.sessionId || !arg.requestId) {
+						return arg;
+					}
+
+					for (const [_, agent] of this._agents) {
+						if (agent.apiAgent.name === arg.agentId) {
+							const result = this._resultsBySessionAndRequestId.get(arg.sessionId)?.get(arg.requestId);
+							return result ?? arg;
+						}
+					}
+				}
+
+				return arg;
+			}
+		});
 	}
 
 	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
