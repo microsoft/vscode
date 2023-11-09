@@ -184,7 +184,6 @@ export const walkthroughs: GettingStartedWalkthroughContent = [
 					id: 'settingsSync',
 					title: localize('gettingStarted.settingsSync.title', "Personalize your VS Code"),
 					description: localize('gettingStarted.settingsSync.description.interpolated', "Keep your essential VS Code customizations backed up and updated across all your devices.\n{0}", Button(localize('enableSync', "Backup and Sync Settings"), 'command:workbench.userDataSync.actions.turnOn')),
-					when: 'syncStatus != uninitialized',
 					completionEvents: ['onEvent:sync-enabled'],
 					media: {
 						type: 'svg', altText: 'The "Turn on Sync" entry in the settings gear menu.', path: 'settingsSync.svg'
