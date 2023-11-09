@@ -32,7 +32,6 @@ import { ActionButtonRenderer } from 'vs/workbench/contrib/scm/browser/scmViewPa
 import { getActionViewItemProvider, isSCMActionButton, isSCMRepository, isSCMRepositoryArray } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, SYNC_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { comparePaths } from 'vs/base/common/comparers';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -44,12 +43,13 @@ import { FileKind } from 'vs/platform/files/common/files';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Codicon } from 'vs/base/common/codicons';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 
 type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode;
@@ -116,24 +116,6 @@ const enum ViewMode {
 const ContextKeys = {
 	ViewMode: new RawContextKey<ViewMode>('scmSyncViewMode', ViewMode.List),
 };
-
-interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
-	readonly description?: string;
-	readonly ancestor?: string;
-	readonly count?: number;
-	readonly repository: ISCMRepository;
-	readonly type: 'historyItemGroup';
-}
-
-interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
-	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
-	readonly type: 'historyItem';
-}
-
-interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
-	readonly historyItem: SCMHistoryItemTreeElement;
-	readonly type: 'historyItemChange';
-}
 
 class ListDelegate implements IListVirtualDelegate<any> {
 
@@ -457,6 +439,14 @@ export class SCMSyncViewPane extends ViewPane {
 
 		this.listLabels = this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this.onDidChangeBodyVisibility });
 		this._register(this.listLabels);
+
+		const updateProviderCountVisibility = () => {
+			const value = this.configurationService.getValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge');
+			this.treeContainer.classList.toggle('hide-provider-counts', value === 'hidden');
+			this.treeContainer.classList.toggle('auto-provider-counts', value === 'auto');
+		};
+		this._register(Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility));
+		updateProviderCountVisibility();
 
 		this._tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,

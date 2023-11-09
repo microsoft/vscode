@@ -5,6 +5,7 @@
 
 import { addDisposableListener } from 'vs/base/browser/dom';
 import { alert } from 'vs/base/browser/ui/aria/aria';
+import { mainWindow } from 'vs/base/browser/window';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { AccessibilitySupport, CONTEXT_ACCESSIBILITY_MODE_ENABLED, IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
@@ -26,7 +27,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 	constructor(
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILayoutService private readonly _layoutService: ILayoutService,
-		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService
 	) {
 		super();
 		this._accessibilityModeEnabledContext = CONTEXT_ACCESSIBILITY_MODE_ENABLED.bindTo(this._contextKeyService);
@@ -45,7 +46,7 @@ export class AccessibilityService extends Disposable implements IAccessibilitySe
 		updateContextKey();
 		this._register(this.onDidChangeScreenReaderOptimized(() => updateContextKey()));
 
-		const reduceMotionMatcher = window.matchMedia(`(prefers-reduced-motion: reduce)`);
+		const reduceMotionMatcher = mainWindow.matchMedia(`(prefers-reduced-motion: reduce)`);
 		this._systemMotionReduced = reduceMotionMatcher.matches;
 		this._configMotionReduced = this._configurationService.getValue<'auto' | 'on' | 'off'>('workbench.reduceMotion');
 

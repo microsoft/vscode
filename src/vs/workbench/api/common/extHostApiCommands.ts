@@ -411,7 +411,7 @@ const newCommands: ApiCommand[] = [
 		'vscode.openWith', '_workbench.openWith', 'Opens the provided resource with a specific editor.',
 		[
 			ApiCommandArgument.Uri.with('resource', 'Resource to open'),
-			ApiCommandArgument.String.with('viewId', 'Custom editor view id or \'default\' to use VS Code\'s default editor'),
+			ApiCommandArgument.String.with('viewId', 'Custom editor view id. This should be the viewType string for custom editors or the notebookType string for notebooks. Use \'default\' to use VS Code\'s default text editor'),
 			new ApiCommandArgument<vscode.ViewColumn | typeConverters.TextEditorOpenOptions | undefined, [vscode.ViewColumn?, ITextEditorOptions?] | undefined>('columnOrOptions', 'Either the column in which to open or editor options, see vscode.TextDocumentShowOptions',
 				v => v === undefined || typeof v === 'number' || typeof v === 'object',
 				v => !v ? v : typeof v === 'number' ? [typeConverters.ViewColumn.from(v), undefined] : [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)],
@@ -429,6 +429,31 @@ const newCommands: ApiCommand[] = [
 				v => v === undefined || typeof v === 'object',
 				v => v && [typeConverters.ViewColumn.from(v.viewColumn), typeConverters.TextEditorOpenOptions.from(v)]
 			).optional(),
+		],
+		ApiCommandResult.Void
+	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens a list of resources in the changes editor to compare their contents.',
+		[
+			ApiCommandArgument.String.with('title', 'Human readable title for the changes editor'),
+			new ApiCommandArgument<[URI, URI?, URI?][]>('resourceList', 'List of resources to compare',
+				resources => {
+					for (const resource of resources) {
+						if (resource.length !== 3) {
+							return false;
+						}
+
+						const [label, left, right] = resource;
+						if (!URI.isUri(label) ||
+							(!URI.isUri(left) && left !== undefined && left !== null) ||
+							(!URI.isUri(right) && right !== undefined && right !== null)) {
+							return false;
+						}
+					}
+
+					return true;
+				},
+				v => v)
 		],
 		ApiCommandResult.Void
 	),

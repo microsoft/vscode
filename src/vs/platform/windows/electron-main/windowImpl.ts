@@ -3,16 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, BrowserWindowConstructorOptions, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { FileAccess, Schemas } from 'vs/base/common/network';
-import { join } from 'vs/base/common/path';
 import { getMarks, mark } from 'vs/base/common/performance';
-import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { ISerializableCommandAction } from 'vs/platform/action/common/action';
@@ -32,11 +31,11 @@ import { IApplicationStorageMainService, IStorageMainService } from 'vs/platform
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
-import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay, WindowMinimumSize, zoomLevelToZoomFactor } from 'vs/platform/window/common/window';
-import { IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
+import { getMenuBarVisibility, getTitleBarStyle, IFolderToOpen, INativeWindowConfiguration, IWindowSettings, IWorkspaceToOpen, MenuBarVisibility, useWindowControlsOverlay } from 'vs/platform/window/common/window';
+import { defaultBrowserWindowOptions, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
-import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState } from 'vs/platform/window/electron-main/window';
+import { IWindowState, ICodeWindow, ILoadEvent, WindowMode, WindowError, LoadReason, defaultWindowState, IBaseWindow } from 'vs/platform/window/electron-main/window';
 import { Color } from 'vs/base/common/color';
 import { IPolicyService } from 'vs/platform/policy/common/policy';
 import { IUserDataProfile } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -44,6 +43,7 @@ import { IStateService } from 'vs/platform/state/node/state';
 import { IUserDataProfilesMainService } from 'vs/platform/userDataProfile/electron-main/userDataProfile';
 import { ILoggerMainService } from 'vs/platform/log/electron-main/loggerService';
 import { firstOrDefault } from 'vs/base/common/arrays';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IWindowCreationOptions {
 	readonly state: IWindowState;
@@ -82,7 +82,164 @@ const enum ReadyState {
 	READY
 }
 
-export class CodeWindow extends Disposable implements ICodeWindow {
+export abstract class BaseWindow extends Disposable implements IBaseWindow {
+
+	abstract readonly onDidClose: Event<void>;
+
+	abstract readonly id: number;
+	abstract readonly win: BrowserWindow | null;
+
+	abstract readonly lastFocusTime: number;
+
+	constructor(protected readonly configurationService: IConfigurationService) {
+		super();
+	}
+
+	private representedFilename: string | undefined;
+
+	setRepresentedFilename(filename: string): void {
+		if (isMacintosh) {
+			this.win?.setRepresentedFilename(filename);
+		} else {
+			this.representedFilename = filename;
+		}
+	}
+
+	getRepresentedFilename(): string | undefined {
+		if (isMacintosh) {
+			return this.win?.getRepresentedFilename();
+		}
+
+		return this.representedFilename;
+	}
+
+	private documentEdited: boolean | undefined;
+
+	setDocumentEdited(edited: boolean): void {
+		if (isMacintosh) {
+			this.win?.setDocumentEdited(edited);
+		}
+
+		this.documentEdited = edited;
+	}
+
+	isDocumentEdited(): boolean {
+		if (isMacintosh) {
+			return Boolean(this.win?.isDocumentEdited());
+		}
+
+		return !!this.documentEdited;
+	}
+
+	focus(options?: { force: boolean }): void {
+		if (isMacintosh && options?.force) {
+			app.focus({ steal: true });
+		}
+
+		const win = this.win;
+		if (!win) {
+			return;
+		}
+
+		if (win.isMinimized()) {
+			win.restore();
+		}
+
+		win.focus();
+	}
+
+	//#region Fullscreen
+
+	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
+	// where on macOS the window will report a wrong state for `isFullScreen()` while
+	// transitioning into and out of native full screen.
+	protected transientIsNativeFullScreen: boolean | undefined = undefined;
+	protected joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
+
+	toggleFullScreen(): void {
+		this.setFullScreen(!this.isFullScreen);
+	}
+
+	protected setFullScreen(fullscreen: boolean): void {
+
+		// Set fullscreen state
+		if (this.useNativeFullScreen()) {
+			this.setNativeFullScreen(fullscreen);
+		} else {
+			this.setSimpleFullScreen(fullscreen);
+		}
+	}
+
+	get isFullScreen(): boolean {
+		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
+			return this.transientIsNativeFullScreen;
+		}
+
+		const win = this.win;
+		const isFullScreen = win?.isFullScreen();
+		const isSimpleFullScreen = win?.isSimpleFullScreen();
+
+		return Boolean(isFullScreen || isSimpleFullScreen);
+	}
+
+	private setNativeFullScreen(fullscreen: boolean): void {
+		const win = this.win;
+		if (win?.isSimpleFullScreen()) {
+			win?.setSimpleFullScreen(false);
+		}
+
+		this.doSetNativeFullScreen(fullscreen);
+	}
+
+	private doSetNativeFullScreen(fullscreen: boolean): void {
+		if (isMacintosh) {
+			this.transientIsNativeFullScreen = fullscreen;
+			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
+			Promise.race([
+				this.joinNativeFullScreenTransition.p,
+				// still timeout after some time in case the transition is unusually slow
+				// this can easily happen for an OS update where macOS tries to reopen
+				// previous applications and that can take multiple seconds, probably due
+				// to security checks. its worth noting that if this takes more than
+				// 10 seconds, users would see a window that is not-fullscreen but without
+				// custom titlebar...
+				timeout(10000)
+			]).finally(() => {
+				this.transientIsNativeFullScreen = undefined;
+			});
+		}
+
+		const win = this.win;
+		win?.setFullScreen(fullscreen);
+	}
+
+	private setSimpleFullScreen(fullscreen: boolean): void {
+		const win = this.win;
+		if (win?.isFullScreen()) {
+			this.doSetNativeFullScreen(false);
+		}
+
+		win?.setSimpleFullScreen(fullscreen);
+		win?.webContents.focus(); // workaround issue where focus is not going into window
+	}
+
+	protected useNativeFullScreen(): boolean {
+		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
+		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
+			return true; // default
+		}
+
+		if (windowConfig.nativeTabs) {
+			return true; // https://github.com/electron/electron/issues/16142
+		}
+
+		return windowConfig.nativeFullScreen !== false;
+	}
+
+	//#endregion
+}
+
+export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 	private static readonly windowControlHeightStateStorageKey = 'windowControlHeight';
 
@@ -150,15 +307,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 	private readonly windowState: IWindowState;
 	private currentMenuBarVisibility: MenuBarVisibility | undefined;
 
-	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
-	// where on macOS the window will report a wrong state for `isFullScreen()` while
-	// transitioning into and out of native full screen.
-	private transientIsNativeFullScreen: boolean | undefined = undefined;
-	private joinNativeFullScreenTransition: DeferredPromise<void> | undefined = undefined;
-
-	private representedFilename: string | undefined;
-	private documentEdited: boolean | undefined;
-
 	private readonly hasWindowControlOverlay: boolean = false;
 
 	private readonly whenReadyCallbacks: { (window: ICodeWindow): void }[] = [];
@@ -182,7 +330,7 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IFileService private readonly fileService: IFileService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
 		@IStorageMainService private readonly storageMainService: IStorageMainService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@IThemeMainService private readonly themeMainService: IThemeMainService,
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@IBackupMainService private readonly backupMainService: IBackupMainService,
@@ -192,9 +340,10 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		@IProductService private readonly productService: IProductService,
 		@IProtocolMainService private readonly protocolMainService: IProtocolMainService,
 		@IWindowsMainService private readonly windowsMainService: IWindowsMainService,
-		@IStateService private readonly stateService: IStateService
+		@IStateService private readonly stateService: IStateService,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super();
+		super(configurationService);
 
 		//#region create browser window
 		{
@@ -209,51 +358,17 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 			const windowSettings = this.configurationService.getValue<IWindowSettings | undefined>('window');
 
-			const options: BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
-				width: this.windowState.width,
-				height: this.windowState.height,
-				x: this.windowState.x,
-				y: this.windowState.y,
-				backgroundColor: this.themeMainService.getBackgroundColor(),
-				minWidth: WindowMinimumSize.WIDTH,
-				minHeight: WindowMinimumSize.HEIGHT,
+			const options = instantiationService.invokeFunction(defaultBrowserWindowOptions, this.windowState, {
 				show: !isFullscreenOrMaximized, // reduce flicker by showing later
-				title: this.productService.nameLong,
 				webPreferences: {
 					preload: FileAccess.asFileUri('vs/base/parts/sandbox/electron-sandbox/preload.js').fsPath,
 					additionalArguments: [`--vscode-window-config=${this.configObjectUrl.resource.toString()}`],
 					v8CacheOptions: this.environmentMainService.useCodeCache ? 'bypassHeatCheck' : 'none',
-					enableWebSQL: false,
-					spellcheck: false,
-					zoomFactor: zoomLevelToZoomFactor(windowSettings?.zoomLevel),
-					autoplayPolicy: 'user-gesture-required',
-					// Enable experimental css highlight api https://chromestatus.com/feature/5436441440026624
-					// Refs https://github.com/microsoft/vscode/issues/140098
-					enableBlinkFeatures: 'HighlightAPI',
-					sandbox: true
-				},
-				experimentalDarkMode: true
-			};
-
-			// Apply icon to window
-			// Linux: always
-			// Windows: only when running out of sources, otherwise an icon is set by us on the executable
-			if (isLinux) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/linux/code.png');
-			} else if (isWindows && !this.environmentMainService.isBuilt) {
-				options.icon = join(this.environmentMainService.appRoot, 'resources/win32/code_150x150.png');
-			}
+				}
+			});
 
 			if (isMacintosh && !this.useNativeFullScreen()) {
 				options.fullscreenable = false; // enables simple fullscreen mode
-			}
-
-			if (isMacintosh) {
-				options.acceptFirstMouse = true; // enabled by default
-
-				if (windowSettings?.clickThroughInactive === false) {
-					options.acceptFirstMouse = false;
-				}
 			}
 
 			const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
@@ -407,61 +522,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 
 		// Eventing
 		this.registerListeners();
-	}
-
-	setRepresentedFilename(filename: string): void {
-		if (isMacintosh) {
-			this._win.setRepresentedFilename(filename);
-		} else {
-			this.representedFilename = filename;
-		}
-	}
-
-	getRepresentedFilename(): string | undefined {
-		if (isMacintosh) {
-			return this._win.getRepresentedFilename();
-		}
-
-		return this.representedFilename;
-	}
-
-	setDocumentEdited(edited: boolean): void {
-		if (isMacintosh) {
-			this._win.setDocumentEdited(edited);
-		}
-
-		this.documentEdited = edited;
-	}
-
-	isDocumentEdited(): boolean {
-		if (isMacintosh) {
-			return this._win.isDocumentEdited();
-		}
-
-		return !!this.documentEdited;
-	}
-
-	focus(options?: { force: boolean }): void {
-		// macOS: Electron > 7.x changed its behaviour to not
-		// bring the application to the foreground when a window
-		// is focused programmatically. Only via `app.focus` and
-		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
-		// when a window is getting focused while the application
-		// is not in the foreground.
-		if (isMacintosh && options?.force) {
-			app.focus({ steal: true });
-		}
-
-		if (!this._win) {
-			return;
-		}
-
-		if (this._win.isMinimized()) {
-			this._win.restore();
-		}
-
-		this._win.focus();
 	}
 
 	private readyState = ReadyState.NONE;
@@ -1283,18 +1343,8 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		return { x, y, width, height };
 	}
 
-	toggleFullScreen(): void {
-		this.setFullScreen(!this.isFullScreen);
-	}
-
-	private setFullScreen(fullscreen: boolean): void {
-
-		// Set fullscreen state
-		if (this.useNativeFullScreen()) {
-			this.setNativeFullScreen(fullscreen);
-		} else {
-			this.setSimpleFullScreen(fullscreen);
-		}
+	protected override setFullScreen(fullscreen: boolean): void {
+		super.setFullScreen(fullscreen);
 
 		// Events
 		this.sendWhenReady(fullscreen ? 'vscode:enterFullScreen' : 'vscode:leaveFullScreen', CancellationToken.None);
@@ -1303,61 +1353,6 @@ export class CodeWindow extends Disposable implements ICodeWindow {
 		if (this.currentMenuBarVisibility) {
 			this.setMenuBarVisibility(this.currentMenuBarVisibility, false);
 		}
-	}
-
-	get isFullScreen(): boolean {
-		if (isMacintosh && typeof this.transientIsNativeFullScreen === 'boolean') {
-			return this.transientIsNativeFullScreen;
-		}
-
-		return this._win.isFullScreen() || this._win.isSimpleFullScreen();
-	}
-
-	private setNativeFullScreen(fullscreen: boolean): void {
-		if (this._win.isSimpleFullScreen()) {
-			this._win.setSimpleFullScreen(false);
-		}
-
-		this.doSetNativeFullScreen(fullscreen);
-	}
-
-	private doSetNativeFullScreen(fullscreen: boolean): void {
-		if (isMacintosh) {
-			this.transientIsNativeFullScreen = fullscreen;
-			this.joinNativeFullScreenTransition = new DeferredPromise<void>();
-			Promise.race([
-				this.joinNativeFullScreenTransition.p,
-				timeout(1000) // still timeout after some time in case we miss the event
-			]).finally(() => this.transientIsNativeFullScreen = undefined);
-		}
-
-		this._win.setFullScreen(fullscreen);
-	}
-
-	private setSimpleFullScreen(fullscreen: boolean): void {
-		if (this._win.isFullScreen()) {
-			this.doSetNativeFullScreen(false);
-		}
-
-		this._win.setSimpleFullScreen(fullscreen);
-		this._win.webContents.focus(); // workaround issue where focus is not going into window
-	}
-
-	private useNativeFullScreen(): boolean {
-		const windowConfig = this.configurationService.getValue<IWindowSettings | undefined>('window');
-		if (!windowConfig || typeof windowConfig.nativeFullScreen !== 'boolean') {
-			return true; // default
-		}
-
-		if (windowConfig.nativeTabs) {
-			return true; // https://github.com/electron/electron/issues/16142
-		}
-
-		return windowConfig.nativeFullScreen !== false;
-	}
-
-	isMinimized(): boolean {
-		return this._win.isMinimized();
 	}
 
 	private getMenuBarVisibility(): MenuBarVisibility {

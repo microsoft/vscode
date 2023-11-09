@@ -82,7 +82,7 @@ export class InstallCountWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
+		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -146,7 +146,7 @@ export class RatingsWidget extends ExtensionWidget {
 			return;
 		}
 
-		if (this.small && this.extension.state === ExtensionState.Installed) {
+		if (this.small && this.extension.state !== ExtensionState.Uninstalled) {
 			return;
 		}
 
@@ -209,7 +209,7 @@ export class VerifiedPublisherWidget extends ExtensionWidget {
 
 		if (!this.small) {
 			verifiedPublisher.tabIndex = 0;
-			verifiedPublisher.title = this.extension.publisherDomain.link;
+			verifiedPublisher.title = `Verified Domain: ${this.extension.publisherDomain.link}`;
 			verifiedPublisher.setAttribute('role', 'link');
 
 			append(verifiedPublisher, $('span.extension-verified-publisher-domain', undefined, publisherDomainLink.authority.startsWith('www.') ? publisherDomainLink.authority.substring(4) : publisherDomainLink.authority));
@@ -536,9 +536,11 @@ export class ExtensionHoverWidget extends ExtensionWidget {
 				showHover: (options) => {
 					return this.hoverService.showHover({
 						...options,
-						hoverPosition: this.options.position(),
-						forcePosition: true,
-						additionalClasses: ['extension-hover']
+						additionalClasses: ['extension-hover'],
+						position: {
+							hoverPosition: this.options.position(),
+							forcePosition: true,
+						},
 					});
 				},
 				placement: 'element'

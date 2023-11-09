@@ -30,6 +30,8 @@ import { URI } from 'vs/base/common/uri';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IAccessibilityInformation } from 'vs/platform/accessibility/common/accessibility';
+import { mainWindow } from 'vs/base/browser/window';
 
 class LanguageStatusViewModel {
 
@@ -182,7 +184,7 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			for (const status of model.combined) {
 				const isPinned = model.dedicated.includes(status);
 				element.appendChild(this._renderStatus(status, showSeverity, isPinned, this._renderDisposables));
-				ariaLabels.push(this._asAriaLabel(status));
+				ariaLabels.push(EditorStatusContribution._accessibilityInformation(status).label);
 				isOneBusy = isOneBusy || (!isPinned && status.busy); // unpinned items contribute to the busy-indicator of the composite status item
 			}
 			const props: IStatusbarEntry = {
@@ -201,8 +203,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// animate the status bar icon whenever language status changes, repeat animation
 			// when severity is warning or error, don't show animation when showing progress/busy
 			const userHasInteractedWithStatus = this._interactionCounter.value >= 3;
-			const node = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
-			const container = document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
+			const node = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus A>SPAN.codicon');
+			const container = mainWindow.document.querySelector('.monaco-workbench .statusbar DIV#status\\.languageStatus');
 			if (node instanceof HTMLElement && container) {
 				const _wiggle = 'wiggle';
 				const _flash = 'flash';
@@ -222,10 +224,10 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			// track when the hover shows (this is automagic and DOM mutation spying is needed...)
 			//  use that as signal that the user has interacted/learned language status items work
 			if (!userHasInteractedWithStatus) {
-				const hoverTarget = document.querySelector('.monaco-workbench .context-view');
+				const hoverTarget = mainWindow.document.querySelector('.monaco-workbench .context-view');
 				if (hoverTarget instanceof HTMLElement) {
 					const observer = new MutationObserver(() => {
-						if (document.contains(element)) {
+						if (mainWindow.document.contains(element)) {
 							this._interactionCounter.increment();
 							observer.disconnect();
 						}
@@ -275,7 +277,8 @@ class EditorStatusContribution implements IWorkbenchContribution {
 
 		const label = document.createElement('span');
 		label.classList.add('label');
-		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(sync~spin)\u00A0\u00A0${status.label}` : status.label));
+		const labelValue = typeof status.label === 'string' ? status.label : status.label.value;
+		dom.append(label, ...renderLabelWithIcons(status.busy ? `$(sync~spin)\u00A0\u00A0${labelValue}` : labelValue));
 		left.appendChild(label);
 
 		const detail = document.createElement('span');
@@ -351,13 +354,15 @@ class EditorStatusContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private _asAriaLabel(status: ILanguageStatus): string {
+	private static _accessibilityInformation(status: ILanguageStatus): IAccessibilityInformation {
 		if (status.accessibilityInfo) {
-			return status.accessibilityInfo.label;
-		} else if (status.detail) {
-			return localize('aria.1', '{0}, {1}', status.label, status.detail);
+			return status.accessibilityInfo;
+		}
+		const textValue = typeof status.label === 'string' ? status.label : status.label.value;
+		if (status.detail) {
+			return { label: localize('aria.1', '{0}, {1}', textValue, status.detail) };
 		} else {
-			return localize('aria.2', '{0}', status.label);
+			return { label: localize('aria.2', '{0}', textValue) };
 		}
 	}
 
@@ -372,10 +377,12 @@ class EditorStatusContribution implements IWorkbenchContribution {
 			kind = 'error';
 		}
 
+		const textValue = typeof item.label === 'string' ? item.label : item.label.shortValue;
+
 		return {
 			name: localize('name.pattern', '{0} (Language Status)', item.name),
-			text: item.busy ? `${item.label}\u00A0\u00A0$(sync~spin)` : item.label,
-			ariaLabel: item.accessibilityInfo?.label ?? item.label,
+			text: item.busy ? `${textValue}\u00A0\u00A0$(sync~spin)` : textValue,
+			ariaLabel: EditorStatusContribution._accessibilityInformation(item).label,
 			role: item.accessibilityInfo?.role,
 			tooltip: item.command?.tooltip || new MarkdownString(item.detail, { isTrusted: true, supportThemeIcons: true }),
 			kind,

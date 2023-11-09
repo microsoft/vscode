@@ -170,7 +170,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb)
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
@@ -486,7 +486,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
-		dom.scheduleAtNextAnimationFrame(() => {
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(editContainer), () => {
 			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
 		});

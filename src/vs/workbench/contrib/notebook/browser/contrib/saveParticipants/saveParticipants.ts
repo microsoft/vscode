@@ -253,7 +253,10 @@ class FinalNewLineParticipant implements IStoredFileWorkingCopySaveParticipant {
 	) { }
 
 	async participate(workingCopy: IStoredFileWorkingCopy<IStoredFileWorkingCopyModel>, context: { reason: SaveReason }, progress: IProgress<IProgressStep>, _token: CancellationToken): Promise<void> {
-		if (this.configurationService.getValue('files.insertFinalNewline')) {
+		// waiting on notebook-specific override before this feature can sync with 'files.insertFinalNewline'
+		// if (this.configurationService.getValue('files.insertFinalNewline')) {
+
+		if (this.configurationService.getValue<boolean>(NotebookSetting.insertFinalNewline)) {
 			await this.doInsertFinalNewLine(workingCopy, context.reason === SaveReason.AUTO, progress);
 		}
 	}

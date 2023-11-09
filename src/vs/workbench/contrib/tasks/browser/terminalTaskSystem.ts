@@ -386,9 +386,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	public getLastInstance(task: Task): Task | undefined {
-		const recentKey = task.getRecentlyUsedKey();
+		const recentKey = task.getKey();
 		return Object.values(this._activeTasks).reverse().find(
-			(value) => recentKey && recentKey === value.task.getRecentlyUsedKey())?.task;
+			(value) => recentKey && recentKey === value.task.getKey())?.task;
 	}
 
 	public getBusyTasks(): Task[] {
@@ -408,9 +408,9 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 	}
 
 	private _getInstances(task: Task): IActiveTerminalData[] {
-		const recentKey = task.getRecentlyUsedKey();
+		const recentKey = task.getKey();
 		return Object.values(this._activeTasks).filter(
-			(value) => recentKey && recentKey === value.task.getRecentlyUsedKey());
+			(value) => recentKey && recentKey === value.task.getKey());
 	}
 
 	private _removeFromActiveTasks(task: Task | string): void {
@@ -587,12 +587,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			dependencyTask.configurationProperties.icon.color ||= task.configurationProperties.icon?.color;
 		} else {
 			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
-		}
-
-		if (dependencyTask.configurationProperties.hide) {
-			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
-		} else {
-			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
 		}
 	}
 
@@ -1045,7 +1039,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			this._viewsService.openView(Markers.MARKERS_VIEW_ID);
 		} else if (task.command.presentation && (task.command.presentation.focus || task.command.presentation.reveal === RevealKind.Always)) {
 			this._terminalService.setActiveInstance(terminal);
-			this._terminalGroupService.showPanel(task.command.presentation.focus);
+			await this._terminalService.revealActiveTerminal();
 		}
 		this._activeTasks[task.getMapKey()].terminal = terminal;
 		this._fireTaskEvent(TaskEvent.changed());

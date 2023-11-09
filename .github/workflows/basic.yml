@@ -31,7 +31,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version-file: .nvmrc
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -83,7 +83,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version-file: .nvmrc
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey
@@ -145,7 +145,7 @@ jobs:
 
       - uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version-file: .nvmrc
 
       - name: Compute node modules cache key
         id: nodeModulesCacheKey

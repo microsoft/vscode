@@ -5,8 +5,9 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
+import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -40,6 +41,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { mainWindow } from 'vs/base/browser/window';
 
 export interface IWorkbenchOptions {
 
@@ -74,14 +76,14 @@ export class Workbench extends Layout {
 	private registerErrorHandler(logService: ILogService): void {
 
 		// Listen on unhandled rejection events
-		window.addEventListener('unhandledrejection', (event: PromiseRejectionEvent) => {
+		this._register(addDisposableListener(mainWindow, 'unhandledrejection', event => {
 
 			// See https://developer.mozilla.org/en-US/docs/Web/API/PromiseRejectionEvent
 			onUnexpectedError(event.reason);
 
 			// Prevent the printing of this event to the console
 			event.preventDefault();
-		});
+		}));
 
 		// Install handler for unexpected errors
 		setUnexpectedErrorHandler(error => this.handleUnexpectedError(error, logService));
@@ -101,8 +103,8 @@ export class Workbench extends Layout {
 		}
 		type AnnotatedError = AnnotatedLoadingError | AnnotatedFactoryError | AnnotatedValidationError;
 
-		if (typeof window.require?.config === 'function') {
-			window.require.config({
+		if (typeof mainWindow.require?.config === 'function') {
+			mainWindow.require.config({
 				onError: (err: AnnotatedError) => {
 					if (err.phase === 'loading') {
 						onUnexpectedError(new Error(localize('loaderErrorNative', "Failed to load a required file. Please restart the application to try again. Details: {0}", JSON.stringify(err))));
@@ -328,10 +330,10 @@ export class Workbench extends Layout {
 		]);
 
 		this.container.classList.add(...workbenchClasses);
-		document.body.classList.add(platformClass); // used by our fonts
+		mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
-			document.body.classList.add('web');
+			mainWindow.document.body.classList.add('web');
 		}
 
 		// Apply font aliasing
@@ -449,7 +451,7 @@ export class Workbench extends Layout {
 
 				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(() => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+					this._register(runWhenWindowIdle(mainWindow, () => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 				}, 2500));
 				eventuallyPhaseScheduler.schedule();
 			})

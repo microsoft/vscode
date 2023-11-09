@@ -314,8 +314,12 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				hoverService.showHover({
 					content: treeItem.tooltip,
 					target: element,
-					hoverPosition: HoverPosition.BELOW,
-					hideOnHover: false
+					position: {
+						hoverPosition: HoverPosition.BELOW,
+					},
+					persistence: {
+						hideOnHover: false
+					}
 				}, true);
 			},
 			weight: KeybindingWeight.WorkbenchContrib,
@@ -535,7 +539,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 						type: type,
 						ctorDescriptor: type === ViewType.Tree ? new SyncDescriptor(TreeViewPane) : new SyncDescriptor(WebviewViewPane),
 						id: item.id,
-						name: item.name,
+						name: { value: item.name, original: item.name },
 						when: ContextKeyExpr.deserialize(item.when),
 						containerIcon: icon || viewContainer?.icon,
 						containerTitle: item.contextualTitle || (viewContainer && (typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.value)),

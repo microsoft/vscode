@@ -6,7 +6,7 @@
 import * as osPath from 'vs/base/common/path';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
 import { coalesce } from 'vs/base/common/arrays';
-import { DeferredPromise, runWhenIdle } from 'vs/base/common/async';
+import { DeferredPromise, runWhenGlobalIdle } from 'vs/base/common/async';
 import { decodeBase64 } from 'vs/base/common/buffer';
 import { Emitter, Event } from 'vs/base/common/event';
 import { getExtensionForMimeType } from 'vs/base/common/mime';
@@ -55,10 +55,11 @@ import { INotebookLoggingService } from 'vs/workbench/contrib/notebook/common/no
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } from 'vs/base/common/actions';
+import { getWindow } from 'vs/base/browser/dom';
 
 const LINE_COLUMN_REGEX = /:([\d]+)(?::([\d]+))?$/;
 const LineQueryRegex = /line=(\d+)$/;
-
+const FRAGMENT_REGEX = /^(.*)#([^#]*)$/;
 
 export interface ICachedInset<K extends ICommonCellInfo> {
 	outputId: string;
@@ -547,7 +548,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _initialize(content: string): Promise<void> {
-		if (!document.body.contains(this.element)) {
+		if (!getWindow(this.element).document.body.contains(this.element)) {
 			throw new Error('Element is already detached from the DOM tree');
 		}
 
@@ -765,10 +766,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 						this.openerService.open(data.href, { fromUserGesture: true, fromWorkspace: true });
 					} else if (matchesScheme(data.href, Schemas.vscodeNotebookCell)) {
 						const uri = URI.parse(data.href);
-						this._handleNotebookCellResource(uri);
+						await this._handleNotebookCellResource(uri);
 					} else if (!/^[\w\-]+:/.test(data.href)) {
 						// Uri without scheme, such as a file path
-						this._handleResourceOpening(tryDecodeURIComponent(data.href));
+						await this._handleResourceOpening(tryDecodeURIComponent(data.href));
 					} else {
 						// uri with scheme
 						if (osPath.isAbsolute(data.href)) {
@@ -907,38 +908,93 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 	}
 
 	private _handleNotebookCellResource(uri: URI) {
-		const lineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		const notebookResource = uri.path.length > 0 ? uri : this.documentUri;
+
+		const lineMatch = /(?:^|&)line=([^&]+)/.exec(uri.query);
+		let editorOptions: ITextEditorOptions | undefined = undefined;
 		if (lineMatch) {
 			const parsedLineNumber = parseInt(lineMatch[1], 10);
 			if (!isNaN(parsedLineNumber)) {
+				const lineNumber = parsedLineNumber;
+
+				editorOptions = {
+					selection: { startLineNumber: lineNumber, startColumn: 1 }
+				};
+			}
+		}
+
+		const executionMatch = /(?:^|&)execution_count=([^&]+)/.exec(uri.query);
+		if (executionMatch) {
+			const executionCount = parseInt(executionMatch[1], 10);
+			if (!isNaN(executionCount)) {
+				const notebookModel = this.notebookService.getNotebookTextModel(notebookResource);
+				// multiple cells with the same execution count can exist if the kernel is restarted
+				// so look for the most recently added cell with the matching execution count.
+				// Somewhat more likely to be correct in notebooks, an much more likely for the interactive window
+				const cell = notebookModel?.cells.slice().reverse().find(cell => {
+					return cell.internalMetadata.executionOrder === executionCount;
+				});
+				if (cell?.uri) {
+					return this.openerService.open(cell.uri, {
+						fromUserGesture: true,
+						fromWorkspace: true,
+						editorOptions: editorOptions
+					});
+				}
+			}
+		}
+
+		// URLs built by the jupyter extension put the line query param in the fragment
+		// They also have the cell fragment pre-calculated
+		const fragmentLineMatch = /\?line=(\d+)$/.exec(uri.fragment);
+		if (fragmentLineMatch) {
+			const parsedLineNumber = parseInt(fragmentLineMatch[1], 10);
+			if (!isNaN(parsedLineNumber)) {
 				const lineNumber = parsedLineNumber + 1;
-				const fragment = uri.fragment.substring(0, lineMatch.index);
+				const fragment = uri.fragment.substring(0, fragmentLineMatch.index);
 
 				// open the uri with selection
 				const editorOptions: ITextEditorOptions = {
 					selection: { startLineNumber: lineNumber, startColumn: 1, endLineNumber: lineNumber, endColumn: 1 }
 				};
-				this.openerService.open(uri.with({ fragment }), {
+
+				return this.openerService.open(notebookResource.with({ fragment }), {
 					fromUserGesture: true,
 					fromWorkspace: true,
 					editorOptions: editorOptions
 				});
-				return;
 			}
 		}
 
-		this.openerService.open(uri, { fromUserGesture: true, fromWorkspace: true });
-		return uri;
+		return this.openerService.open(notebookResource, { fromUserGesture: true, fromWorkspace: true });
 	}
 
-	private _handleResourceOpening(href: string) {
+	private async _handleResourceOpening(href: string) {
 		let linkToOpen: URI | undefined = undefined;
+		let fragment: string | undefined = undefined;
+
+		// Separate out the fragment so that the subsequent calls
+		// to URI.joinPath() don't URL encode it. This allows opening
+		// links with both paths and fragments.
+		const hrefWithFragment = FRAGMENT_REGEX.exec(href);
+		if (hrefWithFragment) {
+			href = hrefWithFragment[1];
+			fragment = hrefWithFragment[2];
+		}
+
 		if (href.startsWith('/')) {
-			linkToOpen = URI.parse(href);
+			linkToOpen = await this.pathService.fileURI(href);
+			const folders = this.workspaceContextService.getWorkspace().folders;
+			if (folders.length) {
+				linkToOpen = linkToOpen.with({
+					scheme: folders[0].uri.scheme,
+					authority: folders[0].uri.authority
+				});
+			}
 		} else if (href.startsWith('~')) {
-			const userHome = this.pathService.resolvedUserHome;
+			const userHome = await this.pathService.userHome();
 			if (userHome) {
-				linkToOpen = URI.parse(osPath.join(userHome.fsPath, href.substring(1)));
+				linkToOpen = URI.joinPath(userHome, href.substring(2));
 			}
 		} else {
 			if (this.documentUri.scheme === Schemas.untitled) {
@@ -954,6 +1010,10 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		}
 
 		if (linkToOpen) {
+			// Re-attach fragment now that we have the full file path.
+			if (fragment) {
+				linkToOpen = linkToOpen.with({ fragment });
+			}
 			this._openUri(linkToOpen);
 		}
 	}
@@ -1376,7 +1436,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return;
 		}
 
-		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenIdle(() => {
+		this.pendingWebviewIdleCreationRequest.set(content.source, runWhenGlobalIdle(() => {
 			const { message, renderer, transfer: transferable } = this._createOutputCreationMessage(cellInfo, content, cellTop, offset, true, true);
 			this._sendMessageToWebview(message, transferable);
 			this.pendingWebviewIdleInsetMapping.set(content.source, { outputId: message.outputId, versionId: content.source.model.versionId, cellInfo: cellInfo, renderer, cachedCreation: message });

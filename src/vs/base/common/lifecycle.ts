@@ -103,8 +103,7 @@ export class DisposableTracker implements IDisposableTracker {
 
 		const leaking = [...this.livingDisposables.entries()]
 			.filter(([, v]) => v.source !== null && !this.getRootParent(v, rootParentCache).isSingleton)
-			.map(([k]) => k)
-			.flat();
+			.flatMap(([k]) => k);
 
 		return leaking;
 	}
@@ -747,6 +746,10 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 	deleteAndDispose(key: K): void {
 		this._store.get(key)?.dispose();
 		this._store.delete(key);
+	}
+
+	keys(): IterableIterator<K> {
+		return this._store.keys();
 	}
 
 	[Symbol.iterator](): IterableIterator<[K, V]> {

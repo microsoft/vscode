@@ -160,11 +160,11 @@ zone.js/dist/**
 !zone.js/dist/zone-node.js
 
 # https://github.com/xtermjs/xterm.js/issues/3137
-xterm/src/**
-xterm/tsconfig.all.json
+@xterm/xterm/src/**
+@xterm/xterm/tsconfig.all.json
 
 # https://github.com/xtermjs/xterm.js/issues/3138
-xterm-addon-*/src/**
-xterm-addon-*/fixtures/**
-xterm-addon-*/out/**
-xterm-addon-*/out-test/**
+@xterm/xterm-addon-*/src/**
+@xterm/xterm-addon-*/fixtures/**
+@xterm/xterm-addon-*/out/**
+@xterm/xterm-addon-*/out-test/**

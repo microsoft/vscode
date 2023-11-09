@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -11,9 +11,12 @@ import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { NativeHostService } from 'vs/platform/native/electron-sandbox/nativeHostService';
+import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
+import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { disposableWindowInterval, getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
+import { memoize } from 'vs/base/common/decorators';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -32,21 +35,23 @@ class WorkbenchHostService extends Disposable implements IHostService {
 	constructor(
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@ILabelService private readonly labelService: ILabelService,
-		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService
+		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
 	) {
 		super();
 	}
 
 	//#region Focus
 
-	get onDidChangeFocus(): Event<boolean> { return this._onDidChangeFocus; }
-	private _onDidChangeFocus: Event<boolean> = Event.latch(Event.any(
-		Event.map(Event.filter(this.nativeHostService.onDidFocusWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus),
-		Event.map(Event.filter(this.nativeHostService.onDidBlurWindow, id => id === this.nativeHostService.windowId), () => this.hasFocus)
-	), undefined, this._store);
+	readonly onDidChangeFocus = Event.latch(
+		Event.any(
+			Event.map(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id)), this._store), () => this.hasFocus, this._store),
+			Event.map(Event.filter(this.nativeHostService.onDidBlurMainOrAuxiliaryWindow, id => (id === this.nativeHostService.windowId) || !!this.auxiliaryWindowService.hasWindow(id), this._store), () => this.hasFocus, this._store)
+		), undefined, this._store
+	);
 
 	get hasFocus(): boolean {
-		return document.hasFocus();
+		return getActiveDocument().hasFocus();
 	}
 
 	async hadLastFocus(): Promise<boolean> {
@@ -63,6 +68,31 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 
 	//#region Window
+
+	@memoize
+	get onDidChangeActiveWindow(): Event<void> {
+		const emitter = this._register(new Emitter<number>());
+
+		// Emit via native focus tracking
+		this._register(Event.filter(this.nativeHostService.onDidFocusMainOrAuxiliaryWindow, id => id === this.nativeHostService.windowId || !!this.auxiliaryWindowService.hasWindow(id), this._store)(id => emitter.fire(id)));
+
+		this._register(onDidRegisterWindow(({ window, disposables }) => {
+
+			// Emit via interval: immediately when opening an auxiliary window,
+			// it is possible that document focus has not yet changed, so we
+			// poll for a while to ensure we catch the event.
+			disposables.add(disposableWindowInterval(window, () => {
+				const hasFocus = window.document.hasFocus();
+				if (hasFocus) {
+					emitter.fire(window.vscodeWindowId);
+				}
+
+				return hasFocus;
+			}, 100, 20));
+		}));
+
+		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
+	}
 
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
@@ -110,8 +140,16 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		return this.nativeHostService.openWindow(options);
 	}
 
-	toggleFullScreen(): Promise<void> {
-		return this.nativeHostService.toggleFullScreen();
+	toggleFullScreen(targetWindow: Window): Promise<void> {
+		return this.nativeHostService.toggleFullScreen({ targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : undefined });
+	}
+
+	async moveTop(targetWindow: Window): Promise<void> {
+		if (getWindowsCount() <= 1) {
+			return; // does not apply when only one window is opened
+		}
+
+		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(targetWindow) ? { targetWindowId: targetWindow.vscodeWindowId } : undefined);
 	}
 
 	//#endregion
@@ -119,8 +157,11 @@ class WorkbenchHostService extends Disposable implements IHostService {
 
 	//#region Lifecycle
 
-	focus(options?: { force: boolean }): Promise<void> {
-		return this.nativeHostService.focusWindow(options);
+	focus(targetWindow: Window, options?: { force: boolean }): Promise<void> {
+		return this.nativeHostService.focusWindow({
+			force: options?.force,
+			targetWindowId: isAuxiliaryWindow(targetWindow) ? targetWindow.vscodeWindowId : this.nativeHostService.windowId
+		});
 	}
 
 	restart(): Promise<void> {

@@ -506,7 +506,7 @@ export class InteractiveEditor extends EditorPane {
 		this._widgetDisposableStore.add(this._codeEditorWidget.onDidChangeCursorPosition(({ position }) => {
 			const viewModel = this._codeEditorWidget._getViewModel()!;
 			const lastLineNumber = viewModel.getLineCount();
-			const lastLineCol = viewModel.getLineContent(lastLineNumber).length + 1;
+			const lastLineCol = viewModel.getLineLength(lastLineNumber) + 1;
 			const viewPosition = viewModel.coordinatesConverter.convertModelPositionToViewPosition(position);
 			const firstLine = viewPosition.lineNumber === 1 && viewPosition.column === 1;
 			const lastLine = viewPosition.lineNumber === lastLineNumber && viewPosition.column === lastLineCol;
@@ -673,6 +673,8 @@ export class InteractiveEditor extends EditorPane {
 	}
 
 	override focus() {
+		super.focus();
+
 		this._notebookWidget.value?.onShow();
 		this._codeEditorWidget.focus();
 	}
