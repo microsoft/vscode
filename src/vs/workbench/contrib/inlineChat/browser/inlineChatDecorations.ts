@@ -39,7 +39,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
-	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat';
+	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat-opaque';
 	private static readonly GUTTER_ICON_TRANSPARENT_CLASSNAME = 'codicon-inline-chat-transparent';
 
 	constructor(
