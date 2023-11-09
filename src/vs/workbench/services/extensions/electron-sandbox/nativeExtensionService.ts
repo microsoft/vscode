@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { runWhenWindowIdle } from 'vs/base/browser/dom';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Schemas } from 'vs/base/common/network';
 import * as performance from 'vs/base/common/performance';
@@ -135,7 +135,7 @@ export class NativeExtensionService extends AbstractExtensionService implements 
 		// see https://github.com/microsoft/vscode/issues/41322
 		lifecycleService.when(LifecyclePhase.Ready).then(() => {
 			// reschedule to ensure this runs after restoring viewlets, panels, and editors
-			runWhenWindowIdle($window, () => {
+			runWhenWindowIdle(mainWindow, () => {
 				this._initialize();
 			}, 50 /*max delay*/);
 		});

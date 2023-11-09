@@ -677,11 +677,10 @@ export class InlineChatController implements IEditorContribution {
 				response = new EmptyResponse();
 				a11yResponse = localize('empty', "No results, please refine your input and try again");
 			} else {
-
-				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
-				if (reply.type === InlineChatResponseType.Message) {
+				if (reply.message) {
 					markdownContents.appendMarkdown(reply.message.value);
 				}
+				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
 
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);

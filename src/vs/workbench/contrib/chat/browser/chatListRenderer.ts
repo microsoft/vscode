@@ -14,7 +14,6 @@ import { ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree'
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
-import { $window } from 'vs/base/browser/window';
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
 import { disposableTimeout } from 'vs/base/common/async';
@@ -312,7 +311,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					throw err;
 				}
 			};
-			timer.cancelAndSet(runProgressiveRender, 50, $window);
+			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
 			const renderableResponse = reduceInlineContentReferences(element.response.value);
