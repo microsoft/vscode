@@ -5,9 +5,9 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
-import { RunOnceScheduler, runWhenIdle, timeout } from 'vs/base/common/async';
+import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
 import { mark } from 'vs/base/common/performance';
 import { onUnexpectedError, setUnexpectedErrorHandler } from 'vs/base/common/errors';
@@ -330,10 +330,10 @@ export class Workbench extends Layout {
 		]);
 
 		this.container.classList.add(...workbenchClasses);
-		document.body.classList.add(platformClass); // used by our fonts
+		mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
-			document.body.classList.add('web');
+			mainWindow.document.body.classList.add('web');
 		}
 
 		// Apply font aliasing
@@ -451,7 +451,7 @@ export class Workbench extends Layout {
 
 				// Set lifecycle phase to `Eventually` after a short delay and when idle (min 2.5sec, max 5sec)
 				const eventuallyPhaseScheduler = this._register(new RunOnceScheduler(() => {
-					this._register(runWhenIdle(mainWindow, () => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
+					this._register(runWhenWindowIdle(mainWindow, () => lifecycleService.phase = LifecyclePhase.Eventually, 2500));
 				}, 2500));
 				eventuallyPhaseScheduler.schedule();
 			})

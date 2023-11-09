@@ -38,8 +38,8 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEnvironmentVariableCollection, IMergedEnvironmentVariableCollection } from 'vs/platform/terminal/common/environmentVariable';
 import { generateUuid } from 'vs/base/common/uuid';
-import { runWhenIdle } from 'vs/base/common/async';
 import { $window } from 'vs/base/browser/window';
+import { runWhenWindowIdle } from 'vs/base/browser/dom';
 
 const enum ProcessConstants {
 	/**
@@ -395,7 +395,7 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		}
 
 		// Report the latency to the pty host when idle
-		runWhenIdle($window, () => {
+		runWhenWindowIdle($window, () => {
 			this.backend?.getLatency().then(measurements => {
 				this._logService.info(`Latency measurements for ${this.remoteAuthority ?? 'local'} backend\n${measurements.map(e => `${e.label}: ${e.latency.toFixed(2)}ms`).join('\n')}`);
 			});

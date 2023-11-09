@@ -20,7 +20,6 @@ import * as dom from 'vs/base/browser/dom';
 import { AtomicTabMoveOperations, Direction } from 'vs/editor/common/cursor/cursorAtomicMoveOperations';
 import { PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
-import { $window } from 'vs/base/browser/window';
 
 const enum HitTestResultType {
 	Unknown,
@@ -1047,12 +1046,13 @@ function shadowCaretRangeFromPoint(shadowRoot: ShadowRoot, x: number, y: number)
 		const rect = el.getBoundingClientRect();
 
 		// And its font (the computed shorthand font property might be empty, see #3217)
-		const fontStyle = $window.getComputedStyle(el, null).getPropertyValue('font-style');
-		const fontVariant = $window.getComputedStyle(el, null).getPropertyValue('font-variant');
-		const fontWeight = $window.getComputedStyle(el, null).getPropertyValue('font-weight');
-		const fontSize = $window.getComputedStyle(el, null).getPropertyValue('font-size');
-		const lineHeight = $window.getComputedStyle(el, null).getPropertyValue('line-height');
-		const fontFamily = $window.getComputedStyle(el, null).getPropertyValue('font-family');
+		const elWindow = dom.getWindow(el);
+		const fontStyle = elWindow.getComputedStyle(el, null).getPropertyValue('font-style');
+		const fontVariant = elWindow.getComputedStyle(el, null).getPropertyValue('font-variant');
+		const fontWeight = elWindow.getComputedStyle(el, null).getPropertyValue('font-weight');
+		const fontSize = elWindow.getComputedStyle(el, null).getPropertyValue('font-size');
+		const lineHeight = elWindow.getComputedStyle(el, null).getPropertyValue('line-height');
+		const fontFamily = elWindow.getComputedStyle(el, null).getPropertyValue('font-family');
 		const font = `${fontStyle} ${fontVariant} ${fontWeight} ${fontSize}/${lineHeight} ${fontFamily}`;
 
 		// And also its txt content

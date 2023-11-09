@@ -625,6 +625,13 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.EnableStickyScroll]: {
+			markdownDescription: localize('terminal.integrated.enableStickyScroll', "Experimental: Whether to enable the sticky scroll overlay at the top of the terminal."),
+			type: 'boolean',
+			default: false,
+			// TODO: Prevent setting at folder level after it becomes stable,
+			// scope: ConfigurationScope.RESOURCE
+		}
 	}
 };
 
