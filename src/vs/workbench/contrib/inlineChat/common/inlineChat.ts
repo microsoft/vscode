@@ -224,7 +224,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean'
 		},
 		'inlineChat.showGutterIconOn': {
-			description: localize('showGutterIconOn', "Controls when the gutter icon for spawning inline chat is shown. Requires inlineChat.showGutterIcon to be enabled."),
+			description: localize('showGutterIconOn', "Controls when the gutter icon for spawning inline chat is shown. Requires `inlineChat.enableGutterIcon` to be enabled."),
 			default: ShowGutterIconOn.Always,
 			type: 'string',
 			enum: [ShowGutterIconOn.Always, ShowGutterIconOn.MouseOver],
