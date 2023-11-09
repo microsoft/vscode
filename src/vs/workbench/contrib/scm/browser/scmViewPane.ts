@@ -735,6 +735,8 @@ interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	// readonly avatarImg: HTMLImageElement;
 	readonly iconLabel: IconLabel;
+	readonly statsContainer: HTMLElement;
+	readonly statsLabel: IconLabel;
 	// readonly timestampContainer: HTMLElement;
 	// readonly timestamp: HTMLSpanElement;
 	readonly disposables: IDisposable;
@@ -750,15 +752,19 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		(container.parentElement!.parentElement!.querySelector('.monaco-tl-twistie')! as HTMLElement).classList.add('force-twistie');
 
 		const element = append(container, $('.history-item'));
-		const iconLabel = new IconLabel(element, { supportIcons: true });
 
+		const iconLabel = new IconLabel(element, { supportIcons: true });
 		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
+
+		const statsContainer = append(element, $('.stats-container'));
+		const statsLabel = new IconLabel(statsContainer, { supportIcons: true });
+
 		// const avatarImg = append(iconContainer, $('img.avatar')) as HTMLImageElement;
 
 		// const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
 		// const timestamp = append(timestampContainer, $('span.timestamp'));
 
-		return { iconContainer, iconLabel, disposables: new DisposableStore() };
+		return { iconContainer, iconLabel, statsContainer, statsLabel, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -779,6 +785,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		// }
 
 		templateData.iconLabel.setLabel(historyItem.label, historyItem.description);
+		templateData.statsLabel.setLabel('10$(files) 5$(diff-added) 4$(diff-removed)');
 
 		// templateData.timestampContainer.classList.toggle('timestamp-duplicate', commit.hideTimestamp === true);
 		// templateData.timestamp.textContent = fromNow(commit.timestamp);
