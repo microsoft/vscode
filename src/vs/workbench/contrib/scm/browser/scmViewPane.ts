@@ -96,6 +96,7 @@ import { FormatOnType } from 'vs/editor/contrib/format/browser/formatActions';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IAsyncDataTreeViewState, ITreeCompressionDelegate } from 'vs/base/browser/ui/tree/asyncDataTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { EditOperation } from 'vs/editor/common/core/editOperation';
 
 type TreeElement = ISCMRepository | ISCMInput | ISCMActionButton | ISCMResourceGroup | IResourceNode<ISCMResource, ISCMResourceGroup> | ISCMResource;
 
@@ -1410,7 +1411,9 @@ class SCMInputWidget {
 			if (value === textModel.getValue()) { // circuit breaker
 				return;
 			}
-			textModel.setValue(value);
+			this.inputEditor.pushUndoStop();
+			this.inputEditor.executeEdits(null, [EditOperation.replace(textModel.getFullModelRange(), value)]);
+			this.inputEditor.pushUndoStop();
 
 			const position = reason === SCMInputChangeReason.HistoryPrevious
 				? textModel.getFullModelRange().getStartPosition()
