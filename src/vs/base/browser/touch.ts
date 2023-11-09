@@ -284,7 +284,7 @@ export class Gesture extends Disposable {
 	}
 
 	private inertia(targetWindow: Window, dispatchTo: readonly EventTarget[], t1: number, vX: number, dirX: number, x: number, vY: number, dirY: number, y: number): void {
-		this.handle = DomUtils.scheduleAtNextAnimationFrame(() => {
+		this.handle = DomUtils.scheduleAtNextAnimationFrame(targetWindow, () => {
 			const now = Date.now();
 
 			// velocity: old speed + accel_over_time
@@ -314,7 +314,7 @@ export class Gesture extends Disposable {
 			if (!stopped) {
 				this.inertia(targetWindow, dispatchTo, now, vX, dirX, x + delta_pos_x, vY, dirY, y + delta_pos_y);
 			}
-		}, targetWindow);
+		});
 	}
 
 	private onTouchMove(e: TouchEvent): void {

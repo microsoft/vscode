@@ -6,6 +6,7 @@
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import * as platform from 'vs/base/common/platform';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { $window } from 'vs/base/browser/window';
 
 if (platform.isMacintosh) {
 
@@ -37,7 +38,7 @@ if (platform.isMacintosh) {
 
 	function bindExecuteCommand(command: 'cut' | 'copy' | 'paste') {
 		return () => {
-			document.execCommand(command);
+			$window.document.execCommand(command);
 		};
 	}
 }

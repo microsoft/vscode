@@ -29,6 +29,8 @@ import { IDocumentDiff, IDocumentDiffProviderOptions } from 'vs/editor/common/di
 import { ILinesDiffComputerOptions, MovedText } from 'vs/editor/common/diff/linesDiffComputer';
 import { DetailedLineRangeMapping, RangeMapping, LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { LineRange } from 'vs/editor/common/core/lineRange';
+import { $window } from 'vs/base/browser/window';
+import { WindowIntervalTimer } from 'vs/base/browser/dom';
 
 /**
  * Stop syncing a model to the worker if it was not needed for 1 min.
@@ -281,8 +283,8 @@ class WorkerManager extends Disposable {
 		this._editorWorkerClient = null;
 		this._lastWorkerUsedTime = (new Date()).getTime();
 
-		const stopWorkerInterval = this._register(new IntervalTimer());
-		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2));
+		const stopWorkerInterval = this._register(new WindowIntervalTimer());
+		stopWorkerInterval.cancelAndSet(() => this._checkStopIdleWorker(), Math.round(STOP_WORKER_DELTA_TIME_MS / 2), $window);
 
 		this._register(this._modelService.onModelRemoved(_ => this._checkStopEmptyWorker()));
 	}

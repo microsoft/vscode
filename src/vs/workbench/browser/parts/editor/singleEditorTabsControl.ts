@@ -66,13 +66,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		titleContainer.classList.toggle('breadcrumbs', Boolean(this.breadcrumbsControl));
 		this._register(toDisposable(() => titleContainer.classList.remove('breadcrumbs'))); // important to remove because the container is a shared dom node
 
-		// Right Actions Container
-		const actionsContainer = document.createElement('div');
-		actionsContainer.classList.add('title-actions');
-		titleContainer.appendChild(actionsContainer);
-
-		// Editor actions toolbar
-		this.createEditorActionsToolBar(actionsContainer);
+		// Create editor actions toolbar
+		this.createEditorActionsToolBar(titleContainer, ['title-actions']);
 	}
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {

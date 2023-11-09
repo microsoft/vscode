@@ -270,8 +270,8 @@
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar {
-	width: 16px;
-	height: 16px;
+	width: 18px;
+	height: 18px;
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
@@ -279,7 +279,7 @@
 	height: 16px;
 }
 
-.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+.interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
 	font-size: 12px;
 }
 

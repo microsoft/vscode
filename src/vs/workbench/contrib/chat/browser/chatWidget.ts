@@ -404,10 +404,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 			if (lastElementWasVisible) {
-				dom.scheduleAtNextAnimationFrame(() => {
+				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
-				}, dom.getWindow(this.listContainer), 0);
+				}, 0);
 			}
 		}
 
@@ -625,7 +625,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this._dynamicMessageLayoutData?.enabled) {
 				return;
 			}
-			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
 				}
@@ -640,7 +640,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
-			}, dom.getWindow(this.listContainer));
+			});
 		}));
 	}
 

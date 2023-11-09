@@ -72,8 +72,8 @@ export class MovedBlocksLinesPart extends Disposable {
 			}));
 		});
 
-		this._register(applyViewZones(this._editors.original, movedBlockViewZones.map(zones => zones.map(z => z.original))));
-		this._register(applyViewZones(this._editors.modified, movedBlockViewZones.map(zones => zones.map(z => z.modified))));
+		this._register(applyViewZones(this._editors.original, movedBlockViewZones.map(zones => /** @description movedBlockViewZones.original */ zones.map(z => z.original))));
+		this._register(applyViewZones(this._editors.modified, movedBlockViewZones.map(zones => /** @description movedBlockViewZones.modified */ zones.map(z => z.modified))));
 
 		this._register(autorunWithStore((reader, store) => {
 			const blocks = movedBlockViewZones.read(reader);
@@ -104,6 +104,7 @@ export class MovedBlocksLinesPart extends Disposable {
 				return true;
 			}
 		}, reader => {
+			/** @description MovedBlocksLines.setActiveMovedTextFromCursor */
 			originalHasFocus.read(reader);
 			modifiedHasFocus.read(reader);
 

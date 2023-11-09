@@ -514,7 +514,7 @@ export const enum OpenEditorContext {
 
 export interface IActiveEditorActions {
 	readonly actions: IToolbarActions;
-	readonly onDidChange: Event<IMenuChangeEvent>;
+	readonly onDidChange: Event<IMenuChangeEvent | void>;
 }
 
 export interface IEditorGroup {

@@ -7,7 +7,7 @@ import * as browser from 'vs/base/browser/browser';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { IKeyboardEvent, StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { TimeoutTimer } from 'vs/base/common/async';
+import { AbstractIdleValue, IntervalTimer, TimeoutTimer, _runWhenIdle, IdleDeadline } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
@@ -178,20 +178,76 @@ export function addDisposableGenericMouseUpListener(node: EventTarget, handler: 
 	return addDisposableListener(node, platform.isIOS && BrowserFeatures.pointerEvents ? EventType.POINTER_UP : EventType.MOUSE_UP, handler, useCapture);
 }
 
+
+/**
+ * Execute the callback the next time the browser is idle, returning an
+ * {@link IDisposable} that will cancel the callback when disposed. This wraps
+ * [requestIdleCallback] so it will fallback to [setTimeout] if the environment
+ * doesn't support it.
+ *
+ * @param targetWindow The window for which to run the idle callback
+ * @param callback The callback to run when idle, this includes an
+ * [IdleDeadline] that provides the time alloted for the idle callback by the
+ * browser. Not respecting this deadline will result in a degraded user
+ * experience.
+ * @param timeout A timeout at which point to queue no longer wait for an idle
+ * callback but queue it on the regular event loop (like setTimeout). Typically
+ * this should not be used.
+ *
+ * [IdleDeadline]: https://developer.mozilla.org/en-US/docs/Web/API/IdleDeadline
+ * [requestIdleCallback]: https://developer.mozilla.org/en-US/docs/Web/API/Window/requestIdleCallback
+ * [setTimeout]: https://developer.mozilla.org/en-US/docs/Web/API/Window/setTimeout
+ */
+export function runWhenWindowIdle(targetWindow: Window | typeof globalThis, callback: (idle: IdleDeadline) => void, timeout?: number): IDisposable {
+	return _runWhenIdle(targetWindow, callback, timeout);
+}
+
+/**
+ * An implementation of the "idle-until-urgent"-strategy as introduced
+ * here: https://philipwalton.com/articles/idle-until-urgent/
+ */
+export class WindowIdleValue<T> extends AbstractIdleValue<T> {
+	constructor(targetWindow: Window | typeof globalThis, executor: () => T) {
+		super(targetWindow, executor);
+	}
+}
+
+
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed immediately.
  * @return token that can be used to cancel the scheduled runner (only if `runner` was not executed immediately).
  */
-export let runAtThisOrScheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
+export let runAtThisOrScheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
 /**
  * Schedule a callback to be run at the next animation frame.
  * This allows multiple parties to register callbacks that should run at the next animation frame.
  * If currently in an animation frame, `runner` will be executed at the next animation frame.
  * @return token that can be used to cancel the scheduled runner.
  */
-export let scheduleAtNextAnimationFrame: (runner: () => void, targetWindow: Window, priority?: number) => IDisposable;
+export let scheduleAtNextAnimationFrame: (targetWindow: Window, runner: () => void, priority?: number) => IDisposable;
+
+export function disposableWindowInterval(targetWindow: Window & typeof globalThis, handler: () => void | boolean /* stop interval */ | Promise<unknown>, interval: number, iterations?: number): IDisposable {
+	let iteration = 0;
+	const timer = targetWindow.setInterval(() => {
+		iteration++;
+		if ((typeof iterations === 'number' && iteration >= iterations) || handler() === true) {
+			disposable.dispose();
+		}
+	}, interval);
+	const disposable = toDisposable(() => {
+		targetWindow.clearInterval(timer);
+	});
+	return disposable;
+}
+
+export class WindowIntervalTimer extends IntervalTimer {
+
+	override cancelAndSet(runner: () => void, interval: number, targetWindow: Window & typeof globalThis): void {
+		return super.cancelAndSet(runner, interval, targetWindow);
+	}
+}
 
 class AnimationFrameQueueItem implements IDisposable {
 
@@ -261,7 +317,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		inAnimationFrameRunner.set(targetWindowId, false);
 	};
 
-	scheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority: number = 0) => {
+	scheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority: number = 0) => {
 		const targetWindowId = getWindowId(targetWindow);
 		const item = new AnimationFrameQueueItem(runner, priority);
 
@@ -280,7 +336,7 @@ class AnimationFrameQueueItem implements IDisposable {
 		return item;
 	};
 
-	runAtThisOrScheduleAtNextAnimationFrame = (runner: () => void, targetWindow: Window, priority?: number) => {
+	runAtThisOrScheduleAtNextAnimationFrame = (targetWindow: Window, runner: () => void, priority?: number) => {
 		const targetWindowId = getWindowId(targetWindow);
 		if (inAnimationFrameRunner.get(targetWindowId)) {
 			const item = new AnimationFrameQueueItem(runner, priority);
@@ -292,17 +348,17 @@ class AnimationFrameQueueItem implements IDisposable {
 			currentQueue.push(item);
 			return item;
 		} else {
-			return scheduleAtNextAnimationFrame(runner, targetWindow, priority);
+			return scheduleAtNextAnimationFrame(targetWindow, runner, priority);
 		}
 	};
 })();
 
-export function measure(callback: () => void, targetWindow: Window): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, targetWindow, 10000 /* must be early */);
+export function measure(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, 10000 /* must be early */);
 }
 
-export function modify(callback: () => void, targetWindow: Window): IDisposable {
-	return scheduleAtNextAnimationFrame(callback, targetWindow, -10000 /* must be late */);
+export function modify(targetWindow: Window, callback: () => void): IDisposable {
+	return scheduleAtNextAnimationFrame(targetWindow, callback, -10000 /* must be late */);
 }
 
 /**
@@ -794,7 +850,7 @@ export function getActiveDocument(): Document {
 	}
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
-	return documents.find(document => document.hasFocus()) ?? document;
+	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
 export function getActiveWindow(): CodeWindow {
@@ -831,7 +887,7 @@ export function isGlobalStylesheet(node: Node): boolean {
 	return globalStylesheets.has(node as HTMLStyleElement);
 }
 
-export function createStyleSheet(container: HTMLElement = document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
+export function createStyleSheet(container: HTMLElement = mainWindow.document.head, beforeAppend?: (style: HTMLStyleElement) => void, disposableStore?: DisposableStore): HTMLStyleElement {
 	const style = document.createElement('style');
 	style.type = 'text/css';
 	style.media = 'screen';
@@ -844,7 +900,7 @@ export function createStyleSheet(container: HTMLElement = document.head, beforeA
 
 	// With <head> as container, the stylesheet becomes global and is tracked
 	// to support auxiliary windows to clone the stylesheet.
-	if (container === document.head) {
+	if (container === mainWindow.document.head) {
 		const globalStylesheetClones = new Set<HTMLStyleElement>();
 		globalStylesheets.set(style, globalStylesheetClones);
 
@@ -945,7 +1001,7 @@ export const sharedMutationObserver = new class {
 	}
 };
 
-export function createMetaElement(container: HTMLElement = document.head): HTMLMetaElement {
+export function createMetaElement(container: HTMLElement = mainWindow.document.head): HTMLMetaElement {
 	const meta = document.createElement('meta');
 	container.appendChild(meta);
 	return meta;
@@ -1487,13 +1543,13 @@ export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
 	return false;
 }
 
-export function animate(fn: () => void, targetWindow: Window): IDisposable {
+export function animate(targetWindow: Window, fn: () => void): IDisposable {
 	const step = () => {
 		fn();
-		stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
+		stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	};
 
-	let stepDisposable = scheduleAtNextAnimationFrame(step, targetWindow);
+	let stepDisposable = scheduleAtNextAnimationFrame(targetWindow, step);
 	return toDisposable(() => stepDisposable.dispose());
 }
 
@@ -1547,14 +1603,15 @@ export function triggerDownload(dataOrUri: Uint8Array | URI, name: string): void
 	// to be creating a <a> element with download attribute that
 	// points to the file to download.
 	// See also https://developers.google.com/web/updates/2011/08/Downloading-resources-in-HTML5-a-download
+	const activeWindow = getActiveWindow();
 	const anchor = document.createElement('a');
-	document.body.appendChild(anchor);
+	activeWindow.document.body.appendChild(anchor);
 	anchor.download = name;
 	anchor.href = url;
 	anchor.click();
 
 	// Ensure to remove the element from DOM eventually
-	setTimeout(() => document.body.removeChild(anchor));
+	setTimeout(() => activeWindow.document.body.removeChild(anchor));
 }
 
 export function triggerUpload(): Promise<FileList | undefined> {
@@ -1563,8 +1620,9 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		// In order to upload to the browser, create a
 		// input element of type `file` and click it
 		// to gather the selected files
+		const activeWindow = getActiveWindow();
 		const input = document.createElement('input');
-		document.body.appendChild(input);
+		activeWindow.document.body.appendChild(input);
 		input.type = 'file';
 		input.multiple = true;
 
@@ -1576,7 +1634,7 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		input.click();
 
 		// Ensure to remove the element from DOM eventually
-		setTimeout(() => document.body.removeChild(input));
+		setTimeout(() => activeWindow.document.body.removeChild(input));
 	});
 }
 
@@ -1612,7 +1670,7 @@ export interface IDetectedFullscreen {
 export function detectFullscreen(): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
-	if (document.fullscreenElement || (<any>document).webkitFullscreenElement || (<any>document).webkitIsFullScreen) {
+	if ($window.document.fullscreenElement || (<any>$window.document).webkitFullscreenElement || (<any>$window.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
 
@@ -1621,7 +1679,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	if ($window.innerHeight === screen.height) {
+	if ($window.innerHeight === $window.screen.height) {
 		// if the height of the window matches the screen height, we can
 		// safely assume that the browser is fullscreen because no browser
 		// chrome is taking height away (e.g. like toolbars).
@@ -1630,7 +1688,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	if (platform.isMacintosh || platform.isLinux) {
 		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if ($window.outerHeight === screen.height && $window.outerWidth === screen.width) {
+		if ($window.outerHeight === $window.screen.height && $window.outerWidth === $window.screen.width) {
 			// if the height of the browser matches the screen height, we can
 			// only guess that we are in fullscreen. It is also possible that
 			// the user has turned off taskbars in the OS and the browser is
