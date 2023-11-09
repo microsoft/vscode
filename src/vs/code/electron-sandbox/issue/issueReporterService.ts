@@ -283,6 +283,7 @@ export class IssueReporter extends Disposable {
 			const data = await this.issueMainService.$getReporterStatus(extension.id, extension.name);
 			return data;
 		} catch (e) {
+			console.error(e);
 			return [false, false];
 		}
 	}

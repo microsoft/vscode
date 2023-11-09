@@ -448,8 +448,10 @@ export class IssueMainService implements IIssueMainService {
 		const replyChannel = `vscode:triggerReporterStatus`;
 		const cts = new CancellationTokenSource();
 		window.sendWhenReady(replyChannel, cts.token, { replyChannel, extensionId, extensionName });
-		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => cts.cancel());
-
+		const result = await raceTimeout(new Promise(resolve => validatedIpcMain.once('vscode:triggerReporterStatusResponse', (_: unknown, data: boolean[]) => resolve(data))), 2000, () => {
+			console.error('Error: Extension timed out waiting for reporter status');
+			cts.cancel();
+		});
 		return (result ?? defaultResult) as boolean[];
 	}
 

@@ -67,7 +67,11 @@ export class NativeIssueService implements IWorkbenchIssueService {
 				for (const activationEvent of activationEvents) {
 					if (activationEvent === 'onIssueReporterOpened') {
 						const eventName = `onIssueReporterOpened:${ExtensionIdentifier.toKey(extension.identifier)}`;
-						await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
+						try {
+							await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
+						} catch (e) {
+							console.error(`Error activating extension ${extensionId}: ${e}`);
+						}
 						break;
 					}
 				}

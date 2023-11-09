@@ -128,7 +128,6 @@ ${this.getInfos()}
 		}
 
 		const isBugOrPerformanceIssue = this._data.issueType === IssueType.Bug || this._data.issueType === IssueType.PerformanceIssue;
-		// const isNotOnMarketPlace = !this._data.fileOnMarketplace;
 
 		if (isBugOrPerformanceIssue) {
 			if (this._data.includeExtensionData && this._data.extensionData) {
