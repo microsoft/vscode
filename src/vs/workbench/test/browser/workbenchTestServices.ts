@@ -1493,7 +1493,6 @@ export class TestHostService implements IHostService {
 
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
-	async hasWindowAt(x: number, y: number): Promise<boolean> { return false; }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 

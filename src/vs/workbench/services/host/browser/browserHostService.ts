@@ -14,7 +14,7 @@ import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/edito
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, getWindows, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -540,17 +540,6 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async moveTop(targetWindow: Window): Promise<void> {
 		// There seems to be no API to bring a window to front in browsers
-	}
-
-	async hasWindowAt(x: number, y: number): Promise<boolean> {
-		for (const { window } of getWindows()) {
-			const { left, top, width, height } = window.document.body.getBoundingClientRect();
-			if (x >= left && x <= (left + width) && y >= top && y <= (top + height)) {
-				return true;
-			}
-		}
-
-		return false;
 	}
 
 	//#endregion
