@@ -6,8 +6,7 @@
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, ISettableObservable, autorun, constObservable, observableFromEvent, observableValue } from 'vs/base/common/observable';
-import { globalTransaction } from 'vs/base/common/observableInternal/base';
+import { IObservable, IReader, autorun, constObservable, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
@@ -16,7 +15,7 @@ import { IDiffEntry, IMultiDocumentDiffEditorModel, LazyPromise } from 'vs/edito
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ILabelService } from 'vs/platform/label/common/label';
+import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { ObjectPool } from './objectPool';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
@@ -29,14 +28,20 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			style: {
 				overflow: 'hidden',
 			}
-		})
+		}),
+		h('div.monaco-editor@overflowWidgetsDomNode', {
+		}),
 	]);
 
 	private readonly _sizeObserver = new ObservableElementSizeObserver(this._element, undefined);
 	private readonly _documentsObs = this._model.map(this, m => !m ? constObservable([]) : observableFromEvent(m.onDidChange, /** @description Documents changed */() => m.diffs));
 	private readonly _documents = this._documentsObs.map(this, (m, reader) => m.read(reader));
 
-	private readonly _objectPool = new ObjectPool<DiffEditorItemTemplate>(() => this._instantiationService.createInstance(DiffEditorItemTemplate, this._elements.content));
+	private readonly _objectPool = new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
+		const template = this._instantiationService.createInstance(DiffEditorItemTemplate, this._elements.content, this._elements.overflowWidgetsDomNode);
+		template.setData(data);
+		return template;
+	});
 
 	private readonly _hiddenContainer = document.createElement('div');
 
@@ -46,8 +51,8 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		},
 	}, {}));
 
-	private readonly _viewItems = this._documents.map(this,
-		docs => docs.map(d => new DiffEditorItem(this._objectPool, d, this._editor))
+	private readonly _viewItems = derivedWithStore<DiffEditorItem[]>(this,
+		(reader, store) => this._documents.read(reader).map(d => store.add(new DiffEditorItem(this._objectPool, d, this._editor)))
 	);
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader), 0));
@@ -145,7 +150,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 }
 
-class DiffEditorItem {
+class DiffEditorItem extends Disposable {
 	private readonly _height = observableValue(this, 500);
 	public readonly contentHeight: IObservable<number> = this._height;
 	private _templateRef: IReference<DiffEditorItemTemplate> | undefined;
@@ -153,17 +158,24 @@ class DiffEditorItem {
 	private _vm: IDiffEditorViewModel | undefined;
 
 	constructor(
-		private readonly _objectPool: ObjectPool<DiffEditorItemTemplate>,
+		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _entry: LazyPromise<IDiffEntry>,
 		baseDiffEditorWidget: DiffEditorWidget,
 	) {
-		this._vm = baseDiffEditorWidget.createViewModel({
+		super();
+
+		this._vm = this._register(baseDiffEditorWidget.createViewModel({
 			original: _entry.value!.original!,
 			modified: _entry.value!.modified!,
-		});
+		}));
 	}
 
-	public toString(): string {
+	override dispose(): void {
+		this.hide();
+		super.dispose();
+	}
+
+	public override toString(): string {
 		return `ViewItem(${this._entry.value!.title})`;
 	}
 
@@ -175,118 +187,8 @@ class DiffEditorItem {
 
 	public render(verticalSpace: OffsetRange, offset: number, width: number): void {
 		if (!this._templateRef) {
-			this._templateRef = this._objectPool.getUnusedObj();
-			this._templateRef.object.setData({ height: this._height, viewModel: this._vm!, entry: this._entry.value! });
+			this._templateRef = this._objectPool.getUnusedObj(new TemplateData(this._height, this._vm!, this._entry.value!));
 		}
 		this._templateRef.object.render(verticalSpace, width, offset);
-	}
-}
-
-class DiffEditorItemTemplate extends Disposable {
-	private _height: number = 500;
-	private _heightObs: ISettableObservable<number> | undefined = undefined;
-
-	private readonly _elements = h('div', {
-		style: {
-			display: 'flex',
-			flexDirection: 'column',
-
-		}
-	}, [
-		h('div', {
-			style: {
-				display: 'flex',
-				flexDirection: 'column',
-
-				flex: '1',
-				border: '1px solid #4d4d4d',
-				borderRadius: '5px',
-				overflow: 'hidden',
-				margin: '10px 10px 10px 10px',
-			}
-		}, [
-
-			h('div', { style: { display: 'flex', alignItems: 'center', padding: '8px 5px', background: 'var(--vscode-multiDiffEditor-headerBackground)', color: 'black' } }, [
-				//h('div.expand-button@collapseButton', { style: { margin: '0 5px' } }),
-				h('div@title', { style: { fontSize: '14px' } }, ['Title'] as any),
-			]),
-
-			h('div', {
-				style: {
-					flex: '1',
-					display: 'flex',
-					flexDirection: 'column',
-				}
-			}, [
-				h('div@editor', { style: { flex: '1' } }),
-			])
-
-		])
-	]);
-
-	private readonly editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
-		automaticLayout: true,
-		scrollBeyondLastLine: false,
-		hideUnchangedRegions: {
-			enabled: true,
-		},
-		scrollbar: {
-			vertical: 'hidden',
-			handleMouseWheel: false,
-		},
-		renderOverviewRuler: false,
-	}, {
-		modifiedEditor: {
-			contributions: [],
-		},
-		originalEditor: {
-			contributions: [],
-		}
-	}));
-
-	constructor(
-		private readonly _container: HTMLElement,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@ILabelService private readonly _labelService: ILabelService,
-	) {
-		super();
-
-		// TODO@hediet
-		/*
-		const btn = new Button(this._elements.collapseButton, {});
-		btn.icon = Codicon.chevronDown;
-		*/
-
-		this._register(this.editor.onDidContentSizeChange(e => {
-			this._height = e.contentHeight + this._elements.root.clientHeight - this._elements.editor.clientHeight;
-			globalTransaction(tx => {
-				this._heightObs?.set(this._height, tx);
-			});
-		}));
-
-		this._container.appendChild(this._elements.root);
-	}
-
-	public setData(data: { height: ISettableObservable<number>; viewModel: IDiffEditorViewModel; entry: IDiffEntry }) {
-		this._heightObs = data.height;
-		globalTransaction(tx => {
-			this.editor.setModel(data.viewModel, tx);
-			this._heightObs!.set(this._height, tx);
-		});
-		this._elements.title.innerText = this._labelService.getUriLabel(data.viewModel.model.modified.uri, { relative: true }); // data.entry.title;
-	}
-
-	public hide(): void {
-		this._elements.root.style.top = `-100000px`;
-		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
-	}
-
-	public render(verticalRange: OffsetRange, width: number, editorScroll: number): void {
-		this._elements.root.style.visibility = 'visible';
-		this._elements.root.style.top = `${verticalRange.start}px`;
-		this._elements.root.style.height = `${verticalRange.length}px`;
-		this._elements.root.style.width = `${width}px`;
-		this._elements.root.style.position = 'absolute';
-		this.editor.getOriginalEditor().setScrollTop(editorScroll);
 	}
 }

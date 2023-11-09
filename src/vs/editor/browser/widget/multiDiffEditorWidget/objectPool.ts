@@ -4,21 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
-export class ObjectPool<T extends IDisposable> {
+export class ObjectPool<TData extends IObjectData, T extends IPooledObject<TData>> {
 	private readonly _unused = new Set<T>();
 	private readonly _used = new Set<T>();
+	private readonly _itemData = new Map<T, TData>();
 
 	constructor(
-		private readonly _create: () => T
+		private readonly _create: (data: TData) => T,
 	) { }
 
-	public getUnusedObj(): IReference<T> {
+	public getUnusedObj(data: TData): IReference<T> {
 		let obj: T;
+
 		if (this._unused.size === 0) {
-			obj = this._create();
+			obj = this._create(data);
+			this._itemData.set(obj, data);
 		} else {
-			obj = this._unused.values().next().value;
+			const values = [...this._unused.values()];
+			obj = values.find(obj => this._itemData.get(obj)!.getId() === data.getId()) ?? values[0];
 			this._unused.delete(obj);
+			obj.setData(data);
+			this._itemData.set(obj, data);
 		}
 		this._used.add(obj);
 		return {
@@ -33,4 +39,12 @@ export class ObjectPool<T extends IDisposable> {
 			}
 		};
 	}
+}
+
+export interface IObjectData {
+	getId(): unknown;
+}
+
+export interface IPooledObject<TData> extends IDisposable {
+	setData(data: TData): void;
 }

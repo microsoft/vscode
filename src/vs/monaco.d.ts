@@ -2443,7 +2443,7 @@ declare namespace monaco.editor {
 		modified: ITextModel;
 	}
 
-	export interface IDiffEditorViewModel {
+	export interface IDiffEditorViewModel extends IDisposable {
 		readonly model: IDiffEditorModel;
 		waitForDiff(): Promise<void>;
 	}
