@@ -419,6 +419,7 @@
 		"--vscode-minimapSlider-activeBackground",
 		"--vscode-minimapSlider-background",
 		"--vscode-minimapSlider-hoverBackground",
+		"--vscode-multiDiffEditor-headerBackground",
 		"--vscode-notebook-cellBorderColor",
 		"--vscode-notebook-cellEditorBackground",
 		"--vscode-notebook-cellHoverBackground",
