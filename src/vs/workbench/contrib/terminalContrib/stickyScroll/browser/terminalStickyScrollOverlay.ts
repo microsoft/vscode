@@ -171,8 +171,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// Clear attrs, reset cursor position, clear right
 		const content = this._serializeAddon.serialize({
 			range: {
-				start: promptStartLine,
-				end: promptStartLine + promptRowCount - 1
+				start: marker.line - (promptRowCount - 1),
+				end: marker.line
 			}
 		});
 
