@@ -36,6 +36,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 export const CAN_PROC_FALLBACK = 'processPortForwardingFallback';
@@ -197,7 +198,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		if (!environmentService.remoteAuthority) {
@@ -224,15 +226,22 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 				if (this.procForwarder?.forwarded && this.procForwarder.forwarded.size > 20) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
 					this.notificationService.notify({
-						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings."),
-						severity: Severity.Info,
+						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
+						severity: Severity.Warning,
 						actions: {
 							primary: [
-								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Switch back to process based automatic port forwarding"), undefined, true, async () => {
+								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
 									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
 									this.storageService.store(CAN_PROC_FALLBACK, false, StorageScope.WORKSPACE, StorageTarget.USER);
 									this.portListener?.dispose();
 									this.portListener = undefined;
+								}),
+								new Action('showPortSourceSetting', nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"), undefined, true, async () => {
+									await this.preferencesService.openSettings({
+										revealSetting: {
+											key: 'remote.autoForwardPortsSource'
+										}
+									});
 								})
 							]
 						}
