@@ -57,7 +57,6 @@ suite('WindowsFinder', () => {
 			load(config: INativeWindowConfiguration, options: { isReload?: boolean }): void { throw new Error('Method not implemented.'); }
 			reload(cli?: NativeParsedArgs): void { throw new Error('Method not implemented.'); }
 			focus(options?: { force: boolean }): void { throw new Error('Method not implemented.'); }
-			contains(): boolean { throw new Error('Method not implemented.'); }
 			close(): void { throw new Error('Method not implemented.'); }
 			getBounds(): Electron.Rectangle { throw new Error('Method not implemented.'); }
 			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }

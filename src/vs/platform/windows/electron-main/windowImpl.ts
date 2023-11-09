@@ -148,15 +148,6 @@ export abstract class BaseWindow extends Disposable implements IBaseWindow {
 		win.focus();
 	}
 
-	contains(x: number, y: number): boolean {
-		const bounds = this.win?.getContentBounds();
-		if (!bounds) {
-			return false;
-		}
-
-		return x >= bounds.x && x <= (bounds.x + bounds.width) && y >= bounds.y && y <= (bounds.y + bounds.height);
-	}
-
 	//#region Fullscreen
 
 	// TODO@electron workaround for https://github.com/electron/electron/issues/35360
