@@ -18,7 +18,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { Action, IAction, Separator, SubmenuAction, toAction } from 'vs/base/common/actions';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
-import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, append, clearNode, hide, show, EventHelper, $, runWhenWindowIdle, getWindow } from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
@@ -42,7 +42,6 @@ import { DEFAULT_ICON } from 'vs/workbench/services/userDataProfile/common/userD
 import { isString } from 'vs/base/common/types';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND } from 'vs/workbench/common/theme';
-import { $window } from 'vs/base/browser/window';
 
 export class GlobalCompositeBar extends Disposable {
 
@@ -354,7 +353,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		if (this._store.isDisposed) {
 			return;
 		}
-		const disposable = this._register(runWhenWindowIdle($window, async () => {
+		const disposable = this._register(runWhenWindowIdle(getWindow(this.element), async () => {
 			await this.doInitialize();
 			disposable.dispose();
 		}));

@@ -75,12 +75,12 @@ export class BrowserWindow extends Disposable {
 
 		// Fullscreen (Browser)
 		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
+			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
 		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen());
+			setFullscreen(!!detectFullscreen(mainWindow));
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 

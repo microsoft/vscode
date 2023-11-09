@@ -17,7 +17,7 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
-import { CodeWindow, mainWindow, $window } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 
 interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -1490,7 +1490,7 @@ export function windowOpenNoOpener(url: string): void {
 	// See https://developer.mozilla.org/en-US/docs/Web/API/Window/open#noopener
 	// However, this also doesn't allow us to realize if the browser blocked
 	// the creation of the window.
-	$window.open(url, '_blank', 'noopener');
+	mainWindow.open(url, '_blank', 'noopener');
 }
 
 /**
@@ -1506,9 +1506,9 @@ export function windowOpenNoOpener(url: string): void {
  */
 const popupWidth = 780, popupHeight = 640;
 export function windowOpenPopup(url: string): void {
-	const left = Math.floor($window.screenLeft + $window.innerWidth / 2 - popupWidth / 2);
-	const top = Math.floor($window.screenTop + $window.innerHeight / 2 - popupHeight / 2);
-	$window.open(
+	const left = Math.floor(mainWindow.screenLeft + mainWindow.innerWidth / 2 - popupWidth / 2);
+	const top = Math.floor(mainWindow.screenTop + mainWindow.innerHeight / 2 - popupHeight / 2);
+	mainWindow.open(
 		url,
 		'_blank',
 		`width=${popupWidth},height=${popupHeight},top=${top},left=${left}`
@@ -1531,7 +1531,7 @@ export function windowOpenPopup(url: string): void {
  * @returns boolean indicating if the {@link window.open} call succeeded
  */
 export function windowOpenWithSuccess(url: string, noOpener = true): boolean {
-	const newTab = $window.open();
+	const newTab = mainWindow.open();
 	if (newTab) {
 		if (noOpener) {
 			// see `windowOpenNoOpener` for details on why this is important
@@ -1667,10 +1667,10 @@ export interface IDetectedFullscreen {
 	guess: boolean;
 }
 
-export function detectFullscreen(): IDetectedFullscreen | null {
+export function detectFullscreen(targetWindow: Window): IDetectedFullscreen | null {
 
 	// Browser fullscreen: use DOM APIs to detect
-	if ($window.document.fullscreenElement || (<any>$window.document).webkitFullscreenElement || (<any>$window.document).webkitIsFullScreen) {
+	if (targetWindow.document.fullscreenElement || (<any>targetWindow.document).webkitFullscreenElement || (<any>targetWindow.document).webkitIsFullScreen) {
 		return { mode: DetectedFullscreenMode.DOCUMENT, guess: false };
 	}
 
@@ -1679,7 +1679,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 	// height and comparing that to window height, we can guess
 	// it though.
 
-	if ($window.innerHeight === $window.screen.height) {
+	if (targetWindow.innerHeight === targetWindow.screen.height) {
 		// if the height of the window matches the screen height, we can
 		// safely assume that the browser is fullscreen because no browser
 		// chrome is taking height away (e.g. like toolbars).
@@ -1688,7 +1688,7 @@ export function detectFullscreen(): IDetectedFullscreen | null {
 
 	if (platform.isMacintosh || platform.isLinux) {
 		// macOS and Linux do not properly report `innerHeight`, only Windows does
-		if ($window.outerHeight === $window.screen.height && $window.outerWidth === $window.screen.width) {
+		if (targetWindow.outerHeight === targetWindow.screen.height && targetWindow.outerWidth === targetWindow.screen.width) {
 			// if the height of the browser matches the screen height, we can
 			// only guess that we are in fullscreen. It is also possible that
 			// the user has turned off taskbars in the OS and the browser is

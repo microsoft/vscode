@@ -30,7 +30,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { disposableWindowInterval } from 'vs/base/browser/dom';
-import { $window } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 const FIVE_MINUTES = 5 * 60 * 1000;
 const THIRTY_SECONDS = 30 * 1000;
@@ -126,7 +126,7 @@ class ExtensionUrlHandler implements IExtensionUrlHandler, IURLHandler {
 	) {
 		this.userTrustedExtensionsStorage = new UserTrustedExtensionIdStorage(storageService);
 
-		const interval = disposableWindowInterval($window, () => this.garbageCollect(), THIRTY_SECONDS);
+		const interval = disposableWindowInterval(mainWindow, () => this.garbageCollect(), THIRTY_SECONDS);
 		const urlToHandleValue = this.storageService.get(URL_TO_HANDLE, StorageScope.WORKSPACE);
 		if (urlToHandleValue) {
 			this.storageService.remove(URL_TO_HANDLE, StorageScope.WORKSPACE);

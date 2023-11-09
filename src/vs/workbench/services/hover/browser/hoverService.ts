@@ -13,7 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { HoverWidget } from 'vs/workbench/services/hover/browser/hoverWidget';
 import { IContextViewProvider, IDelegate } from 'vs/base/browser/ui/contextview/contextview';
 import { DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, getActiveElement, isAncestorOfActiveElement, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
@@ -91,7 +91,7 @@ export class HoverService implements IHoverService {
 		);
 		hover.onRequestLayout(() => provider.layout());
 		if (options.persistence?.sticky) {
-			hoverDisposables.add(addDisposableListener(document, EventType.MOUSE_DOWN, e => {
+			hoverDisposables.add(addDisposableListener(getWindow(options.container).document, EventType.MOUSE_DOWN, e => {
 				if (!isAncestor(e.target as HTMLElement, hover.domNode)) {
 					this.doHideHover();
 				}
@@ -106,10 +106,11 @@ export class HoverService implements IHoverService {
 			}
 			const focusedElement = getActiveElement();
 			if (focusedElement) {
+				const focusedElementDocument = getWindow(focusedElement).document;
 				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.persistence?.hideOnKeyDown)));
-				hoverDisposables.add(addDisposableListener(document, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.persistence?.hideOnKeyDown)));
+				hoverDisposables.add(addDisposableListener(focusedElementDocument, EventType.KEY_DOWN, e => this._keyDown(e, hover, !!options.persistence?.hideOnKeyDown)));
 				hoverDisposables.add(addDisposableListener(focusedElement, EventType.KEY_UP, e => this._keyUp(e, hover)));
-				hoverDisposables.add(addDisposableListener(document, EventType.KEY_UP, e => this._keyUp(e, hover)));
+				hoverDisposables.add(addDisposableListener(focusedElementDocument, EventType.KEY_UP, e => this._keyUp(e, hover)));
 			}
 		}
 
