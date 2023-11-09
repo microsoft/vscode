@@ -63,6 +63,11 @@
   resolved "https://registry.yarnpkg.com/@xterm/addon-search/-/addon-search-0.14.0-beta.13.tgz#9966493ea5600578dd8f22bd4779321cd6a4d57d"
   integrity sha512-Th7zkrdI/Af39zfP42x+toD7HUPKP51kZ+zlI9RDhry3GUCJK/LjIOCxDexvvTbaQTp/jTe/FsW65wvEUDbOAw==
 
+"@xterm/addon-serialize@0.12.0-beta.13":
+  version "0.12.0-beta.13"
+  resolved "https://registry.yarnpkg.com/@xterm/addon-serialize/-/addon-serialize-0.12.0-beta.13.tgz#7b5c9f985b9b2e2b3eae007949db5e856bf4f67b"
+  integrity sha512-tLlTj/EAtISPjou8ri5d28Y9cc8J0t9MGpCbZgPUZxKp1+0JqAancDrqb9ACWr+iIxtuoiwEK1Hy9+jn7CXLPg==
+
 "@xterm/addon-unicode11@0.7.0-beta.13":
   version "0.7.0-beta.13"
   resolved "https://registry.yarnpkg.com/@xterm/addon-unicode11/-/addon-unicode11-0.7.0-beta.13.tgz#585bda916256e16164d4601e5f1faad34748e488"

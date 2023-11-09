@@ -164,5 +164,8 @@
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
-	]
+	],
+
+	// Temporarily enabled for self-hosting
+	"terminal.integrated.enableStickyScroll": true,
 }
