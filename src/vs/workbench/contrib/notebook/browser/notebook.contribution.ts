@@ -119,7 +119,7 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/variablesView';
+import { NotebookVariables } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariables';
 
 /*--------------------------------------------------------------------------------------------- */
 

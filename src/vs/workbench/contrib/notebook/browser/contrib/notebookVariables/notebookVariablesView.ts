@@ -9,7 +9,6 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -17,9 +16,9 @@ import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
-import { IViewDescriptor, IViewDescriptorService } from 'vs/workbench/common/views';
+import { IViewDescriptorService } from 'vs/workbench/common/views';
+import { MockVariables, NotebookVariableAccessibilityProvider, NotebookVariableRenderer, NotebookVariablesDataSource, NotebookVariablesDelegate, NotebookVariablesTree } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { variablesViewIcon } from 'vs/workbench/contrib/notebook/browser/notebookIcons';
 import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
@@ -27,6 +26,8 @@ export class NotebookVariablesView extends ViewPane {
 
 	static readonly ID = 'notebookVariablesView';
 	static readonly TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
+
+	private tree: NotebookVariablesTree | undefined;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -49,6 +50,16 @@ export class NotebookVariablesView extends ViewPane {
 		this._register(this.editorService.onDidActiveEditorChange(this.handleActiveEditorChange));
 	}
 
+	public override renderBody(container: HTMLElement): void {
+		this.tree = this.instantiationService.createInstance(NotebookVariablesTree, 'notebookVariablesView', container,
+			new NotebookVariablesDelegate(),
+			[new NotebookVariableRenderer()],
+			new NotebookVariablesDataSource(),
+			{ accessibilityProvider: new NotebookVariableAccessibilityProvider() });
+
+		this.tree.setInput(new MockVariables());
+	}
+
 	private handleActiveEditorChange() {
 		const activeEditorPane = this.editorService.activeEditorPane;
 		if (activeEditorPane && activeEditorPane.getId() === 'workbench.editor.notebook') {
@@ -60,21 +71,3 @@ export class NotebookVariablesView extends ViewPane {
 		}
 	}
 }
-
-export class VariablesPanelDescriptor implements IViewDescriptor {
-	readonly id = NotebookVariablesView.ID;
-	readonly name: ILocalizedString = NotebookVariablesView.TITLE;
-	readonly ctorDescriptor: SyncDescriptor<NotebookVariablesView>;
-	readonly canToggleVisibility = true;
-	readonly hideByDefault = false;
-	readonly order = 500;
-	readonly remoteAuthority?: string | string[];
-	readonly canMoveView = true;
-	readonly containerIcon = variablesViewIcon;
-
-	constructor() {
-		this.ctorDescriptor = new SyncDescriptor(NotebookVariablesView);
-	}
-}
-
-
