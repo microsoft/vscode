@@ -32,6 +32,15 @@ export class Temp {
 	}
 }
 
+export class Sequencer {
+
+	private current: Promise<unknown> = Promise.resolve(null);
+
+	queue<T>(promiseTask: () => Promise<T>): Promise<T> {
+		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	}
+}
+
 interface RequestOptions {
 	readonly body?: string;
 }
@@ -56,7 +65,10 @@ type CreateProvisionedFilesResponse = CreateProvisionedFilesSuccessResponse | Cr
 
 class ProvisionService {
 
-	constructor(private readonly accessToken: string) { }
+	constructor(
+		private readonly log: (...args: any[]) => void,
+		private readonly accessToken: string
+	) { }
 
 	async provision(releaseId: string, fileId: string, fileName: string) {
 		const body = JSON.stringify({
@@ -72,15 +84,14 @@ class ProvisionService {
 			}]
 		});
 
-		console.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
+		this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
 		const res = await this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body });
 
 		if (!res.IsSuccess) {
-			console.error(res.ErrorDetails);
-			throw new Error(res.ErrorDetails.Message);
+			throw new Error(`Failed to submit provisioning request: ${JSON.stringify(res.ErrorDetails)}`);
 		}
 
-		console.log(`Successfully provisioned ${fileName}`);
+		this.log(`Successfully provisioned ${fileName}`);
 	}
 
 	private async request<T>(method: string, url: string, options?: RequestOptions): Promise<T> {
@@ -155,9 +166,12 @@ interface ReleaseDetailsResult {
 
 class ESRPClient {
 
+	private static Sequencer = new Sequencer();
+
 	private readonly authPath: string;
 
 	constructor(
+		private readonly log: (...args: any[]) => void,
 		private readonly tmp: Temp,
 		tenantId: string,
 		clientId: string,
@@ -188,15 +202,15 @@ class ESRPClient {
 		version: string,
 		filePath: string
 	): Promise<Release> {
-		console.log(`Submitting release for ${version}: ${filePath}`);
-		const submitReleaseResult = await this.SubmitRelease(version, filePath);
+		this.log(`Submitting release for ${version}: ${filePath}`);
+		const submitReleaseResult = await ESRPClient.Sequencer.queue(() => this.SubmitRelease(version, filePath));
 
 		if (submitReleaseResult.submissionResponse.statusCode !== 'pass') {
 			throw new Error(`Unexpected status code: ${submitReleaseResult.submissionResponse.statusCode}`);
 		}
 
 		const releaseId = submitReleaseResult.submissionResponse.operationId;
-		console.log(`Successfully submitted release ${releaseId}`);
+		this.log(`Successfully submitted release ${releaseId}. Polling for completion...`);
 
 		let details!: ReleaseDetailsResult;
 
@@ -204,25 +218,21 @@ class ESRPClient {
 		for (let i = 0; i < 240; i++) {
 			details = await this.ReleaseDetails(releaseId);
 
-			console.log(`Release status code (${i + 1}/240): ${details.releaseDetails[0].statusCode}`);
-
 			if (details.releaseDetails[0].statusCode === 'pass') {
 				break;
 			} else if (details.releaseDetails[0].statusCode !== 'inprogress') {
-				console.error(details);
-				throw new Error('Failed to submit release');
+				throw new Error(`Failed to submit release: ${JSON.stringify(details)}`);
 			}
 
 			await new Promise(c => setTimeout(c, 5000));
 		}
 
 		if (details.releaseDetails[0].statusCode !== 'pass') {
-			console.error(details);
-			throw new Error('Timed out waiting for release');
+			throw new Error(`Timed out waiting for release: ${JSON.stringify(details)}`);
 		}
 
 		const fileId = details.releaseDetails[0].fileDetails[0].publisherKey;
-		console.log('Release completed successfully with fileId: ', fileId);
+		this.log('Release completed successfully with fileId: ', fileId);
 
 		return { releaseId, fileId };
 	}
@@ -326,6 +336,7 @@ class ESRPClient {
 }
 
 export async function releaseAndProvision(
+	log: (...args: any[]) => void,
 	releaseTenantId: string,
 	releaseClientId: string,
 	releaseAuthCertSubjectName: string,
@@ -340,55 +351,12 @@ export async function releaseAndProvision(
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
-	console.log('### Release and provision');
-	console.log('  releaseTenantId:', releaseTenantId);
-	console.log('  releaseClientId:', releaseClientId);
-	console.log('  releaseAuthCertSubjectName:', releaseAuthCertSubjectName);
-	console.log('  releaseRequestSigningCertSubjectName:', releaseRequestSigningCertSubjectName);
-	console.log('  provisionTenantId:', provisionTenantId);
-	console.log('  provisionAADUsername:', provisionAADUsername);
-	console.log('  version:', version);
-	console.log('  quality:', quality);
-	console.log('  filePath:', filePath);
-
-	const esrpclient = new ESRPClient(tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
+	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
 
 	const credential = new ClientSecretCredential(provisionTenantId, provisionAADUsername, provisionAADPassword);
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
-	const service = new ProvisionService(accessToken.token);
+	const service = new ProvisionService(log, accessToken.token);
 
 	await service.provision(release.releaseId, release.fileId, `${quality}/${version}/${path.basename(filePath)}`);
-}
-
-if (require.main === module) {
-	const [
-		releaseTenantId,
-		releaseClientId,
-		releaseAuthCertSubjectName,
-		releaseRequestSigningCertSubjectName,
-		provisionTenantId,
-		provisionAADUsername,
-		provisionAADPassword,
-		version,
-		quality,
-		filePath
-	] = process.argv.slice(2);
-
-	releaseAndProvision(releaseTenantId,
-		releaseClientId,
-		releaseAuthCertSubjectName,
-		releaseRequestSigningCertSubjectName,
-		provisionTenantId,
-		provisionAADUsername,
-		provisionAADPassword,
-		version,
-		quality,
-		filePath
-	).then(() => {
-		process.exit(0);
-	}, err => {
-		console.error(err);
-		process.exit(1);
-	});
 }
