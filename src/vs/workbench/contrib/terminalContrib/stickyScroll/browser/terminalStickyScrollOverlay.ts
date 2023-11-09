@@ -11,7 +11,6 @@ import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async
 import { memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { findNthOccurrenceIndex } from 'vs/base/common/strings';
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -150,6 +149,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		const buffer = this._xterm.raw.buffer.active;
 		const marker = command.marker;
 		if (
 			// The marker doesn't exist
@@ -157,7 +157,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// The marker was trimmed from the scrollback
 			marker.line === -1 ||
 			// Hide sticky scroll if it's on the same line
-			marker.line === this._xterm.raw.buffer.active.viewportY
+			marker.line === buffer.viewportY
 		) {
 			this._setVisible(false);
 			return;
@@ -169,18 +169,19 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 
 		// Clear attrs, reset cursor position, clear right
-		// TODO: Serializing all content up to the required line is inefficient; support providing single line/range serialize addon
-		const s = this._serializeAddon.serialize({
-			scrollback: this._xterm.raw.buffer.active.baseY - marker.line + (promptRowCount - 1)
+		const content = this._serializeAddon.serialize({
+			range: {
+				start: marker.line - (promptRowCount - 1),
+				end: marker.line
+			}
 		});
 
 		// Write content if it differs
-		const content = s ? s.substring(0, findNthOccurrenceIndex(s, '\r', promptRowCount)) : undefined;
 		if (content && this._currentContent !== content) {
 			if (this._stickyScrollOverlay.rows !== promptRowCount) {
 				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, promptRowCount);
 			}
-			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2K');
+			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
 			// Debug log to show the command
