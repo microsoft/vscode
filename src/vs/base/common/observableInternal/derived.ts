@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BugIndicatingError } from 'vs/base/common/errors';
-import { DisposableStore } from 'vs/base/common/lifecycle';
+import { IDisposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { IReader, IObservable, BaseObservable, IObserver, _setDerivedOpts, IChangeContext, getFunctionName, DebugNameFn, getDebugName } from 'vs/base/common/observableInternal/base';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -83,6 +83,37 @@ export function derivedWithStore<T>(computeFnOrOwner: ((reader: IReader, store: 
 		r => {
 			store.clear();
 			return computeFn(r, store);
+		}, undefined,
+		undefined,
+		() => store.dispose(),
+		defaultEqualityComparer
+	);
+}
+
+export function derivedDisposable<T extends IDisposable | undefined>(computeFn: (reader: IReader) => T): IObservable<T>;
+export function derivedDisposable<T extends IDisposable | undefined>(owner: object, computeFn: (reader: IReader) => T): IObservable<T>;
+export function derivedDisposable<T extends IDisposable | undefined>(computeFnOrOwner: ((reader: IReader) => T) | object, computeFnOrUndefined?: ((reader: IReader) => T)): IObservable<T> {
+	let computeFn: (reader: IReader) => T;
+	let owner: object | undefined;
+	if (computeFnOrUndefined === undefined) {
+		computeFn = computeFnOrOwner as any;
+		owner = undefined;
+	} else {
+		owner = computeFnOrOwner;
+		computeFn = computeFnOrUndefined as any;
+	}
+
+	const store = new DisposableStore();
+	return new Derived(
+		owner,
+		(() => getFunctionName(computeFn) ?? '(anonymous)'),
+		r => {
+			store.clear();
+			const result = computeFn(r);
+			if (result) {
+				store.add(result);
+			}
+			return result;
 		}, undefined,
 		undefined,
 		() => store.dispose(),
