@@ -16,7 +16,7 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { DisposableStore, Disposable } from 'vs/base/common/lifecycle';
 import { GutterActionsRegistry } from 'vs/workbench/contrib/codeEditor/browser/editorLineNumberMenu';
 import { Action } from 'vs/base/common/actions';
-import { IInlineChatService } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { IInlineChatService, ShowGutterIconOn } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Iterable } from 'vs/base/common/iterator';
 import { Range } from 'vs/editor/common/core/range';
@@ -26,13 +26,14 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 
 const GUTTER_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the gutter'));
+const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
+	private _gutterDecoration: IModelDecorationOptions | undefined;
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
-	private readonly _gutterDecoration: IModelDecorationOptions;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.enableGutterIcon';
 	public static readonly GUTTER_SHOW_ON_SETTING_ID = 'inlineChat.showGutterIconOn';
@@ -46,16 +47,15 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 	) {
 		super();
-		this._gutterDecoration = ModelDecorationOptions.register({
-			description: 'inline-chat-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(GUTTER_INLINE_CHAT_ICON),
-			glyphMargin: { position: GlyphMarginLane.Left },
-			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-		});
+		this._registerGutterDecoration();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
-			if (!e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID)
-				&& !e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID)) {
+			const affectsEnablement = e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SETTING_ID);
+			const affectsShowingMode = e.affectsConfiguration(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID);
+			if (!affectsEnablement && !affectsShowingMode) {
 				return;
+			}
+			if (affectsShowingMode) {
+				this._registerGutterDecoration();
 			}
 			this._onEnablementOrModelChanged();
 		}));
@@ -69,7 +69,19 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._onEnablementOrModelChanged();
 	}
 
+	private _registerGutterDecoration(): void {
+		this._gutterDecoration = ModelDecorationOptions.register({
+			description: 'inline-chat-decoration',
+			glyphMarginClassName: ThemeIcon.asClassName(this._showGutterIconOnMode() === ShowGutterIconOn.Always ? GUTTER_INLINE_CHAT_ICON : GUTTER_INLINE_CHAT_TRANSPARENT_ICON),
+			glyphMargin: { position: GlyphMarginLane.Left },
+			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		});
+	}
+
 	private _updateDecorationHover(): void {
+		if (!this._gutterDecoration) {
+			return;
+		}
 		const keybinding = this._keybindingService.lookupKeybinding('inlineChat.start')?.getLabel() ?? undefined;
 		if (this._inlineChatKeybinding === keybinding) {
 			return;
@@ -130,12 +142,19 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		return this._configurationService.getValue<boolean>(InlineChatDecorationsContribution.GUTTER_SETTING_ID);
 	}
 
+	private _showGutterIconOnMode(): ShowGutterIconOn {
+		return this._configurationService.getValue<ShowGutterIconOn>(InlineChatDecorationsContribution.GUTTER_SHOW_ON_SETTING_ID);
+	}
+
 	private _hasProvider(): boolean {
 		return !Iterable.isEmpty(this._inlineChatService.getAllProvider());
 	}
 
 	private _addGutterDecoration(lineNumber: number) {
 		this._editor.changeDecorations((accessor: IModelDecorationsChangeAccessor) => {
+			if (!this._gutterDecoration) {
+				return;
+			}
 			this._gutterDecorationID = accessor.addDecoration(new Range(lineNumber, 0, lineNumber, 0), this._gutterDecoration);
 		});
 	}
