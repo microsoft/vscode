@@ -49,6 +49,12 @@ export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly type: 'historyItemGroup';
 }
 
+export interface ISCMHistoryItemStatistics {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
@@ -56,6 +62,7 @@ export interface ISCMHistoryItem {
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: ISCMHistoryItemStatistics;
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
