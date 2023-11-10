@@ -352,7 +352,9 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		// a single uri for the real `text/uri-list` type. Otherwise all uris end up joined together
 		// However we write the full uri-list to an internal type so that other parts of VS Code
 		// can use the full list.
-		event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
+		if (!options?.disableStandardTransfer) {
+			event.dataTransfer.setData(Mimes.uriList, UriList.create(uriListEntries.slice(0, 1)));
+		}
 		event.dataTransfer.setData(DataTransfers.INTERNAL_URI_LIST, UriList.create(uriListEntries));
 	}
 }
