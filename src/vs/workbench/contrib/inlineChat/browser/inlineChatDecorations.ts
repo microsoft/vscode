@@ -122,19 +122,30 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
 		// Should be enabled also when covering completely a word of interest
 		const startPosition = selection.getStartPosition();
-		const word = this._editor.getConfiguredWordAtPosition(startPosition);
+		const endPosition = selection.getEndPosition();
+
+		const startWord = this._editor.getConfiguredWordAtPosition(startPosition);
+		const endWord = this._editor.getConfiguredWordAtPosition(endPosition);
+		console.log('startWord : ', startWord);
+		console.log('endWord : ', endWord);
+
+		let shouldBeVisibleOnNonEmptySelection = false;
+		if (startWord && endWord && startPosition.column <= startWord.startColumn && endPosition.column >= endWord.endColumn) {
+			console.log('in the case when we would show the sparkle');
+			shouldBeVisibleOnNonEmptySelection = true;
+		}
+
 		const references = await getReferencesAtPosition(this.languageFeaturesService.referenceProvider, model, startPosition, false, CancellationToken.None);
 		const definitions = await getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, startPosition, CancellationToken.None);
 		const implementations = await getImplementationsAtPosition(this.languageFeaturesService.implementationProvider, model, startPosition, CancellationToken.None);
 		const declarations = await getDeclarationsAtPosition(this.languageFeaturesService.declarationProvider, model, startPosition, CancellationToken.None);
 
-		console.log('word : ', word);
 		console.log('references : ', references);
 		console.log('definitions : ', definitions);
 		console.log('implementations : ', implementations);
 		console.log('declarations : ', declarations);
 		//
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) && !isInlineChatVisible && !hasBreakpoint;
+		const isEnabled = (selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) || !selection.isEmpty() && shouldBeVisibleOnNonEmptySelection) && !isInlineChatVisible && !hasBreakpoint;
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(startLineNumber);
