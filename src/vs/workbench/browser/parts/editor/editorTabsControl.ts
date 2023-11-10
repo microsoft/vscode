@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, Dimension, EventType, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -22,10 +22,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -40,6 +40,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -129,7 +131,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
 	) {
 		super(themeService);
 
@@ -262,58 +265,90 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		editorActionsToolbar.setActions([], []);
 	}
 
-	protected enableGroupDragging(element: HTMLElement): void {
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
+		if (e.target !== element) {
+			return; // only if originating from tabs container
+		}
 
-		// Drag start
-		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
-			if (e.target !== element) {
-				return; // only if originating from tabs container
-			}
+		// Set editor group as transfer
+		this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'copyMove';
+		}
 
-			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
-			}
+		// Drag all tabs of the group if tabs are enabled
+		let hasDataTransfer = false;
+		if (this.groupsView.partOptions.showTabs === 'multiple') {
+			hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
+		}
 
-			// Drag all tabs of the group if tabs are enabled
-			let hasDataTransfer = false;
-			if (this.groupsView.partOptions.showTabs === 'multiple') {
-				hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
-			}
-
-			// Otherwise only drag the active editor
-			else {
-				if (this.groupView.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
-				}
-			}
-
-			// Firefox: requires to set a text data transfer to get going
-			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
-			}
-
-			// Drag Image
+		// Otherwise only drag the active editor
+		else {
 			if (this.groupView.activeEditor) {
-				let label = this.groupView.activeEditor.getName();
-				if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
-					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
-				}
-
-				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+				hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
 			}
-		}));
+		}
 
-		// Drag end
-		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
-			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
-		}));
+		// Firefox: requires to set a text data transfer to get going
+		if (!hasDataTransfer && isFirefox) {
+			e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
+		}
+
+		// Drag Image
+		if (this.groupView.activeEditor) {
+			let label = this.groupView.activeEditor.getName();
+			if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
+				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
+			}
+
+			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+		}
+	}
+
+	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement): Promise<void> {
+		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+
+		if (
+			e.target !== element ||
+			!this.isNewWindowOperation(previousDragEvent ?? e) ||
+			isWindowDraggedOver()
+		) {
+			return; // drag to open in new window is disabled
+		}
+
+		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
+			bounds: { x: e.screenX, y: e.screenY }
+		});
+
+		const targetGroup = auxiliaryEditorPart.activeGroup;
+		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
+			mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+		});
+
+		targetGroup.focus();
+	}
+
+	protected isNewWindowOperation(e: DragEvent): boolean {
+		if (this.groupsView.partOptions.dragToOpenWindow) {
+			return !e.altKey;
+		}
+
+		return e.altKey;
+	}
+
+	protected isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
+		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
+			return true; // Singleton editors cannot be split
+		}
+
+		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, { disableStandardTransfer: this.isNewWindowOperation(e) });
 
 			return true;
 		}

@@ -363,7 +363,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 
 		this._register(new dom.DragAndDropObserver(this._domElement, {
-			onDragEnter: () => undefined,
 			onDragOver: e => {
 				if (!isDropIntoEnabled()) {
 					return;
@@ -1491,7 +1490,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		this._overlayWidgets[widget.getId()] = widgetData;
-
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addOverlayWidget(widgetData);
 		}

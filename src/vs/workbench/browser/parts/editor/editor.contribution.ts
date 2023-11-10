@@ -66,7 +66,6 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 import { UntitledTextEditorInputSerializer, UntitledTextEditorWorkingCopyEditorHandler } from 'vs/workbench/services/untitled/common/untitledTextEditorHandler';
 import { DynamicEditorConfigurations } from 'vs/workbench/browser/parts/editor/editorConfiguration';
 import { EditorActionsDefaultAction, EditorActionsTitleBarAction, HideEditorActionsAction, HideEditorTabsAction, ShowMultipleEditorTabsAction, ShowSingleEditorTabAction } from 'vs/workbench/browser/actions/layoutActions';
-import product from 'vs/platform/product/common/product';
 import { ICommandAction } from 'vs/platform/action/common/action';
 
 //#region Editor Registrations
@@ -293,11 +292,7 @@ registerAction2(QuickAccessLeastRecentlyUsedEditorAction);
 registerAction2(QuickAccessPreviousRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessLeastRecentlyUsedEditorInGroupAction);
 registerAction2(QuickAccessPreviousEditorFromHistoryAction);
-
-if (product.quality !== 'stable') {
-	// TODO@bpasero revisit
-	registerAction2(ExperimentalMoveEditorIntoNewWindowAction);
-}
+registerAction2(ExperimentalMoveEditorIntoNewWindowAction);
 
 const quickAccessNavigateNextInEditorPickerId = 'workbench.action.quickOpenNavigateNextInEditorPicker';
 KeybindingsRegistry.registerCommandAndKeybindingRule({

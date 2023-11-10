@@ -32,8 +32,8 @@ import { Context as SuggestContext } from 'vs/editor/contrib/suggest/browser/sug
 import { MANAGE_TRUST_COMMAND_ID, WorkspaceTrustContext } from 'vs/workbench/contrib/workspace/common/workspace';
 import { IQuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiff';
 import { QuickDiffService } from 'vs/workbench/contrib/scm/common/quickDiffService';
-import { SCMSyncViewPane } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 import { getActiveElement } from 'vs/base/browser/dom';
+import { SCMSyncViewPane } from 'vs/workbench/contrib/scm/browser/scmSyncViewPane';
 
 ModesRegistry.registerLanguage({
 	id: 'scminput',
@@ -81,7 +81,7 @@ viewsRegistry.registerViews([{
 	ctorDescriptor: new SyncDescriptor(SCMViewPane),
 	canToggleVisibility: true,
 	canMoveView: true,
-	weight: 60,
+	weight: 80,
 	order: -999,
 	containerIcon: sourceControlViewIcon,
 	openCommandActionDescriptor: {
@@ -302,6 +302,25 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			type: 'boolean',
 			description: localize('showSyncView', "Controls whether the Source Control Sync view is shown."),
 			default: false
+		},
+		'scm.experimental.showSyncInformation': {
+			type: 'object',
+			description: localize('showSyncInformation', "Controls whether incoming/outgoing changes are shown in the Source Control view."),
+			additionalProperties: false,
+			properties: {
+				'incoming': {
+					type: 'boolean',
+					description: localize('showSyncInformationIncoming', "Show incoming changes in the Source Control view."),
+				},
+				'outgoing': {
+					type: 'boolean',
+					description: localize('showSyncInformationOutgoing', "Show outgoing changes in the Source Control view."),
+				},
+			},
+			default: {
+				'incoming': false,
+				'outgoing': false
+			}
 		}
 	}
 });

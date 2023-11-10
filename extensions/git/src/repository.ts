@@ -1185,7 +1185,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetween(ref1, ref2, path));
 	}
 
-	diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+	diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
@@ -1656,6 +1656,10 @@ export class Repository implements Disposable {
 
 	async getCommit(ref: string): Promise<Commit> {
 		return await this.repository.getCommit(ref);
+	}
+
+	async getCommitFiles(ref: string): Promise<string[]> {
+		return await this.repository.getCommitFiles(ref);
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
