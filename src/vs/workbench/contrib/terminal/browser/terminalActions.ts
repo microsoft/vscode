@@ -609,7 +609,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await c.service.revealActiveTerminal();
+			await c.service.revealActiveTerminal(true);
 		}
 	});
 
