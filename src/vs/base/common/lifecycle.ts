@@ -556,6 +556,40 @@ export class MutableDisposable<T extends IDisposable> implements IDisposable {
 	}
 }
 
+/**
+ * Manages the lifecycle of a disposable value that may be changed like {@link MutableDisposable}, but the value must
+ * exist and cannot be undefined.
+ */
+export class MandatoryMutableDisposable<T extends IDisposable> implements IDisposable {
+	private _disposable = new MutableDisposable<T>();
+	private _isDisposed = false;
+
+	constructor(initialValue: T) {
+		this.value = initialValue;
+	}
+
+	get value(): T {
+		return this.value!;
+	}
+
+	set value(value: T) {
+		if (this._isDisposed || value === this._disposable.value) {
+			return;
+		}
+
+		this.value.dispose();
+		if (value) {
+			setParentOfDisposable(value, this);
+		}
+		this.value = value;
+	}
+
+	dispose() {
+		this._isDisposed = true;
+		this._disposable.dispose();
+	}
+}
+
 export class RefCountedDisposable {
 
 	private _counter: number = 1;

@@ -6,7 +6,7 @@
 import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MandatoryMutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
@@ -69,7 +69,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
 
-	private _windowsPtyHeuristics = new MutableDisposable<WindowsPtyHeuristics>();
+	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
+	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -120,6 +121,20 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		private readonly _logService: ILogService
 	) {
 		super();
+
+		// Set up platform-specific behaviors
+		const that = this;
+		this._ptyHeuristicsHooks = new class {
+			get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
+			get onCommandStartedEmitter() { return that._onCommandStarted; }
+			get onCommandExecutedEmitter() { return that._onCommandExecuted; }
+			get dimensions() { return that._dimensions; }
+			get commandMarkers() { return that._commandMarkers; }
+			set commandMarkers(value) { that._commandMarkers = value; }
+			get clearCommandsInViewport() { return that._clearCommandsInViewport; }
+		};
+		this._ptyHeuristics = new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this._ptyHeuristicsHooks));
+
 		this._dimensions = {
 			cols: this._terminal.cols,
 			rows: this._terminal.rows
@@ -130,7 +145,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
-		this._windowsPtyHeuristics.value?.preResizeWindows(e);
+		this._ptyHeuristics.value?.preResizeWindows?.(e);
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
 	}
@@ -195,10 +210,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	setIsWindowsPty(value: boolean) {
-		if (!!this._windowsPtyHeuristics.value !== value) {
-			if (value) {
+		if (!!this._ptyHeuristics.value !== value) {
+			if (value && !(this._ptyHeuristics instanceof WindowsPtyHeuristics)) {
 				const that = this;
-				this._windowsPtyHeuristics.value = new WindowsPtyHeuristics(
+				this._ptyHeuristics.value = new WindowsPtyHeuristics(
 					this._terminal,
 					this,
 					new class {
@@ -212,8 +227,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					},
 					this._logService
 				);
-			} else {
-				this._windowsPtyHeuristics.clear();
+			} else if (!value && !(this._ptyHeuristics instanceof UnixPtyHeuristics)) {
+				this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this._ptyHeuristicsHooks);
 			}
 		}
 		this._isWindowsPty = value;
@@ -310,8 +325,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
-		if (this._windowsPtyHeuristics.value) {
-			this._windowsPtyHeuristics.value.handleCommandStartWindows();
+		if (this._ptyHeuristics.value) {
+			this._ptyHeuristics.value.handleCommandStartWindows?.();
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -341,8 +356,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
-		if (this._windowsPtyHeuristics.value) {
-			this._windowsPtyHeuristics.value.handleCommandExecutedWindows();
+		if (this._ptyHeuristics.value) {
+			this._ptyHeuristics.value.handleCommandExecutedWindows?.();
 			return;
 		}
 
@@ -377,7 +392,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
-		this._windowsPtyHeuristics.value?.preHandleCommandFinishedWindows();
+		this._ptyHeuristics.value?.preHandleCommandFinishedWindows?.();
 
 		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
 		let command = this._currentCommand.command;
@@ -405,7 +420,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			command = '';
 		}
 
-		this._windowsPtyHeuristics.value?.postHandleCommandFinishedWindows();
+		this._ptyHeuristics.value?.postHandleCommandFinishedWindows?.();
 
 		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
@@ -556,6 +571,27 @@ interface ICommandDetectionHeuristicsHooks {
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
+}
+
+type IPtyHeuristics = Partial<UnixPtyHeuristics & WindowsPtyHeuristics> & IDisposable;
+
+/**
+ * Non-Windows-specific behavior.
+ */
+class UnixPtyHeuristics extends Disposable {
+	constructor(
+		terminal: Terminal,
+		hooks: ICommandDetectionHeuristicsHooks,
+	) {
+		super();
+		this._register(terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+				hooks.clearCommandsInViewport();
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		}));
+	}
 }
 
 /**
