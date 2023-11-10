@@ -145,7 +145,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
-		this._ptyHeuristics.value?.preResizeWindows?.(e);
+		this._ptyHeuristics.value?.preHandleResize?.(e);
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
 	}
@@ -326,7 +326,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 		if (this._ptyHeuristics.value) {
-			this._ptyHeuristics.value.handleCommandStartWindows?.();
+			this._ptyHeuristics.value.handleCommandStart?.();
 			return;
 		}
 		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
@@ -357,7 +357,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
 		if (this._ptyHeuristics.value) {
-			this._ptyHeuristics.value.handleCommandExecutedWindows?.();
+			this._ptyHeuristics.value.handleCommandExecuted?.();
 			return;
 		}
 
@@ -392,7 +392,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
-		this._ptyHeuristics.value?.preHandleCommandFinishedWindows?.();
+		this._ptyHeuristics.value?.preHandleCommandFinished?.();
 
 		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
 		let command = this._currentCommand.command;
@@ -420,7 +420,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			command = '';
 		}
 
-		this._ptyHeuristics.value?.postHandleCommandFinishedWindows?.();
+		this._ptyHeuristics.value?.postHandleCommandFinished?.();
 
 		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
@@ -626,7 +626,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}));
 	}
 
-	preResizeWindows(e: { cols: number; rows: number }) {
+	preHandleResize(e: { cols: number; rows: number }) {
 		// Resize behavior is different under conpty; instead of bringing parts of the scrollback
 		// back into the viewport, new lines are inserted at the bottom (ie. the same behavior as if
 		// there was no scrollback).
@@ -675,7 +675,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	async handleCommandStartWindows() {
+	async handleCommandStart() {
 		if (this._windowsPromptPollingInProcess) {
 			this._windowsPromptPollingInProcess = false;
 		}
@@ -737,7 +737,7 @@ class WindowsPtyHeuristics extends Disposable {
 		this._commandStartedWindowsBarrier.open();
 	}
 
-	async handleCommandExecutedWindows() {
+	async handleCommandExecuted() {
 		await this._commandStartedWindowsBarrier?.wait();
 		// TODO: MutableDisposable
 		this._onCursorMoveListener?.dispose();
@@ -748,7 +748,7 @@ class WindowsPtyHeuristics extends Disposable {
 	}
 
 
-	async preHandleCommandFinishedWindows(): Promise<void> {
+	async preHandleCommandFinished(): Promise<void> {
 		if (this._capability.currentCommand.commandExecutedMarker) {
 			return;
 		}
@@ -764,10 +764,10 @@ class WindowsPtyHeuristics extends Disposable {
 				this._hooks.commandMarkers.push(this._capability.currentCommand.commandStartMarker);
 			}
 		}
-		this._evaluateCommandMarkersWindows();
+		this._evaluateCommandMarkers();
 	}
 
-	postHandleCommandFinishedWindows(): void {
+	postHandleCommandFinished(): void {
 		const currentCommand = this._capability.currentCommand;
 		const commandText = currentCommand.command;
 		const commandLine = currentCommand.commandStartMarker?.line;
@@ -822,7 +822,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 	}
 
-	private _evaluateCommandMarkersWindows(): void {
+	private _evaluateCommandMarkers(): void {
 		// On Windows, use the gathered cursor move markers to correct the command start and
 		// executed markers.
 		if (this._hooks.commandMarkers.length === 0) {
