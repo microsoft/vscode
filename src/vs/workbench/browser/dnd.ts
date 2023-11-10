@@ -471,9 +471,6 @@ export class CompositeDragAndDropObserver extends Disposable {
 	registerTarget(element: HTMLElement, callbacks: ICompositeDragAndDropObserverCallbacks): IDisposable {
 		const disposableStore = new DisposableStore();
 		disposableStore.add(new DragAndDropObserver(element, {
-			onDragEnd: e => {
-				// no-op
-			},
 			onDragEnter: e => {
 				e.preventDefault();
 

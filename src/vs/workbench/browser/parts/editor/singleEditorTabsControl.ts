@@ -76,11 +76,8 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		let lastDragEvent: DragEvent | undefined = undefined;
 		this._register(new DragAndDropObserver(titleContainer, {
 			onDragStart: e => this.onGroupDragStart(e, titleContainer),
-			onDragEnter: () => { },
-			onDragLeave: () => { },
 			onDrag: e => { lastDragEvent = e; },
 			onDragEnd: e => { this.onGroupDragEnd(e, lastDragEvent ?? e, titleContainer); },
-			onDrop: () => { }
 		}));
 
 		// Pin on double click
