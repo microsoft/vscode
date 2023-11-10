@@ -15,6 +15,7 @@ import { ViewContext } from 'vs/editor/common/viewModel/viewContext';
 import { BrowserFeatures } from 'vs/base/browser/canIUse';
 import { TextAreaSyntethicEvents } from 'vs/editor/browser/controller/textAreaInput';
 import { NavigationCommandRevealType } from 'vs/editor/browser/coreCommands';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * Currently only tested on iOS 13/ iPadOS.
@@ -138,7 +139,7 @@ export class PointerHandler extends Disposable {
 		super();
 		if ((platform.isIOS && BrowserFeatures.pointerEvents)) {
 			this.handler = this._register(new PointerEventHandler(context, viewController, viewHelper));
-		} else if (window.TouchEvent) {
+		} else if (mainWindow.TouchEvent) {
 			this.handler = this._register(new TouchHandler(context, viewController, viewHelper));
 		} else {
 			this.handler = this._register(new MouseHandler(context, viewController, viewHelper));

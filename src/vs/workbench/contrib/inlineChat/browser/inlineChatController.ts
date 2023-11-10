@@ -654,7 +654,7 @@ export class InlineChatController implements IEditorContribution {
 
 		let a11yResponse: string | undefined;
 		const a11yVerboseInlineChat = this._configurationService.getValue<boolean>('accessibility.verbosity.inlineChat') === true;
-		this._chatAccessibilityService.acceptRequest();
+		const requestId = this._chatAccessibilityService.acceptRequest();
 
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
 		this._log('request started', this._activeSession.provider.debugName, this._activeSession.session, request);
@@ -677,11 +677,10 @@ export class InlineChatController implements IEditorContribution {
 				response = new EmptyResponse();
 				a11yResponse = localize('empty', "No results, please refine your input and try again");
 			} else {
-
-				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
-				if (reply.type === InlineChatResponseType.Message) {
+				if (reply.message) {
 					markdownContents.appendMarkdown(reply.message.value);
 				}
+				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
 
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
@@ -704,7 +703,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.widget.updateInfo('');
 			this._zone.value.widget.updateToolbar(true);
 			this._log('request took', requestClock.elapsed(), this._activeSession.provider.debugName);
-			this._chatAccessibilityService.acceptResponse(a11yResponse);
+			this._chatAccessibilityService.acceptResponse(a11yResponse, requestId);
 		}
 
 		progressiveEditsCts.dispose(true);

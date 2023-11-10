@@ -345,6 +345,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 				action.id,
 				action.label,
 				action.alias,
+				action.metadata,
 				action.precondition ?? undefined,
 				(): Promise<void> => {
 					return this._instantiationService.invokeFunction((accessor) => {
@@ -362,7 +363,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		};
 
 		this._register(new dom.DragAndDropObserver(this._domElement, {
-			onDragEnter: () => undefined,
 			onDragOver: e => {
 				if (!isDropIntoEnabled()) {
 					return;
@@ -1490,7 +1490,6 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 
 		this._overlayWidgets[widget.getId()] = widgetData;
-
 		if (this._modelData && this._modelData.hasRealView) {
 			this._modelData.view.addOverlayWidget(widgetData);
 		}
@@ -1646,9 +1645,9 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 			this._id,
 			this._configuration,
 			model,
-			DOMLineBreaksComputerFactory.create(),
+			DOMLineBreaksComputerFactory.create(dom.getWindow(this._domElement)),
 			MonospaceLineBreaksComputerFactory.create(this._configuration.options),
-			(callback) => dom.scheduleAtNextAnimationFrame(callback),
+			(callback) => dom.scheduleAtNextAnimationFrame(dom.getWindow(this._domElement), callback),
 			this.languageConfigurationService,
 			this._themeService,
 			attachedView,

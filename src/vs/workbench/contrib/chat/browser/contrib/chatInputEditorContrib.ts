@@ -89,7 +89,7 @@ class InputEditorDecorations extends Disposable {
 
 	private registerViewModelListeners(): void {
 		this.viewModelDisposables.value = this.widget.viewModel?.onDidChange(e => {
-			if (e?.kind === 'changePlaceholder') {
+			if (e?.kind === 'changePlaceholder' || e?.kind === 'initialize') {
 				this.updateInputEditorDecorations();
 			}
 		});
@@ -127,7 +127,6 @@ class InputEditorDecorations extends Disposable {
 
 	private async updateInputEditorDecorations() {
 		const inputValue = this.widget.inputEditor.getValue();
-		const slashCommands = await this.widget.getSlashCommands(); // TODO this async call can lead to a flicker of the placeholder text when switching editor tabs
 
 		const viewModel = this.widget.viewModel;
 		if (!viewModel) {
@@ -136,10 +135,7 @@ class InputEditorDecorations extends Disposable {
 
 		if (!inputValue) {
 			const viewModelPlaceholder = this.widget.viewModel?.inputPlaceholder;
-			const defaultPlaceholder = slashCommands?.length ?
-				localize('interactive.input.placeholderWithCommands', "Ask a question or type '@' or '/'") :
-				localize('interactive.input.placeholderNoCommands', "Ask a question");
-			const placeholder = viewModelPlaceholder ?? defaultPlaceholder;
+			const placeholder = viewModelPlaceholder ?? '';
 			const decoration: IDecorationOptions[] = [
 				{
 					range: {
@@ -554,6 +550,7 @@ class BuiltinDynamicCompletions extends Disposable {
 							range: { insert, replace },
 							kind: CompletionItemKind.Text,
 							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range }] },
+							sortText: 'z'
 						}
 					]
 				};
@@ -705,7 +702,8 @@ class VariableCompletions extends Disposable {
 						range,
 						insertText: withLeader + ' ',
 						detail: v.description,
-						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway
+						sortText: 'z'
 					};
 				});
 

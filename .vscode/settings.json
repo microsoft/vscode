@@ -158,11 +158,20 @@
 	"editor.experimental.asyncTokenization": true,
 	"editor.experimental.asyncTokenizationVerification": true,
 	"typescript.preferences.autoImportFileExcludePatterns": [
-		"xterm",
-		"xterm-headless",
+		"@xterm/xterm",
+		"@xterm/headless",
 		"node-pty",
 		"vscode-notebook-renderer",
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
-	]
+	],
+
+	// Temporarily enabled for self-hosting
+	"terminal.integrated.enableStickyScroll": true,
+
+	// Temporarily enabled for self-hosting
+	"scm.experimental.showSyncInformation": {
+		"incoming": false,
+		"outgoing": false
+	}
 }

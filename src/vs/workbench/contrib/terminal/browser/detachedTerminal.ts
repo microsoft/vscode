@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { Delayer } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
@@ -19,10 +20,12 @@ import { XtermTerminal } from 'vs/workbench/contrib/terminal/browser/xterm/xterm
 import { IEnvironmentVariableInfo } from 'vs/workbench/contrib/terminal/common/environmentVariable';
 import { ITerminalProcessInfo, ProcessState } from 'vs/workbench/contrib/terminal/common/terminal';
 
-export class DeatachedTerminal extends Disposable implements IDetachedTerminalInstance {
+export class DetachedTerminal extends Disposable implements IDetachedTerminalInstance {
 	private readonly _widgets = this._register(new TerminalWidgetManager());
 	public readonly capabilities = new TerminalCapabilityStore();
 	private readonly _contributions: Map<string, ITerminalContribution> = new Map();
+
+	public domElement?: HTMLElement;
 
 	public get xterm(): IDetachedXtermTerminal {
 		return this._xterm;
@@ -66,9 +69,40 @@ export class DeatachedTerminal extends Disposable implements IDetachedTerminalIn
 		});
 	}
 
+	get selection(): string | undefined {
+		return this._xterm && this.hasSelection() ? this._xterm.raw.getSelection() : undefined;
+	}
+
+	hasSelection(): boolean {
+		return this._xterm.hasSelection();
+	}
+
+	clearSelection(): void {
+		this._xterm.clearSelection();
+	}
+
+	focus(force?: boolean): void {
+		if (force || !dom.getActiveWindow().getSelection()?.toString()) {
+			this.xterm.focus();
+		}
+	}
+
 	attachToElement(container: HTMLElement, options?: Partial<IXtermAttachToElementOptions> | undefined): void {
+		this.domElement = container;
 		const screenElement = this._xterm.attachToElement(container, options);
 		this._widgets.attachToElement(screenElement);
+	}
+
+	forceScrollbarVisibility(): void {
+		this.domElement?.classList.add('force-scrollbar');
+	}
+
+	resetScrollbarVisibility(): void {
+		this.domElement?.classList.remove('force-scrollbar');
+	}
+
+	getContribution<T extends ITerminalContribution>(id: string): T | null {
+		return this._contributions.get(id) as T | null;
 	}
 }
 

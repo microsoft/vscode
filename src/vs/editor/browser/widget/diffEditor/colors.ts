@@ -17,3 +17,9 @@ export const diffMoveBorderActive = registerColor(
 	{ dark: '#FFA500', light: '#FFA500', hcDark: '#FFA500', hcLight: '#FFA500', },
 	localize('diffEditor.moveActive.border', 'The active border color for text that got moved in the diff editor.')
 );
+
+export const diffEditorUnchangedRegionShadow = registerColor(
+	'diffEditor.unchangedRegionShadow',
+	{ dark: '#000000', light: '#737373BF', hcDark: '#000000', hcLight: '#737373BF', },
+	localize('diffEditor.unchangedRegionShadow', 'The color of the shadow around unchanged region widgets.')
+);

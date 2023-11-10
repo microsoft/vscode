@@ -18,7 +18,6 @@ import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { CopyAction } from 'vs/editor/contrib/clipboard/browser/clipboard';
 import { localize } from 'vs/nls';
-import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -196,7 +195,7 @@ export function registerChatCodeBlockActions() {
 					when: CONTEXT_IN_CHAT_SESSION,
 				},
 				keybinding: {
-					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					when: CONTEXT_IN_CHAT_SESSION,
 					primary: KeyMod.CtrlCmd | KeyCode.Enter,
 					mac: { primary: KeyMod.WinCtrl | KeyCode.Enter },
 					weight: KeybindingWeight.WorkbenchContrib
@@ -353,8 +352,8 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.insertIntoNewFile',
 				title: {
-					value: localize('interactive.insertIntoNewFile.label', "Insert Into New File"),
-					original: 'Insert Into New File'
+					value: localize('interactive.insertIntoNewFile.label', "Insert into New File"),
+					original: 'Insert into New File'
 				},
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
@@ -406,8 +405,8 @@ export function registerChatCodeBlockActions() {
 			super({
 				id: 'workbench.action.chat.runInTerminal',
 				title: {
-					value: localize('interactive.runInTerminal.label', "Run in Terminal"),
-					original: 'Run in Terminal'
+					value: localize('interactive.runInTerminal.label', "Insert into Terminal"),
+					original: 'Insert into Terminal'
 				},
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				f1: true,
@@ -438,16 +437,10 @@ export function registerChatCodeBlockActions() {
 				keybinding: [{
 					primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Enter,
 					mac: {
-						primary: KeyMod.WinCtrl | KeyCode.Enter,
+						primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Enter
 					},
 					weight: KeybindingWeight.EditorContrib,
-					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-				},
-				{
-					primary: KeyMod.CtrlCmd | KeyCode.Slash,
-					mac: { primary: KeyMod.WinCtrl | KeyCode.Slash },
-					weight: KeybindingWeight.WorkbenchContrib,
-					when: ContextKeyExpr.and(CONTEXT_IN_CHAT_SESSION, CONTEXT_ACCESSIBILITY_MODE_ENABLED),
+					when: CONTEXT_IN_CHAT_SESSION,
 				}]
 			});
 		}

@@ -13,7 +13,7 @@ import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/termin
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from 'xterm-headless';
+import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from '@xterm/headless';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -286,16 +286,46 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this.__isCommandStorageDisabled = true;
 	}
 
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined {
+		// Handle the current partial command first, anything below it's prompt is considered part
+		// of the current command
+		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
+			return this._currentCommand;
+		}
+
+		// No commands
+		if (this._commands.length === 0) {
+			return undefined;
+		}
+
+		// Line is before any registered commands
+		if (this._commands[0].marker!.line > line) {
+			return undefined;
+		}
+
+		// Iterate backwards through commands to find the right one
+		for (let i = this.commands.length - 1; i >= 0; i--) {
+			if (this.commands[i].marker!.line <= line - 1) {
+				return this.commands[i];
+			}
+		}
+
+		return undefined;
+	}
+
 	getCwdForLine(line: number): string | undefined {
 		// Handle the current partial command first, anything below it's prompt is considered part
 		// of the current command
 		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
 			return this._cwd;
 		}
-		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
-		// TODO: Use a reverse for loop to find the line to avoid creating another array
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
+
+		const command = this.getCommandForLine(line);
+		if (command && 'cwd' in command) {
+			return command.cwd;
+		}
+
+		return undefined;
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
@@ -377,10 +407,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// Conpty could have the wrong cursor position at this point.
 		if (!this._cursorOnNextLine() || !prompt) {
 			this._windowsPromptPollingInProcess = true;
-			// Poll for 200ms until the cursor position is correct.
+			// Poll for 1000ms until the cursor position is correct.
 			let i = 0;
-			for (; i < 20; i++) {
-				await timeout(10);
+			for (; i < 50; i++) {
+				await timeout(20);
 				prompt = this._getWindowsPrompt();
 				if (this._store.isDisposed || !this._windowsPromptPollingInProcess || this._cursorOnNextLine() && prompt) {
 					if (!this._windowsPromptPollingInProcess) {
@@ -390,7 +420,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				}
 			}
 			this._windowsPromptPollingInProcess = false;
-			if (i === 20) {
+			if (i >= 50) {
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
@@ -428,9 +458,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _cursorOnNextLine(): boolean {
 		const lastCommand = this.commands.at(-1);
 
+		// There is only a single command, so this check is unnecessary
 		if (!lastCommand) {
-			return false;
+			return true;
 		}
+
 		const cursorYAbsolute = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY;
 		// If the cursor position is within the last command, we should poll.
 		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
@@ -442,8 +474,44 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (!line) {
 			return;
 		}
-		// TODO: fine tune prompt regex to accomodate for unique configurtions.
-		return line.translateToString(true)?.match(/^(?<prompt>(\(.+\)\s)?(?:PS.+>\s)|(?:[A-Z]:\\.*>))/)?.groups?.prompt;
+		// TODO: fine tune prompt regex to accomodate for unique configurations.
+		const lineText = line.translateToString(true);
+		if (!lineText) {
+			return;
+		}
+
+		// PowerShell
+		const pwshPrompt = lineText.match(/(?<prompt>(\(.+\)\s)?(?:PS.+>\s?))/)?.groups?.prompt;
+		if (pwshPrompt) {
+			const adjustedPrompt = this._adjustPrompt(pwshPrompt, lineText, '>');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Custom prompts like starship end in the common \u276f character
+		const customPrompt = lineText.match(/.*\u276f(?=[^\u276f]*$)/g)?.[0];
+		if (customPrompt) {
+			const adjustedPrompt = this._adjustPrompt(customPrompt, lineText, '\u276f');
+			if (adjustedPrompt) {
+				return adjustedPrompt;
+			}
+		}
+
+		// Command Prompt
+		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
+		return cmdMatch?.groups?.prompt;
+	}
+
+	private _adjustPrompt(prompt: string | undefined, lineText: string, char: string): string | undefined {
+		if (!prompt) {
+			return;
+		}
+		// Conpty may not 'render' the space at the end of the prompt
+		if (lineText === prompt && prompt.endsWith(char)) {
+			prompt += ' ';
+		}
+		return prompt;
 	}
 
 	handleGenericCommand(options?: IHandleCommandOptions): void {
@@ -543,6 +611,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const newCommand: ITerminalCommand = {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				isTrusted: !!this._currentCommand.isTrusted,
+				promptStartMarker: this._currentCommand.promptStartMarker,
 				marker: this._currentCommand.commandStartMarker,
 				endMarker,
 				executedMarker,
@@ -602,6 +671,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._onCommandExecuted.fire();
 	}
 
 	setCommandLine(commandLine: string, isTrusted: boolean) {
@@ -613,6 +684,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	serialize(): ISerializedCommandDetectionCapability {
 		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
 			return {
+				promptStartLine: e.promptStartMarker?.line,
 				startLine: e.marker?.line,
 				startX: undefined,
 				endLine: e.endMarker?.line,
@@ -629,6 +701,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		});
 		if (this._currentCommand.commandStartMarker) {
 			commands.push({
+				promptStartLine: this._currentCommand.promptStartMarker?.line,
 				startLine: this._currentCommand.commandStartMarker.line,
 				startX: this._currentCommand.commandStartX,
 				endLine: undefined,
@@ -659,10 +732,14 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			if (!marker) {
 				continue;
 			}
+			const promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			// Partial command
 			if (!e.endLine) {
 				this._currentCommand.commandStartMarker = marker;
 				this._currentCommand.commandStartX = e.startX;
+				if (promptStartMarker) {
+					this._currentCommand.promptStartMarker = promptStartMarker;
+				}
 				this._cwd = e.cwd;
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
@@ -673,6 +750,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const newCommand: ITerminalCommand = {
 				command: this.__isCommandStorageDisabled ? '' : e.command,
 				isTrusted: e.isTrusted,
+				promptStartMarker,
 				marker,
 				endMarker,
 				executedMarker,
@@ -808,6 +886,22 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
+export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
+	if (!command.marker) {
+		return 1;
+	}
+	let promptRowCount = 1;
+	let promptStartLine = command.marker.line;
+	if (command.promptStartMarker) {
+		promptStartLine = Math.min(command.promptStartMarker?.line ?? command.marker.line, command.marker.line);
+		// Trim any leading whitespace-only lines to retain vertical space
+		while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+			promptStartLine++;
+		}
+		promptRowCount = command.marker.line - promptStartLine + 1;
+	}
+	return promptRowCount;
+}
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is

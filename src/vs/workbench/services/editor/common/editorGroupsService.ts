@@ -5,16 +5,18 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions } from 'vs/workbench/common/editor';
+import { IEditorPane, GroupIdentifier, EditorInputWithOptions, CloseDirection, IEditorPartOptions, IEditorPartOptionsChangeEvent, EditorsOrder, IVisibleEditorPane, IEditorCloseEvent, IUntypedEditorInput, isEditorInput, IEditorWillMoveEvent, IEditorWillOpenEvent, IMatchEditorOptions, IActiveEditorChangeEvent, IFindEditorOptions, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDimension } from 'vs/editor/common/core/dimension';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
 import { IRectangle } from 'vs/platform/window/common/window';
+import { IMenuChangeEvent } from 'vs/platform/actions/common/actions';
+import { DeepPartial } from 'vs/base/common/types';
 
 export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
@@ -395,7 +397,7 @@ export interface IEditorGroupsContainer {
 	/**
 	 * Enforce editor part options temporarily.
 	 */
-	enforcePartOptions(options: IEditorPartOptions): IDisposable;
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 
 	/**
 	 * Allows to register a drag and drop target for editors
@@ -493,16 +495,26 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
 
 	/**
-	 * Opens a new window with a full editor part instantiated
-	 * in there at the optional position on screen.
+	 * Get the editor part that is rooted in the provided container.
 	 */
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart>;
+	getPart(container: unknown /* HTMLElement */): IEditorPart | undefined;
+
+	/**
+	 * Opens a new window with a full editor part instantiated
+	 * in there at the optional position and size on screen.
+	 */
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {
 	NEW_EDITOR = 1,
 	MOVE_EDITOR = 2,
 	COPY_EDITOR = 3
+}
+
+export interface IActiveEditorActions {
+	readonly actions: IToolbarActions;
+	readonly onDidChange: Event<IMenuChangeEvent | void>;
 }
 
 export interface IEditorGroup {
@@ -805,6 +817,11 @@ export interface IEditorGroup {
 	 * Move keyboard focus into the group.
 	 */
 	focus(): void;
+
+	/**
+	 * Create the editor actions for the current active editor.
+	 */
+	createEditorActions(disposables: DisposableStore): IActiveEditorActions;
 }
 
 export function isEditorGroup(obj: unknown): obj is IEditorGroup {

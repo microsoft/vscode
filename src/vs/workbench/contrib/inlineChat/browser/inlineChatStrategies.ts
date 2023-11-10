@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { $window } from 'vs/base/browser/window';
 import { equals, tail } from 'vs/base/common/arrays';
 import { AsyncIterableObject, AsyncIterableSource } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -421,7 +423,6 @@ export class LivePreviewStrategy extends LiveStrategy {
 		if (!diff || diff.changes.length === 0) {
 			for (const zone of this._diffZonePool) {
 				zone.hide();
-				zone.dispose();
 			}
 			return;
 		}
@@ -583,13 +584,13 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 	let newText = edit.text ?? '';
 	// const wordCount = countWords(newText);
 
-	const handle = setInterval(() => {
+	const handle = disposableWindowInterval($window, () => {
 
 		const r = getNWords(newText, 1);
 		stream.emitOne(r.value);
 		newText = newText.substring(r.value.length);
 		if (r.isFullString) {
-			clearInterval(handle);
+			handle.dispose();
 			stream.resolve();
 			d.dispose();
 		}
@@ -598,7 +599,7 @@ export function asProgressiveEdit(edit: IIdentifiedSingleEditOperation, wordsPer
 
 	// cancel ASAP
 	const d = token.onCancellationRequested(() => {
-		clearTimeout(handle);
+		handle.dispose();
 		stream.resolve();
 		d.dispose();
 	});

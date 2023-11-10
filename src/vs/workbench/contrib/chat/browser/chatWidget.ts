@@ -404,7 +404,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 			if (lastElementWasVisible) {
-				dom.scheduleAtNextAnimationFrame(() => {
+				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
 				}, 0);
@@ -531,7 +531,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this._onDidAcceptInput.fire();
 
 			const editorValue = this.getInput();
-			this._chatAccessibilityService.acceptRequest();
+			const requestId = this._chatAccessibilityService.acceptRequest();
 			const input = !opts ? editorValue :
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
@@ -544,10 +544,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				result.responseCompletePromise.then(async () => {
 					const responses = this.viewModel?.getItems().filter(isResponseVM);
 					const lastResponse = responses?.[responses.length - 1];
-					this._chatAccessibilityService.acceptResponse(lastResponse);
+					this._chatAccessibilityService.acceptResponse(lastResponse, requestId);
 				});
 			} else {
-				this._chatAccessibilityService.acceptResponse();
+				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
 	}
@@ -625,7 +625,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this._dynamicMessageLayoutData?.enabled) {
 				return;
 			}
-			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
 				}

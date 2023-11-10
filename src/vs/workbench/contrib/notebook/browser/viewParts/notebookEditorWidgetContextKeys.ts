@@ -113,7 +113,7 @@ export class NotebookEditorContextKeys {
 			return c.model.onDidChangeOutputs(() => {
 				layoutDisposable.clear();
 
-				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(() => {
+				layoutDisposable.add(DOM.scheduleAtNextAnimationFrame(DOM.getWindow(this._editor.getDomNode()), () => {
 					recomputeOutputsExistence();
 				}));
 			});

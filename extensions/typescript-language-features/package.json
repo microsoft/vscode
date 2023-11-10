@@ -34,7 +34,7 @@
     "Programming Languages"
   ],
   "dependencies": {
-    "@vscode/extension-telemetry": "^0.8.5",
+    "@vscode/extension-telemetry": "^0.9.0",
     "@vscode/sync-api-client": "^0.7.2",
     "@vscode/sync-api-common": "^0.7.2",
     "@vscode/sync-api-service": "^0.7.3",
@@ -1065,6 +1065,12 @@
             "type": "string"
           },
           "markdownDescription": "%typescript.preferences.autoImportFileExcludePatterns%",
+          "scope": "resource"
+        },
+        "typescript.preferences.preferTypeOnlyAutoImports": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "%typescript.preferences.preferTypeOnlyAutoImports%",
           "scope": "resource"
         },
         "javascript.preferences.renameShorthandProperties": {

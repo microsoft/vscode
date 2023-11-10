@@ -10,7 +10,7 @@ import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { Action } from 'vs/base/common/actions';
-import { Delayer, IntervalTimer, ThrottledDelayer } from 'vs/base/common/async';
+import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { fromNow } from 'vs/base/common/date';
 import { isCancellationError } from 'vs/base/common/errors';
@@ -63,7 +63,6 @@ import { ConfigurationScope, Extensions, IConfigurationRegistry } from 'vs/platf
 import { Registry } from 'vs/platform/registry/common/platform';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { IProductService } from 'vs/platform/product/common/productService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { registerNavigableContainer } from 'vs/workbench/browser/actions/widgetNavigationCommands';
 import { IEditorProgressService } from 'vs/platform/progress/common/progress';
 
@@ -237,7 +236,6 @@ export class SettingsEditor2 extends EditorPane {
 		@ILanguageService private readonly languageService: ILanguageService,
 		@IExtensionManagementService extensionManagementService: IExtensionManagementService,
 		@IProductService private readonly productService: IProductService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 		@IEditorProgressService private readonly editorProgressService: IEditorProgressService,
 	) {
@@ -1289,7 +1287,7 @@ export class SettingsEditor2 extends EditorPane {
 		}
 
 		const additionalGroups: ISettingsGroup[] = [];
-		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.environmentService, this.productService);
+		const toggleData = await getExperimentalExtensionToggleData(this.extensionGalleryService, this.productService);
 		if (toggleData && groups.filter(g => g.extensionInfo).length) {
 			for (const key in toggleData.settingsEditorRecommendedExtensions) {
 				const extension = toggleData.recommendedExtensionsGalleryInfo[key];
@@ -1413,7 +1411,7 @@ export class SettingsEditor2 extends EditorPane {
 
 		// If the context view is focused, delay rendering settings
 		if (this.contextViewFocused()) {
-			const element = document.querySelector('.context-view');
+			const element = DOM.getWindow(this.settingsTree.getHTMLElement()).document.querySelector('.context-view');
 			if (element) {
 				this.scheduleRefresh(element as HTMLElement, key);
 			}
@@ -1869,8 +1867,8 @@ class SyncControls extends Disposable {
 			this.updateLastSyncedTime();
 		}));
 
-		const updateLastSyncedTimer = this._register(new IntervalTimer());
-		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000);
+		const updateLastSyncedTimer = this._register(new DOM.WindowIntervalTimer());
+		updateLastSyncedTimer.cancelAndSet(() => this.updateLastSyncedTime(), 60 * 1000, DOM.getWindow(container));
 
 		this.update();
 		this._register(this.userDataSyncService.onDidChangeStatus(() => {

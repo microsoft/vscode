@@ -109,7 +109,7 @@
 }
 
 .interactive-item-container .header .avatar .codicon {
-	color: var(--vscode-chat-avatarForeground);
+	color: var(--vscode-chat-avatarForeground) !important;
 	font-size: 14px;
 }
 
@@ -185,6 +185,18 @@
 	color: var(--vscode-textLink-activeForeground);
 }
 
+.hc-black .interactive-item-container .value .rendered-markdown a code,
+.hc-light .interactive-item-container .value .rendered-markdown a code {
+	color: var(--vscode-textPreformat-foreground);
+}
+
+.hc-black .interactive-item-container .value .rendered-markdown a:hover,
+.hc-black .interactive-item-container .value .rendered-markdown a:active,
+.hc-light .interactive-item-container .value .rendered-markdown a:hover,
+.hc-light .interactive-item-container .value .rendered-markdown a:active {
+	color: var(--vscode-textPreformat-foreground);
+}
+
 .interactive-list {
 	overflow: hidden;
 }
@@ -258,8 +270,8 @@
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar {
-	width: 16px;
-	height: 16px;
+	width: 18px;
+	height: 18px;
 }
 
 .interactive-item-container.interactive-item-compact .header .avatar .icon {
@@ -267,7 +279,7 @@
 	height: 16px;
 }
 
-.interactive-item-container.interactive-item-compact .header .avatar+.avatar .codicon {
+.interactive-item-container.interactive-item-compact .header .codicon-avatar .codicon {
 	font-size: 12px;
 }
 
@@ -472,6 +484,10 @@
 	border-bottom-left-radius: 6px;
 }
 
+.quick-input-widget .interactive-response {
+	min-height: 86px;
+}
+
 /* #endregion */
 
 .interactive-response-progress-tree .monaco-list-row:not(.selected) .monaco-tl-row:hover {
@@ -501,7 +517,6 @@
 	gap: 6px;
 }
 
-.interactive-response-progress-tree .monaco-list,
 .chat-used-context-list .monaco-list {
 	border: none;
 	border-radius: 4px;
@@ -526,11 +541,12 @@
 	gap: 6px;
 }
 
+.interactive-response-progress-tree,
 .interactive-session .chat-used-context-list {
 	border: 1px solid var(--vscode-chat-requestBorder);
 	border-radius: 4px;
-	padding: 4px;
 	margin-bottom: 8px;
+	padding: 4px;
 }
 
 .interactive-session .chat-used-context-list .monaco-list .monaco-list-row {
