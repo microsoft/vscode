@@ -255,6 +255,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 
 	private setup(environment: IRemoteAgentEnvironment | null) {
 		const alreadyForwarded = this.procForwarder?.forwarded;
+		const isSwitch = this.outputForwarder || this.procForwarder;
 		this.procForwarder?.dispose();
 		this.procForwarder = undefined;
 		this.outputForwarder?.dispose();
@@ -267,10 +268,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		} else {
 			const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 			if (useProc()) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, alreadyForwarded, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			} else if (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, alreadyForwarded, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			}
 			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
@@ -580,6 +581,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 	constructor(
 		private readonly unforwardOnly: boolean,
 		readonly alreadyAutoForwarded: Set<string> | undefined,
+		private readonly needsInitialCandidates: boolean,
 		private readonly configurationService: IConfigurationService,
 		readonly remoteExplorerService: IRemoteExplorerService,
 		readonly notificationService: INotificationService,
@@ -649,6 +651,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async setInitialCandidates() {
+		if (!this.needsInitialCandidates) {
+			this.logService.debug(`ForwardedPorts: (ProcForwarding) Not setting initial candidates`);
+			return;
+		}
 		let startingCandidates = this.remoteExplorerService.tunnelModel.candidatesOrUndefined;
 		if (!startingCandidates) {
 			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onCandidatesChanged(() => resolve()));
