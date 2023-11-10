@@ -886,6 +886,22 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
+export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
+	if (!command.marker) {
+		return 1;
+	}
+	let promptRowCount = 1;
+	let promptStartLine = command.marker.line;
+	if (command.promptStartMarker) {
+		promptStartLine = Math.min(command.promptStartMarker?.line ?? command.marker.line, command.marker.line);
+		// Trim any leading whitespace-only lines to retain vertical space
+		while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+			promptStartLine++;
+		}
+		promptRowCount = command.marker.line - promptStartLine + 1;
+	}
+	return promptRowCount;
+}
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is

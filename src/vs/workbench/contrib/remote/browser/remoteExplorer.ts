@@ -36,6 +36,7 @@ import { IWorkbenchConfigurationService } from 'vs/workbench/services/configurat
 import { IRemoteAgentEnvironment } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { Action } from 'vs/base/common/actions';
 import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 export const VIEWLET_ID = 'workbench.view.remote';
 export const CAN_PROC_FALLBACK = 'processPortForwardingFallback';
@@ -197,7 +198,8 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		@ITunnelService private readonly tunnelService: ITunnelService,
 		@IHostService private readonly hostService: IHostService,
 		@ILogService private readonly logService: ILogService,
-		@IStorageService private readonly storageService: IStorageService
+		@IStorageService private readonly storageService: IStorageService,
+		@IPreferencesService private readonly preferencesService: IPreferencesService,
 	) {
 		super();
 		if (!environmentService.remoteAuthority) {
@@ -219,20 +221,25 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 	}
 
 	private listenForPorts() {
-		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid()) {
+		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid() && this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
 				if (this.procForwarder?.forwarded && this.procForwarder.forwarded.size > 20) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
 					this.notificationService.notify({
-						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings."),
-						severity: Severity.Info,
+						message: nls.localize('remote.autoForwardPortsSource.fallback', "Over 20 ports have been automatically forwarded. The `process` based automatic port forwarding has been switched to `hybrid` in settings. Some ports may no longer be detected."),
+						severity: Severity.Warning,
 						actions: {
 							primary: [
-								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Switch back to process based automatic port forwarding"), undefined, true, async () => {
+								new Action('switchBack', nls.localize('remote.autoForwardPortsSource.fallback.switchBack', "Undo"), undefined, true, async () => {
 									await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_PROCESS);
 									this.storageService.store(CAN_PROC_FALLBACK, false, StorageScope.WORKSPACE, StorageTarget.USER);
 									this.portListener?.dispose();
 									this.portListener = undefined;
+								}),
+								new Action('showPortSourceSetting', nls.localize('remote.autoForwardPortsSource.fallback.showPortSourceSetting', "Show Setting"), undefined, true, async () => {
+									await this.preferencesService.openSettings({
+										query: 'remote.autoForwardPortsSource'
+									});
 								})
 							]
 						}
@@ -248,6 +255,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 
 	private setup(environment: IRemoteAgentEnvironment | null) {
 		const alreadyForwarded = this.procForwarder?.forwarded;
+		const isSwitch = this.outputForwarder || this.procForwarder;
 		this.procForwarder?.dispose();
 		this.procForwarder = undefined;
 		this.outputForwarder?.dispose();
@@ -260,10 +268,10 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 		} else {
 			const useProc = () => (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS);
 			if (useProc()) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, alreadyForwarded, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(false, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			} else if (this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_HYBRID) {
-				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, alreadyForwarded, this.configurationService, this.remoteExplorerService, this.notificationService,
+				this.procForwarder = this._register(new ProcAutomaticPortForwarding(true, alreadyForwarded, !isSwitch, this.configurationService, this.remoteExplorerService, this.notificationService,
 					this.openerService, this.externalOpenerService, this.tunnelService, this.hostService, this.logService, this.contextKeyService));
 			}
 			this.outputForwarder = this._register(new OutputAutomaticPortForwarding(this.terminalService, this.notificationService, this.openerService, this.externalOpenerService,
@@ -573,6 +581,7 @@ class ProcAutomaticPortForwarding extends Disposable {
 	constructor(
 		private readonly unforwardOnly: boolean,
 		readonly alreadyAutoForwarded: Set<string> | undefined,
+		private readonly needsInitialCandidates: boolean,
 		private readonly configurationService: IConfigurationService,
 		readonly remoteExplorerService: IRemoteExplorerService,
 		readonly notificationService: INotificationService,
@@ -642,6 +651,10 @@ class ProcAutomaticPortForwarding extends Disposable {
 	}
 
 	private async setInitialCandidates() {
+		if (!this.needsInitialCandidates) {
+			this.logService.debug(`ForwardedPorts: (ProcForwarding) Not setting initial candidates`);
+			return;
+		}
 		let startingCandidates = this.remoteExplorerService.tunnelModel.candidatesOrUndefined;
 		if (!startingCandidates) {
 			await new Promise<void>(resolve => this.remoteExplorerService.tunnelModel.onCandidatesChanged(() => resolve()));

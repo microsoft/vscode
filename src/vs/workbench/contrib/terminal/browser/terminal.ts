@@ -110,6 +110,7 @@ export interface IMarkTracker {
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
 }
 

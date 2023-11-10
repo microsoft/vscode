@@ -10,7 +10,7 @@ import { EditorTabsControl } from 'vs/workbench/browser/parts/editor/editorTabsC
 import { ResourceLabel, IResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
-import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, isAncestor, DragAndDropObserver } from 'vs/base/browser/dom';
 import { CLOSE_EDITOR_COMMAND_ID, UNLOCK_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Color } from 'vs/base/common/color';
 import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
@@ -72,8 +72,13 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 
 	private registerContainerListeners(titleContainer: HTMLElement): void {
 
-		// Group dragging
-		this.enableGroupDragging(titleContainer);
+		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
+		this._register(new DragAndDropObserver(titleContainer, {
+			onDragStart: e => this.onGroupDragStart(e, titleContainer),
+			onDrag: e => { lastDragEvent = e; },
+			onDragEnd: e => { this.onGroupDragEnd(e, lastDragEvent, titleContainer); },
+		}));
 
 		// Pin on double click
 		this._register(addDisposableListener(titleContainer, EventType.DBLCLICK, e => this.onTitleDoubleClick(e)));

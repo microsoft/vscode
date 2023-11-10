@@ -168,4 +168,10 @@
 
 	// Temporarily enabled for self-hosting
 	"terminal.integrated.enableStickyScroll": true,
+
+	// Temporarily enabled for self-hosting
+	"scm.experimental.showSyncInformation": {
+		"incoming": false,
+		"outgoing": false
+	}
 }

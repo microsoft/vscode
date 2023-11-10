@@ -230,7 +230,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// main window
 			return this.mainContainerOffset;
 		} else {
-			// TODO@bpasero auxiliary window: no support for custom title bar or banner yet
+			// auxiliary window: no support for custom title bar or banner yet
 			return { top: 0, quickPickTop: 0 };
 		}
 	}
@@ -257,6 +257,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
+	private mainPartEditorService!: IEditorService;
 	private editorGroupService!: IEditorGroupsService;
 	private paneCompositeService!: IPaneCompositePartService;
 	private titleService!: ITitleService;
@@ -298,6 +299,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
+		this.mainPartEditorService = this.editorService.createScoped('main', this._store);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
@@ -326,9 +328,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.mainPart.whenRestored.then(() => {
 
-			// Restore editor part on any editor change
-			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+			// Restore main editor part on any editor change in main part
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
