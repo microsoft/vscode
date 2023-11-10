@@ -125,7 +125,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		decorationUpdateScheduler.schedule();
 	}
 
-	private async _onSelectionOrContentChanged(editor: IActiveCodeEditor): Promise<void> {
+	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
 		const selectionIsEmpty = selection.isEmpty();
 		const model = editor.getModel();
@@ -137,8 +137,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 		const startPosition = selection.getStartPosition();
 		const endPosition = selection.getEndPosition();
-		const startWord = this._editor.getConfiguredWordAtPosition(startPosition);
-		const endWord = this._editor.getConfiguredWordAtPosition(endPosition);
+		const startWord = model.getWordAtPosition(startPosition);
+		const endWord = model.getWordAtPosition(endPosition);
 		const shouldBeVisibleOnNonEmptySelection = startWord && endWord && startPosition.column <= startWord.startColumn && endPosition.column >= endWord.endColumn;
 
 		const isEnabled = !isInlineChatVisible && !hasBreakpoint &&
