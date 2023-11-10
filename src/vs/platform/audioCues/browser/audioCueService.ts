@@ -122,7 +122,10 @@ export class AudioCueService extends Disposable implements IAudioCueService {
 				this.sounds.set(url, playedSound);
 			}
 		} catch (e) {
-			console.error('Error while playing sound', e);
+			if (!e.message.includes('play() can only be initiated by a user gesture')) {
+				// tracking this issue in #178642, no need to spam the console
+				console.error('Error while playing sound', e);
+			}
 		} finally {
 			this.playingSounds.delete(sound);
 		}
