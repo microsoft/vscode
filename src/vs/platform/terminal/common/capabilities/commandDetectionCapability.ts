@@ -133,7 +133,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport; }
 		};
-		this._ptyHeuristics = new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService));
+		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
 		this._dimensions = {
 			cols: this._terminal.cols,
