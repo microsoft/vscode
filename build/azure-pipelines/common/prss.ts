@@ -214,8 +214,8 @@ class ESRPClient {
 
 		let details!: ReleaseDetailsResult;
 
-		// Poll every 5 seconds, wait 20 minutes max -> poll 60/5*20=240 times
-		for (let i = 0; i < 240; i++) {
+		// Poll every 5 seconds, wait 30 minutes max -> poll 60/5*30=360 times
+		for (let i = 0; i < 360; i++) {
 			details = await this.ReleaseDetails(releaseId);
 
 			if (details.releaseDetails[0].statusCode === 'pass') {
@@ -228,7 +228,7 @@ class ESRPClient {
 		}
 
 		if (details.releaseDetails[0].statusCode !== 'pass') {
-			throw new Error(`Timed out waiting for release: ${JSON.stringify(details)}`);
+			throw new Error(`Timed out waiting for release ${releaseId}: ${JSON.stringify(details)}`);
 		}
 
 		const fileId = details.releaseDetails[0].fileDetails[0].publisherKey;

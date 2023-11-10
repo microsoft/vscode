@@ -427,14 +427,13 @@ export async function processArtifact(product: string, os: string, arch: string,
 		supportsFastUpdate: true
 	};
 
-	log('Asset:', JSON.stringify(asset, null, '  '));
+	log('Creating asset:', JSON.stringify(asset, null, '  '));
 
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 	const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 	const scripts = client.database('builds').container(quality).scripts;
 	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
 
-	log(`  Done ✔️`);
 	log('Asset successfully created');
 }
 
@@ -509,7 +508,18 @@ export async function main() {
 	}
 
 	console.log(`Waiting for all artifacts to be published...`);
-	await Promise.all(publishPromises);
+	const results = await Promise.allSettled(publishPromises);
+
+	const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+
+	if (rejected.length > 0) {
+		for (const result of rejected) {
+			console.error('***');
+			console.error(result.reason);
+		}
+
+		throw new Error('Some artifacts failed to publish');
+	}
 
 	console.log(`All ${state.size} artifacts published!`);
 }
