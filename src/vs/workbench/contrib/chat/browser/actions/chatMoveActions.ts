@@ -195,17 +195,25 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const editorService = accessor.get(IEditorService);
 	const instantiationService = accessor.get(IInstantiationService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
-	const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
 	const widget = widgetService.lastFocusedWidget;
 	if (!widget || !('viewId' in widget.viewContext)) {
 		const providerId = chatService.getProviderInfos()[0].id;
-		if (moveTo === MoveToNewLocation.Editor) {
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
-		}
-		if (moveTo === MoveToNewLocation.Window) {
-			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { providerId } });
-			auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+
+		switch (moveTo) {
+			case (MoveToNewLocation.Editor): {
+				await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId }, pinned: true } });
+				break;
+			}
+			case (MoveToNewLocation.Window): {
+				const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+				const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { providerId } });
+				auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+				break;
+			}
+			default: {
+				throw new Error(`Unexpected move to location : ${moveTo}`);
+			}
 		}
 		return;
 	}
@@ -218,11 +226,19 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 	const sessionId = viewModel.sessionId;
 	const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
 	view.clear();
-	if (moveTo === MoveToNewLocation.Editor) {
-		await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
-	}
-	if (moveTo === MoveToNewLocation.Window) {
-		const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-		await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+
+	switch (moveTo) {
+		case (MoveToNewLocation.Editor): {
+			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: sessionId }, pinned: true } });
+			break;
+		}
+		case (MoveToNewLocation.Window): {
+			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
+			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+		}
+		default: {
+			throw new Error(`Unexpected move to location : ${moveTo}`);
+		}
 	}
 }
