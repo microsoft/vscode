@@ -393,14 +393,16 @@ class ShowOrFocusHoverAction extends EditorAction {
 						type: 'object',
 						properties: {
 							'focus': {
-								description: 'Controls whether the hover should take focus immediately when triggered with the keyboard.',
-								type: 'boolean',
-								default: false
-							},
-							'focusOnVisible': {
-								description: 'Controls whether the hover should take focus when it is already visible.',
-								type: 'boolean',
-								default: false
+								description: nls.localize('showOrFocusHover.focus', "Specifies when the hover should receive focus."),
+								enum: ['never', 'ifVisible', 'immediately', true, false],
+								enumDescriptions: [
+									nls.localize('showOrFocusHover.focus.never', 'The hover is never focused, even if it is already visible.'),
+									nls.localize('showOrFocusHover.focus.ifVisible', 'The hover is focused only if it is already visible.'),
+									nls.localize('showOrFocusHover.focus.immediately', 'The hover is immediately focused when it appears.'),
+									nls.localize('showOrFocusHover.focus.true', 'The hover should take immediate focus, same as "immediately".'),
+									nls.localize('showOrFocusHover.focus.false', 'The hover is focused only if it is already visible, same as "ifVisible".'),
+								],
+								default: 'never',
 							}
 						},
 					}
@@ -426,23 +428,25 @@ class ShowOrFocusHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-
-		const focusImmediately = !!args?.focus;
-		const focusOnVisible = !!args?.focusOnVisible;
 		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
-		const _showContentHover = (focus: boolean) => {
+		let focusOption = args?.focus ?? 'never';
+		if (typeof focusOption === 'boolean') {
+			focusOption = focusOption ? 'immediately' : 'ifVisible';
+		}
+
+		const showContentHover = (focus: boolean) => {
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
 		};
 
 		if (controller.isHoverVisible) {
-			if (focusOnVisible) {
+			if (focusOption !== 'never') {
 				controller.focus();
 			} else {
-				_showContentHover(accessibilitySupportEnabled);
+				showContentHover(accessibilitySupportEnabled);
 			}
 		} else {
-			_showContentHover(focusImmediately || accessibilitySupportEnabled);
+			showContentHover(accessibilitySupportEnabled || focusOption === 'immediately');
 		}
 	}
 }
