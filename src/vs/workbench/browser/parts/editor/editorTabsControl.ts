@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, Dimension, EventType, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -262,58 +262,54 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		editorActionsToolbar.setActions([], []);
 	}
 
-	protected enableGroupDragging(element: HTMLElement): void {
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
 
-		// Drag start
-		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
-			if (e.target !== element) {
-				return; // only if originating from tabs container
-			}
+		if (e.target !== element) {
+			return; // only if originating from tabs container
+		}
 
-			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
-			}
+		// Set editor group as transfer
+		this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'copyMove';
+		}
 
-			// Drag all tabs of the group if tabs are enabled
-			let hasDataTransfer = false;
-			if (this.groupsView.partOptions.showTabs === 'multiple') {
-				hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
-			}
+		// Drag all tabs of the group if tabs are enabled
+		let hasDataTransfer = false;
+		if (this.groupsView.partOptions.showTabs === 'multiple') {
+			hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
+		}
 
-			// Otherwise only drag the active editor
-			else {
-				if (this.groupView.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
-				}
-			}
-
-			// Firefox: requires to set a text data transfer to get going
-			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
-			}
-
-			// Drag Image
+		// Otherwise only drag the active editor
+		else {
 			if (this.groupView.activeEditor) {
-				let label = this.groupView.activeEditor.getName();
-				if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
-					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
-				}
-
-				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+				hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
 			}
-		}));
+		}
 
-		// Drag end
-		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
-			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
-		}));
+		// Firefox: requires to set a text data transfer to get going
+		if (!hasDataTransfer && isFirefox) {
+			e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
+		}
+
+		// Drag Image
+		if (this.groupView.activeEditor) {
+			let label = this.groupView.activeEditor.getName();
+			if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
+				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
+			}
+
+			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+		}
 	}
 
-	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
+	protected onGroupDragEnd(e: DragEvent): void {
+		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+	}
+
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent, options?: { disableStandardTransfer: boolean }): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, options);
 
 			return true;
 		}

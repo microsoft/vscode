@@ -188,10 +188,10 @@ export class ResourcesDropHandler {
 	}
 }
 
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent): void;
-export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent): void {
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: URI[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resources: IResourceStat[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, editors: IEditorIdentifier[], event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void;
+export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEditors: Array<URI | IResourceStat | IEditorIdentifier>, event: DragMouseEvent | DragEvent, options?: { disableStandardTransfer: boolean }): void {
 	if (resourcesOrEditors.length === 0 || !event.dataTransfer) {
 		return;
 	}
@@ -218,29 +218,33 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 
 		return resourceOrEditor;
 	}));
-	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
 
-	// Text: allows to paste into text-capable areas
-	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+	if (!options?.disableStandardTransfer) {
 
-	// Download URL: enables support to drag a tab as file to desktop
-	// Requirements:
-	// - Chrome/Edge only
-	// - only a single file is supported
-	// - only file:/ resources are supported
-	const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
-	if (firstFile) {
-		const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
-		if (firstFileUri.scheme === Schemas.file) {
-			event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+		const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
+
+		// Text: allows to paste into text-capable areas
+		const lineDelimiter = isWindows ? '\r\n' : '\n';
+		event.dataTransfer.setData(DataTransfers.TEXT, fileSystemResources.map(({ resource }) => labelService.getUriLabel(resource, { noPrefix: true })).join(lineDelimiter));
+
+		// Download URL: enables support to drag a tab as file to desktop
+		// Requirements:
+		// - Chrome/Edge only
+		// - only a single file is supported
+		// - only file:/ resources are supported
+		const firstFile = fileSystemResources.find(({ isDirectory }) => !isDirectory);
+		if (firstFile) {
+			const firstFileUri = FileAccess.uriToFileUri(firstFile.resource); // enforce `file:` URIs
+			if (firstFileUri.scheme === Schemas.file) {
+				event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
+			}
 		}
-	}
 
-	// Resource URLs: allows to drop multiple file resources to a target in VS Code
-	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
-	if (files.length) {
-		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
+		// Resource URLs: allows to drop multiple file resources to a target in VS Code
+		const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
+		if (files.length) {
+			event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
+		}
 	}
 
 	// Contributions
@@ -534,16 +538,15 @@ export class CompositeDragAndDropObserver extends Disposable {
 
 		const disposableStore = new DisposableStore();
 
-		disposableStore.add(addDisposableListener(element, EventType.DRAG_START, e => {
-			const { id, type } = draggedItemProvider();
-			this.writeDragData(id, type);
-
-			e.dataTransfer?.setDragImage(element, 0, 0);
-
-			this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
-		}));
-
 		disposableStore.add(new DragAndDropObserver(element, {
+			onDragStart: e => {
+				const { id, type } = draggedItemProvider();
+				this.writeDragData(id, type);
+
+				e.dataTransfer?.setDragImage(element, 0, 0);
+
+				this.onDragStart.fire({ eventData: e, dragAndDropData: this.readDragData(type)! });
+			},
 			onDragEnd: e => {
 				const { type } = draggedItemProvider();
 				const data = this.readDragData(type);

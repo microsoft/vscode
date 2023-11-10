@@ -271,9 +271,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
 
-		// Group dragging
-		this.enableGroupDragging(tabsContainer);
-
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
 			if (tabsContainer.classList.contains('scroll')) {
@@ -320,8 +317,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}));
 
-		// Drop support
+		// Drag & Drop support
 		this._register(new DragAndDropObserver(tabsContainer, {
+			onDragStart: e => {
+				this.onGroupDragStart(e, tabsContainer);
+			},
+
 			onDragEnter: e => {
 
 				// Always enable support to scroll while dragging
@@ -379,6 +380,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
+
+				this.onGroupDragEnd(e);
 			},
 
 			onDrop: e => {
@@ -1014,35 +1017,29 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
-		// Drag support
-		disposables.add(addDisposableListener(tab, EventType.DRAG_START, e => {
-			const editor = this.tabsModel.getEditorByIndex(tabIndex);
-			if (!editor) {
-				return;
-			}
-
-			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
-
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
-			}
-
-			// Apply some datatransfer types to allow for dragging
-			// the element outside of the application only when
-			// Shift-key is pressed, otherwise disable to support
-			// opening auxillary editor groups.
-			if (!this.isNewWindowOperation(e)) {
-				this.doFillResourceDataTransfers([editor], e);
-			}
-
-			// Fixes https://github.com/microsoft/vscode/issues/18733
-			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
-		}));
-
-		// Drop support
+		// Drag & Drop support
 		let lastDragEvent: DragEvent | undefined = undefined;
 		disposables.add(new DragAndDropObserver(tab, {
+			onDragStart: e => {
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (!editor) {
+					return;
+				}
+
+				this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
+
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'copyMove';
+				}
+
+				// Apply some datatransfer types to allow for dragging the element outside of the application
+				this.doFillResourceDataTransfers([editor], e, { disableStandardTransfer: this.isNewWindowOperation(e) });
+
+				// Fixes https://github.com/microsoft/vscode/issues/18733
+				tab.classList.add('dragged');
+				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
+			},
+
 			onDragEnter: e => {
 
 				// Update class to signal drag operation
