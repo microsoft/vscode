@@ -33,8 +33,8 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Maximum = 1
 }
 
-export const enum AccessibilityVoiceChatSettingId {
-	SpeechTimeout = 'accessibility.voiceChat.speechTimeout',
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
 }
 export const SpeechTimeoutDefault = 1200;
 
@@ -153,8 +153,8 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
-		[AccessibilityVoiceChatSettingId.SpeechTimeout]: {
-			'markdownDescription': localize('voiceChat.speechTimeout', "Define the duration for which the voice chat remains active after you stop speaking, the input is automatically accepted when voice chat is closed. Set to `0` to disable this feature."),
+		[AccessibilityVoiceSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking.For example in a chat, after the timeout is met, the text maybe submitted automatically. Set to `0` to disable this feature."),
 			'type': 'number',
 			'default': SpeechTimeoutDefault,
 			'minimum': 0,
