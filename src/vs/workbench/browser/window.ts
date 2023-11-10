@@ -17,8 +17,7 @@ import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IDialogService, IPromptButton } from 'vs/platform/dialogs/common/dialogs';
-import { registerWindowDriver } from 'vs/platform/driver/browser/driver';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { IOpenerService, matchesScheme } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
@@ -26,6 +25,9 @@ import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/envir
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser/lifecycleService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserWindow extends Disposable {
 
@@ -36,7 +38,9 @@ export class BrowserWindow extends Disposable {
 		@ILabelService private readonly labelService: ILabelService,
 		@IProductService private readonly productService: IProductService,
 		@IBrowserWorkbenchEnvironmentService private readonly environmentService: IBrowserWorkbenchEnvironmentService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super();
 
@@ -50,13 +54,13 @@ export class BrowserWindow extends Disposable {
 		this._register(this.lifecycleService.onWillShutdown(() => this.onWillShutdown()));
 
 		// Layout
-		const viewport = isIOS && window.visualViewport ? window.visualViewport /** Visual viewport */ : window /** Layout viewport */;
+		const viewport = isIOS && mainWindow.visualViewport ? mainWindow.visualViewport /** Visual viewport */ : mainWindow /** Layout viewport */;
 		this._register(addDisposableListener(viewport, EventType.RESIZE, () => {
 			this.layoutService.layout();
 
 			// Sometimes the keyboard appearing scrolls the whole workbench out of view, as a workaround scroll back into view #121206
 			if (isIOS) {
-				window.scrollTo(0, 0);
+				mainWindow.scrollTo(0, 0);
 			}
 		}));
 
@@ -71,12 +75,12 @@ export class BrowserWindow extends Disposable {
 
 		// Fullscreen (Browser)
 		for (const event of [EventType.FULLSCREEN_CHANGE, EventType.WK_FULLSCREEN_CHANGE]) {
-			this._register(addDisposableListener(document, event, () => setFullscreen(!!detectFullscreen())));
+			this._register(addDisposableListener(mainWindow.document, event, () => setFullscreen(!!detectFullscreen(mainWindow))));
 		}
 
 		// Fullscreen (Native)
 		this._register(addDisposableThrottledListener(viewport, EventType.RESIZE, () => {
-			setFullscreen(!!detectFullscreen());
+			setFullscreen(!!detectFullscreen(mainWindow));
 		}, undefined, isMacintosh ? 2000 /* adjust for macOS animation */ : 800 /* can be throttled */));
 	}
 
@@ -86,8 +90,8 @@ export class BrowserWindow extends Disposable {
 		// when shutdown has happened to not show the dialog e.g.
 		// when navigation takes a longer time.
 		Event.toPromise(Event.any(
-			Event.once(new DomEmitter(document.body, EventType.KEY_DOWN, true).event),
-			Event.once(new DomEmitter(document.body, EventType.MOUSE_DOWN, true).event)
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.KEY_DOWN, true).event),
+			Event.once(new DomEmitter(mainWindow.document.body, EventType.MOUSE_DOWN, true).event)
 		)).then(async () => {
 
 			// Delay the dialog in case the user interacted
@@ -105,7 +109,7 @@ export class BrowserWindow extends Disposable {
 				buttons: [
 					{
 						label: localize({ key: 'reload', comment: ['&& denotes a mnemonic'] }, "&&Reload"),
-						run: () => window.location.reload() // do not use any services at this point since they are likely not functional at this point
+						run: () => mainWindow.location.reload() // do not use any services at this point since they are likely not functional at this point
 					}
 				]
 			});
@@ -129,7 +133,7 @@ export class BrowserWindow extends Disposable {
 
 	private setupDriver(): void {
 		if (this.environmentService.enableSmokeTestDriver) {
-			registerWindowDriver();
+			registerWindowDriver(this.instantiationService);
 		}
 	}
 
@@ -188,7 +192,7 @@ export class BrowserWindow extends Disposable {
 				// handling explicitly to prevent the workbench from going down.
 				else {
 					const invokeProtocolHandler = () => {
-						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => window.location.href = href);
+						this.lifecycleService.withExpectedShutdown({ disableShutdownHandling: true }, () => mainWindow.location.href = href);
 					};
 
 					invokeProtocolHandler();
@@ -230,13 +234,15 @@ export class BrowserWindow extends Disposable {
 							);
 						}
 
-						await this.dialogService.prompt({
+						// While this dialog shows, closing the tab will not display a confirmation dialog
+						// to avoid showing the user two dialogs at once
+						await this.hostService.withExpectedShutdown(() => this.dialogService.prompt({
 							type: Severity.Info,
 							message: localize('openExternalDialogTitle', "All done. You can close this tab now."),
 							detail,
 							buttons,
 							cancelButton: true
-						});
+						}));
 					};
 
 					// We cannot know whether the protocol handler succeeded.

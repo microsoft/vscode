@@ -372,7 +372,7 @@ export class SuggestDetailsOverlay implements IOverlayWidget {
 	}
 
 	_placeAtAnchor(anchorBox: dom.IDomNodePagePosition, size: dom.Dimension, preferAlignAtTop: boolean) {
-		const bodyBox = dom.getClientArea(document.body);
+		const bodyBox = dom.getClientArea(this.getDomNode().ownerDocument.body);
 
 		const info = this.widget.getLayoutInfo();
 

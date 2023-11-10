@@ -265,22 +265,6 @@ suite('Strings', () => {
 		assert(regExpWithFlags.multiline);
 	});
 
-	test('regExpContainsBackreference', () => {
-		assert(strings.regExpContainsBackreference('foo \\5 bar'));
-		assert(strings.regExpContainsBackreference('\\2'));
-		assert(strings.regExpContainsBackreference('(\\d)(\\n)(\\1)'));
-		assert(strings.regExpContainsBackreference('(A).*?\\1'));
-		assert(strings.regExpContainsBackreference('\\\\\\1'));
-		assert(strings.regExpContainsBackreference('foo \\\\\\1'));
-
-		assert(!strings.regExpContainsBackreference(''));
-		assert(!strings.regExpContainsBackreference('\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\\\1'));
-		assert(!strings.regExpContainsBackreference('(A).*?\\\\1'));
-		assert(!strings.regExpContainsBackreference('foo \\d1 bar'));
-		assert(!strings.regExpContainsBackreference('123'));
-	});
-
 	test('getLeadingWhitespace', () => {
 		assert.strictEqual(strings.getLeadingWhitespace('  foo'), '  ');
 		assert.strictEqual(strings.getLeadingWhitespace('  foo', 2), '');
@@ -511,6 +495,10 @@ suite('Strings', () => {
 			`${CSI}48;5;128m`, // 256 indexed color alt
 			`${CSI}38:2:0:255:255:255m`, // truecolor
 			`${CSI}38;2;255;255;255m`, // truecolor alt
+
+			// Custom sequences:
+			'\x1b]633;SetMark;\x07',
+			'\x1b]633;P;Cwd=/foo\x07',
 		];
 
 		for (const sequence of sequences) {

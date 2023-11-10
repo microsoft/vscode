@@ -90,6 +90,7 @@ export interface IModelContentChangedEvent {
 export interface IModelDecorationsChangedEvent {
 	readonly affectsMinimap: boolean;
 	readonly affectsOverviewRuler: boolean;
+	readonly affectsGlyphMargin: boolean;
 }
 
 /**
@@ -97,7 +98,6 @@ export interface IModelDecorationsChangedEvent {
  * @internal
  */
 export interface IModelTokensChangedEvent {
-	readonly tokenizationSupportChanged: boolean;
 	readonly semanticTokensApplied: boolean;
 	readonly ranges: {
 		/**

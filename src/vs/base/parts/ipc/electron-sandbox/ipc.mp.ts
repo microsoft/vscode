@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import { Event } from 'vs/base/common/event';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ipcMessagePort, ipcRenderer } from 'vs/base/parts/sandbox/electron-sandbox/globals';
@@ -28,8 +29,8 @@ export async function acquirePort(requestChannel: string | undefined, responseCh
 	// Wait until the main side has returned the `MessagePort`
 	// We need to filter by the `nonce` to ensure we listen
 	// to the right response.
-	const onMessageChannelResult = Event.fromDOMEventEmitter<IMessageChannelResult>(window, 'message', (e: MessageEvent) => ({ nonce: e.data, port: e.ports[0], source: e.source }));
-	const { port } = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce && e.source === window)));
+	const onMessageChannelResult = Event.fromDOMEventEmitter<IMessageChannelResult>(mainWindow, 'message', (e: MessageEvent) => ({ nonce: e.data, port: e.ports[0], source: e.source }));
+	const { port } = await Event.toPromise(Event.once(Event.filter(onMessageChannelResult, e => e.nonce === nonce && e.source === mainWindow)));
 
 	return port;
 }

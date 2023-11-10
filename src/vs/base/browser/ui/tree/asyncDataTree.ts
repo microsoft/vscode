@@ -208,6 +208,10 @@ class AsyncDataTreeNodeListDragAndDrop<TInput, T> implements IListDragAndDrop<IA
 	onDragEnd(originalEvent: DragEvent): void {
 		this.dnd.onDragEnd?.(originalEvent);
 	}
+
+	dispose(): void {
+		this.dnd.dispose();
+	}
 }
 
 function asObjectTreeOptions<TInput, T, TFilterData>(options?: IAsyncDataTreeOptions<T, TFilterData>): IObjectTreeOptions<IAsyncDataTreeNode<TInput, T>, TFilterData> | undefined {
@@ -438,8 +442,16 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		return this.tree.contentHeight;
 	}
 
+	get contentWidth(): number {
+		return this.tree.contentWidth;
+	}
+
 	get onDidChangeContentHeight(): Event<number> {
 		return this.tree.onDidChangeContentHeight;
+	}
+
+	get onDidChangeContentWidth(): Event<number> {
+		return this.tree.onDidChangeContentWidth;
 	}
 
 	get scrollTop(): number {
@@ -547,6 +559,10 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 		this.tree.resort(this.getDataNode(element), recursive);
 	}
 
+	hasElement(element: TInput | T): boolean {
+		return this.tree.hasElement(this.getDataNode(element));
+	}
+
 	hasNode(element: TInput | T): boolean {
 		return element === this.root.element || this.nodes.has(element as T);
 	}
@@ -561,6 +577,11 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 		const node = this.getDataNode(element);
 		this.tree.rerender(node);
+	}
+
+	updateElementHeight(element: T, height: number | undefined): void {
+		const node = this.getDataNode(element);
+		this.tree.updateElementHeight(node, height);
 	}
 
 	updateWidth(element: T): void {
@@ -622,6 +643,28 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	expandAll(): void {
 		this.tree.expandAll();
+	}
+
+	async expandTo(element: T): Promise<void> {
+		if (!this.dataSource.getParent) {
+			throw new Error('Can\'t expand to element without getParent method');
+		}
+
+		const elements: T[] = [];
+
+		while (!this.hasNode(element)) {
+			element = this.dataSource.getParent(element) as T;
+
+			if (element !== this.root.element) {
+				elements.push(element);
+			}
+		}
+
+		for (const element of Iterable.reverse(elements)) {
+			await this.expand(element);
+		}
+
+		this.tree.expandTo(this.getDataNode(element));
 	}
 
 	collapseAll(): void {
@@ -879,8 +922,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 			nodesToForget.set(child.element as T, child);
 
 			if (this.identityProvider) {
-				const collapsed = this.tree.isCollapsed(child);
-				childrenTreeNodesById.set(child.id!, { node: child, collapsed });
+				childrenTreeNodesById.set(child.id!, { node: child, collapsed: this.tree.hasElement(child) && this.tree.isCollapsed(child) });
 			}
 		}
 
@@ -1053,6 +1095,7 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 
 	dispose(): void {
 		this.disposables.dispose();
+		this.tree.dispose();
 	}
 }
 

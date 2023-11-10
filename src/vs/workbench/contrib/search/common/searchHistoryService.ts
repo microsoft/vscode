@@ -28,7 +28,7 @@ export interface ISearchHistoryValues {
 export class SearchHistoryService implements ISearchHistoryService {
 	declare readonly _serviceBrand: undefined;
 
-	private static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
+	public static readonly SEARCH_HISTORY_KEY = 'workbench.search.history';
 
 	private readonly _onDidClearHistory = new Emitter<void>();
 	readonly onDidClearHistory: Event<void> = this._onDidClearHistory.event;

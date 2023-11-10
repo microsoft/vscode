@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// import { createHash } from 'crypto';
-import type { Server as NetServer, Socket } from 'net';
-// import { tmpdir } from 'os';
-import type * as zlib from 'zlib';
+import { createHash } from 'crypto';
+import { Server as NetServer, Socket, createServer, createConnection } from 'net';
+import { tmpdir } from 'os';
+import { createDeflateRaw, ZlibOptions, InflateRaw, DeflateRaw, createInflateRaw } from 'zlib';
 import { VSBuffer } from 'vs/base/common/buffer';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -16,16 +16,6 @@ import { Platform, platform } from 'vs/base/common/platform';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ClientConnectionEvent, IPCServer } from 'vs/base/parts/ipc/common/ipc';
 import { ChunkStream, Client, ISocket, Protocol, SocketCloseEvent, SocketCloseEventType, SocketDiagnostics, SocketDiagnosticsEventType } from 'vs/base/parts/ipc/common/ipc.net';
-
-// TODO@bpasero remove me once electron utility process has landed
-function getNodeDependencies() {
-	return {
-		crypto: globalThis._VSCODE_NODE_MODULES.crypto,
-		zlib: globalThis._VSCODE_NODE_MODULES.zlib,
-		net: globalThis._VSCODE_NODE_MODULES.net,
-		os: globalThis._VSCODE_NODE_MODULES.os,
-	};
-}
 
 export class NodeSocket implements ISocket {
 
@@ -211,6 +201,11 @@ interface ISocketTracer {
 	traceSocketEvent(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | any): void;
 }
 
+interface FrameOptions {
+	compressed: boolean;
+	opcode: number;
+}
+
 /**
  * See https://tools.ietf.org/html/rfc6455#section-5.2
  */
@@ -229,7 +224,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		fin: 0,
 		compressed: false,
 		firstFrameOfMessage: true,
-		mask: 0
+		mask: 0,
+		opcode: 0
 	};
 
 	public get permessageDeflate(): boolean {
@@ -266,7 +262,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 			inflateBytes,
 			recordInflateBytes,
 			this._onData,
-			(data, compressed) => this._write(data, compressed)
+			(data, options) => this._write(data, options)
 		));
 		this._register(this._flowManager.onError((err) => {
 			// zlib errors are fatal, since we have no idea how to recover
@@ -329,12 +325,12 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 
 		let start = 0;
 		while (start < buffer.byteLength) {
-			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)));
+			this._flowManager.writeMessage(buffer.slice(start, Math.min(start + Constants.MaxWebSocketMessageLength, buffer.byteLength)), { compressed: true, opcode: 0x02 /* Binary frame */ });
 			start += Constants.MaxWebSocketMessageLength;
 		}
 	}
 
-	private _write(buffer: VSBuffer, compressed: boolean): void {
+	private _write(buffer: VSBuffer, { compressed, opcode }: FrameOptions): void {
 		if (this._isEnded) {
 			// Avoid ERR_STREAM_WRITE_AFTER_END
 			return;
@@ -351,12 +347,10 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 		}
 		const header = VSBuffer.alloc(headerLen);
 
-		if (compressed) {
-			// The RSV1 bit indicates a compressed frame
-			header.writeUInt8(0b11000010, 0);
-		} else {
-			header.writeUInt8(0b10000010, 0);
-		}
+		// The RSV1 bit indicates a compressed frame
+		const compressedFlag = compressed ? 0b01000000 : 0;
+		const opcodeFlag = opcode & 0b00001111;
+		header.writeUInt8(0b10000000 | compressedFlag | opcodeFlag, 0);
 		if (buffer.byteLength < 126) {
 			header.writeUInt8(buffer.byteLength, 1);
 		} else if (buffer.byteLength < 2 ** 16) {
@@ -400,6 +394,8 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 				const firstByte = peekHeader.readUInt8(0);
 				const finBit = (firstByte & 0b10000000) >>> 7;
 				const rsv1Bit = (firstByte & 0b01000000) >>> 6;
+				const opcode = (firstByte & 0b00001111);
+
 				const secondByte = peekHeader.readUInt8(1);
 				const hasMask = (secondByte & 0b10000000) >>> 7;
 				const len = (secondByte & 0b01111111);
@@ -413,8 +409,9 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 				}
 				this._state.firstFrameOfMessage = Boolean(finBit);
 				this._state.mask = 0;
+				this._state.opcode = opcode;
 
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { headerSize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin });
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { headerSize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, opcode: this._state.opcode });
 
 			} else if (this._state.state === ReadState.ReadHeader) {
 				// read entire header
@@ -456,7 +453,7 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 				this._state.readLen = len;
 				this._state.mask = mask;
 
-				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { bodySize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, mask: this._state.mask });
+				this.traceSocketEvent(SocketDiagnosticsEventType.WebSocketNodeSocketPeekedHeader, { bodySize: this._state.readLen, compressed: this._state.compressed, fin: this._state.fin, mask: this._state.mask, opcode: this._state.opcode });
 
 			} else if (this._state.state === ReadState.ReadBody) {
 				// read body
@@ -471,7 +468,12 @@ export class WebSocketNodeSocket extends Disposable implements ISocket, ISocketT
 				this._state.readLen = Constants.MinHeaderByteSize;
 				this._state.mask = 0;
 
-				this._flowManager.acceptFrame(body, this._state.compressed, !!this._state.fin);
+				if (this._state.opcode <= 0x02 /* Continuation frame or Text frame or binary frame */) {
+					this._flowManager.acceptFrame(body, this._state.compressed, !!this._state.fin);
+				} else if (this._state.opcode === 0x09 /* Ping frame */) {
+					// Ping frames could be send by some browsers e.g. Firefox
+					this._flowManager.writeMessage(body, { compressed: false, opcode: 0x0A /* Pong frame */ });
+				}
 			}
 		}
 	}
@@ -493,7 +495,7 @@ class WebSocketFlowManager extends Disposable {
 
 	private readonly _zlibInflateStream: ZlibInflateStream | null;
 	private readonly _zlibDeflateStream: ZlibDeflateStream | null;
-	private readonly _writeQueue: VSBuffer[] = [];
+	private readonly _writeQueue: { data: VSBuffer; options: FrameOptions }[] = [];
 	private readonly _readQueue: { data: VSBuffer; isCompressed: boolean; isLastFrameOfMessage: boolean }[] = [];
 
 	private readonly _onDidFinishProcessingReadQueue = this._register(new Emitter<void>());
@@ -519,7 +521,7 @@ class WebSocketFlowManager extends Disposable {
 		inflateBytes: VSBuffer | null,
 		recordInflateBytes: boolean,
 		private readonly _onData: Emitter<VSBuffer>,
-		private readonly _writeFn: (data: VSBuffer, compressed: boolean) => void
+		private readonly _writeFn: (data: VSBuffer, options: FrameOptions) => void
 	) {
 		super();
 		if (permessageDeflate) {
@@ -536,8 +538,8 @@ class WebSocketFlowManager extends Disposable {
 		}
 	}
 
-	public writeMessage(message: VSBuffer): void {
-		this._writeQueue.push(message);
+	public writeMessage(data: VSBuffer, options: FrameOptions): void {
+		this._writeQueue.push({ data, options });
 		this._processWriteQueue();
 	}
 
@@ -548,12 +550,12 @@ class WebSocketFlowManager extends Disposable {
 		}
 		this._isProcessingWriteQueue = true;
 		while (this._writeQueue.length > 0) {
-			const message = this._writeQueue.shift()!;
-			if (this._zlibDeflateStream) {
-				const data = await this._deflateMessage(this._zlibDeflateStream, message);
-				this._writeFn(data, true);
+			const { data, options } = this._writeQueue.shift()!;
+			if (this._zlibDeflateStream && options.compressed) {
+				const compressedData = await this._deflateMessage(this._zlibDeflateStream, data);
+				this._writeFn(compressedData, options);
 			} else {
-				this._writeFn(message, false);
+				this._writeFn(data, { ...options, compressed: false });
 			}
 		}
 		this._isProcessingWriteQueue = false;
@@ -626,7 +628,7 @@ class ZlibInflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibInflate: zlib.InflateRaw;
+	private readonly _zlibInflate: InflateRaw;
 	private readonly _recordedInflateBytes: VSBuffer[] = [];
 	private readonly _pendingInflateData: VSBuffer[] = [];
 
@@ -641,10 +643,10 @@ class ZlibInflateStream extends Disposable {
 		private readonly _tracer: ISocketTracer,
 		private readonly _recordInflateBytes: boolean,
 		inflateBytes: VSBuffer | null,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
-		this._zlibInflate = getNodeDependencies().zlib.createInflateRaw(options);
+		this._zlibInflate = createInflateRaw(options);
 		this._zlibInflate.on('error', (err) => {
 			this._tracer.traceSocketEvent(SocketDiagnosticsEventType.zlibInflateError, { message: err?.message, code: (<any>err)?.code });
 			this._onError.fire(err);
@@ -686,16 +688,16 @@ class ZlibDeflateStream extends Disposable {
 	private readonly _onError = this._register(new Emitter<Error>());
 	public readonly onError = this._onError.event;
 
-	private readonly _zlibDeflate: zlib.DeflateRaw;
+	private readonly _zlibDeflate: DeflateRaw;
 	private readonly _pendingDeflateData: VSBuffer[] = [];
 
 	constructor(
 		private readonly _tracer: ISocketTracer,
-		options: zlib.ZlibOptions
+		options: ZlibOptions
 	) {
 		super();
 
-		this._zlibDeflate = getNodeDependencies().zlib.createDeflateRaw({
+		this._zlibDeflate = createDeflateRaw({
 			windowBits: 15
 		});
 		this._zlibDeflate.on('error', (err) => {
@@ -756,8 +758,7 @@ function unmask(buffer: VSBuffer, mask: number): void {
 
 // Read this before there's any chance it is overwritten
 // Related to https://github.com/microsoft/vscode/issues/30624
-// TODO@bpasero revert me once electron utility process has landed
-export const XDG_RUNTIME_DIR = typeof process !== 'undefined' ? <string | undefined>process.env['XDG_RUNTIME_DIR'] : undefined;
+export const XDG_RUNTIME_DIR = <string | undefined>process.env['XDG_RUNTIME_DIR'];
 
 const safeIpcPathLengths: { [platform: number]: number } = {
 	[Platform.Linux]: 107,
@@ -774,7 +775,7 @@ export function createRandomIPCHandle(): string {
 
 	// Mac & Unix: Use socket file
 	// Unix: Prefer XDG_RUNTIME_DIR over user data path
-	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : getNodeDependencies().os.tmpdir();
+	const basePath = process.platform !== 'darwin' && XDG_RUNTIME_DIR ? XDG_RUNTIME_DIR : tmpdir();
 	const result = join(basePath, `vscode-ipc-${randomSuffix}.sock`);
 
 	// Validate length
@@ -784,7 +785,7 @@ export function createRandomIPCHandle(): string {
 }
 
 export function createStaticIPCHandle(directoryPath: string, type: string, version: string): string {
-	const scope = getNodeDependencies().crypto.createHash('md5').update(directoryPath).digest('hex');
+	const scope = createHash('md5').update(directoryPath).digest('hex');
 
 	// Windows: use named pipe
 	if (process.platform === 'win32') {
@@ -852,7 +853,7 @@ export function serve(port: number): Promise<Server>;
 export function serve(namedPipe: string): Promise<Server>;
 export function serve(hook: any): Promise<Server> {
 	return new Promise<Server>((c, e) => {
-		const server = getNodeDependencies().net.createServer();
+		const server = createServer();
 
 		server.on('error', e);
 		server.listen(hook, () => {
@@ -867,7 +868,7 @@ export function connect(port: number, clientId: string): Promise<Client>;
 export function connect(namedPipe: string, clientId: string): Promise<Client>;
 export function connect(hook: any, clientId: string): Promise<Client> {
 	return new Promise<Client>((c, e) => {
-		const socket = getNodeDependencies().net.createConnection(hook, () => {
+		const socket = createConnection(hook, () => {
 			socket.removeListener('error', e);
 			c(Client.fromSocket(new NodeSocket(socket, `ipc-client${clientId}`), clientId));
 		});

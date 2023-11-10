@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { DISABLED_EXTENSIONS_STORAGE_PATH, IExtensionIdentifier, IExtensionManagementService, IGlobalExtensionEnablementService, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
-import { IStorageService, IStorageValueChangeEvent, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IProfileStorageValueChangeEvent, IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 
 export class GlobalExtensionEnablementService extends Disposable implements IGlobalExtensionEnablementService {
 
@@ -102,7 +102,7 @@ export class StorageManager extends Disposable {
 
 	constructor(private storageService: IStorageService) {
 		super();
-		this._register(storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(storageService.onDidChangeValue(StorageScope.PROFILE, undefined, this._register(new DisposableStore()))(e => this.onDidStorageChange(e)));
 	}
 
 	get(key: string, scope: StorageScope): IExtensionIdentifier[] {
@@ -133,19 +133,17 @@ export class StorageManager extends Disposable {
 		}
 	}
 
-	private onDidStorageChange(storageChangeEvent: IStorageValueChangeEvent): void {
-		if (storageChangeEvent.scope === StorageScope.PROFILE) {
-			if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
-				const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
-				if (newValue !== this.storage[storageChangeEvent.key]) {
-					const oldValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					delete this.storage[storageChangeEvent.key];
-					const newValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
-					const added = oldValues.filter(oldValue => !newValues.some(newValue => areSameExtensions(oldValue, newValue)));
-					const removed = newValues.filter(newValue => !oldValues.some(oldValue => areSameExtensions(oldValue, newValue)));
-					if (added.length || removed.length) {
-						this._onDidChange.fire([...added, ...removed]);
-					}
+	private onDidStorageChange(storageChangeEvent: IProfileStorageValueChangeEvent): void {
+		if (!isUndefinedOrNull(this.storage[storageChangeEvent.key])) {
+			const newValue = this._get(storageChangeEvent.key, storageChangeEvent.scope);
+			if (newValue !== this.storage[storageChangeEvent.key]) {
+				const oldValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
+				delete this.storage[storageChangeEvent.key];
+				const newValues = this.get(storageChangeEvent.key, storageChangeEvent.scope);
+				const added = oldValues.filter(oldValue => !newValues.some(newValue => areSameExtensions(oldValue, newValue)));
+				const removed = newValues.filter(newValue => !oldValues.some(oldValue => areSameExtensions(oldValue, newValue)));
+				if (added.length || removed.length) {
+					this._onDidChange.fire([...added, ...removed]);
 				}
 			}
 		}

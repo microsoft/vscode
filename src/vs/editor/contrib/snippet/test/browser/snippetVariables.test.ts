@@ -306,6 +306,7 @@ suite('Snippet Variables Resolver', function () {
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME');
 		assertVariableResolve3(resolver, 'CURRENT_MONTH_NAME_SHORT');
 		assertVariableResolve3(resolver, 'CURRENT_SECONDS_UNIX');
+		assertVariableResolve3(resolver, 'CURRENT_TIMEZONE_OFFSET');
 	});
 
 	test('Time-based snippet variables resolve to the same values even as time progresses', async function () {
@@ -322,6 +323,7 @@ suite('Snippet Variables Resolver', function () {
 			$CURRENT_MONTH_NAME
 			$CURRENT_MONTH_NAME_SHORT
 			$CURRENT_SECONDS_UNIX
+			$CURRENT_TIMEZONE_OFFSET
 		`;
 
 		const clock = sinon.useFakeTimers();

@@ -3,19 +3,27 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./media/developer';
 import { VSBuffer } from 'vs/base/common/buffer';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
+import { ITerminalLogService, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IInternalXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
-import { registerTerminalAction, revealActiveTerminal } from 'vs/workbench/contrib/terminal/browser/terminalActions';
-import { TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IInternalXtermTerminal, ITerminalContribution, ITerminalInstance, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { registerTerminalAction } from 'vs/workbench/contrib/terminal/browser/terminalActions';
+import { registerTerminalContribution } from 'vs/workbench/contrib/terminal/browser/terminalExtensions';
+import { TerminalWidgetManager } from 'vs/workbench/contrib/terminal/browser/widgets/widgetManager';
+import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
+import type { Terminal } from '@xterm/xterm';
+import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
@@ -56,7 +64,7 @@ registerTerminalAction({
 	run: async (c, accessor) => {
 		const quickInputService = accessor.get(IQuickInputService);
 		const instance = await c.service.getActiveOrCreateInstance();
-		await revealActiveTerminal(instance, c);
+		await c.service.revealActiveTerminal();
 		await instance.processReady;
 		if (!instance.xterm) {
 			throw new Error('Cannot write data to terminal if xterm isn\'t initialized');
@@ -83,3 +91,122 @@ registerTerminalAction({
 		xterm._writeText(escapedData);
 	}
 });
+
+
+registerTerminalAction({
+	id: TerminalCommandId.RestartPtyHost,
+	title: { value: localize('workbench.action.terminal.restartPtyHost', "Restart Pty Host"), original: 'Restart Pty Host' },
+	category: Categories.Developer,
+	run: async (c, accessor) => {
+		const logService = accessor.get(ITerminalLogService);
+		const backends = Array.from(c.instanceService.getRegisteredBackends());
+		const unresponsiveBackends = backends.filter(e => !e.isResponsive);
+		// Restart only unresponsive backends if there are any
+		const restartCandidates = unresponsiveBackends.length > 0 ? unresponsiveBackends : backends;
+		for (const backend of restartCandidates) {
+			logService.warn(`Restarting pty host for authority "${backend.remoteAuthority}"`);
+			backend.restartPtyHost();
+		}
+	}
+});
+
+class DevModeContribution extends Disposable implements ITerminalContribution {
+	static readonly ID = 'terminal.devMode';
+	static get(instance: ITerminalInstance): DevModeContribution | null {
+		return instance.getContribution<DevModeContribution>(DevModeContribution.ID);
+	}
+
+	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
+	private _activeDevModeDisposables = new MutableDisposable();
+
+	constructor(
+		private readonly _instance: ITerminalInstance,
+		processManager: ITerminalProcessManager,
+		widgetManager: TerminalWidgetManager,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@ITerminalService private readonly _terminalService: ITerminalService
+	) {
+		super();
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(TerminalSettingId.DevMode)) {
+				this._updateDevMode();
+			}
+		}));
+	}
+
+	xtermReady(xterm: IXtermTerminal & { raw: Terminal }): void {
+		this._xterm = xterm;
+		this._updateDevMode();
+	}
+
+	private _updateDevMode() {
+		const devMode: boolean = this._isEnabled();
+		this._xterm?.raw.element?.classList.toggle('dev-mode', devMode);
+
+		// Text area syncing
+		if (this._xterm?.raw.textarea) {
+			const font = this._terminalService.configHelper.getFont();
+			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
+			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
+		}
+
+		// Sequence markers
+		const commandDetection = this._instance.capabilities.get(TerminalCapability.CommandDetection);
+		if (devMode) {
+			if (commandDetection) {
+				this._activeDevModeDisposables.value = commandDetection.onCommandFinished(command => {
+					if (command.promptStartMarker) {
+						const d = this._instance.xterm!.raw?.registerDecoration({
+							marker: command.promptStartMarker
+						});
+						d?.onRender(e => {
+							e.textContent = 'A';
+							e.classList.add('xterm-sequence-decoration', 'top', 'left');
+						});
+					}
+					if (command.marker) {
+						const d = this._instance.xterm!.raw?.registerDecoration({
+							marker: command.marker
+						});
+						d?.onRender(e => {
+							e.textContent = 'B';
+							e.classList.add('xterm-sequence-decoration', 'top', 'right');
+						});
+					}
+					if (command.executedMarker) {
+						const d = this._instance.xterm!.raw?.registerDecoration({
+							marker: command.executedMarker
+						});
+						d?.onRender(e => {
+							e.textContent = 'C';
+							e.classList.add('xterm-sequence-decoration', 'bottom', 'left');
+						});
+					}
+					if (command.endMarker) {
+						const d = this._instance.xterm!.raw?.registerDecoration({
+							marker: command.endMarker
+						});
+						d?.onRender(e => {
+							e.textContent = 'D';
+							e.classList.add('xterm-sequence-decoration', 'bottom', 'right');
+						});
+					}
+				});
+			} else {
+				this._activeDevModeDisposables.value = this._instance.capabilities.onDidAddCapabilityType(e => {
+					if (e === TerminalCapability.CommandDetection) {
+						this._updateDevMode();
+					}
+				});
+			}
+		} else {
+			this._activeDevModeDisposables.clear();
+		}
+	}
+
+	private _isEnabled(): boolean {
+		return this._configurationService.getValue(TerminalSettingId.DevMode) || false;
+	}
+}
+
+registerTerminalContribution(DevModeContribution.ID, DevModeContribution);

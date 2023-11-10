@@ -5,7 +5,7 @@
 
 /* eslint-disable @typescript-eslint/naming-convention */
 
-import { IBufferCell } from 'xterm';
+import { IBufferCell } from '@xterm/xterm';
 
 export type XtermAttributes = Omit<IBufferCell, 'getWidth' | 'getChars' | 'getCode'> & { clone?(): XtermAttributes };
 
@@ -39,7 +39,9 @@ export interface IXtermCore {
 			}
 		},
 		_renderer: {
-			_renderLayers?: any[];
+			value?: {
+				_renderLayers?: any[];
+			}
 		};
 		_handleIntersectionChange: any;
 	};

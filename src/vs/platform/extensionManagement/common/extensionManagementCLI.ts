@@ -10,7 +10,7 @@ import { basename } from 'vs/base/common/resources';
 import { gt } from 'vs/base/common/semver/semver';
 import { URI } from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
-import { IExtensionGalleryService, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { EXTENSION_IDENTIFIER_REGEX, IExtensionGalleryService, IExtensionInfo, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOptions } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions, getGalleryExtensionId, getIdAndVersion } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionType, EXTENSION_CATEGORIES, IExtensionManifest } from 'vs/platform/extensions/common/extensions';
 import { ILogger } from 'vs/platform/log/common/log';
@@ -201,9 +201,17 @@ export class ExtensionManagementCLI {
 		const galleryExtensions = new Map<string, IGalleryExtension>();
 		const preRelease = extensions.some(e => e.installOptions.installPreReleaseVersion);
 		const targetPlatform = await this.extensionManagementService.getTargetPlatform();
-		const result = await this.extensionGalleryService.getExtensions(extensions.map(e => ({ ...e, preRelease })), { targetPlatform }, CancellationToken.None);
-		for (const extension of result) {
-			galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+		const extensionInfos: IExtensionInfo[] = [];
+		for (const extension of extensions) {
+			if (EXTENSION_IDENTIFIER_REGEX.test(extension.id)) {
+				extensionInfos.push({ ...extension, preRelease });
+			}
+		}
+		if (extensionInfos.length) {
+			const result = await this.extensionGalleryService.getExtensions(extensionInfos, { targetPlatform }, CancellationToken.None);
+			for (const extension of result) {
+				galleryExtensions.set(extension.identifier.id.toLowerCase(), extension);
+			}
 		}
 		return galleryExtensions;
 	}

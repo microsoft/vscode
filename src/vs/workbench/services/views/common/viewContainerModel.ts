@@ -3,30 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon } from 'vs/workbench/common/views';
+import { ViewContainer, IViewsRegistry, IViewDescriptor, Extensions as ViewExtensions, IViewContainerModel, IAddedViewDescriptorRef, IViewDescriptorRef, IAddedViewDescriptorState, defaultViewIcon, VIEWS_LOG_ID, VIEWS_LOG_NAME } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IStorageService, StorageScope, IStorageValueChangeEvent, StorageTarget } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { URI } from 'vs/base/common/uri';
 import { coalesce, move } from 'vs/base/common/arrays';
 import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
-import { isEqual, joinPath } from 'vs/base/common/resources';
+import { isEqual } from 'vs/base/common/resources';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { localize } from 'vs/nls';
 import { ILogger, ILoggerService } from 'vs/platform/log/common/log';
-import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { Action2, registerAction2 } from 'vs/platform/actions/common/actions';
 import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { IOutputService } from 'vs/workbench/services/output/common/output';
 import { CounterSet } from 'vs/base/common/map';
-
-const VIEWS_LOG_ID = 'viewsLog';
-const VIEWS_LOG_NAME = localize('views log', "Views");
-function getViewsLogFile(environmentService: IWorkbenchEnvironmentService): URI { return joinPath(environmentService.windowLogsPath, 'views.log'); }
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -40,10 +34,8 @@ registerAction2(class extends Action2 {
 	async run(servicesAccessor: ServicesAccessor): Promise<void> {
 		const loggerService = servicesAccessor.get(ILoggerService);
 		const outputService = servicesAccessor.get(IOutputService);
-		const environmentService = servicesAccessor.get(IWorkbenchEnvironmentService);
-		loggerService.setVisibility(getViewsLogFile(environmentService), true);
+		loggerService.setVisibility(VIEWS_LOG_ID, true);
 		outputService.showChannel(VIEWS_LOG_ID);
-
 	}
 });
 
@@ -87,15 +79,14 @@ class ViewDescriptorsState extends Disposable {
 		private readonly viewContainerName: string,
 		@IStorageService private readonly storageService: IStorageService,
 		@ILoggerService loggerService: ILoggerService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService), { id: VIEWS_LOG_ID, name: VIEWS_LOG_NAME, hidden: true });
+		this.logger = loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true });
 
 		this.globalViewsStateStorageId = getViewsStateStorageId(viewContainerStorageId);
 		this.workspaceViewsStateStorageId = viewContainerStorageId;
-		this._register(this.storageService.onDidChangeValue(e => this.onDidStorageChange(e)));
+		this._register(this.storageService.onDidChangeValue(StorageScope.PROFILE, this.globalViewsStateStorageId, this._register(new DisposableStore()))(() => this.onDidStorageChange()));
 
 		this.state = this.initialize();
 
@@ -148,9 +139,8 @@ class ViewDescriptorsState extends Disposable {
 		this.setStoredGlobalState(storedGlobalState);
 	}
 
-	private onDidStorageChange(e: IStorageValueChangeEvent): void {
-		if (e.key === this.globalViewsStateStorageId && e.scope === StorageScope.PROFILE
-			&& this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
+	private onDidStorageChange(): void {
+		if (this.globalViewsStatesValue !== this.getStoredGlobalViewsStatesValue() /* This checks if current window changed the value or not */) {
 			this._globalViewsStatesValue = undefined;
 			const storedViewsVisibilityStates = this.getStoredGlobalState();
 			const storedWorkspaceViewsStates = this.getStoredWorkspaceState();
@@ -359,11 +349,10 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ILoggerService loggerService: ILoggerService,
-		@IWorkbenchEnvironmentService workbenchEnvironmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 
-		this.logger = loggerService.createLogger(getViewsLogFile(workbenchEnvironmentService), { id: VIEWS_LOG_ID, name: VIEWS_LOG_NAME, hidden: true });
+		this.logger = loggerService.createLogger(VIEWS_LOG_ID, { name: VIEWS_LOG_NAME, hidden: true });
 
 		this._register(Event.filter(contextKeyService.onDidChangeContext, e => e.affectsSome(this.contextKeys))(() => this.onDidChangeContext()));
 		this.viewDescriptorsState = this._register(instantiationService.createInstance(ViewDescriptorsState, viewContainer.storageId || `${viewContainer.id}.state`, typeof viewContainer.title === 'string' ? viewContainer.title : viewContainer.title.original));
@@ -375,7 +364,7 @@ export class ViewContainerModel extends Disposable implements IViewContainerMode
 	private updateContainerInfo(): void {
 		/* Use default container info if one of the visible view descriptors belongs to the current container by default */
 		const useDefaultContainerInfo = this.viewContainer.alwaysUseContainerInfo || this.visibleViewDescriptors.length === 0 || this.visibleViewDescriptors.some(v => Registry.as<IViewsRegistry>(ViewExtensions.ViewsRegistry).getViewContainer(v.id) === this.viewContainer);
-		const title = useDefaultContainerInfo ? (typeof this.viewContainer.title === 'string' ? this.viewContainer.title : this.viewContainer.title.value) : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name || '';
+		const title = useDefaultContainerInfo ? (typeof this.viewContainer.title === 'string' ? this.viewContainer.title : this.viewContainer.title.value) : this.visibleViewDescriptors[0]?.containerTitle || this.visibleViewDescriptors[0]?.name?.value || '';
 		let titleChanged: boolean = false;
 		if (this._title !== title) {
 			this._title = title;

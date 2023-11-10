@@ -20,6 +20,7 @@ import { Schemas } from 'vs/base/common/network';
 import { NotebookProviderInfo } from 'vs/workbench/contrib/notebook/common/notebookProvider';
 import { assertIsDefined } from 'vs/base/common/types';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IResolvedNotebookEditorModel>> {
 
@@ -35,17 +36,14 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 
 	private readonly _dirtyStates = new ResourceMap<boolean>();
 
+	private readonly modelsToDispose = new Set<string>();
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@ILogService private readonly _logService: ILogService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 	) {
 		super();
-
-		this._disposables.add(_notebookService.onWillRemoveViewType(viewType => {
-			const manager = this._workingCopyManagers.get(NotebookWorkingCopyTypeIdentifier.create(viewType));
-			manager?.destroy().catch(err => _logService.error(err));
-		}));
 	}
 
 	dispose(): void {
@@ -61,12 +59,15 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 	}
 
 	protected async createReferencedObject(key: string, viewType: string, hasAssociatedFilePath: boolean): Promise<IResolvedNotebookEditorModel> {
+		// Untrack as being disposed
+		this.modelsToDispose.delete(key);
+
 		const uri = URI.parse(key);
 
 		const workingCopyTypeId = NotebookWorkingCopyTypeIdentifier.create(viewType);
 		let workingCopyManager = this._workingCopyManagers.get(workingCopyTypeId);
 		if (!workingCopyManager) {
-			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService);
+			const factory = new NotebookFileWorkingCopyModelFactory(viewType, this._notebookService, this._configurationService);
 			workingCopyManager = <IFileWorkingCopyManager<NotebookFileWorkingCopyModel, NotebookFileWorkingCopyModel>><any>this._instantiationService.createInstance(
 				FileWorkingCopyManager,
 				workingCopyTypeId,
@@ -106,14 +107,37 @@ class NotebookModelReferenceCollection extends ReferenceCollection<Promise<IReso
 		return result;
 	}
 
-	protected destroyReferencedObject(_key: string, object: Promise<IResolvedNotebookEditorModel>): void {
-		object.then(model => {
-			this._modelListener.get(model)?.dispose();
-			this._modelListener.delete(model);
-			model.dispose();
-		}).catch(err => {
-			this._logService.error('FAILED to destory notebook', err);
-		});
+	protected destroyReferencedObject(key: string, object: Promise<IResolvedNotebookEditorModel>): void {
+		this.modelsToDispose.add(key);
+
+		(async () => {
+			try {
+				const model = await object;
+
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been acquired again meanwhile
+					return;
+				}
+
+				if (model instanceof SimpleNotebookEditorModel) {
+					await model.canDispose();
+				}
+
+				if (!this.modelsToDispose.has(key)) {
+					// return if model has been acquired again meanwhile
+					return;
+				}
+
+				// Finally we can dispose the model
+				this._modelListener.get(model)?.dispose();
+				this._modelListener.delete(model);
+				model.dispose();
+			} catch (err) {
+				this._logService.error('FAILED to destory notebook', err);
+			} finally {
+				this.modelsToDispose.delete(key); // Untrack as being disposed
+			}
+		})();
 	}
 }
 

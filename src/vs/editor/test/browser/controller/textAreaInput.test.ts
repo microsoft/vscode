@@ -7,12 +7,15 @@ import * as assert from 'assert';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { OperatingSystem } from 'vs/base/common/platform';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ClipboardDataToCopy, IBrowser, ICompleteTextAreaWrapper, ITextAreaInputHost, TextAreaInput } from 'vs/editor/browser/controller/textAreaInput';
 import { TextAreaState } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { IRecorded, IRecordedEvent, IRecordedTextareaState } from 'vs/editor/test/browser/controller/imeRecordedTypes';
 
 suite('TextAreaInput', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	interface OutgoingType {
 		type: 'type';
@@ -87,6 +90,8 @@ suite('TextAreaInput', () => {
 
 			private _state: IRecordedTextareaState;
 			private _currDispatchingEvent: IRecordedEvent | null;
+
+			public ownerDocument = document;
 
 			constructor() {
 				super();
@@ -228,6 +233,8 @@ suite('TextAreaInput', () => {
 			wrapper._dispatchRecordedEvent(event);
 			await yieldNow();
 		}
+
+		disposables.dispose();
 
 		return outgoingEvents;
 	}

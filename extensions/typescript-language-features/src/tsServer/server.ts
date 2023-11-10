@@ -19,6 +19,7 @@ import type * as Proto from './protocol/protocol';
 import { EventName } from './protocol/protocol.const';
 import { TypeScriptVersionManager } from './versionManager';
 import { TypeScriptVersion } from './versionProvider';
+import { NodeVersionManager } from './nodeManager';
 
 export enum ExecutionTarget {
 	Semantic,
@@ -70,6 +71,7 @@ export interface TsServerProcessFactory {
 		kind: TsServerProcessKind,
 		configuration: TypeScriptServiceConfiguration,
 		versionManager: TypeScriptVersionManager,
+		nodeVersionManager: NodeVersionManager,
 		tsServerLog: TsServerLog | undefined,
 	): TsServerProcess;
 }
@@ -299,7 +301,7 @@ export class SingleTsServer extends Disposable implements ITypeScriptServer {
 	}
 
 	private logTrace(message: string) {
-		this._tracer.logTrace(this._serverId, message);
+		this._tracer.trace(this._serverId, message);
 	}
 
 	private static readonly fenceCommands = new Set(['change', 'close', 'open', 'updateOpen']);
@@ -495,6 +497,7 @@ export class SyntaxRoutingTsServer extends Disposable implements ITypeScriptServ
 		'format',
 		'formatonkey',
 		'docCommentTemplate',
+		'linkedEditingRange'
 	]);
 
 	/**

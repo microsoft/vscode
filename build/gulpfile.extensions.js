@@ -64,6 +64,7 @@ const compilations = [
 	'search-result/tsconfig.json',
 	'references-view/tsconfig.json',
 	'simple-browser/tsconfig.json',
+	'tunnel-forwarding/tsconfig.json',
 	'typescript-language-features/test-workspace/tsconfig.json',
 	'typescript-language-features/web/tsconfig.json',
 	'typescript-language-features/tsconfig.json',
@@ -238,11 +239,21 @@ const cleanExtensionsBuildTask = task.define('clean-extensions-build', util.rimr
 const compileExtensionsBuildTask = task.define('compile-extensions-build', task.series(
 	cleanExtensionsBuildTask,
 	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
-	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build', () => ext.packageLocalExtensionsStream(false, false).pipe(gulp.dest('.build'))),
 ));
 
 gulp.task(compileExtensionsBuildTask);
 gulp.task(task.define('extensions-ci', task.series(compileExtensionsBuildTask, compileExtensionMediaBuildTask)));
+
+const compileExtensionsBuildPullRequestTask = task.define('compile-extensions-build-pr', task.series(
+	cleanExtensionsBuildTask,
+	task.define('bundle-marketplace-extensions-build', () => ext.packageMarketplaceExtensionsStream(false).pipe(gulp.dest('.build'))),
+	task.define('bundle-extensions-build-pr', () => ext.packageLocalExtensionsStream(false, true).pipe(gulp.dest('.build'))),
+));
+
+gulp.task(compileExtensionsBuildPullRequestTask);
+gulp.task(task.define('extensions-ci-pr', task.series(compileExtensionsBuildPullRequestTask, compileExtensionMediaBuildTask)));
+
 
 exports.compileExtensionsBuildTask = compileExtensionsBuildTask;
 

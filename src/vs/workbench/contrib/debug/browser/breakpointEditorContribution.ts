@@ -18,7 +18,6 @@ import * as env from 'vs/base/common/platform';
 import severity from 'vs/base/common/severity';
 import { noBreakWhitespace } from 'vs/base/common/strings';
 import { ThemeIcon } from 'vs/base/common/themables';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { ContentWidgetPositionPreference, IActiveCodeEditor, ICodeEditor, IContentWidget, IContentWidgetPosition, IEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
@@ -26,7 +25,7 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { ILanguageService } from 'vs/editor/common/languages/language';
-import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { GlyphMarginLane, IModelDecorationOptions, IModelDecorationOverviewRulerOptions, IModelDecorationsChangeAccessor, ITextModel, OverviewRulerLane, TrackedRangeStickiness } from 'vs/editor/common/model';
 import * as nls from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -54,6 +53,7 @@ interface IBreakpointDecoration {
 const breakpointHelperDecoration: IModelDecorationOptions = {
 	description: 'breakpoint-helper-decoration',
 	glyphMarginClassName: ThemeIcon.asClassName(icons.debugBreakpointHint),
+	glyphMargin: { position: GlyphMarginLane.Right },
 	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
 };
 
@@ -94,7 +94,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			if (message) {
 				if (!langId) {
 					// Lazily compute this, only if needed for some debug adapter
-					langId = withNullAsUndefined(languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri));
+					langId = languageService.guessLanguageIdByFilepathOrFirstLine(breakpoint.uri) ?? undefined;
 				}
 				return langId && dbg.interestedInLanguage(langId) ? message : undefined;
 			}
@@ -133,6 +133,7 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 	const renderInline = breakpoint.column && (hasOtherBreakpointsOnLine || breakpoint.column > model.getLineFirstNonWhitespaceColumn(breakpoint.lineNumber));
 	return {
 		description: 'breakpoint-decoration',
+		glyphMargin: { position: GlyphMarginLane.Right },
 		glyphMarginClassName: ThemeIcon.asClassName(icon),
 		glyphMarginHoverMessage,
 		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
@@ -141,7 +142,8 @@ function getBreakpointDecorationOptions(accessor: ServicesAccessor, model: IText
 			inlineClassName: `debug-breakpoint-placeholder`,
 			inlineClassNameAffectsLetterSpacing: true
 		} : undefined,
-		overviewRuler: overviewRulerDecoration
+		overviewRuler: overviewRulerDecoration,
+		zIndex: 9999
 	};
 }
 
@@ -255,7 +257,14 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 			}
 
 			const model = this.editor.getModel();
-			if (!e.target.position || !model || e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN || e.target.detail.isAfterLines || !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)) {
+			if (!e.target.position
+				|| !model
+				|| e.target.type !== MouseTargetType.GUTTER_GLYPH_MARGIN
+				|| e.target.detail.isAfterLines
+				|| !this.marginFreeFromNonDebugDecorations(e.target.position.lineNumber)
+				// don't return early if there's a breakpoint
+				&& !e.target.element?.className.includes('breakpoint')
+			) {
 				return;
 			}
 			const canSetBreakpoints = this.debugService.canSetBreakpointsIn(model);
@@ -465,7 +474,7 @@ export class BreakpointEditorContribution implements IBreakpointEditorContributi
 		if (decorations) {
 			for (const { options } of decorations) {
 				const clz = options.glyphMarginClassName;
-				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-'))) {
+				if (clz && (!clz.includes('codicon-') || clz.includes('codicon-testing-') || clz.includes('codicon-merge-') || clz.includes('codicon-arrow-') || clz.includes('codicon-loading') || clz.includes('codicon-fold') || clz.includes('codicon-inline-chat'))) {
 					return false;
 				}
 			}
@@ -718,10 +727,9 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
 			const event = new StandardMouseEvent(e);
-			const anchor = { x: event.posx, y: event.posy };
 			const actions = this.getContextMenuActions();
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => event,
 				getActions: () => actions,
 				getActionsContext: () => this.breakpoint,
 				onHide: () => disposeIfDisposable(actions)

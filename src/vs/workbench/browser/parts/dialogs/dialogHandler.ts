@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from 'vs/nls';
-import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IPromptResult } from 'vs/platform/dialogs/common/dialogs';
+import { IConfirmation, IConfirmationResult, IInputResult, ICheckbox, IInputElement, ICustomDialogOptions, IInput, AbstractDialogHandler, DialogType, IPrompt, IAsyncPromptResult } from 'vs/platform/dialogs/common/dialogs';
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { ILogService } from 'vs/platform/log/common/log';
 import Severity from 'vs/base/common/severity';
@@ -19,6 +19,7 @@ import { fromNow } from 'vs/base/common/date';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdownRenderer/browser/markdownRenderer';
 import { defaultButtonStyles, defaultCheckboxStyles, defaultDialogStyles, defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
+import { ResultKind } from 'vs/platform/keybinding/common/keybindingResolver';
 
 export class BrowserDialogHandler extends AbstractDialogHandler {
 
@@ -44,7 +45,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		super();
 	}
 
-	async prompt<T>(prompt: IPrompt<T>): Promise<IPromptResult<T>> {
+	async prompt<T>(prompt: IPrompt<T>): Promise<IAsyncPromptResult<T>> {
 		this.logService.trace('DialogService#prompt', prompt.message);
 
 		const buttons = this.getPromptButtons(prompt);
@@ -69,7 +70,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 
 		const buttons = this.getInputButtons(input);
 
-		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs);
+		const { button, checkboxChecked, values } = await this.doShow(input.type ?? 'question', input.message, buttons, input.detail, buttons.length - 1, input?.checkbox, input.inputs, typeof input.custom === 'object' ? input.custom : undefined);
 
 		return { confirmed: button === 0, checkboxChecked, values };
 	}
@@ -118,7 +119,7 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 		} : undefined;
 
 		const dialog = new Dialog(
-			this.layoutService.container,
+			this.layoutService.activeContainer,
 			message,
 			buttons,
 			{
@@ -126,8 +127,8 @@ export class BrowserDialogHandler extends AbstractDialogHandler {
 				cancelId,
 				type: this.getDialogType(type),
 				keyEventProcessor: (event: StandardKeyboardEvent) => {
-					const resolved = this.keybindingService.softDispatch(event, this.layoutService.container);
-					if (resolved?.commandId) {
+					const resolved = this.keybindingService.softDispatch(event, this.layoutService.activeContainer);
+					if (resolved.kind === ResultKind.KbFound && resolved.commandId) {
 						if (BrowserDialogHandler.ALLOWABLE_COMMANDS.indexOf(resolved.commandId) === -1) {
 							EventHelper.stop(event, true);
 						}

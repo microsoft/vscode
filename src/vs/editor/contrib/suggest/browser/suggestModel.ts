@@ -29,6 +29,9 @@ import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { FuzzyScoreOptions } from 'vs/base/common/filters';
 import { assertType } from 'vs/base/common/types';
+import { InlineCompletionContextKeys } from 'vs/editor/contrib/inlineCompletions/browser/inlineCompletionContextKeys';
+import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -71,7 +74,8 @@ export class LineContext {
 		if (!word) {
 			return false;
 		}
-		if (word.endColumn !== pos.column) {
+		if (word.endColumn !== pos.column &&
+			word.startColumn + 1 !== pos.column /* after typing a single character before a word */) {
 			return false;
 		}
 		if (!isNaN(Number(word.word))) {
@@ -102,11 +106,14 @@ export const enum State {
 }
 
 function canShowQuickSuggest(editor: ICodeEditor, contextKeyService: IContextKeyService, configurationService: IConfigurationService): boolean {
-	if (!Boolean(contextKeyService.getContextKeyValue('inlineSuggestionVisible'))) {
+	if (!Boolean(contextKeyService.getContextKeyValue(InlineCompletionContextKeys.inlineSuggestionVisible.key))) {
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
+	}
 	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
@@ -115,7 +122,10 @@ function canShowSuggestOnTriggerCharacters(editor: ICodeEditor, contextKeyServic
 		// Allow if there is no inline suggestion.
 		return true;
 	}
-
+	const suppressSuggestions = contextKeyService.getContextKeyValue<boolean | undefined>(InlineCompletionContextKeys.suppressSuggestions.key);
+	if (suppressSuggestions !== undefined) {
+		return !suppressSuggestions;
+	}
 	return !editor.getOption(EditorOption.inlineSuggest).suppressSuggestions;
 }
 
@@ -149,6 +159,7 @@ export class SuggestModel implements IDisposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@IEnvironmentService private readonly _envService: IEnvironmentService,
 	) {
 		this._currentSelection = this._editor.getSelection() || new Selection(1, 1, 1, 1);
 
@@ -370,6 +381,11 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
+		if (this._editor.getOption(EditorOption.suggest).snippetsPreventQuickSuggestions && SnippetController2.get(this._editor)?.isInSnippet()) {
+			// no quick suggestion when in snippet mode
+			return;
+		}
+
 		this.cancel();
 
 		this._triggerQuickSuggest.cancelAndSet(() => {
@@ -529,6 +545,15 @@ export class SuggestModel implements IDisposable {
 
 			// finally report telemetry about durations
 			this._reportDurationsTelemetry(completions.durations);
+
+			// report invalid completions by source
+			if (!this._envService.isBuilt || this._envService.isExtensionDevelopment) {
+				for (const item of completions.items) {
+					if (item.isInvalid) {
+						this._logService.warn(`[suggest] did IGNORE invalid completion item from ${item.provider._debugDisplayName}`, item.completion);
+					}
+				}
+			}
 
 		}).catch(onUnexpectedError);
 	}

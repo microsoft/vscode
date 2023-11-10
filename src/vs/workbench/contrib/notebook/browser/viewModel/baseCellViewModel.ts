@@ -18,7 +18,7 @@ import { IResolvedTextEditorModel, ITextModelService } from 'vs/editor/common/se
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IUndoRedoService } from 'vs/platform/undoRedo/common/undoRedo';
 import { IWordWrapTransientState, readTransientState, writeTransientState } from 'vs/workbench/contrib/codeEditor/browser/toggleWordWrap';
-import { CellEditState, CellFocusMode, CursorAtBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CellEditState, CellFocusMode, CursorAtBoundary, CursorAtLineBoundary, IEditableCellViewModel, INotebookCellDecorationOptions } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellViewModelStateChangeEvent } from 'vs/workbench/contrib/notebook/browser/notebookViewEvents';
 import { ViewContext } from 'vs/workbench/contrib/notebook/browser/viewModel/viewContext';
 import { NotebookCellTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookCellTextModel';
@@ -386,10 +386,26 @@ export abstract class BaseCellViewModel extends Disposable {
 
 	private _removeCellDecoration(decorationId: string) {
 		const options = this._resolvedCellDecorations.get(decorationId);
+		this._resolvedCellDecorations.delete(decorationId);
 
 		if (options) {
+			for (const existingOptions of this._resolvedCellDecorations.values()) {
+				// don't remove decorations that are applied from other entries
+				if (options.className === existingOptions.className) {
+					options.className = undefined;
+				}
+				if (options.outputClassName === existingOptions.outputClassName) {
+					options.outputClassName = undefined;
+				}
+				if (options.gutterClassName === existingOptions.gutterClassName) {
+					options.gutterClassName = undefined;
+				}
+				if (options.topClassName === existingOptions.topClassName) {
+					options.topClassName = undefined;
+				}
+			}
+
 			this._cellDecorationsChanged.fire({ added: [], removed: [options] });
-			this._resolvedCellDecorations.delete(decorationId);
 		}
 	}
 
@@ -497,6 +513,33 @@ export abstract class BaseCellViewModel extends Disposable {
 
 		const editorPadding = this._viewContext.notebookOptions.computeEditorPadding(this.internalMetadata, this.uri);
 		return this._textEditor.getTopForPosition(position.lineNumber, position.column) + editorPadding.top;
+	}
+
+	cursorAtLineBoundary(): CursorAtLineBoundary {
+		if (!this._textEditor || !this.textModel || !this._textEditor.hasTextFocus()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const selection = this._textEditor.getSelection();
+
+		if (!selection || !selection.isEmpty()) {
+			return CursorAtLineBoundary.None;
+		}
+
+		const currentLineLength = this.textModel.getLineLength(selection.startLineNumber);
+
+		if (currentLineLength === 0) {
+			return CursorAtLineBoundary.Both;
+		}
+
+		switch (selection.startColumn) {
+			case 1:
+				return CursorAtLineBoundary.Start;
+			case currentLineLength + 1:
+				return CursorAtLineBoundary.End;
+			default:
+				return CursorAtLineBoundary.None;
+		}
 	}
 
 	cursorAtBoundary(): CursorAtBoundary {

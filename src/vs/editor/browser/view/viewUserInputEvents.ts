@@ -4,9 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { IEditorMouseEvent, IMouseTarget, IPartialEditorMouseEvent } from 'vs/editor/browser/editorBrowser';
+import { IEditorMouseEvent, IMouseTarget, IMouseTargetViewZoneData, IPartialEditorMouseEvent, MouseTargetType } from 'vs/editor/browser/editorBrowser';
 import { ICoordinatesConverter } from 'vs/editor/common/viewModel';
 import { IMouseWheelEvent } from 'vs/base/browser/mouseEvent';
+import { Position } from 'vs/editor/common/core/position';
 
 export interface EventCallback<T> {
 	(event: T): void;
@@ -100,6 +101,19 @@ export class ViewUserInputEvents {
 		if (result.range) {
 			result.range = coordinatesConverter.convertViewRangeToModelRange(result.range);
 		}
+		if (result.type === MouseTargetType.GUTTER_VIEW_ZONE || result.type === MouseTargetType.CONTENT_VIEW_ZONE) {
+			result.detail = this.convertViewToModelViewZoneData(result.detail, coordinatesConverter);
+		}
 		return result;
+	}
+
+	private static convertViewToModelViewZoneData(data: IMouseTargetViewZoneData, coordinatesConverter: ICoordinatesConverter): IMouseTargetViewZoneData {
+		return {
+			viewZoneId: data.viewZoneId,
+			positionBefore: data.positionBefore ? coordinatesConverter.convertViewPositionToModelPosition(data.positionBefore) : data.positionBefore,
+			positionAfter: data.positionAfter ? coordinatesConverter.convertViewPositionToModelPosition(data.positionAfter) : data.positionAfter,
+			position: coordinatesConverter.convertViewPositionToModelPosition(data.position),
+			afterLineNumber: coordinatesConverter.convertViewPositionToModelPosition(new Position(data.afterLineNumber, 1)).lineNumber,
+		};
 	}
 }

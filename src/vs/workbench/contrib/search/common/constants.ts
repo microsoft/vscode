@@ -30,6 +30,7 @@ export const AddCursorsAtSearchResults = 'addCursorsAtSearchResults';
 export const RevealInSideBarForSearchResults = 'search.action.revealInSideBar';
 export const ReplaceInFilesActionId = 'workbench.action.replaceInFiles';
 export const ShowAllSymbolsActionId = 'workbench.action.showAllSymbols';
+export const QuickTextSearchActionId = 'workbench.action.experimental.quickTextSearch';
 export const CancelSearchActionId = 'search.action.cancel';
 export const RefreshSearchResultsActionId = 'search.action.refreshSearchResults';
 export const FocusNextSearchResultActionId = 'search.action.focusNextSearchResult';

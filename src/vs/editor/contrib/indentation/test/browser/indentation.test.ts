@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Selection } from 'vs/editor/common/core/selection';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { Range } from 'vs/editor/common/core/range';
+import { Selection } from 'vs/editor/common/core/selection';
+import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
+import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
+import { NullState } from 'vs/editor/common/languages/nullTokenize';
 import { AutoIndentOnPaste, IndentationToSpacesCommand, IndentationToTabsCommand } from 'vs/editor/contrib/indentation/browser/indentation';
-import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { testCommand } from 'vs/editor/test/browser/testCommand';
 import { javascriptIndentationRules } from 'vs/editor/test/common/modes/supports/javascriptIndentationRules';
 import { javascriptOnEnterRules } from 'vs/editor/test/common/modes/supports/javascriptOnEnterRules';
-import { DisposableStore } from 'vs/base/common/lifecycle';
-import { ILanguageConfigurationService } from 'vs/editor/common/languages/languageConfigurationRegistry';
-import { ILanguageService } from 'vs/editor/common/languages/language';
-import { EncodedTokenizationResult, IState, TokenizationRegistry } from 'vs/editor/common/languages';
-import { MetadataConsts, StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
-import { NullState } from 'vs/editor/common/languages/nullTokenize';
 
 function testIndentationToSpacesCommand(lines: string[], selection: Selection, tabSize: number, expectedLines: string[], expectedSelection: Selection): void {
 	testCommand(lines, null, selection, (accessor, sel) => new IndentationToSpacesCommand(sel, tabSize), expectedLines, expectedSelection);
@@ -28,6 +29,8 @@ function testIndentationToTabsCommand(lines: string[], selection: Selection, tab
 }
 
 suite('Editor Contrib - Indentation to Spaces', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('single tabs only at start of line', function () {
 		testIndentationToSpacesCommand(
@@ -115,6 +118,8 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 });
 
 suite('Editor Contrib - Indentation to Tabs', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('spaces only at start of line', function () {
 		testIndentationToTabsCommand(
@@ -208,6 +213,8 @@ suite('Editor Contrib - Auto Indent On Paste', () => {
 		disposables.dispose();
 	});
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	test('issue #119225: Do not add extra leading space when pasting JSDoc', () => {
 		const languageId = 'leadingSpacePaste';
 		const model = createTextModel("", languageId, {});
@@ -276,6 +283,8 @@ suite('Editor Contrib - Keep Indent On Paste', () => {
 	teardown(() => {
 		disposables.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #167299: Blank line removes indent', () => {
 		const languageId = 'blankLineRemovesIndent';

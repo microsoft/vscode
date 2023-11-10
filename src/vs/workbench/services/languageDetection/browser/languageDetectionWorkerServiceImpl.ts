@@ -66,7 +66,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	) {
 		super();
 
-		this._languageDetectionWorkerClient = new LanguageDetectionWorkerClient(
+		this._languageDetectionWorkerClient = this._register(new LanguageDetectionWorkerClient(
 			modelService,
 			languageService,
 			telemetryService,
@@ -84,7 +84,7 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 				? FileAccess.asBrowserUri(`${regexpModuleLocationAsar}/dist/index.js`).toString(true)
 				: FileAccess.asBrowserUri(`${regexpModuleLocation}/dist/index.js`).toString(true),
 			languageConfigurationService
-		);
+		));
 
 		this.initEditorOpenedListeners(storageService);
 	}
@@ -154,13 +154,13 @@ export class LanguageDetectionService extends Disposable implements ILanguageDet
 	// only gives history for a workspace... where this takes advantage of history at a global level as well.
 	private initEditorOpenedListeners(storageService: IStorageService) {
 		try {
-			const globalLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
-			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistroyData);
+			const globalLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.globalOpenedLanguagesStorageKey, StorageScope.PROFILE, '[]'));
+			this.historicalGlobalOpenedLanguageIds.fromJSON(globalLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		try {
-			const workspaceLangHistroyData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
-			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistroyData);
+			const workspaceLangHistoryData = JSON.parse(storageService.get(LanguageDetectionService.workspaceOpenedLanguagesStorageKey, StorageScope.WORKSPACE, '[]'));
+			this.historicalWorkspaceOpenedLanguageIds.fromJSON(workspaceLangHistoryData);
 		} catch (e) { console.error(e); }
 
 		this._register(this._editorService.onDidActiveEditorChange(() => {
