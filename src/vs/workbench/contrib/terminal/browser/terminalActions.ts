@@ -1280,7 +1280,11 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 		icon: killTerminalIcon,
-		run: async (c) => killInstance(c, c.groupService.activeInstance)
+		run: async (c, accessor) => {
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				killInstance(c, terminal);
+			}
+		}
 	});
 	registerTerminalAction({
 		id: TerminalCommandId.KillViewOrEditor,
