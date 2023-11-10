@@ -907,7 +907,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 		if (match.webviewIndex !== undefined) {
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
 			if (index !== undefined) {
-				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
+				this._notebookEditorWidget.revealCellOffsetInCenter(match.cell, outputOffset ?? 0);
 			}
 		} else {
 			match.cell.updateEditState(match.cell.getEditState(), 'focusNotebookCell');

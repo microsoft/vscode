@@ -1213,8 +1213,8 @@ class SyncedActivationEventsReader implements IActivationEventsReader {
 		this.addActivationEvents(activationEvents);
 	}
 
-	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] | undefined {
-		return this._map.get(extensionDescription.identifier);
+	public readActivationEvents(extensionDescription: Readonly<IRelaxedExtensionDescription>): string[] {
+		return this._map.get(extensionDescription.identifier) ?? [];
 	}
 
 	public addActivationEvents(activationEvents: { [extensionId: string]: string[] }): void {

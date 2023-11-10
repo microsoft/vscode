@@ -11,13 +11,13 @@ const moduleNames = [
 	'@xterm/addon-canvas',
 	'@xterm/addon-image',
 	'@xterm/addon-search',
+	'@xterm/addon-serialize',
 	'@xterm/addon-unicode11',
 	'@xterm/addon-webgl',
 ];
 
 const backendOnlyModuleNames = [
-	'@xterm/headless',
-	'@xterm/addon-serialize'
+	'@xterm/headless'
 ];
 
 const vscodeDir = process.argv.length >= 3 ? process.argv[2] : process.cwd();

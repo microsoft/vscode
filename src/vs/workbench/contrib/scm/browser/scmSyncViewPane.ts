@@ -32,7 +32,6 @@ import { ActionButtonRenderer } from 'vs/workbench/contrib/scm/browser/scmViewPa
 import { getActionViewItemProvider, isSCMActionButton, isSCMRepository, isSCMRepositoryArray } from 'vs/workbench/contrib/scm/browser/util';
 import { ISCMActionButton, ISCMRepository, ISCMViewService, ISCMViewVisibleRepositoryChangeEvent, SYNC_VIEW_PANE_ID } from 'vs/workbench/contrib/scm/common/scm';
 import { comparePaths } from 'vs/base/common/comparers';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup } from 'vs/workbench/contrib/scm/common/history';
 import { localize } from 'vs/nls';
 import { Iterable } from 'vs/base/common/iterator';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
@@ -50,6 +49,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { ICompressedTreeNode } from 'vs/base/browser/ui/tree/compressedObjectTreeModel';
 import { IResourceNode, ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
+import { SCMHistoryItemChangeTreeElement, SCMHistoryItemGroupTreeElement, SCMHistoryItemTreeElement } from 'vs/workbench/contrib/scm/common/history';
 
 type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
 type TreeElement = ISCMRepository[] | ISCMRepository | ISCMActionButton | SCMHistoryItemGroupTreeElement | SCMHistoryItemTreeElement | SCMHistoryItemChangeTreeElement | SCMHistoryItemChangeResourceTreeNode;
@@ -116,24 +116,6 @@ const enum ViewMode {
 const ContextKeys = {
 	ViewMode: new RawContextKey<ViewMode>('scmSyncViewMode', ViewMode.List),
 };
-
-interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
-	readonly description?: string;
-	readonly ancestor?: string;
-	readonly count?: number;
-	readonly repository: ISCMRepository;
-	readonly type: 'historyItemGroup';
-}
-
-interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
-	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
-	readonly type: 'historyItem';
-}
-
-interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
-	readonly historyItem: SCMHistoryItemTreeElement;
-	readonly type: 'historyItemChange';
-}
 
 class ListDelegate implements IListVirtualDelegate<any> {
 

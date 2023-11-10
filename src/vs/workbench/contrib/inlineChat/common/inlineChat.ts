@@ -64,6 +64,7 @@ export interface IInlineChatEditResponse {
 	id: number;
 	type: InlineChatResponseType.EditorEdit;
 	edits: TextEdit[];
+	message?: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -72,6 +73,7 @@ export interface IInlineChatBulkEditResponse {
 	id: number;
 	type: InlineChatResponseType.BulkEdit;
 	edits: WorkspaceEdit;
+	message?: IMarkdownString;
 	placeholder?: string;
 	wholeRange?: IRange;
 }
@@ -184,6 +186,12 @@ export const enum EditMode {
 	Preview = 'preview'
 }
 
+export const enum ShowGutterIcon {
+	Always = 'always',
+	MouseOver = 'mouseover',
+	Never = 'never'
+}
+
 Registry.as<IConfigurationMigrationRegistry>(ExtensionsMigration.ConfigurationMigration).registerConfigurationMigrations(
 	[{
 		key: 'interactiveEditor.editMode', migrateFn: (value: any) => {
@@ -212,9 +220,15 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			type: 'boolean'
 		},
 		'inlineChat.showGutterIcon': {
-			description: localize('showGutterIcon', "Show/hide a gutter icon for spawning inline chat on empty lines."),
-			default: false,
-			type: 'boolean'
+			description: localize('showGutterIcon', "Controls when the gutter icon for spawning inline chat is shown."),
+			default: ShowGutterIcon.Always,
+			type: 'string',
+			enum: [ShowGutterIcon.Always, ShowGutterIcon.MouseOver, ShowGutterIcon.Never],
+			markdownEnumDescriptions: [
+				localize('showGutterIcon.always', "Always show the gutter icon."),
+				localize('showGutterIcon.mouseover', "Show the gutter icon when the mouse is over the icon."),
+				localize('showGutterIcon.never', "Never show the gutter icon."),
+			]
 		}
 	}
 });

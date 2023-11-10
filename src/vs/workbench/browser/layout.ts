@@ -47,12 +47,12 @@ import { IBannerService } from 'vs/workbench/services/banner/browser/bannerServi
 import { IPaneCompositePartService } from 'vs/workbench/services/panecomposite/browser/panecomposite';
 import { AuxiliaryBarPart } from 'vs/workbench/browser/parts/auxiliarybar/auxiliaryBarPart';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 
 //#region Layout Implementation
 
 interface ILayoutRuntimeState {
-	activeContainerId: 'main' | number /* window ID */;
+	activeContainerId: number;
 	fullscreen: boolean;
 	maximized: boolean;
 	hasFocus: boolean;
@@ -177,13 +177,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return containers;
 	}
 
-	private getContainerFromDocument(document: Document): HTMLElement {
-		if (document === this.container.ownerDocument) {
+	private getContainerFromDocument(targetDocument: Document): HTMLElement {
+		if (targetDocument === this.container.ownerDocument) {
 			// main window
 			return this.container;
 		} else {
 			// auxiliary window
-			return document.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
+			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
 		}
 	}
 
@@ -230,7 +230,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// main window
 			return this.mainContainerOffset;
 		} else {
-			// TODO@bpasero auxiliary window: no support for custom title bar or banner yet
+			// auxiliary window: no support for custom title bar or banner yet
 			return { top: 0, quickPickTop: 0 };
 		}
 	}
@@ -257,6 +257,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
+	private mainPartEditorService!: IEditorService;
 	private editorGroupService!: IEditorGroupsService;
 	private paneCompositeService!: IPaneCompositePartService;
 	private titleService!: ITitleService;
@@ -298,6 +299,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
+		this.mainPartEditorService = this.editorService.createScoped('main', this._store);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
@@ -326,9 +328,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.mainPart.whenRestored.then(() => {
 
-			// Restore editor part on any editor change
-			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+			// Restore main editor part on any editor change in main part
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
@@ -466,16 +468,10 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 	}
 
-	private getActiveContainerId(): 'main' | number {
+	private getActiveContainerId(): number {
 		const activeContainer = this.activeContainer;
-		if (activeContainer !== this.container) {
-			const containerWindow = getWindow(activeContainer);
-			if (isAuxiliaryWindow(containerWindow)) {
-				return containerWindow.vscodeWindowId;
-			}
-		}
 
-		return 'main';
+		return getWindow(activeContainer).vscodeWindowId;
 	}
 
 	private doUpdateLayoutConfiguration(skipLayout?: boolean): void {

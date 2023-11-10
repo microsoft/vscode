@@ -146,7 +146,6 @@ class ViewPaneDropOverlay extends Themable {
 
 	private registerListeners(): void {
 		this._register(new DragAndDropObserver(this.container, {
-			onDragEnter: e => undefined,
 			onDragOver: e => {
 
 				// Position overlay

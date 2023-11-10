@@ -23,7 +23,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { extractEditorsAndFilesDropData } from 'vs/platform/dnd/browser/dnd';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { isWeb } from 'vs/base/common/platform';
-import { isDragEvent, triggerDownload } from 'vs/base/browser/dom';
+import { getActiveWindow, isDragEvent, triggerDownload } from 'vs/base/browser/dom';
 import { ILogService } from 'vs/platform/log/common/log';
 import { FileAccess, Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
@@ -654,9 +654,10 @@ export class FileDownload {
 		const preferFileSystemAccessWebApis = stat.isDirectory || stat.size > maxBlobDownloadSize;
 
 		// Folder: use FS APIs to download files and folders if available and preferred
-		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(window)) {
+		const activeWindow = getActiveWindow();
+		if (preferFileSystemAccessWebApis && WebFileSystemAccess.supported(activeWindow)) {
 			try {
-				const parentFolder: FileSystemDirectoryHandle = await window.showDirectoryPicker();
+				const parentFolder: FileSystemDirectoryHandle = await activeWindow.showDirectoryPicker();
 				const operation: IDownloadOperation = {
 					startTime: Date.now(),
 					progressScheduler: new RunOnceWorker<IProgressStep>(steps => { progress.report(steps[steps.length - 1]); }, 1000),

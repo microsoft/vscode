@@ -23,8 +23,8 @@ export class PageCoordinates {
 		public readonly y: number
 	) { }
 
-	public toClientCoordinates(): ClientCoordinates {
-		return new ClientCoordinates(this.x - window.scrollX, this.y - window.scrollY);
+	public toClientCoordinates(targetWindow: Window): ClientCoordinates {
+		return new ClientCoordinates(this.x - targetWindow.scrollX, this.y - targetWindow.scrollY);
 	}
 }
 
@@ -43,8 +43,8 @@ export class ClientCoordinates {
 		public readonly clientY: number
 	) { }
 
-	public toPageCoordinates(): PageCoordinates {
-		return new PageCoordinates(this.clientX + window.scrollX, this.clientY + window.scrollY);
+	public toPageCoordinates(targetWindow: Window): PageCoordinates {
+		return new PageCoordinates(this.clientX + targetWindow.scrollX, this.clientY + targetWindow.scrollY);
 	}
 }
 
