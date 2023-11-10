@@ -113,6 +113,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				alwaysConsumeMouseWheel: false
 			},
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
+			renderValidationDecorations: 'on',
 			...this.getEditorOptionsFromConfig()
 		}, {
 			isSimpleWidget: false,
