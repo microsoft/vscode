@@ -281,6 +281,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		if (usePosition) {
 			this.show(position, height);
 		}
+		this.editor.setPosition(position);
 		this.editor.focus();
 	}
 
