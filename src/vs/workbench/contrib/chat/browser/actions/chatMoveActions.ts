@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ViewAction } from 'vs/workbench/browser/parts/views/viewPane';
 import { ActiveEditorContext } from 'vs/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
@@ -138,6 +138,54 @@ export function registerMoveActions() {
 
 		async run(accessor: ServicesAccessor, ...args: any[]) {
 			return moveToSidebar(accessor);
+		}
+	});
+
+	registerAction2(class GlobalMoveToNewWindowAction extends Action2 {
+
+		constructor() {
+			super({
+				id: `workbench.action.chat.openInNewWindow`,
+				title: {
+					value: localize('chat.openInNewWindow.label', "Open Session In New Window"),
+					original: 'Open Session In New Window'
+				},
+				category: CHAT_CATEGORY,
+				precondition: CONTEXT_PROVIDER_EXISTS,
+				f1: true
+			});
+		}
+
+		async run(accessor: ServicesAccessor, ...args: any[]) {
+			const widgetService = accessor.get(IChatWidgetService);
+			const viewService = accessor.get(IViewsService);
+			const editorService = accessor.get(IEditorService);
+			const chatService = accessor.get(IChatService);
+
+			const editorGroupService = accessor.get(IEditorGroupsService);
+			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !('viewId' in widget.viewContext)) {
+				const providerId = chatService.getProviderInfos()[0].id;
+				const editorPane = await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { providerId } } });
+				if (editorPane?.input) {
+					auxiliaryEditorPart.activeGroup.openEditor(editorPane.input, { pinned: true });
+				}
+				return;
+			}
+
+			const viewModel = widget.viewModel;
+			if (!viewModel) {
+				return;
+			}
+
+			const sessionId = viewModel.sessionId;
+			const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
+			view.clear();
+			const instantiationService = accessor.get(IInstantiationService);
+			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
+			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
 		}
 	});
 }

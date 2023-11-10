@@ -32,11 +32,6 @@ import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { Categories } from 'vs/platform/action/common/actionCommonCategories';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { IEditorPaneRegistry } from 'vs/workbench/browser/editor';
-import { EditorExtensions } from 'vs/workbench/common/editor';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export const CHAT_CATEGORY = { value: localize('chat.category', "Chat"), original: 'Chat' };
 export const CHAT_OPEN_ACTION_ID = 'workbench.action.chat.open';
@@ -210,50 +205,6 @@ export function registerChatActions() {
 		run(accessor: ServicesAccessor, ...args: any[]) {
 			const widgetService = accessor.get(IChatWidgetService);
 			widgetService.lastFocusedWidget?.focusInput();
-		}
-	});
-
-	registerAction2(class ChatUndockAction extends Action2 {
-
-		constructor() {
-			super({
-				id: 'chat.action.undock',
-				title: {
-					value: localize('chatUndock', "Undock the panel chat (experimental)"),
-					mnemonicTitle: localize({ key: 'miChatUndock', comment: ['&& denotes a mnemonic'] }, "&&Undock the panel chat (experimental)"),
-					original: 'Undock the panel chat (experimental)'
-				},
-				category: Categories.View,
-				precondition: undefined,
-				f1: true
-			});
-		}
-
-		override async run(accessor: ServicesAccessor): Promise<void> {
-
-			const chatWidgetService = accessor.get(IChatWidgetService);
-			const lastFocusedWidget = chatWidgetService.lastFocusedWidget;
-			if (!lastFocusedWidget) {
-				return;
-			}
-			const viewModel = lastFocusedWidget.viewModel;
-			if (!viewModel) {
-				return;
-			}
-			const sessionId = viewModel.sessionId;
-			const editorGroupService = accessor.get(IEditorGroupsService);
-			// create a chat editor and drop it inside of the group
-			const editorPanesRegistry = Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane);
-			const instantiationService = accessor.get(IInstantiationService);
-			const chatEditorInput: ChatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-			const editorPaneDescriptor = editorPanesRegistry.getEditorPane(chatEditorInput);
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-			const editorPane = editorPaneDescriptor?.instantiate(instantiationService);
-			console.log('editorPane : ', editorPane);
-			if (!editorPane || !editorPane.group || !editorPane.input) {
-				return;
-			}
-			editorPane.group.moveEditor(editorPane.input, auxiliaryEditorPart.activeGroup);
 		}
 	});
 }
