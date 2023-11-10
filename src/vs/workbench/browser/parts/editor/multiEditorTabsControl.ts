@@ -1112,16 +1112,13 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				if (
 					!this.isNewWindowOperation(lastDragEvent ?? e) ||
-					isWindowDraggedOver()
+					isWindowDraggedOver() ||
+					!editor
 				) {
-					return; // drag to open is disabled
-				}
-
-				const editor = this.tabsModel.getEditorByIndex(tabIndex);
-				if (!editor) {
-					return;
+					return; // drag to open in new window is disabled
 				}
 
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({

@@ -305,26 +305,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 	}
 
-	protected isNewWindowOperation(e: DragEvent): boolean {
-		if (this.groupsView.partOptions.dragToOpenWindow) {
-			return !e.altKey;
-		}
-
-		return e.altKey;
-	}
-
 	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement): Promise<void> {
-		if (e.target !== element) {
-			return; // only if originating from tabs container
-		}
-
 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 
 		if (
+			e.target !== element ||
 			!this.isNewWindowOperation(previousDragEvent ?? e) ||
 			isWindowDraggedOver()
 		) {
-			return; // drag to open is disabled
+			return; // drag to open in new window is disabled
 		}
 
 		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
@@ -332,9 +321,19 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
-		this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
+		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
+			mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+		});
 
 		targetGroup.focus();
+	}
+
+	protected isNewWindowOperation(e: DragEvent): boolean {
+		if (this.groupsView.partOptions.dragToOpenWindow) {
+			return !e.altKey;
+		}
+
+		return e.altKey;
 	}
 
 	protected isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
