@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { DataTransfers, IDragAndDropData } from 'vs/base/browser/dnd';
-import { DragAndDropObserver, EventType, addDisposableListener } from 'vs/base/browser/dom';
+import { DragAndDropObserver, EventType, addDisposableListener, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IListDragAndDrop } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
 import { ITreeDragOverReaction } from 'vs/base/browser/ui/tree/tree';
 import { coalesce } from 'vs/base/common/arrays';
 import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
-import { Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, markAsSingleton } from 'vs/base/common/lifecycle';
 import { stringify } from 'vs/base/common/marshalling';
 import { Mimes } from 'vs/base/common/mime';
@@ -35,6 +35,8 @@ import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspaces/common/workspaceEditing';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { mainWindow } from 'vs/base/browser/window';
+import { BroadcastDataChannel } from 'vs/base/browser/broadcast';
 
 //#region Editor / Resources DND
 
@@ -47,7 +49,6 @@ export class DraggedEditorGroupIdentifier {
 
 	constructor(readonly identifier: GroupIdentifier) { }
 }
-
 
 export async function extractTreeDropData(dataTransfer: VSDataTransfer): Promise<Array<IDraggedResourceEditorInput>> {
 	const editors: IDraggedResourceEditorInput[] = [];
@@ -661,3 +662,68 @@ export class ResourceListDnDHandler<T> implements IListDragAndDrop<T> {
 }
 
 //#endregion
+
+class GlobalWindowDraggedOverTracker extends Disposable {
+
+	private static readonly CHANNEL_NAME = 'monaco-workbench-global-dragged-over';
+
+	private readonly broadcaster = this._register(new BroadcastDataChannel<boolean>(GlobalWindowDraggedOverTracker.CHANNEL_NAME));
+
+	constructor() {
+		super();
+
+		this.registerListeners();
+	}
+
+	private registerListeners(): void {
+		this._register(Event.runAndSubscribe(onDidRegisterWindow, ({ window, disposables }) => {
+			disposables.add(addDisposableListener(window, EventType.DRAG_OVER, () => this.markDraggedOver(false), true));
+			disposables.add(addDisposableListener(window, EventType.DRAG_LEAVE, () => this.clearDraggedOver(false), true));
+		}, { window: mainWindow, disposables: this._store }));
+
+		this._register(this.broadcaster.onDidReceiveData(data => {
+			if (data === true) {
+				this.markDraggedOver(true);
+			} else {
+				this.clearDraggedOver(true);
+			}
+		}));
+	}
+
+	private draggedOver = false;
+	get isDraggedOver(): boolean { return this.draggedOver; }
+
+	private markDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === true) {
+			return; // alrady marked
+		}
+
+		this.draggedOver = true;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(true);
+		}
+	}
+
+	private clearDraggedOver(fromBroadcast: boolean): void {
+		if (this.draggedOver === false) {
+			return; // alrady cleared
+		}
+
+		this.draggedOver = false;
+
+		if (!fromBroadcast) {
+			this.broadcaster.postData(false);
+		}
+	}
+}
+
+const globalDraggedOverTracker = new GlobalWindowDraggedOverTracker();
+
+/**
+ * Returns whether the workbench is currently dragged over in any of
+ * the opened windows (main windows and auxiliary windows).
+ */
+export function isWindowDraggedOver(): boolean {
+	return globalDraggedOverTracker.isDraggedOver;
+}
