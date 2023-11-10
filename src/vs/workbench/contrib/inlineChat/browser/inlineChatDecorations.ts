@@ -52,7 +52,6 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
-		this._updateCurrentBreakpoints();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
@@ -76,6 +75,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
 		}));
+		this._updateCurrentBreakpoints();
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
 	}
