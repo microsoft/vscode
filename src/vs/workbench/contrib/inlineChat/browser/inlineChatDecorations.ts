@@ -106,7 +106,10 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		const editor = this._editor;
 		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(editor), 100);
 		this._localToDispose.add(decorationUpdateScheduler);
-		this._localToDispose.add(this._debugService.getModel().onDidChangeBreakpoints(() => this._updateCurrentBreakpoints(editor.getModel().uri)));
+		this._localToDispose.add(this._debugService.getModel().onDidChangeBreakpoints(() => {
+			this._updateCurrentBreakpoints(editor.getModel().uri);
+			decorationUpdateScheduler.schedule();
+		}));
 		this._localToDispose.add(this._editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
