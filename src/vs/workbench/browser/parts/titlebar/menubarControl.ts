@@ -11,7 +11,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IAction, Action, SubmenuAction, Separator, IActionRunner, ActionRunner, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification, toAction } from 'vs/base/common/actions';
 import { addDisposableListener, Dimension, EventType } from 'vs/base/browser/dom';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isMacintosh, isWeb, isIOS, isNative } from 'vs/base/common/platform';
+import { isMacintosh, isWeb, isIOS, isNative, isAndroid } from 'vs/base/common/platform';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
@@ -791,7 +791,7 @@ export class CustomMenubarControl extends MenubarControl {
 		super.registerListeners();
 
 		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => {
-			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents)) {
+			if (this.menubar && !(isIOS && BrowserFeatures.pointerEvents) && !isAndroid) {
 				this.menubar.blur();
 			}
 		}));
