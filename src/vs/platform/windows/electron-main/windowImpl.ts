@@ -654,6 +654,29 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 			cb({ cancel: false, requestHeaders: Object.assign(details.requestHeaders, headers) });
 		});
+
+		// Enable WebUSB, WebHID and WebSerial device access
+		this._win.webContents.session.setPermissionCheckHandler((_webContents, permission, _requestingOrigin, _details) => {
+			return permission === 'usb' || permission === 'serial' || permission === 'hid';
+		});
+
+		this._win.webContents.session.on('select-usb-device', (event, details, callback) => {
+			event.preventDefault();
+			// ToDo: Show picker of devices instead of returning first
+			callback(details.deviceList?.[0]?.deviceId);
+		});
+
+		this._win.webContents.session.on('select-hid-device', (event, details, callback) => {
+			event.preventDefault();
+			// ToDo: Show picker of devices instead of returning first
+			callback(details.deviceList?.[0]?.deviceId);
+		});
+
+		this._win.webContents.session.on('select-serial-port', (event, portList, _webContents, callback) => {
+			event.preventDefault();
+			// ToDo: Show picker of devices instead of returning first
+			callback(portList[0]?.portId);
+		});
 	}
 
 	private marketplaceHeadersPromise: Promise<object> | undefined;
