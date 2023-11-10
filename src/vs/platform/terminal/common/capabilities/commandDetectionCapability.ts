@@ -617,8 +617,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				isTrusted: !!this._currentCommand.isTrusted,
 				promptStartMarker: this._currentCommand.promptStartMarker,
 				marker: this._currentCommand.commandStartMarker,
+				startX: this._currentCommand.commandStartX,
 				endMarker,
 				executedMarker,
+				executedX: this._currentCommand.commandExecutedX,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
@@ -691,37 +693,43 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 
-		// TODO: How to deal with line continuations?
-		// TODO: Support multi-line commands and wrapped command edge cases
-
-		// At this point we know what command was run provided the command line sequence was sent
-		// though, so scan lines to try to determine the actual end of the prompt. It should never
-		// be more than a viewport away due to how conpty renders.
-		for (let i = executedLine; i >= commandLine; i--) {
+		// Scan downwards from the command start line and search for every character in the actual
+		// command line. This may end up matching the wrong characters, but it shouldn't matter at
+		// least in the typical case as the entire command will still get matched.
+		let current = 0;
+		let found = false;
+		for (let i = commandLine; i <= executedLine; i++) {
 			const line = this._terminal.buffer.active.getLine(i);
 			if (!line) {
 				break;
 			}
 			const text = line.translateToString(true);
-			let success = true;
+			for (let j = 0; j < text.length; j++) {
+				// Skip whitespace in case it was not actually rendered or could be trimmed from the
+				// end of the line
+				while (command.length < current && command[current] === ' ') {
+					current++;
+				}
 
-			if (text.length < command.length) {
-				continue;
-			}
+				// Character match
+				if (text[j] === command[current]) {
+					current++;
+				}
 
-			for (let j = 0; j < command.length; j++) {
-				// TODO: text array out of bounds
-				if (text[text.length - j - 1] === command[command.length - j]) {
-					success = false;
+				// Full command match
+				if (current === command.length) {
+					// It's ambiguous whether the command executed marker should ideally appear at
+					// the end of the line or at the beginning of the next line. Since it's more
+					// useful for extracting the command at the end of the current line we go with
+					// that.
+					const wrapsToNextLine = j >= this._terminal.cols - 1;
+					this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(i - (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY) + (wrapsToNextLine ? 1 : 0));
+					this._currentCommand.commandExecutedX = wrapsToNextLine ? 0 : j + 1;
+					found = true;
 					break;
 				}
 			}
-			if (success) {
-				// To align with how most shells word, ideally command executed happens at the
-				// beginning on the following line, after \r\n was written.
-				// This is offset as markers are registered relative to cursor.
-				this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(i - (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY) + 1);
-				this._currentCommand.commandExecutedX = 0;
+			if (found) {
 				break;
 			}
 		}
@@ -741,6 +749,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
+				executedX: e.executedX,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
 				isTrusted: e.isTrusted,
 				cwd: e.cwd,
@@ -758,6 +767,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				startX: this._currentCommand.commandStartX,
 				endLine: undefined,
 				executedLine: undefined,
+				executedX: undefined,
 				command: '',
 				isTrusted: true,
 				cwd: this._cwd,
@@ -804,8 +814,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				isTrusted: e.isTrusted,
 				promptStartMarker,
 				marker,
+				startX: e.startX,
 				endMarker,
 				executedMarker,
+				executedX: e.executedX,
 				timestamp: e.timestamp,
 				cwd: e.cwd,
 				commandStartLineContent: e.commandStartLineContent,
