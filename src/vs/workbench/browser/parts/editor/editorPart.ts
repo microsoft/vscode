@@ -1406,11 +1406,11 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	}
 
 	protected override saveState(): void {
-		return; // TODO@bpasero support auxiliary editor state
+		return; // TODO support auxiliary editor state
 	}
 
 	async close(): Promise<void> {
-		// TODO@bpasero this needs full support for closing all editors, handling vetos and showing dialogs
+		// TODO this needs full support for closing all editors, handling vetos and showing dialogs
 		this._onDidClose.fire();
 	}
 }
