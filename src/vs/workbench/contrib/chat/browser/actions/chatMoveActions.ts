@@ -22,32 +22,20 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 enum MoveToNewLocation {
-	Editor,
-	Window
+	Editor = 'Editor',
+	Window = 'Window'
 }
 
-const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openInEditor`,
-	title: {
-		value: localize('chat.openInEditor.label', "Open Session In Editor"),
-		original: 'Open Session In Editor'
-	},
-	category: CHAT_CATEGORY,
-	precondition: CONTEXT_PROVIDER_EXISTS,
-	f1: false,
-	viewId,
-	menu: {
-		id: MenuId.ViewTitle,
-		when: ContextKeyExpr.equals('view', viewId),
-		order: 0
-	},
-});
+const OPEN_IN_EDITOR_ORIGINAL_STRING = 'Open Session In Editor';
+const OPEN_IN_WINDOW_ORIGINAL_STRING = 'Open Session In New Window';
+const OPEN_IN_EDITOR_LOCALIZED_STRING = localize('chat.openInEditor.label', "Open Session In Editor");
+const OPEN_IN_WINDOW_LOCALIZED_STRING = localize('chat.openInNewWindow.label', "Open Session In New Window");
 
-const getMoveToNewWindowChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
-	id: `workbench.action.chat.${providerId}.openInNewWindow`,
+const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
+	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
 	title: {
-		value: localize('chat.openInNewWindow.label', "Open Session In New Window"),
-		original: 'Open Session In New Window'
+		value: moveTo === MoveToNewLocation.Editor ? OPEN_IN_EDITOR_LOCALIZED_STRING : OPEN_IN_WINDOW_LOCALIZED_STRING,
+		original: moveTo === MoveToNewLocation.Editor ? OPEN_IN_EDITOR_ORIGINAL_STRING : OPEN_IN_WINDOW_ORIGINAL_STRING,
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
@@ -71,9 +59,7 @@ export function getMoveToNewWindowAction(viewId: string, providerId: string) {
 export function getMoveToAction(viewId: string, providerId: string, moveTo: MoveToNewLocation) {
 	return class MoveToAction extends ViewAction<ChatViewPane> {
 		constructor() {
-			super(moveTo === MoveToNewLocation.Editor ?
-				getMoveToEditorChatActionDescriptorForViewTitle(viewId, providerId)
-				: getMoveToNewWindowChatActionDescriptorForViewTitle(viewId, providerId));
+			super(getMoveToChatActionDescriptorForViewTitle(viewId, providerId, moveTo));
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
@@ -113,8 +99,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
 				title: {
-					value: localize('interactiveSession.openInEditor.label', "Open Session In Editor"),
-					original: 'Open Session In Editor'
+					value: OPEN_IN_EDITOR_LOCALIZED_STRING,
+					original: OPEN_IN_EDITOR_ORIGINAL_STRING,
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -133,8 +119,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
 				title: {
-					value: localize('chat.openInNewWindow.label', "Open Session In New Window"),
-					original: 'Open Session In New Window'
+					value: OPEN_IN_WINDOW_LOCALIZED_STRING,
+					original: OPEN_IN_WINDOW_ORIGINAL_STRING,
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
