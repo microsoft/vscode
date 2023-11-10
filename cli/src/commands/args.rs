@@ -264,6 +264,9 @@ impl ExtensionSubcommand {
 				if args.show_versions {
 					target.push("--show-versions".to_string());
 				}
+				if args.show_origin {
+					target.push("--show-origin".to_string());
+				}
 				if let Some(category) = &args.category {
 					target.push(format!("--category={}", category));
 				}
@@ -297,6 +300,10 @@ pub struct ListExtensionArgs {
 	/// Show versions of installed extensions, when using --list-extensions.
 	#[clap(long)]
 	pub show_versions: bool,
+
+	/// Show origin of installed extensions, when using --list-extensions.
+	#[clap(long)]
+	pub show_origin: bool,
 }
 
 #[derive(Args, Debug, Clone)]

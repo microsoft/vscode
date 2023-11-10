@@ -60,6 +60,7 @@ pub struct CodeServerArgs {
 	pub uninstall_extensions: Vec<String>,
 	pub list_extensions: bool,
 	pub show_versions: bool,
+	pub show_origin: bool,
 	pub category: Option<String>,
 	pub pre_release: bool,
 	pub force: bool,
@@ -133,6 +134,9 @@ impl CodeServerArgs {
 			args.push(String::from("--list-extensions"));
 			if self.show_versions {
 				args.push(String::from("--show-versions"));
+			}
+			if self.show_origin {
+				args.push(String::from("--show_origin"));
 			}
 			if let Some(i) = &self.category {
 				args.push(format!("--category={}", i));

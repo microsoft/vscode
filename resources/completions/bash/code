@@ -46,7 +46,7 @@ _@@APPNAME@@()
 		COMPREPLY=( $( compgen -W '-d --diff --folder-uri -a --add -g
 			--goto -n --new-window -r --reuse-window -w --wait --locale=
 			--user-data-dir -v --version -h --help --extensions-dir
-			--list-extensions --show-versions --install-extension
+			--list-extensions --show-versions --show-origin --install-extension
 			--uninstall-extension --enable-proposed-api --verbose --log -s
 			--status -p --performance --prof-startup --disable-extensions
 			--disable-extension --inspect-extensions

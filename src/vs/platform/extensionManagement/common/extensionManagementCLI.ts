@@ -28,6 +28,18 @@ function getId(manifest: IExtensionManifest, withVersion?: boolean): string {
 	}
 }
 
+function getOrigin(extension: ILocalExtension): string {
+	if (extension.isBuiltin) {
+		return `builtin`;
+	} else if (extension.preRelease) {
+		return `prerelease`;
+	} else if (!extension.identifier.uuid) {
+		return `vscx`;
+	} else {
+		return `marketplace`;
+	}
+}
+
 type InstallVSIXInfo = { vsix: URI; installOptions: InstallOptions };
 type InstallExtensionInfo = { id: string; version?: string; installOptions: InstallOptions };
 
@@ -43,7 +55,7 @@ export class ExtensionManagementCLI {
 		return undefined;
 	}
 
-	public async listExtensions(showVersions: boolean, category?: string, profileLocation?: URI): Promise<void> {
+	public async listExtensions(showVersions: boolean, showOrigin: boolean, category?: string, profileLocation?: URI): Promise<void> {
 		let extensions = await this.extensionManagementService.getInstalled(ExtensionType.User, profileLocation);
 		const categories = EXTENSION_CATEGORIES.map(c => c.toLowerCase());
 		if (category && category !== '') {
@@ -74,7 +86,11 @@ export class ExtensionManagementCLI {
 		for (const extension of extensions) {
 			if (lastId !== extension.identifier.id) {
 				lastId = extension.identifier.id;
-				this.logger.info(getId(extension.manifest, showVersions));
+				if (showOrigin) {
+					this.logger.info(`${getId(extension.manifest, showVersions)} (${getOrigin(extension)})`);
+				} else {
+					this.logger.info(getId(extension.manifest, showVersions));
+				}
 			}
 		}
 	}

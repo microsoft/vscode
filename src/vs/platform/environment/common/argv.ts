@@ -77,6 +77,7 @@ export interface NativeParsedArgs {
 	'disable-extension'?: string[]; // undefined or array of 1 or more
 	'list-extensions'?: boolean;
 	'show-versions'?: boolean;
+	'show-origin'?: boolean;
 	'category'?: string;
 	'install-extension'?: string[]; // undefined or array of 1 or more
 	'pre-release'?: boolean;

@@ -266,7 +266,7 @@ class CliMain extends Disposable {
 
 		// List Extensions
 		if (this.argv['list-extensions']) {
-			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], this.argv['category'], profileLocation);
+			return instantiationService.createInstance(ExtensionManagementCLI, new ConsoleLogger(LogLevel.Info, false)).listExtensions(!!this.argv['show-versions'], !!this.argv['show-origin'], this.argv['category'], profileLocation);
 		}
 
 		// Install Extension

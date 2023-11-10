@@ -70,6 +70,7 @@ pub fn try_parse_legacy(
 				subcommand: ExtensionSubcommand::List(ListExtensionArgs {
 					category: get_first_arg_value("category"),
 					show_versions: args.contains_key("show-versions"),
+					show_origin: args.contains_key("show-origin"),
 				}),
 				desktop_code_options,
 			})),
@@ -117,6 +118,7 @@ mod tests {
 			"--category",
 			"themes",
 			"--show-versions",
+			"--show-origin",
 		];
 		let cli = try_parse_legacy(args).unwrap();
 

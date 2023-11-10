@@ -45,7 +45,7 @@ CommandsRegistry.registerCommand('_remoteCLI.getSystemStatus', function (accesso
 });
 
 interface ManageExtensionsArgs {
-	list?: { showVersions?: boolean; category?: string };
+	list?: { showVersions?: boolean; showOrigin?: boolean; category?: string };
 	install?: (string | URI)[];
 	uninstall?: string[];
 	force?: boolean;
@@ -68,7 +68,7 @@ CommandsRegistry.registerCommand('_remoteCLI.manageExtensions', async function (
 	const cliService = instantiationService.createChild(new ServiceCollection([IExtensionManagementService, remoteExtensionManagementService])).createInstance(RemoteExtensionManagementCLI, logger);
 
 	if (args.list) {
-		await cliService.listExtensions(!!args.list.showVersions, args.list.category, undefined);
+		await cliService.listExtensions(!!args.list.showVersions, !!args.list.showOrigin, args.list.category, undefined);
 	} else {
 		const revive = (inputs: (string | UriComponents)[]) => inputs.map(input => isString(input) ? input : URI.revive(input));
 		if (Array.isArray(args.install) && args.install.length) {

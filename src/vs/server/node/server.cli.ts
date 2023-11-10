@@ -70,6 +70,7 @@ const isSupportedForPipe = (optionId: keyof RemoteParsedArgs) => {
 		case 'list-extensions':
 		case 'force':
 		case 'show-versions':
+		case 'show-origin':
 		case 'category':
 		case 'verbose':
 		case 'remote':
@@ -221,7 +222,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			const cmdLine: string[] = [];
 			parsedArgs['install-extension']?.forEach(id => cmdLine.push('--install-extension', id));
 			parsedArgs['uninstall-extension']?.forEach(id => cmdLine.push('--uninstall-extension', id));
-			['list-extensions', 'force', 'show-versions', 'category'].forEach(opt => {
+			['list-extensions', 'force', 'show-versions', 'show-origin', 'category'].forEach(opt => {
 				const value = parsedArgs[<keyof NativeParsedArgs>opt];
 				if (value !== undefined) {
 					cmdLine.push(`--${opt}=${value}`);
@@ -296,7 +297,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 		if (parsedArgs['install-extension'] !== undefined || parsedArgs['uninstall-extension'] !== undefined || parsedArgs['list-extensions']) {
 			sendToPipe({
 				type: 'extensionManagement',
-				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], category: parsedArgs['category'] } : undefined,
+				list: parsedArgs['list-extensions'] ? { showVersions: parsedArgs['show-versions'], showOrigin: parsedArgs['show-origin'], category: parsedArgs['category'] } : undefined,
 				install: asExtensionIdOrVSIX(parsedArgs['install-extension']),
 				uninstall: asExtensionIdOrVSIX(parsedArgs['uninstall-extension']),
 				force: parsedArgs['force']

@@ -19,6 +19,7 @@ arguments=(
 	'--list-extensions[list the installed extensions]'
 	'--category[filters installed extension list by category, when using --list-extensions]'
 	'--show-versions[show versions of installed extensions, when using --list-extensions]'
+	'--show-origin[Show origin of installed extensions, when using --list-extensions]'
 	'--install-extension[install an extension]:id or path:_files -g "*.vsix(-.)"'
 	'--uninstall-extension[uninstall an extension]:id or path:_files -g "*.vsix(-.)"'
 	'--enable-proposed-api[enables proposed API features for extensions]::extension id: '

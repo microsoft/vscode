@@ -145,7 +145,7 @@ class CliMain extends Disposable {
 
 		// List Extensions
 		if (this.args['list-extensions']) {
-			return extensionManagementCLI.listExtensions(!!this.args['show-versions'], this.args['category']);
+			return extensionManagementCLI.listExtensions(!!this.args['show-versions'], !!this.args['show-origin'], this.args['category']);
 		}
 
 		// Install Extension

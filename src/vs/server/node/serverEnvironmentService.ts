@@ -64,6 +64,7 @@ export const serverOptions: OptionDescriptions<Required<ServerParsedArgs>> = {
 	'locate-extension': OPTIONS['locate-extension'],
 
 	'show-versions': OPTIONS['show-versions'],
+	'show-origin': OPTIONS['show-origin'],
 	'category': OPTIONS['category'],
 	'force': OPTIONS['force'],
 	'do-not-sync': OPTIONS['do-not-sync'],
@@ -181,6 +182,7 @@ export interface ServerParsedArgs {
 	'list-extensions'?: boolean;
 	'locate-extension'?: string[];
 	'show-versions'?: boolean;
+	'show-origin'?: boolean;
 	'category'?: string;
 	force?: boolean; // used by install-extension
 	'do-not-sync'?: boolean; // used by install-extension
