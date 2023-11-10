@@ -289,7 +289,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
-	revealActiveTerminal(): Promise<void>;
+	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
