@@ -262,7 +262,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		editorActionsToolbar.setActions([], []);
 	}
 
-	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement, options?: { disableStandardTransfer: boolean }): void {
 
 		if (e.target !== element) {
 			return; // only if originating from tabs container
@@ -303,13 +303,21 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 	}
 
+	protected isNewWindowOperation(e: DragEvent): boolean {
+		if (this.groupsView.partOptions.dragToOpenWindow) {
+			return !e.altKey;
+		}
+
+		return e.altKey;
+	}
+
 	protected onGroupDragEnd(e: DragEvent): void {
 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 	}
 
-	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent, options?: { disableStandardTransfer: boolean }): boolean {
+	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, options);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, { disableStandardTransfer: this.isNewWindowOperation(e) });
 
 			return true;
 		}

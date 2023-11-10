@@ -318,6 +318,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}));
 
 		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
 		this._register(new DragAndDropObserver(tabsContainer, {
 			onDragStart: e => {
 				this.onGroupDragStart(e, tabsContainer);
@@ -377,11 +378,31 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.remove('scroll');
 			},
 
-			onDragEnd: e => {
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
+			onDragEnd: async e => {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
 
 				this.onGroupDragEnd(e);
+
+				if (
+					!this.isNewWindowOperation(lastDragEvent ?? e) ||
+					isWindowDraggedOver()
+				) {
+					return; // drag to open is disabled
+				}
+
+				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
+					position: { x: e.screenX, y: e.screenY }
+				});
+
+				const targetGroup = auxiliaryEditorPart.activeGroup;
+				this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(lastDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
+
+				targetGroup.focus();
 			},
 
 			onDrop: e => {
@@ -1033,7 +1054,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				// Apply some datatransfer types to allow for dragging the element outside of the application
-				this.doFillResourceDataTransfers([editor], e, { disableStandardTransfer: this.isNewWindowOperation(e) });
+				this.doFillResourceDataTransfers([editor], e);
 
 				// Fixes https://github.com/microsoft/vscode/issues/18733
 				tab.classList.add('dragged');
@@ -1114,21 +1135,23 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open is disabled
 				}
 
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (!editor) {
+					return;
+				}
+
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
 					position: { x: e.screenX, y: e.screenY }
 				});
 
-				const editor = this.tabsModel.getEditorByIndex(tabIndex);
 				const targetGroup = auxiliaryEditorPart.activeGroup;
-				if (editor) {
-					if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {
-						this.groupView.moveEditor(editor, targetGroup);
-					} else {
-						this.groupView.copyEditor(editor, targetGroup);
-					}
-
-					targetGroup.focus();
+				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {
+					this.groupView.moveEditor(editor, targetGroup);
+				} else {
+					this.groupView.copyEditor(editor, targetGroup);
 				}
+
+				targetGroup.focus();
 			},
 
 			onDrop: e => {
@@ -2127,14 +2150,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return (!isCopy || sourceGroup === this.groupView.id);
-	}
-
-	private isNewWindowOperation(e: DragEvent): boolean {
-		if (this.groupsView.partOptions.dragToOpenWindow) {
-			return !e.altKey;
-		}
-
-		return e.altKey;
 	}
 
 	override dispose(): void {
