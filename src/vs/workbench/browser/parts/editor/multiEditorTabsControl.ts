@@ -1115,7 +1115,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-					position: { x: e.screenX, y: e.screenY, width: 800, height: 600 }
+					position: { x: e.screenX, y: e.screenY }
 				});
 
 				const editor = this.tabsModel.getEditorByIndex(tabIndex);
