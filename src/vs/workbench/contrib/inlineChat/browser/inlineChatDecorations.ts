@@ -126,32 +126,27 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
-		const selectionIsEmpty = selection.isEmpty();
 		const startLineNumber = selection.startLineNumber;
 		const model = editor.getModel();
-		const uri = model.uri;
-
-		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
 
 		let isEnabled = false;
-		if (selectionIsEmpty) {
-			if (/^\s*$/g.test(model.getLineContent(startLineNumber))) {
-				isEnabled = true;
+		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: startLineNumber }).length > 0;
+		if (!hasBreakpoint) {
+			const selectionIsEmpty = selection.isEmpty();
+			if (selectionIsEmpty) {
+				if (/^\s*$/g.test(model.getLineContent(startLineNumber))) {
+					isEnabled = true;
+				}
+			} else {
+				const startPosition = selection.getStartPosition();
+				const endPosition = selection.getEndPosition();
+				const startWord = model.getWordAtPosition(startPosition);
+				const endWord = model.getWordAtPosition(endPosition);
+				const isFirstWordCoveredOrNull = !!startWord ? startPosition.column <= startWord.startColumn : true;
+				const isLastWordCoveredOrNull = !!endWord ? endPosition.column >= endWord.endColumn : true;
+				isEnabled = isFirstWordCoveredOrNull && isLastWordCoveredOrNull;
 			}
-		} else {
-			const startPosition = selection.getStartPosition();
-			const endPosition = selection.getEndPosition();
-			const startWord = model.getWordAtPosition(startPosition);
-			const endWord = model.getWordAtPosition(endPosition);
-			const isFirstWordCoveredOrNull = !!startWord ? startPosition.column <= startWord.startColumn : true;
-			const isLastWordCoveredOrNull = !!endWord ? endPosition.column >= endWord.endColumn : true;
-			isEnabled = isFirstWordCoveredOrNull && isLastWordCoveredOrNull;
-
 		}
-
-		// const isEnabled = !hasBreakpoint &&
-		// 	(selectionIsEmpty && /^\s*$/g.test(model.getLineContent(startLineNumber))
-		// 		|| !selectionIsEmpty && shouldBeVisibleOnNonEmptySelection);
 
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
