@@ -61,8 +61,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			}
 			this._onEnablementOrModelChanged();
 		}));
-		this._register(this._inlineChatSessionService.onWillStartSession(() => this._localToDispose.clear()));
-		this._register(this._inlineChatSessionService.onDidEndSession(() => this._onEnablementOrModelChanged()));
+		this._register(this._inlineChatSessionService.onWillStartSession((e) => (e === this._editor) && this._onEnablementOrModelChanged(true)));
+		this._register(this._inlineChatSessionService.onDidEndSession((e) => (e === this._editor) && this._onEnablementOrModelChanged()));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
@@ -97,10 +97,10 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._currentBreakpoints = [...this._debugService.getModel().getBreakpoints({ uri })];
 	}
 
-	private _onEnablementOrModelChanged(): void {
+	private _onEnablementOrModelChanged(executeOnlyDisposal: boolean = false): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (executeOnlyDisposal || !this._editor.hasModel() || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
