@@ -558,7 +558,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const cellToolbarLocation = this._notebookOptions.computeCellToolbarLocation(this.viewModel?.viewType);
 		this._overlayContainer.classList.add(`cell-title-toolbar-${cellToolbarLocation}`);
 
-		const cellToolbarInteraction = this._notebookOptions.getLayoutConfiguration().cellToolbarInteraction;
+		const cellToolbarInteraction = this._notebookOptions.getDisplayOptions().cellToolbarInteraction;
 		let cellToolbarInteractionState = 'hover';
 		this._overlayContainer.classList.remove('cell-toolbar-hover');
 		this._overlayContainer.classList.remove('cell-toolbar-click');
@@ -619,15 +619,18 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			markdownCellBottomMargin,
 			markdownCellTopMargin,
 			collapsedIndicatorHeight,
-			compactView,
 			focusIndicator,
 			insertToolbarPosition,
-			insertToolbarAlignment,
-			fontSize,
 			outputFontSize,
 			focusIndicatorLeftMargin,
 			focusIndicatorGap
 		} = this._notebookOptions.getLayoutConfiguration();
+
+		const {
+			insertToolbarAlignment,
+			compactView,
+			fontSize
+		} = this._notebookOptions.getDisplayOptions();
 
 		const getCellEditorContainerLeftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 

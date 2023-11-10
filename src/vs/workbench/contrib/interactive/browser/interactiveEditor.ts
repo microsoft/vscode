@@ -219,10 +219,12 @@ export class InteractiveEditor extends EditorPane {
 		const styleSheets: string[] = [];
 
 		const {
-			focusIndicator,
 			codeCellLeftMargin,
 			cellRunGutter
 		} = this._notebookOptions.getLayoutConfiguration();
+		const {
+			focusIndicator
+		} = this._notebookOptions.getDisplayOptions();
 		const leftMargin = this._notebookOptions.getCellEditorContainerLeftMargin();
 
 		styleSheets.push(`
