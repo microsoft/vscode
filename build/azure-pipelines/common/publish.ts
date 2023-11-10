@@ -5,6 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
+import * as https from 'https';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import * as yauzl from 'yauzl';
@@ -68,6 +69,18 @@ class State {
 	}
 }
 
+const azdoOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } };
+
+function requestAZDOAPI<T>(path: string): Promise<T> {
+	return new Promise((resolve, reject) => {
+		https.get(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoOptions, res => {
+			const chunks: Buffer[] = [];
+			res.on('data', chunk => chunks.push(chunk));
+			res.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
+		}).on('error', reject);
+	});
+}
+
 interface Artifact {
 	readonly name: string;
 	readonly resource: {
@@ -79,50 +92,30 @@ interface Artifact {
 }
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
-	const res = await fetch(`${e('BUILDS_API_URL')}artifacts?api-version=6.0`, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
-
-	if (!res.ok) {
-		throw new Error(`Failed to fetch artifacts: ${res.statusText}`);
-	}
-
-	const { value: artifacts } = await res.json() as { readonly value: Artifact[] };
-	return artifacts.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
-}
-
-interface TimelineRecord {
-	readonly name: string;
-	readonly type: string;
-	readonly state: string;
+	const result = await retry(() => requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts'));
+	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
 interface Timeline {
-	readonly records: TimelineRecord[];
+	readonly records: {
+		readonly name: string;
+		readonly type: string;
+		readonly state: string;
+	}[];
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
-	return await retry(async () => {
-		const res = await fetch(`${e('BUILDS_API_URL')}timeline?api-version=6.0`, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
-
-		if (!res.ok) {
-			throw new Error(`Failed to fetch artifacts: ${res.statusText}`);
-		}
-
-		const result = await res.json() as Timeline;
-		return result;
-	});
+	return await retry(() => requestAZDOAPI<Timeline>('timeline'));
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
 	return await retry(async () => {
-		const res = await fetch(artifact.resource.downloadUrl, { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } });
-
-		if (!res.ok) {
-			throw new Error(`Failed to download artifact: ${res.statusText}`);
-		}
-
-		const istream = Readable.fromWeb(res.body as any);
-		const ostream = fs.createWriteStream(downloadPath);
-		await finished(istream.pipe(ostream));
+		return new Promise((resolve, reject) => {
+			https.get(artifact.resource.downloadUrl, azdoOptions, res => {
+				const ostream = fs.createWriteStream(downloadPath);
+				finished(res.pipe(ostream)).then(resolve, reject);
+			}).on('error', reject);
+		});
 	});
 }
 
