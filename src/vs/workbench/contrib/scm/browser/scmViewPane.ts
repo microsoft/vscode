@@ -787,11 +787,23 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		templateData.iconLabel.setLabel(historyItem.label, historyItem.description);
 
 		if (historyItem.statistics?.files || historyItem.statistics?.insertions || historyItem.statistics?.deletions) {
+			const statsLabelTitle: string[] = [];
 			const filesLabel = historyItem.statistics?.files ? `${historyItem.statistics.files}$(files)` : '';
-			const additionsLabel = historyItem.statistics?.insertions ? ` ${historyItem.statistics.insertions}$(diff-added)` : '';
-			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
+			if (filesLabel !== '') {
+				statsLabelTitle.push(`${historyItem.statistics.files} ${historyItem.statistics.files === 1 ? 'file' : 'files'} changed`);
+			}
 
-			templateData.statsLabel.setLabel(`${filesLabel}${additionsLabel}${deletionsLabel}`);
+			const insertionsLabel = historyItem.statistics?.insertions ? ` ${historyItem.statistics.insertions}$(diff-added)` : '';
+			if (insertionsLabel !== '') {
+				statsLabelTitle.push(`${historyItem.statistics.insertions} insertions(+)`);
+			}
+
+			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
+			if (deletionsLabel !== '') {
+				statsLabelTitle.push(`${historyItem.statistics.deletions} deletions(-)`);
+			}
+
+			templateData.statsLabel.setLabel(`${filesLabel}${insertionsLabel}${deletionsLabel}`, undefined, { title: statsLabelTitle.join(', ') });
 			templateData.statsContainer.style.display = '';
 		} else {
 			templateData.statsContainer.style.display = 'none';
