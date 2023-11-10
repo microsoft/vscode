@@ -154,7 +154,7 @@ const configuration: IConfigurationNode = {
 			tags: ['accessibility']
 		},
 		[AccessibilityVoiceSettingId.SpeechTimeout]: {
-			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking.For example in a chat, after the timeout is met, the text maybe submitted automatically. Set to `0` to disable this feature."),
+			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking. For example in a chat session the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
 			'type': 'number',
 			'default': SpeechTimeoutDefault,
 			'minimum': 0,
