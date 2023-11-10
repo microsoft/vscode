@@ -1125,7 +1125,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				}
 
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-					position: { x: e.screenX, y: e.screenY }
+					bounds: { x: e.screenX, y: e.screenY }
 				});
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;

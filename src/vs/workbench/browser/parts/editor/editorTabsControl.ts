@@ -328,7 +328,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		}
 
 		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-			position: { x: e.screenX, y: e.screenY }
+			bounds: { x: e.screenX, y: e.screenY }
 		});
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
