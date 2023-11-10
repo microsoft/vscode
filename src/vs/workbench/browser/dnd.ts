@@ -219,9 +219,8 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 		return resourceOrEditor;
 	}));
 
+	const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
 	if (!options?.disableStandardTransfer) {
-
-		const fileSystemResources = resources.filter(({ resource }) => fileService.hasProvider(resource));
 
 		// Text: allows to paste into text-capable areas
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
@@ -239,12 +238,12 @@ export function fillEditorsDragData(accessor: ServicesAccessor, resourcesOrEdito
 				event.dataTransfer.setData(DataTransfers.DOWNLOAD_URL, [Mimes.binary, basename(firstFile.resource), firstFileUri.toString()].join(':'));
 			}
 		}
+	}
 
-		// Resource URLs: allows to drop multiple file resources to a target in VS Code
-		const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
-		if (files.length) {
-			event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
-		}
+	// Resource URLs: allows to drop multiple file resources to a target in VS Code
+	const files = fileSystemResources.filter(({ isDirectory }) => !isDirectory);
+	if (files.length) {
+		event.dataTransfer.setData(DataTransfers.RESOURCES, JSON.stringify(files.map(({ resource }) => resource.toString())));
 	}
 
 	// Contributions
