@@ -37,6 +37,7 @@ import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEdito
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
 import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
 import { MarkerDecorationsContribution } from 'vs/editor/browser/services/markerDecorations';
+import { ModesHoverController } from 'vs/editor/contrib/hover/browser/hover';
 
 const $ = dom.$;
 
@@ -127,7 +128,8 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
 				MarkerController.ID,
-				MarkerDecorationsContribution.ID
+				MarkerDecorationsContribution.ID,
+				ModesHoverController.ID
 			])
 		}));
 
