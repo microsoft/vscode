@@ -52,7 +52,7 @@ export class ContextMenuHandler {
 		const shadowRootElement = delegate.domForShadowRoot instanceof HTMLElement ? delegate.domForShadowRoot : undefined;
 		this.contextViewService.showContextView({
 			getAnchor: () => delegate.getAnchor(),
-			canRelayout: false,
+			canRelayout: true,
 			anchorAlignment: delegate.anchorAlignment,
 			anchorAxisAlignment: delegate.anchorAxisAlignment,
 
