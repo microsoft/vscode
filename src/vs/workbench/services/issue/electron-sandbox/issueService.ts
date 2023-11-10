@@ -25,6 +25,7 @@ import { IWorkbenchExtensionEnablementService } from 'vs/workbench/services/exte
 import { ImplicitActivationAwareReader } from 'vs/workbench/services/extensions/common/abstractExtensionService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
+import { ILogService } from 'vs/platform/log/common/log';
 import { IIssueDataProvider, IIssueUriRequestHandler, IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
 
 export class NativeIssueService implements IWorkbenchIssueService {
@@ -46,6 +47,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@IIntegrityService private readonly integrityService: IIntegrityService,
 		@IExtensionService private readonly extensionService: IExtensionService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		ipcRenderer.on('vscode:triggerIssueUriRequestHandler', async (event: unknown, request: { replyChannel: string; extensionId: string }) => {
 			const result = await this.getIssueReporterUri(request.extensionId, CancellationToken.None);
@@ -70,7 +72,7 @@ export class NativeIssueService implements IWorkbenchIssueService {
 						try {
 							await this.extensionService.activateById(extension.identifier, { startup: false, extensionId: extension.identifier, activationEvent: eventName });
 						} catch (e) {
-							console.error(`Error activating extension ${extensionId}: ${e}`);
+							this.logService.error(`Error activating extension ${extensionId}: ${e}`);
 						}
 						break;
 					}
