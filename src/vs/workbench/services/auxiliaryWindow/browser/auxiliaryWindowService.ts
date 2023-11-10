@@ -33,7 +33,7 @@ export interface IAuxiliaryWindowService {
 
 	hasWindow(windowId: number): boolean;
 
-	open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow>;
+	open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow>;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -77,7 +77,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		super();
 	}
 
-	async open(options?: { position?: IRectangle }): Promise<IAuxiliaryWindow> {
+	async open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow> {
 		mark('code/auxiliaryWindow/willOpen');
 
 		const disposables = new DisposableStore();
@@ -114,19 +114,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return result;
 	}
 
-	private async doOpen(options?: { position?: IRectangle }): Promise<CodeWindow | undefined> {
-		let position: IRectangle | undefined = options?.position;
-		if (!position) {
-			const activeWindow = getActiveWindow();
-			position = {
-				x: activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
-				y: activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
-				width: BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
-				height: BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
-			};
-		}
+	private async doOpen(options?: { bounds?: Partial<IRectangle> }): Promise<CodeWindow | undefined> {
+		const activeWindow = getActiveWindow();
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
+		const bounds: IRectangle = {
+			x: options?.bounds?.x ?? activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
+			y: options?.bounds?.y ?? activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
+			width: options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
+			height: options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+		};
+
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -135,7 +133,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
-						run: () => this.doOpen(options)
+						run: () => this.doOpen({ bounds })
 					}
 				],
 				cancelButton: true
@@ -162,7 +160,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
-		const originalCSPMetaTag = document.querySelector('meta[http-equiv="Content-Security-Policy"]');
+		const originalCSPMetaTag = mainWindow.document.querySelector('meta[http-equiv="Content-Security-Policy"]');
 		if (originalCSPMetaTag) {
 			const csp = createMetaElement(auxiliaryWindow.document.head);
 			copyAttributes(originalCSPMetaTag, csp);
@@ -189,7 +187,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 
 		// Clone all style elements and stylesheet links from the window to the child window
-		for (const originalNode of document.head.querySelectorAll('link[rel="stylesheet"], style')) {
+		for (const originalNode of mainWindow.document.head.querySelectorAll('link[rel="stylesheet"], style')) {
 			cloneNode(originalNode);
 		}
 
@@ -200,7 +198,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 		// Listen to new stylesheets as they are being added or removed in the main window
 		// and apply to child window (including changes to existing stylesheets elements)
-		disposables.add(sharedMutationObserver.observe(document.head, disposables, { childList: true, subtree: true })(mutations => {
+		disposables.add(sharedMutationObserver.observe(mainWindow.document.head, disposables, { childList: true, subtree: true })(mutations => {
 			for (const mutation of mutations) {
 				if (
 					mutation.type !== 'childList' ||						// only interested in added/removed nodes
@@ -248,8 +246,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		auxiliaryWindow.document.body.append(container);
 
 		// Track attributes
-		disposables.add(trackAttributes(document.documentElement, auxiliaryWindow.document.documentElement));
-		disposables.add(trackAttributes(document.body, auxiliaryWindow.document.body));
+		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
+		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
 		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
 
 		mark('code/auxiliaryWindow/didApplyHTML');

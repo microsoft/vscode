@@ -118,6 +118,7 @@ export const enum TerminalSettingId {
 	FocusAfterRun = 'terminal.integrated.focusAfterRun',
 	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
 	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
+	EnableStickyScroll = 'terminal.integrated.enableStickyScroll',
 
 	// Debug settings that are hidden from user
 
