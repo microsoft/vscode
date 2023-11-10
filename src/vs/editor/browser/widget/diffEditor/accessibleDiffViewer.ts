@@ -12,7 +12,7 @@ import { forEachAdjacent, groupAdjacentBy } from 'vs/base/common/arrays';
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, DisposableStore, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, recomputeInitiallyAndOnChange, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
+import { IObservable, ITransaction, autorun, autorunWithStore, derived, derivedWithStore, observableValue, subtransaction, transaction } from 'vs/base/common/observable';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { applyFontInfo } from 'vs/editor/browser/config/domFontInfo';
 import { DiffEditorEditors } from 'vs/editor/browser/widget/diffEditor/diffEditorEditors';
