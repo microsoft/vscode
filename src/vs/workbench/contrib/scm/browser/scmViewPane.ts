@@ -1657,6 +1657,51 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class HistoryItemViewChangesAction extends Action2 {
+
+	constructor() {
+		super({
+			id: `workbench.scm.action.historyItemViewChanges`,
+			title: localize('historyItemViewChanges', "View Changes"),
+			icon: Codicon.search,
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItem,
+				group: 'inline'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, historyItem: SCMHistoryItemTreeElement): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		const historyProvider = historyItem.historyItemGroup.repository.provider.historyProvider;
+		if (!historyProvider) {
+			return;
+		}
+
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id);
+		if (!historyItemChanges || historyItemChanges.length === 0) {
+			return;
+		}
+
+		let [originalRef, modifiedRef] = historyItem.id.includes('..')
+			? historyItem.id.split('..') : [undefined, historyItem.id];
+
+		if (!originalRef) {
+			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${modifiedRef}^`;
+		}
+
+		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef.substring(0, 8), modifiedRef.substring(0, 8));
+		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
+
+		return commandService.executeCommand('_workbench.changes', title, args);
+	}
+
+}
+
+registerAction2(HistoryItemViewChangesAction);
+
 class SCMInputWidget {
 
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
