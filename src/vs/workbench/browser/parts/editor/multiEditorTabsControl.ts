@@ -1031,7 +1031,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// the element outside of the application only when
 			// Shift-key is pressed, otherwise disable to support
 			// opening auxillary editor groups.
-			if (e.altKey) {
+			if (!this.isNewWindowOperation(e)) {
 				this.doFillResourceDataTransfers([editor], e);
 			}
 
@@ -1110,8 +1110,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 
-				if ((lastDragEvent?.altKey ?? e.altKey) || isWindowDraggedOver()) {
-					return; // disable aux windows with shift key
+				if (
+					!this.isNewWindowOperation(lastDragEvent ?? e) ||
+					isWindowDraggedOver()
+				) {
+					return; // drag to open is disabled
 				}
 
 				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
@@ -2119,7 +2122,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
-	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput) {
+	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
 		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
 			return true; // Singleton editors cannot be split
 		}
@@ -2127,6 +2130,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 
 		return (!isCopy || sourceGroup === this.groupView.id);
+	}
+
+	private isNewWindowOperation(e: DragEvent): boolean {
+		if (this.groupsView.partOptions.dragToOpenWindow) {
+			return !e.altKey;
+		}
+
+		return e.altKey;
 	}
 
 	override dispose(): void {

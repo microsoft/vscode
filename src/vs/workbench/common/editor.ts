@@ -1145,6 +1145,7 @@ interface IEditorPartConfiguration {
 	splitInGroupLayout?: 'vertical' | 'horizontal';
 	splitSizing?: 'auto' | 'split' | 'distribute';
 	splitOnDragAndDrop?: boolean;
+	dragToOpenWindow?: boolean;
 	centeredLayoutFixedWidth?: boolean;
 	doubleClickTabToToggleEditorGroupSizes?: 'maximize' | 'expand' | 'off';
 	editorActionsLocation?: 'default' | 'titleBar' | 'hidden';
