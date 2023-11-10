@@ -25,9 +25,6 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
 import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
-import { getDeclarationsAtPosition, getDefinitionsAtPosition, getImplementationsAtPosition, getReferencesAtPosition } from 'vs/editor/contrib/gotoSymbol/browser/goToSymbol';
-import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
@@ -51,8 +48,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IDebugService private readonly _debugService: IDebugService,
-		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService
+		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
@@ -131,37 +127,24 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 
 	private async _onSelectionOrContentChanged(editor: IActiveCodeEditor): Promise<void> {
 		const selection = editor.getSelection();
+		const selectionIsEmpty = selection.isEmpty();
 		const model = editor.getModel();
 		const uri = model.uri;
+
 		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, uri);
 		const startLineNumber = selection.startLineNumber;
 		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
-		// Should be enabled also when covering completely a word of interest
+
 		const startPosition = selection.getStartPosition();
 		const endPosition = selection.getEndPosition();
-
 		const startWord = this._editor.getConfiguredWordAtPosition(startPosition);
 		const endWord = this._editor.getConfiguredWordAtPosition(endPosition);
-		console.log('startWord : ', startWord);
-		console.log('endWord : ', endWord);
+		const shouldBeVisibleOnNonEmptySelection = startWord && endWord && startPosition.column <= startWord.startColumn && endPosition.column >= endWord.endColumn;
 
-		let shouldBeVisibleOnNonEmptySelection = false;
-		if (startWord && endWord && startPosition.column <= startWord.startColumn && endPosition.column >= endWord.endColumn) {
-			console.log('in the case when we would show the sparkle');
-			shouldBeVisibleOnNonEmptySelection = true;
-		}
+		const isEnabled = !isInlineChatVisible && !hasBreakpoint &&
+			(selectionIsEmpty && /^\s*$/g.test(model.getLineContent(startLineNumber))
+				|| !selectionIsEmpty && shouldBeVisibleOnNonEmptySelection);
 
-		const references = await getReferencesAtPosition(this.languageFeaturesService.referenceProvider, model, startPosition, false, CancellationToken.None);
-		const definitions = await getDefinitionsAtPosition(this.languageFeaturesService.definitionProvider, model, startPosition, CancellationToken.None);
-		const implementations = await getImplementationsAtPosition(this.languageFeaturesService.implementationProvider, model, startPosition, CancellationToken.None);
-		const declarations = await getDeclarationsAtPosition(this.languageFeaturesService.declarationProvider, model, startPosition, CancellationToken.None);
-
-		console.log('references : ', references);
-		console.log('definitions : ', definitions);
-		console.log('implementations : ', implementations);
-		console.log('declarations : ', declarations);
-		//
-		const isEnabled = (selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) || !selection.isEmpty() && shouldBeVisibleOnNonEmptySelection) && !isInlineChatVisible && !hasBreakpoint;
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(startLineNumber);
