@@ -444,6 +444,8 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		cwd: '',
 		commandStartLineContent: '',
 		markProperties: {},
+		executedX: undefined,
+		startX: undefined,
 		command,
 		isTrusted: true,
 		exitCode,
