@@ -208,7 +208,7 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		let scrollState: StableEditorScrollState | undefined;
 		this._register(applyViewZones(this._editors.modified, modifiedViewZones, isUpdatingModViewZones => {
 			isUpdatingViewZones = isUpdatingModViewZones;
-			if (!isUpdatingViewZones) {
+			if (isUpdatingViewZones) {
 				scrollState = StableEditorScrollState.capture(this._editors.modified);
 			} else {
 				scrollState?.restore(this._editors.modified);
