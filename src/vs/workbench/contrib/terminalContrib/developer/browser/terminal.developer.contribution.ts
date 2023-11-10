@@ -166,7 +166,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					}
 					if (command.marker) {
 						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.marker
+							marker: command.marker,
+							x: command.startX
 						});
 						d?.onRender(e => {
 							e.textContent = 'B';
@@ -175,7 +176,8 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 					}
 					if (command.executedMarker) {
 						const d = this._instance.xterm!.raw?.registerDecoration({
-							marker: command.executedMarker
+							marker: command.executedMarker,
+							x: command.executedX
 						});
 						d?.onRender(e => {
 							e.textContent = 'C';

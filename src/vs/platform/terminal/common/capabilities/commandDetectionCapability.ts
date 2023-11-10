@@ -603,6 +603,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			command = '';
 		}
 
+		if (this._isWindowsPty) {
+			this._postHandleCommandFinishedWindows();
+		}
+
 		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
 			const buffer = this._terminal.buffer.active;
 			const timestamp = Date.now();
@@ -613,8 +617,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				isTrusted: !!this._currentCommand.isTrusted,
 				promptStartMarker: this._currentCommand.promptStartMarker,
 				marker: this._currentCommand.commandStartMarker,
+				startX: this._currentCommand.commandStartX,
 				endMarker,
 				executedMarker,
+				executedX: this._currentCommand.commandExecutedX,
 				timestamp,
 				cwd: this._cwd,
 				exitCode: this._exitCode,
@@ -675,6 +681,60 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		this._onCommandExecuted.fire();
 	}
 
+	private _postHandleCommandFinishedWindows(): void {
+		const command = this._currentCommand.command;
+		const commandLine = this._currentCommand.commandStartMarker?.line;
+		const executedLine = this._currentCommand.commandExecutedMarker?.line;
+		if (
+			!command || command.length === 0 ||
+			commandLine === undefined || commandLine === -1 ||
+			executedLine === undefined || executedLine === -1
+		) {
+			return;
+		}
+
+		// Scan downwards from the command start line and search for every character in the actual
+		// command line. This may end up matching the wrong characters, but it shouldn't matter at
+		// least in the typical case as the entire command will still get matched.
+		let current = 0;
+		let found = false;
+		for (let i = commandLine; i <= executedLine; i++) {
+			const line = this._terminal.buffer.active.getLine(i);
+			if (!line) {
+				break;
+			}
+			const text = line.translateToString(true);
+			for (let j = 0; j < text.length; j++) {
+				// Skip whitespace in case it was not actually rendered or could be trimmed from the
+				// end of the line
+				while (command.length < current && command[current] === ' ') {
+					current++;
+				}
+
+				// Character match
+				if (text[j] === command[current]) {
+					current++;
+				}
+
+				// Full command match
+				if (current === command.length) {
+					// It's ambiguous whether the command executed marker should ideally appear at
+					// the end of the line or at the beginning of the next line. Since it's more
+					// useful for extracting the command at the end of the current line we go with
+					// that.
+					const wrapsToNextLine = j >= this._terminal.cols - 1;
+					this._currentCommand.commandExecutedMarker = this._terminal.registerMarker(i - (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY) + (wrapsToNextLine ? 1 : 0));
+					this._currentCommand.commandExecutedX = wrapsToNextLine ? 0 : j + 1;
+					found = true;
+					break;
+				}
+			}
+			if (found) {
+				break;
+			}
+		}
+	}
+
 	setCommandLine(commandLine: string, isTrusted: boolean) {
 		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
 		this._currentCommand.command = commandLine;
@@ -689,6 +749,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				startX: undefined,
 				endLine: e.endMarker?.line,
 				executedLine: e.executedMarker?.line,
+				executedX: e.executedX,
 				command: this.__isCommandStorageDisabled ? '' : e.command,
 				isTrusted: e.isTrusted,
 				cwd: e.cwd,
@@ -706,6 +767,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				startX: this._currentCommand.commandStartX,
 				endLine: undefined,
 				executedLine: undefined,
+				executedX: undefined,
 				command: '',
 				isTrusted: true,
 				cwd: this._cwd,
@@ -752,8 +814,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				isTrusted: e.isTrusted,
 				promptStartMarker,
 				marker,
+				startX: e.startX,
 				endMarker,
 				executedMarker,
+				executedX: e.executedX,
 				timestamp: e.timestamp,
 				cwd: e.cwd,
 				commandStartLineContent: e.commandStartLineContent,
