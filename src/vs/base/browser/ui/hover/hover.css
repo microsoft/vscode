@@ -110,6 +110,8 @@
 }
 
 .monaco-hover .hover-row.status-bar {
+	position: sticky;
+	bottom: 0;
 	font-size: 12px;
 	line-height: 22px;
 }
