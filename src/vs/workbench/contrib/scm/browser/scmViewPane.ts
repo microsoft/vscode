@@ -1739,11 +1739,8 @@ class SCMInputWidget {
 				return;
 			}
 
-			if (currentValue !== '') {
-				this.inputEditor.pushUndoStop();
-			}
-			this.inputEditor.executeEdits(null, [EditOperation.replace(textModel.getFullModelRange(), value)]);
-			this.inputEditor.pushUndoStop();
+			textModel.pushStackElement();
+			textModel.pushEditOperations(null, [EditOperation.replaceMove(textModel.getFullModelRange(), value)], () => []);
 
 			const position = reason === SCMInputChangeReason.HistoryPrevious
 				? textModel.getFullModelRange().getStartPosition()
