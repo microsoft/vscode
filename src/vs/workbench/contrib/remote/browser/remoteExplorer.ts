@@ -221,7 +221,7 @@ export class AutomaticPortForwarding extends Disposable implements IWorkbenchCon
 	}
 
 	private listenForPorts() {
-		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid()) {
+		if (this.procForwarder && !this.portListener && this.canFallbackToHybrid() && this.configurationService.getValue(PORT_AUTO_SOURCE_SETTING) === PORT_AUTO_SOURCE_SETTING_PROCESS) {
 			this.portListener = this._register(this.remoteExplorerService.tunnelModel.onForwardPort(async () => {
 				if (this.procForwarder?.forwarded && this.procForwarder.forwarded.size > 20) {
 					await this.configurationService.updateValue(PORT_AUTO_SOURCE_SETTING, PORT_AUTO_SOURCE_SETTING_HYBRID);
