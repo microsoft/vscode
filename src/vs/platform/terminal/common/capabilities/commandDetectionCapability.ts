@@ -123,7 +123,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// Set up platform-specific behaviors
 		const that = this;
-		this._ptyHeuristicsHooks = new class {
+		this._ptyHeuristicsHooks = new class implements ICommandDetectionHeuristicsHooks {
 			get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
 			get onCommandStartedEmitter() { return that._onCommandStarted; }
 			get onCommandExecutedEmitter() { return that._onCommandExecuted; }
@@ -131,7 +131,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
-			get clearCommandsInViewport() { return that._clearCommandsInViewport; }
+			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
 		};
 		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
 
@@ -550,7 +550,7 @@ class UnixPtyHeuristics extends Disposable {
 		this._logService.debug('CommandDetectionCapability#handleCommandStart', currentCommand.commandStartX, currentCommand.commandStartMarker?.line);
 	}
 
-	async handleCommandExecuted(options?: IHandleCommandOptions) {
+	handleCommandExecuted(options?: IHandleCommandOptions) {
 		const currentCommand = this._capability.currentCommand;
 		currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
 		currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
@@ -726,16 +726,19 @@ class WindowsPtyHeuristics extends Disposable {
 		this._commandStartedWindowsBarrier.open();
 	}
 
-	async handleCommandExecuted(options: IHandleCommandOptions | undefined) {
-		await this._commandStartedWindowsBarrier?.wait();
+	handleCommandExecuted(options: IHandleCommandOptions | undefined) {
+		// TODO: Flush here?
+		// await this._commandStartedWindowsBarrier?.wait();
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers
 		this._onCursorMoveListener.clear();
+		this._evaluateCommandMarkers();
 		this._capability.currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._hooks.onCommandExecutedEmitter.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._capability.currentCommand.commandExecutedX, this._capability.currentCommand.commandExecutedMarker?.line);
 	}
 
-
-	async preHandleCommandFinished(): Promise<void> {
+	preHandleCommandFinished() {
 		if (this._capability.currentCommand.commandExecutedMarker) {
 			return;
 		}
