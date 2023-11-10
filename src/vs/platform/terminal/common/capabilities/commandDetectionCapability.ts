@@ -6,7 +6,7 @@
 import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable, MandatoryMutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
@@ -129,11 +129,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			get onCommandStartedEmitter() { return that._onCommandStarted; }
 			get onCommandExecutedEmitter() { return that._onCommandExecuted; }
 			get dimensions() { return that._dimensions; }
+			get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
 			get commandMarkers() { return that._commandMarkers; }
 			set commandMarkers(value) { that._commandMarkers = value; }
 			get clearCommandsInViewport() { return that._clearCommandsInViewport; }
 		};
-		this._ptyHeuristics = new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this._ptyHeuristicsHooks));
+		this._ptyHeuristics = new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService));
 
 		this._dimensions = {
 			cols: this._terminal.cols,
@@ -141,11 +142,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		};
 		this._register(this._terminal.onResize(e => this._handleResize(e)));
 		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
-		this._setupClearListeners();
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
-		this._ptyHeuristics.value?.preHandleResize?.(e);
+		this._ptyHeuristics.value.preHandleResize?.(e);
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
 	}
@@ -171,24 +171,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
-	// TODO: move this into UnixPtyHeuristics
-	private _setupClearListeners() {
-		// Setup listeners for when clear is run in the shell. Since we don't know immediately if
-		// this is a Windows pty, listen to both routes and do the Windows check inside them
-
-		// For non-Windows backends we can just listen to CSI J which is what the clear command
-		// typically emits.
-		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			if (!this._isWindowsPty) {
-				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-					this._clearCommandsInViewport();
-				}
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		});
-	}
-
 	private _clearCommandsInViewport(): void {
 		// Find the number of commands on the tail end of the array that are within the viewport
 		let count = 0;
@@ -210,26 +192,25 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	setIsWindowsPty(value: boolean) {
-		if (!!this._ptyHeuristics.value !== value) {
-			if (value && !(this._ptyHeuristics instanceof WindowsPtyHeuristics)) {
-				const that = this;
-				this._ptyHeuristics.value = new WindowsPtyHeuristics(
-					this._terminal,
-					this,
-					new class {
-						get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
-						get onCommandStartedEmitter() { return that._onCommandStarted; }
-						get onCommandExecutedEmitter() { return that._onCommandExecuted; }
-						get dimensions() { return that._dimensions; }
-						get commandMarkers() { return that._commandMarkers; }
-						set commandMarkers(value) { that._commandMarkers = value; }
-						get clearCommandsInViewport() { return that._clearCommandsInViewport; }
-					},
-					this._logService
-				);
-			} else if (!value && !(this._ptyHeuristics instanceof UnixPtyHeuristics)) {
-				this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this._ptyHeuristicsHooks);
-			}
+		if (value && !(this._ptyHeuristics.value instanceof WindowsPtyHeuristics)) {
+			const that = this;
+			this._ptyHeuristics.value = new WindowsPtyHeuristics(
+				this._terminal,
+				this,
+				new class {
+					get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
+					get onCommandStartedEmitter() { return that._onCommandStarted; }
+					get onCommandExecutedEmitter() { return that._onCommandExecuted; }
+					get dimensions() { return that._dimensions; }
+					get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
+					get commandMarkers() { return that._commandMarkers; }
+					set commandMarkers(value) { that._commandMarkers = value; }
+					get clearCommandsInViewport() { return that._clearCommandsInViewport; }
+				},
+				this._logService
+			);
+		} else if (!value && !(this._ptyHeuristics.value instanceof UnixPtyHeuristics)) {
+			this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService);
 		}
 		this._isWindowsPty = value;
 	}
@@ -356,39 +337,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	handleCommandExecuted(options?: IHandleCommandOptions): void {
-		if (this._ptyHeuristics.value) {
-			this._ptyHeuristics.value.handleCommandExecuted?.();
-			return;
-		}
-
-		this._currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
-		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
-		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-
-		// Sanity check optional props
-		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
-			return;
-		}
-
-		// Calculate the command
-		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
-		let y = this._currentCommand.commandStartMarker.line + 1;
-		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
-		for (; y < commandExecutedLine; y++) {
-			const line = this._terminal.buffer.active.getLine(y);
-			if (line) {
-				const continuation = this._currentCommand.continuations?.find(e => e.marker.line === y);
-				if (continuation) {
-					this._currentCommand.command += '\n';
-				}
-				const startColumn = continuation?.end ?? 0;
-				this._currentCommand.command += line.translateToString(true, startColumn);
-			}
-		}
-		if (y === commandExecutedLine) {
-			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
-		}
-		this._onCommandExecuted.fire();
+		this._ptyHeuristics.value.handleCommandExecuted(options);
 	}
 
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
@@ -567,30 +516,71 @@ interface ICommandDetectionHeuristicsHooks {
 	readonly onCommandExecutedEmitter: Emitter<void>;
 	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
 	readonly dimensions: ITerminalDimensions;
+	readonly isCommandStorageDisabled: boolean;
 
 	commandMarkers: IMarker[];
 
 	clearCommandsInViewport(): void;
 }
 
-type IPtyHeuristics = Partial<UnixPtyHeuristics & WindowsPtyHeuristics> & IDisposable;
+type IPtyHeuristics = (
+	// All optional methods
+	Partial<UnixPtyHeuristics> & Partial<WindowsPtyHeuristics> &
+	// All common methods
+	(UnixPtyHeuristics | WindowsPtyHeuristics) &
+	IDisposable
+);
 
 /**
  * Non-Windows-specific behavior.
  */
 class UnixPtyHeuristics extends Disposable {
 	constructor(
-		terminal: Terminal,
-		hooks: ICommandDetectionHeuristicsHooks,
+		private readonly _terminal: Terminal,
+		private readonly _capability: CommandDetectionCapability,
+		private readonly _hooks: ICommandDetectionHeuristicsHooks,
+		private readonly _logService: ILogService
 	) {
 		super();
-		this._register(terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
 			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-				hooks.clearCommandsInViewport();
+				_hooks.clearCommandsInViewport();
 			}
 			// We don't want to override xterm.js' default behavior, just augment it
 			return false;
 		}));
+	}
+
+	async handleCommandExecuted(options: IHandleCommandOptions | undefined) {
+		const currentCommand = this._capability.currentCommand;
+		currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
+		currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', currentCommand.commandExecutedX, currentCommand.commandExecutedMarker?.line);
+
+		// Sanity check optional props
+		if (!currentCommand.commandStartMarker || !currentCommand.commandExecutedMarker || currentCommand.commandStartX === undefined) {
+			return;
+		}
+
+		// Calculate the command
+		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(true, currentCommand.commandStartX, currentCommand.commandRightPromptStartX).trim();
+		let y = currentCommand.commandStartMarker.line + 1;
+		const commandExecutedLine = currentCommand.commandExecutedMarker.line;
+		for (; y < commandExecutedLine; y++) {
+			const line = this._terminal.buffer.active.getLine(y);
+			if (line) {
+				const continuation = currentCommand.continuations?.find(e => e.marker.line === y);
+				if (continuation) {
+					currentCommand.command += '\n';
+				}
+				const startColumn = continuation?.end ?? 0;
+				currentCommand.command += line.translateToString(true, startColumn);
+			}
+		}
+		if (y === commandExecutedLine) {
+			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
+		}
+		this._hooks.onCommandExecutedEmitter.fire();
 	}
 }
 
@@ -602,7 +592,7 @@ class UnixPtyHeuristics extends Disposable {
  */
 class WindowsPtyHeuristics extends Disposable {
 
-	private _onCursorMoveListener?: IDisposable;
+	private _onCursorMoveListener = this._register(new MutableDisposable());
 	private _commandStartedWindowsBarrier?: Barrier;
 	private _windowsPromptPollingInProcess: boolean = false;
 
@@ -716,7 +706,7 @@ class WindowsPtyHeuristics extends Disposable {
 		}
 
 		if (!this._capability.currentCommand.commandExecutedMarker) {
-			this._onCursorMoveListener = this._terminal.onCursorMove(() => {
+			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {
 				if (this._hooks.commandMarkers.length === 0 || this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
 					const marker = this._terminal.registerMarker(0);
 					if (marker) {
@@ -737,11 +727,9 @@ class WindowsPtyHeuristics extends Disposable {
 		this._commandStartedWindowsBarrier.open();
 	}
 
-	async handleCommandExecuted() {
+	async handleCommandExecuted(options: IHandleCommandOptions | undefined) {
 		await this._commandStartedWindowsBarrier?.wait();
-		// TODO: MutableDisposable
-		this._onCursorMoveListener?.dispose();
-		this._onCursorMoveListener = undefined;
+		this._onCursorMoveListener.clear();
 		this._capability.currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
 		this._hooks.onCommandExecutedEmitter.fire();
 		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._capability.currentCommand.commandExecutedX, this._capability.currentCommand.commandExecutedMarker?.line);

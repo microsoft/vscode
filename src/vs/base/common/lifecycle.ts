@@ -565,23 +565,18 @@ export class MandatoryMutableDisposable<T extends IDisposable> implements IDispo
 	private _isDisposed = false;
 
 	constructor(initialValue: T) {
-		this.value = initialValue;
+		this._disposable.value = initialValue;
 	}
 
 	get value(): T {
-		return this.value!;
+		return this._disposable.value!;
 	}
 
 	set value(value: T) {
 		if (this._isDisposed || value === this._disposable.value) {
 			return;
 		}
-
-		this.value.dispose();
-		if (value) {
-			setParentOfDisposable(value, this);
-		}
-		this.value = value;
+		this._disposable.value = value;
 	}
 
 	dispose() {
