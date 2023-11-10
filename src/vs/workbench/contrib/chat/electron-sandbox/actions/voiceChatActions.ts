@@ -244,7 +244,6 @@ class VoiceChatSessions {
 		@IConfigurationService private readonly configurationService: IConfigurationService
 	) { }
 
-
 	async start(controller: IVoiceChatSessionController): Promise<void> {
 		this.stop();
 
