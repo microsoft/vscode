@@ -22,10 +22,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -40,6 +40,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -129,7 +131,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
 	) {
 		super(themeService);
 
@@ -262,8 +265,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		editorActionsToolbar.setActions([], []);
 	}
 
-	protected onGroupDragStart(e: DragEvent, element: HTMLElement, options?: { disableStandardTransfer: boolean }): void {
-
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
 		if (e.target !== element) {
 			return; // only if originating from tabs container
 		}
@@ -311,8 +313,38 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return e.altKey;
 	}
 
-	protected onGroupDragEnd(e: DragEvent): void {
+	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent, element: HTMLElement): Promise<void> {
+		if (e.target !== element) {
+			return; // only if originating from tabs container
+		}
+
 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+
+		if (
+			!this.isNewWindowOperation(previousDragEvent) ||
+			isWindowDraggedOver()
+		) {
+			return; // drag to open is disabled
+		}
+
+		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
+			position: { x: e.screenX, y: e.screenY }
+		});
+
+		const targetGroup = auxiliaryEditorPart.activeGroup;
+		this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(previousDragEvent, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
+
+		targetGroup.focus();
+	}
+
+	protected isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
+		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
+			return true; // Singleton editors cannot be split
+		}
+
+		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {

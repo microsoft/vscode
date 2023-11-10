@@ -73,11 +73,13 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 	private registerContainerListeners(titleContainer: HTMLElement): void {
 
 		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
 		this._register(new DragAndDropObserver(titleContainer, {
 			onDragStart: e => this.onGroupDragStart(e, titleContainer),
 			onDragEnter: () => { },
 			onDragLeave: () => { },
-			onDragEnd: e => this.onGroupDragEnd(e),
+			onDrag: e => { lastDragEvent = e; },
+			onDragEnd: e => { this.onGroupDragEnd(e, lastDragEvent ?? e, titleContainer); },
 			onDrop: () => { }
 		}));
 

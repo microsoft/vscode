@@ -6,7 +6,7 @@
 import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -147,12 +147,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, editorGroupService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -386,23 +386,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
 
-				this.onGroupDragEnd(e);
-
-				if (
-					!this.isNewWindowOperation(lastDragEvent ?? e) ||
-					isWindowDraggedOver()
-				) {
-					return; // drag to open is disabled
-				}
-
-				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-					position: { x: e.screenX, y: e.screenY }
-				});
-
-				const targetGroup = auxiliaryEditorPart.activeGroup;
-				this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(lastDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
-
-				targetGroup.focus();
+				this.onGroupDragEnd(e, lastDragEvent ?? e, tabsContainer);
 			},
 
 			onDrop: e => {
@@ -2140,16 +2124,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
 			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
 		}
-	}
-
-	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
-		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
-			return true; // Singleton editors cannot be split
-		}
-
-		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
-
-		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
 	override dispose(): void {
