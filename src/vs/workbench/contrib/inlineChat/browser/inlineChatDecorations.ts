@@ -24,7 +24,7 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
@@ -32,6 +32,7 @@ const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparen
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
+	private _currentBreakpoints: IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
@@ -51,6 +52,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
+		this._updateCurrentBreakpoints();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
@@ -62,14 +64,24 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._register(this._inlineChatSessionService.onWillStartSession(() => this._localToDispose.clear()));
 		this._register(this._inlineChatSessionService.onDidEndSession(() => this._onEnablementOrModelChanged()));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
-		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
-		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => this._onEnablementOrModelChanged()));
+		this._register(this._editor.onDidChangeModel(() => {
+			this._updateCurrentBreakpoints();
+			this._onEnablementOrModelChanged();
+		}));
+		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => {
+			this._updateCurrentBreakpoints();
+			this._onEnablementOrModelChanged();
+		}));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
 		}));
 		this._updateDecorationHover();
 		this._onEnablementOrModelChanged();
+	}
+
+	private _updateCurrentBreakpoints() {
+		this._currentBreakpoints = [...this._debugService.getModel().getBreakpoints({ uri: this._editor.getModel()?.uri })];
 	}
 
 	private _registerGutterDecoration(isTransparent: boolean): ModelDecorationOptions {
@@ -130,7 +142,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		const model = editor.getModel();
 
 		let isEnabled = false;
-		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: startLineNumber }).length > 0;
+		const hasBreakpoint = this._currentBreakpoints.some(bp => bp.lineNumber === startLineNumber);
 		if (!hasBreakpoint) {
 			const selectionIsEmpty = selection.isEmpty();
 			if (selectionIsEmpty) {
