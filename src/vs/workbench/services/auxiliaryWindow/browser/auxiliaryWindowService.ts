@@ -33,7 +33,7 @@ export interface IAuxiliaryWindowService {
 
 	hasWindow(windowId: number): boolean;
 
-	open(options?: { position?: Partial<IRectangle> }): Promise<IAuxiliaryWindow>;
+	open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow>;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -77,7 +77,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		super();
 	}
 
-	async open(options?: { position?: Partial<IRectangle> }): Promise<IAuxiliaryWindow> {
+	async open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow> {
 		mark('code/auxiliaryWindow/willOpen');
 
 		const disposables = new DisposableStore();
@@ -114,17 +114,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return result;
 	}
 
-	private async doOpen(options?: { position?: Partial<IRectangle> }): Promise<CodeWindow | undefined> {
+	private async doOpen(options?: { bounds?: Partial<IRectangle> }): Promise<CodeWindow | undefined> {
 		const activeWindow = getActiveWindow();
 
-		const position: IRectangle = {
-			x: options?.position?.x ?? activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
-			y: options?.position?.y ?? activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
-			width: options?.position?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
-			height: options?.position?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+		const bounds: IRectangle = {
+			x: options?.bounds?.x ?? activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
+			y: options?.bounds?.y ?? activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
+			width: options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
+			height: options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
 		};
 
-		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${position.x},top=${position.y},width=${position.width},height=${position.height}`);
+		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
 		if (!auxiliaryWindow && isWeb) {
 			return (await this.dialogService.prompt({
 				type: Severity.Warning,
@@ -133,7 +133,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 				buttons: [
 					{
 						label: localize({ key: 'retry', comment: ['&& denotes a mnemonic'] }, "&&Retry"),
-						run: () => this.doOpen({ position })
+						run: () => this.doOpen({ bounds })
 					}
 				],
 				cancelButton: true
