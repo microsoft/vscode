@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 
-import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
+import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n, SourceControlHistoryItemStatistics } from 'vscode';
 import { Repository, Resource } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
@@ -195,8 +195,22 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
+		let statistics: SourceControlHistoryItemStatistics | undefined;
+
 		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
+		const regex = /(\d+) files? changed(?:, (\d+) insertions\(\+\))?(?:, (\d+) deletions\(-\))?/;
+		const matches = diffShortStat.match(regex);
+
+		if (matches) {
+			const [, files, insertions = undefined, deletions = undefined] = matches;
+			statistics = {
+				files: parseInt(files),
+				insertions: parseInt(insertions ?? '0'),
+				deletions: parseInt(deletions ?? '0')
+			};
+		}
+
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {

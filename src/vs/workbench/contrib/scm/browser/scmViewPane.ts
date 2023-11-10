@@ -785,7 +785,17 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		// }
 
 		templateData.iconLabel.setLabel(historyItem.label, historyItem.description);
-		templateData.statsLabel.setLabel('10$(files) 5$(diff-added) 4$(diff-removed)');
+
+		if (historyItem.statistics?.files || historyItem.statistics?.insertions || historyItem.statistics?.deletions) {
+			const filesLabel = historyItem.statistics?.files ? `${historyItem.statistics.files}$(files)` : '';
+			const additionsLabel = historyItem.statistics?.insertions ? ` ${historyItem.statistics.insertions}$(diff-added)` : '';
+			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
+
+			templateData.statsLabel.setLabel(`${filesLabel}${additionsLabel}${deletionsLabel}`);
+			templateData.statsContainer.style.display = '';
+		} else {
+			templateData.statsContainer.style.display = 'none';
+		}
 
 		// templateData.timestampContainer.classList.toggle('timestamp-duplicate', commit.hideTimestamp === true);
 		// templateData.timestamp.textContent = fromNow(commit.timestamp);

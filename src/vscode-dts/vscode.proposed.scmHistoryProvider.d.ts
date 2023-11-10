@@ -52,6 +52,12 @@ declare module 'vscode' {
 		readonly label: string;
 	}
 
+	export interface SourceControlHistoryItemStatistics {
+		readonly files: number;
+		readonly insertions: number;
+		readonly deletions: number;
+	}
+
 	export interface SourceControlHistoryItem {
 		readonly id: string;
 		readonly parentIds: string[];
@@ -59,6 +65,7 @@ declare module 'vscode' {
 		readonly description?: string;
 		readonly icon?: Uri | { light: Uri; dark: Uri } | ThemeIcon;
 		readonly timestamp?: number;
+		readonly statistics?: SourceControlHistoryItemStatistics;
 	}
 
 	export interface SourceControlHistoryItemChange {
