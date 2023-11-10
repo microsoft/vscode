@@ -21,6 +21,11 @@ import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
+enum MoveToNewLocation {
+	Editor,
+	Window
+}
+
 const getMoveToEditorChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openInEditor`,
 	title: {
@@ -56,28 +61,19 @@ const getMoveToNewWindowChatActionDescriptorForViewTitle = (viewId: string, prov
 });
 
 export function getMoveToEditorAction(viewId: string, providerId: string) {
-	return class MoveToEditorAction extends ViewAction<ChatViewPane> {
-		constructor() {
-			super(getMoveToEditorChatActionDescriptorForViewTitle(viewId, providerId));
-		}
-
-		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
-			const viewModel = view.widget.viewModel;
-			if (!viewModel) {
-				return;
-			}
-
-			const editorService = accessor.get(IEditorService);
-			view.clear();
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
-		}
-	};
+	return getMoveToAction(viewId, providerId, MoveToNewLocation.Editor);
 }
 
 export function getMoveToNewWindowAction(viewId: string, providerId: string) {
-	return class MoveToNewWindowAction extends ViewAction<ChatViewPane> {
+	return getMoveToAction(viewId, providerId, MoveToNewLocation.Window);
+}
+
+export function getMoveToAction(viewId: string, providerId: string, moveTo: MoveToNewLocation) {
+	return class MoveToAction extends ViewAction<ChatViewPane> {
 		constructor() {
-			super(getMoveToNewWindowChatActionDescriptorForViewTitle(viewId, providerId));
+			super(moveTo === MoveToNewLocation.Editor ?
+				getMoveToEditorChatActionDescriptorForViewTitle(viewId, providerId)
+				: getMoveToNewWindowChatActionDescriptorForViewTitle(viewId, providerId));
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
@@ -88,34 +84,27 @@ export function getMoveToNewWindowAction(viewId: string, providerId: string) {
 
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const instantiationService = accessor.get(IInstantiationService);
+			const editorService = accessor.get(IEditorService);
 			const sessionId = viewModel.sessionId;
 			view.clear();
 
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+			switch (moveTo) {
+				case (MoveToNewLocation.Editor): {
+					await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
+					break;
+				}
+				case (MoveToNewLocation.Window): {
+					const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+					const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
+					await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+					break;
+				}
+				default: {
+					throw new Error(`Unexpected move to location : ${moveTo}`);
+				}
+			}
 		}
 	};
-}
-
-async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
-	const viewsService = accessor.get(IViewsService);
-	const editorService = accessor.get(IEditorService);
-	const chatContribService = accessor.get(IChatContributionService);
-	const editorGroupService = accessor.get(IEditorGroupsService);
-
-	const chatEditorInput = editorService.activeEditor;
-	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId && chatEditorInput.providerId) {
-		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
-		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
-		const view = await viewsService.openView(viewId) as ChatViewPane;
-		view.loadSession(chatEditorInput.sessionId);
-	} else {
-		const chatService = accessor.get(IChatService);
-		const providerId = chatService.getProviderInfos()[0].id;
-		const viewId = chatContribService.getViewIdForProvider(providerId);
-		await viewsService.openView(viewId);
-	}
 }
 
 export function registerMoveActions() {
@@ -183,11 +172,6 @@ export function registerMoveActions() {
 	});
 }
 
-enum MoveToNewLocation {
-	Editor,
-	Window
-}
-
 async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNewLocation) {
 	const widgetService = accessor.get(IChatWidgetService);
 	const viewService = accessor.get(IViewsService);
@@ -240,5 +224,25 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 		default: {
 			throw new Error(`Unexpected move to location : ${moveTo}`);
 		}
+	}
+}
+
+async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {
+	const viewsService = accessor.get(IViewsService);
+	const editorService = accessor.get(IEditorService);
+	const chatContribService = accessor.get(IChatContributionService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+
+	const chatEditorInput = editorService.activeEditor;
+	if (chatEditorInput instanceof ChatEditorInput && chatEditorInput.sessionId && chatEditorInput.providerId) {
+		await editorService.closeEditor({ editor: chatEditorInput, groupId: editorGroupService.activeGroup.id });
+		const viewId = chatContribService.getViewIdForProvider(chatEditorInput.providerId);
+		const view = await viewsService.openView(viewId) as ChatViewPane;
+		view.loadSession(chatEditorInput.sessionId);
+	} else {
+		const chatService = accessor.get(IChatService);
+		const providerId = chatService.getProviderInfos()[0].id;
+		const viewId = chatContribService.getViewIdForProvider(providerId);
+		await viewsService.openView(viewId);
 	}
 }
