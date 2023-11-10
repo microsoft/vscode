@@ -26,16 +26,11 @@ enum MoveToNewLocation {
 	Window = 'Window'
 }
 
-const OPEN_IN_EDITOR_ORIGINAL_STRING = 'Open Session In Editor';
-const OPEN_IN_WINDOW_ORIGINAL_STRING = 'Open Session In New Window';
-const OPEN_IN_EDITOR_LOCALIZED_STRING = localize('chat.openInEditor.label', "Open Session In Editor");
-const OPEN_IN_WINDOW_LOCALIZED_STRING = localize('chat.openInNewWindow.label', "Open Session In New Window");
-
 const getMoveToChatActionDescriptorForViewTitle = (viewId: string, providerId: string, moveTo: MoveToNewLocation): Readonly<IAction2Options> & { viewId: string } => ({
 	id: `workbench.action.chat.${providerId}.openIn${moveTo}`,
 	title: {
-		value: moveTo === MoveToNewLocation.Editor ? OPEN_IN_EDITOR_LOCALIZED_STRING : OPEN_IN_WINDOW_LOCALIZED_STRING,
-		original: moveTo === MoveToNewLocation.Editor ? OPEN_IN_EDITOR_ORIGINAL_STRING : OPEN_IN_WINDOW_ORIGINAL_STRING,
+		value: moveTo === MoveToNewLocation.Editor ? localize('chat.openInEditor.label', "Open Session In Editor") : localize('chat.openInNewWindow.label', "Open Session In New Window"),
+		original: moveTo === MoveToNewLocation.Editor ? 'Open Session In Editor' : 'Open Session In New Window',
 	},
 	category: CHAT_CATEGORY,
 	precondition: CONTEXT_PROVIDER_EXISTS,
@@ -99,8 +94,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInEditor`,
 				title: {
-					value: OPEN_IN_EDITOR_LOCALIZED_STRING,
-					original: OPEN_IN_EDITOR_ORIGINAL_STRING,
+					value: localize('interactiveSession.openInEditor.label', "Open Session In Editor"),
+					original: 'Open Session In Editor'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -119,8 +114,8 @@ export function registerMoveActions() {
 			super({
 				id: `workbench.action.chat.openInNewWindow`,
 				title: {
-					value: OPEN_IN_WINDOW_LOCALIZED_STRING,
-					original: OPEN_IN_WINDOW_ORIGINAL_STRING,
+					value: localize('interactiveSession.openInNewWindow.label', "Open Session In New Window"),
+					original: 'Open Session In New Window'
 				},
 				category: CHAT_CATEGORY,
 				precondition: CONTEXT_PROVIDER_EXISTS,
