@@ -324,6 +324,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.onGroupDragStart(e, tabsContainer);
 			},
 
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
 			onDragEnter: e => {
 
 				// Always enable support to scroll while dragging
@@ -378,15 +382,11 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				tabsContainer.classList.remove('scroll');
 			},
 
-			onDrag: e => {
-				lastDragEvent = e;
-			},
-
-			onDragEnd: async e => {
+			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
 
-				this.onGroupDragEnd(e, lastDragEvent ?? e, tabsContainer);
+				this.onGroupDragEnd(e, lastDragEvent, tabsContainer);
 			},
 
 			onDrop: e => {
@@ -1045,6 +1045,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
 			},
 
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
 			onDragEnter: e => {
 
 				// Update class to signal drag operation
@@ -1100,10 +1104,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			onDragLeave: () => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, tabIndex);
-			},
-
-			onDrag: e => {
-				lastDragEvent = e;
 			},
 
 			onDragEnd: async e => {

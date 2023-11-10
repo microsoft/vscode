@@ -313,7 +313,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		return e.altKey;
 	}
 
-	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent, element: HTMLElement): Promise<void> {
+	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement): Promise<void> {
 		if (e.target !== element) {
 			return; // only if originating from tabs container
 		}
@@ -321,7 +321,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 
 		if (
-			!this.isNewWindowOperation(previousDragEvent) ||
+			!this.isNewWindowOperation(previousDragEvent ?? e) ||
 			isWindowDraggedOver()
 		) {
 			return; // drag to open is disabled
@@ -332,7 +332,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
-		this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(previousDragEvent, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
+		this.groupsView.mergeGroup(this.groupView, targetGroup.id, { mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS });
 
 		targetGroup.focus();
 	}
