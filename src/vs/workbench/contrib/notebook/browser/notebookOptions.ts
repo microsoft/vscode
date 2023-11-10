@@ -540,6 +540,14 @@ export class NotebookOptions extends Disposable {
 		return this._layoutConfiguration;
 	}
 
+	getCellEditorContainerLeftMargin() {
+		const {
+			codeCellLeftMargin,
+			cellRunGutter
+		} = this._layoutConfiguration;
+		return codeCellLeftMargin + cellRunGutter;
+	}
+
 	computeCollapsedMarkdownCellHeight(viewType: string): number {
 		const { bottomToolbarGap } = this.computeBottomToolbarDimensions(viewType);
 		return this._layoutConfiguration.markdownCellTopMargin
