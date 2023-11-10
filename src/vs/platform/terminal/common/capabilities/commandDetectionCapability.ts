@@ -372,7 +372,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: options?.markProperties
 			};
 			this._commands.push(newCommand);
@@ -431,7 +431,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			});
 		}
 		return {
-			isWindowsPty: this._ptyHeuristics instanceof WindowsPtyHeuristics,
+			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
 			commands
 		};
 	}
@@ -477,7 +477,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				exitCode: e.exitCode,
 				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
 				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
 				markProperties: e.markProperties,
 				wasReplayed: true
 			};
