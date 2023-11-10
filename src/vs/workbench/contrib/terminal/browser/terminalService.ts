@@ -968,7 +968,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance.focusWhenReady();
+			await instance?.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}
