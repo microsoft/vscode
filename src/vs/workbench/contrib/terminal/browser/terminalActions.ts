@@ -1280,11 +1280,7 @@ export function registerTerminalActions() {
 		title: { value: localize('workbench.action.terminal.kill', "Kill the Active Terminal Instance"), original: 'Kill the Active Terminal Instance' },
 		precondition: ContextKeyExpr.or(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.isOpen),
 		icon: killTerminalIcon,
-		run: async (c, accessor) => {
-			for (const terminal of getSelectedInstances(accessor) ?? []) {
-				killInstance(c, terminal);
-			}
-		}
+		run: async (c) => killInstance(c, c.groupService.activeInstance)
 	});
 	registerTerminalAction({
 		id: TerminalCommandId.KillViewOrEditor,
@@ -1321,7 +1317,7 @@ export function registerTerminalActions() {
 		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});
 
-	registerContextualInstanceAction({
+	registerTerminalAction({
 		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
@@ -1335,8 +1331,12 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: TerminalContextKeys.tabsFocus
 		},
-		run: (instance, c) => c.service.safeDisposeTerminal(instance),
-		runAfter: (instances, c) => c.groupService.focusTabs()
+		run: async (c, accessor) => {
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				c.service.safeDisposeTerminal(terminal);
+			}
+			c.groupService.focusTabs();
+		}
 	});
 
 	registerTerminalAction({
