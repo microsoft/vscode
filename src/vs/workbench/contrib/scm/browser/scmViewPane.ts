@@ -733,12 +733,9 @@ class HistoryItemGroupRenderer implements ICompressibleTreeRenderer<SCMHistoryIt
 
 interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
-	// readonly avatarImg: HTMLImageElement;
-	readonly iconLabel: IconLabel;
+	readonly label: IconLabel;
 	readonly statsContainer: HTMLElement;
 	readonly statsLabel: IconLabel;
-	// readonly timestampContainer: HTMLElement;
-	// readonly timestamp: HTMLSpanElement;
 	readonly disposables: IDisposable;
 }
 
@@ -759,12 +756,7 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const statsContainer = append(element, $('.stats-container'));
 		const statsLabel = new IconLabel(statsContainer, { supportIcons: true });
 
-		// const avatarImg = append(iconContainer, $('img.avatar')) as HTMLImageElement;
-
-		// const timestampContainer = append(iconLabel.element, $('.timestamp-container'));
-		// const timestamp = append(timestampContainer, $('span.timestamp'));
-
-		return { iconContainer, iconLabel, statsContainer, statsLabel, disposables: new DisposableStore() };
+		return { iconContainer, label: iconLabel, statsContainer, statsLabel, disposables: new DisposableStore() };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -775,32 +767,38 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(historyItem.icon));
 		}
 
-		// if (commit.authorAvatar) {
-		// 	templateData.avatarImg.src = commit.authorAvatar;
-		// 	templateData.avatarImg.style.display = 'block';
-		// 	templateData.iconContainer.classList.remove(...ThemeIcon.asClassNameArray(Codicon.account));
-		// } else {
-		// 	templateData.avatarImg.style.display = 'none';
-		// 	templateData.iconContainer.classList.add(...ThemeIcon.asClassNameArray(Codicon.account));
-		// }
+		templateData.label.setLabel(historyItem.label, historyItem.description);
+		this.renderStatistics(node, index, templateData, height);
+	}
 
-		templateData.iconLabel.setLabel(historyItem.label, historyItem.description);
+	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemTreeElement>, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		throw new Error('Should never happen since node is incompressible');
+	}
+
+	private renderStatistics(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		const historyItem = node.element;
 
 		if (historyItem.statistics?.files || historyItem.statistics?.insertions || historyItem.statistics?.deletions) {
 			const statsLabelTitle: string[] = [];
+
 			const filesLabel = historyItem.statistics?.files ? `${historyItem.statistics.files}$(files)` : '';
-			if (filesLabel !== '') {
-				statsLabelTitle.push(`${historyItem.statistics.files} ${historyItem.statistics.files === 1 ? 'file' : 'files'} changed`);
-			}
-
 			const insertionsLabel = historyItem.statistics?.insertions ? ` ${historyItem.statistics.insertions}$(diff-added)` : '';
-			if (insertionsLabel !== '') {
-				statsLabelTitle.push(`${historyItem.statistics.insertions} insertions(+)`);
+			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
+
+			if (historyItem.statistics?.files) {
+				const filesDescription = historyItem.statistics.files === 1 ?
+					localize('fileChanged', "file changed") : localize('filesChanged', "files changed");
+				statsLabelTitle.push(`${historyItem.statistics.files} ${filesDescription}`);
 			}
 
-			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
-			if (deletionsLabel !== '') {
-				statsLabelTitle.push(`${historyItem.statistics.deletions} deletions(-)`);
+			if (historyItem.statistics?.insertions) {
+				const insertionsDescription = localize('insertions', "insertions{0}", '(+)');
+				statsLabelTitle.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
+			}
+
+			if (historyItem.statistics?.deletions) {
+				const deletionsDescription = localize('deletions', "deletions{0}", '(-)');
+				statsLabelTitle.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
 			}
 
 			templateData.statsLabel.setLabel(`${filesLabel}${insertionsLabel}${deletionsLabel}`, undefined, { title: statsLabelTitle.join(', ') });
@@ -808,14 +806,8 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		} else {
 			templateData.statsContainer.style.display = 'none';
 		}
-
-		// templateData.timestampContainer.classList.toggle('timestamp-duplicate', commit.hideTimestamp === true);
-		// templateData.timestamp.textContent = fromNow(commit.timestamp);
 	}
 
-	renderCompressedElements(node: ITreeNode<ICompressedTreeNode<SCMHistoryItemTreeElement>, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
-		throw new Error('Should never happen since node is incompressible');
-	}
 	disposeTemplate(templateData: HistoryItemTemplate): void {
 		templateData.disposables.dispose();
 	}
