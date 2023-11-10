@@ -7,7 +7,7 @@ import * as dom from 'vs/base/browser/dom';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { FastDomNode, createFastDomNode } from 'vs/base/browser/fastDomNode';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { BugIndicatingError, onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IPointerHandlerHelper } from 'vs/editor/browser/controller/mouseHandler';
 import { PointerHandler } from 'vs/editor/browser/controller/pointerHandler';
@@ -431,12 +431,18 @@ export class View extends ViewEventHandler {
 	}
 
 	private _scheduleRender(): void {
+		if (this._store.isDisposed) {
+			throw new BugIndicatingError();
+		}
 		if (this._renderAnimationFrame === null) {
-			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(this._onRenderScheduled.bind(this), dom.getWindow(this.domNode.domNode), 100);
+			this._renderAnimationFrame = dom.runAtThisOrScheduleAtNextAnimationFrame(dom.getWindow(this.domNode.domNode), this._onRenderScheduled.bind(this), 100);
 		}
 	}
 
 	private _onRenderScheduled(): void {
+		if (this._store.isDisposed) {
+			throw new BugIndicatingError();
+		}
 		this._renderAnimationFrame = null;
 		this._flushAccumulatedAndRenderNow();
 	}
@@ -457,6 +463,10 @@ export class View extends ViewEventHandler {
 	}
 
 	private _actualRender(): void {
+		if (this._store.isDisposed) {
+			throw new BugIndicatingError();
+		}
+
 		if (!this.domNode.domNode.isConnected) {
 			return;
 		}

@@ -43,6 +43,10 @@ export class OffsetRange implements IOffsetRange {
 		return new OffsetRange(0, length);
 	}
 
+	public static ofStartAndLength(start: number, length: number): OffsetRange {
+		return new OffsetRange(start, start + length);
+	}
+
 	constructor(public readonly start: number, public readonly endExclusive: number) {
 		if (start > endExclusive) {
 			throw new BugIndicatingError(`Invalid range: ${this.toString()}`);
@@ -112,6 +116,14 @@ export class OffsetRange implements IOffsetRange {
 		const start = Math.max(this.start, other.start);
 		const end = Math.min(this.endExclusive, other.endExclusive);
 		return start <= end;
+	}
+
+	public isBefore(other: OffsetRange): boolean {
+		return this.endExclusive <= other.start;
+	}
+
+	public isAfter(other: OffsetRange): boolean {
+		return this.start >= other.endExclusive;
 	}
 
 	public slice<T>(arr: T[]): T[] {

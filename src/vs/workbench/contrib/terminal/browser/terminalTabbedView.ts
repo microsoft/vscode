@@ -285,16 +285,15 @@ export class TerminalTabbedView extends Disposable {
 	}
 
 	private _addSashListener() {
-		let interval: number;
+		let interval: IDisposable;
 		this._sashDisposables = [
 			this._splitView.sashes[0].onDidStart(e => {
-				interval = dom.getWindow(this._splitView.el).setInterval(() => {
+				interval = dom.disposableWindowInterval(dom.getWindow(this._splitView.el), () => {
 					this.rerenderTabs();
 				}, 100);
 			}),
 			this._splitView.sashes[0].onDidEnd(e => {
-				dom.getWindow(this._splitView.el).clearInterval(interval);
-				interval = 0;
+				interval.dispose();
 			})
 		];
 	}

@@ -550,6 +550,7 @@ class BuiltinDynamicCompletions extends Disposable {
 							range: { insert, replace },
 							kind: CompletionItemKind.Text,
 							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range }] },
+							sortText: 'z'
 						}
 					]
 				};
@@ -701,7 +702,8 @@ class VariableCompletions extends Disposable {
 						range,
 						insertText: withLeader + ' ',
 						detail: v.description,
-						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway
+						sortText: 'z'
 					};
 				});
 

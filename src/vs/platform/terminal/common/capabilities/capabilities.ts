@@ -186,6 +186,7 @@ export interface ICommandDetectionCapability {
 	 * case the terminal's initial cwd should be used.
 	 */
 	getCwdForLine(line: number): string | undefined;
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined;
 	handlePromptStart(options?: IHandleCommandOptions): void;
 	handleContinuationStart(): void;
 	handleContinuationEnd(): void;
@@ -251,6 +252,7 @@ interface IBaseTerminalCommand {
 
 export interface ITerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable
+	promptStartMarker?: IMarker;
 	marker?: IXtermMarker;
 	endMarker?: IXtermMarker;
 	executedMarker?: IXtermMarker;
@@ -265,6 +267,7 @@ export interface ITerminalCommand extends IBaseTerminalCommand {
 export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable converted for serialization
 	startLine: number | undefined;
+	promptStartLine: number | undefined;
 	startX: number | undefined;
 	endLine: number | undefined;
 	executedLine: number | undefined;
