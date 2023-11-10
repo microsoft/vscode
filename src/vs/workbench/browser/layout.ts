@@ -230,7 +230,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// main window
 			return this.mainContainerOffset;
 		} else {
-			// TODO@bpasero auxiliary window: no support for custom title bar or banner yet
+			// auxiliary window: no support for custom title bar or banner yet
 			return { top: 0, quickPickTop: 0 };
 		}
 	}
