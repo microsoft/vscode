@@ -130,6 +130,9 @@ class FileItem extends BreadcrumbsItem {
 	render(container: HTMLElement): void {
 		// file/folder
 		const label = this._labels.create(container);
+		this._disposables.add(label.onDidRender(() => {
+			container.title = container.children[0]?.ariaLabel ?? '';
+		}));
 		label.setFile(this.element.uri, {
 			hidePath: true,
 			hideIcon: this.element.kind === FileKind.FOLDER || !this.options.showFileIcons,
