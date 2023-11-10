@@ -81,19 +81,19 @@ export function getMoveToNewWindowAction(viewId: string, providerId: string) {
 		}
 
 		async runInView(accessor: ServicesAccessor, view: ChatViewPane) {
+
 			const viewModel = view.widget.viewModel;
 			if (!viewModel) {
 				return;
 			}
-
-			const editorService = accessor.get(IEditorService);
-			view.clear();
-			await editorService.openEditor({ resource: ChatEditorInput.getNewEditorUri(), options: <IChatEditorOptions>{ target: { sessionId: viewModel.sessionId }, pinned: true } });
-
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 			const instantiationService = accessor.get(IInstantiationService);
-			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId: viewModel.sessionId } });
+			const sessionId = viewModel.sessionId;
+			view.clear();
+
+			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+
+			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
 			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
 		}
 	};
@@ -203,7 +203,7 @@ export function registerMoveActions() {
 			const viewService = accessor.get(IViewsService);
 			const editorService = accessor.get(IEditorService);
 			const chatService = accessor.get(IChatService);
-
+			const instantiationService = accessor.get(IInstantiationService);
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
 
@@ -214,6 +214,7 @@ export function registerMoveActions() {
 				if (editorPane?.input) {
 					auxiliaryEditorPart.activeGroup.openEditor(editorPane.input, { pinned: true });
 				}
+				console.log('early return');
 				return;
 			}
 
@@ -225,9 +226,9 @@ export function registerMoveActions() {
 			const sessionId = viewModel.sessionId;
 			const view = await viewService.openView(widget.viewContext.viewId) as ChatViewPane;
 			view.clear();
-			const instantiationService = accessor.get(IInstantiationService);
 			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
 			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+			console.log('late return');
 		}
 	});
 }
