@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Action, IAction, Separator } from 'vs/base/common/actions';
 import { isNative } from 'vs/base/common/platform';
@@ -18,18 +19,18 @@ export function openContextMenu(event: MouseEvent, clipboardService: IClipboardS
 	actions.push(
 
 		// Undo/Redo
-		new Action('undo', localize('undo', "Undo"), undefined, true, async () => document.execCommand('undo')),
-		new Action('redo', localize('redo', "Redo"), undefined, true, async () => document.execCommand('redo')),
+		new Action('undo', localize('undo', "Undo"), undefined, true, async () => getActiveWindow().document.execCommand('undo')),
+		new Action('redo', localize('redo', "Redo"), undefined, true, async () => getActiveWindow().document.execCommand('redo')),
 		new Separator(),
 
 		// Cut / Copy / Paste
-		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => document.execCommand('cut')),
-		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => document.execCommand('copy')),
+		new Action('editor.action.clipboardCutAction', localize('cut', "Cut"), undefined, true, async () => getActiveWindow().document.execCommand('cut')),
+		new Action('editor.action.clipboardCopyAction', localize('copy', "Copy"), undefined, true, async () => getActiveWindow().document.execCommand('copy')),
 		new Action('editor.action.clipboardPasteAction', localize('paste', "Paste"), undefined, true, async element => {
 
 			// Native: paste is supported
 			if (isNative) {
-				document.execCommand('paste');
+				getActiveWindow().document.execCommand('paste');
 			}
 
 			// Web: paste is not supported due to security reasons
@@ -51,7 +52,7 @@ export function openContextMenu(event: MouseEvent, clipboardService: IClipboardS
 		new Separator(),
 
 		// Select All
-		new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => document.execCommand('selectAll'))
+		new Action('editor.action.selectAll', localize('selectAll', "Select All"), undefined, true, async () => getActiveWindow().document.execCommand('selectAll'))
 	);
 
 	contextMenuService.showContextMenu({
