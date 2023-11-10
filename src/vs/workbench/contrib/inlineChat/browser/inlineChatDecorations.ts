@@ -59,6 +59,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			}
 			this._onEnablementOrModelChanged();
 		}));
+		this._register(this._inlineChatSessionService.onWillStartSession(() => this._localToDispose.clear()));
+		this._register(this._inlineChatSessionService.onDidEndSession(() => this._onEnablementOrModelChanged()));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
 		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => this._onEnablementOrModelChanged()));
@@ -101,9 +103,6 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._localToDispose.add(decorationUpdateScheduler);
 		this._localToDispose.add(this._editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
-		const onInlineChatSessionChanged = (e: ICodeEditor) => (e === editor) && decorationUpdateScheduler.schedule();
-		this._localToDispose.add(this._inlineChatSessionService.onWillStartSession(onInlineChatSessionChanged));
-		this._localToDispose.add(this._inlineChatSessionService.onDidEndSession(onInlineChatSessionChanged));
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const showGutterIconMode = this._showGutterIconMode();
 			const gutterDecorationClassName = showGutterIconMode === ShowGutterIcon.Always ?
@@ -126,6 +125,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
+		console.log('inside of selection change');
 		const selection = editor.getSelection();
 		const selectionIsEmpty = selection.isEmpty();
 		const model = editor.getModel();
