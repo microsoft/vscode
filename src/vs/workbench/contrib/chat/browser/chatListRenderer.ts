@@ -40,6 +40,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { WorkbenchCompressibleAsyncDataTree, WorkbenchList } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IProductService } from 'vs/platform/product/common/productService';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
@@ -137,6 +138,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IEditorService private readonly editorService: IEditorService,
 		@IProductService productService: IProductService,
 		@IThemeService private readonly themeService: IThemeService,
+		@IMarkerService private readonly markerService: IMarkerService
 	) {
 		super();
 		this.renderer = this.instantiationService.createInstance(MarkdownRenderer, {});
@@ -799,6 +801,15 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element, hideToolbar, parentContextKeyService: templateData.contextKeyService };
 				const ref = this.renderCodeBlock(data, disposables);
+
+				this.markerService.changeOne('owner', ref.object.textModel.uri, [{
+					severity: MarkerSeverity.Warning,
+					startLineNumber: 1,
+					startColumn: 1,
+					endLineNumber: 2,
+					endColumn: 2,
+					message: 'hello'
+				}]);
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)

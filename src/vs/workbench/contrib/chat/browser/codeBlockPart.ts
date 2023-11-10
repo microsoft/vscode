@@ -35,6 +35,8 @@ import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { MarkerController } from 'vs/editor/contrib/gotoError/browser/gotoError';
+import { MarkerDecorationsContribution } from 'vs/editor/browser/services/markerDecorations';
 
 const $ = dom.$;
 
@@ -113,7 +115,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			ariaLabel: localize('chat.codeBlockHelp', 'Code block'),
 			...this.getEditorOptionsFromConfig()
 		}, {
-			isSimpleWidget: true,
+			isSimpleWidget: false,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
@@ -123,6 +125,8 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				ViewportSemanticTokensContribution.ID,
 				BracketMatchingController.ID,
 				SmartSelectController.ID,
+				MarkerController.ID,
+				MarkerDecorationsContribution.ID
 			])
 		}));
 
