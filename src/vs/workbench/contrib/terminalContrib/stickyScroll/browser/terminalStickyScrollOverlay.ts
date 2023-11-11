@@ -288,7 +288,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (!this._stickyScrollOverlay) {
 			return;
 		}
-		this._stickyScrollOverlay.resize(this._xterm.raw.cols, 1);
+		this._stickyScrollOverlay.resize(this._xterm.raw.cols, this._stickyScrollOverlay.rows);
 		this._stickyScrollOverlay.options = this._getOptions();
 		this._syncGpuAccelerationState();
 	}
