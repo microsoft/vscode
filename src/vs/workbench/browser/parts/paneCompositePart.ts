@@ -456,7 +456,7 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 
 	private layoutCompositeBar(): void {
 		if (this.contentDimension && this.dimension && this.paneCompositeBar.value) {
-			let availableWidth = this.contentDimension.width - 40; // take padding into account
+			let availableWidth = this.contentDimension.width - 16; // take padding into account
 			if (this.toolBar) {
 				availableWidth = Math.max(AbstractPaneCompositePart.MIN_COMPOSITE_BAR_WIDTH, availableWidth - this.getToolbarWidth());
 			}

@@ -91,5 +91,6 @@ export const ICONS = [
 	Codicon.paintcan,
 	Codicon.archive,
 	Codicon.mic,
+	Codicon.jersey,
 
 ];

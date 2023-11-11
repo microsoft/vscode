@@ -95,6 +95,7 @@ import { EncryptionService } from 'vs/workbench/services/encryption/browser/encr
 import { IEncryptionService } from 'vs/platform/encryption/common/encryptionService';
 import { ISecretStorageService } from 'vs/platform/secrets/common/secrets';
 import { TunnelSource } from 'vs/workbench/services/remote/common/tunnelModel';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class BrowserMain extends Disposable {
 
@@ -113,7 +114,7 @@ export class BrowserMain extends Disposable {
 	private init(): void {
 
 		// Browser config
-		setFullscreen(!!detectFullscreen());
+		setFullscreen(!!detectFullscreen(mainWindow));
 	}
 
 	async open(): Promise<IWorkbench> {
@@ -467,7 +468,7 @@ export class BrowserMain extends Disposable {
 		fileService.registerProvider(Schemas.vscodeUserData, userDataProvider);
 
 		// Local file access (if supported by browser)
-		if (WebFileSystemAccess.supported(window)) {
+		if (WebFileSystemAccess.supported(mainWindow)) {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 

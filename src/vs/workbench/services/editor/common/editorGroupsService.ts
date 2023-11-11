@@ -501,9 +501,9 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	/**
 	 * Opens a new window with a full editor part instantiated
-	 * in there at the optional position on screen.
+	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {
@@ -514,7 +514,7 @@ export const enum OpenEditorContext {
 
 export interface IActiveEditorActions {
 	readonly actions: IToolbarActions;
-	readonly onDidChange: Event<IMenuChangeEvent>;
+	readonly onDidChange: Event<IMenuChangeEvent | void>;
 }
 
 export interface IEditorGroup {

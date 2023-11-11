@@ -28,6 +28,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IDialogService, IPromptButton, IPromptCancelButton } from 'vs/platform/dialogs/common/dialogs';
 import { IBoundarySashes } from 'vs/base/browser/ui/sash/sash';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
+import { mainWindow } from 'vs/base/browser/window';
 
 export interface IOpenEditorResult {
 
@@ -130,8 +131,7 @@ export class EditorPanes extends Disposable {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			// TODO@bpasero revisit this once all editors can support aux windows
-			if (getWindow(this.editorPanesParent) !== window && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
+			if (getWindow(this.editorPanesParent) !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
 				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in floating windows yet."), [
 					toAction({
 						id: 'workbench.editor.action.closeEditor', label: localize('openFolder', "Close Editor"), run: async () => {

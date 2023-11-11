@@ -306,6 +306,12 @@ export class ChatService extends Disposable implements IChatService {
 		return transferred;
 	}
 
+	/**
+	 * Returns an array of chat details for all persisted chat sessions that have at least one request.
+	 * The array is sorted by creation date in descending order.
+	 * Chat sessions that have already been loaded into the chat view are excluded from the result.
+	 * Imported chat sessions are also excluded from the result.
+	 */
 	getHistory(): IChatDetail[] {
 		const sessions = Object.values(this._persistedSessions)
 			.filter(session => session.requests.length > 0);

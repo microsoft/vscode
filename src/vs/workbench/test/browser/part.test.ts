@@ -13,6 +13,7 @@ import { StorageScope, StorageTarget } from 'vs/platform/storage/common/storage'
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
 
 suite('Workbench parts', () => {
 
@@ -110,17 +111,17 @@ suite('Workbench parts', () => {
 	setup(() => {
 		fixture = document.createElement('div');
 		fixture.id = fixtureId;
-		document.body.appendChild(fixture);
+		mainWindow.document.body.appendChild(fixture);
 	});
 
 	teardown(() => {
-		document.body.removeChild(fixture);
+		mainWindow.document.body.removeChild(fixture);
 		disposables.clear();
 	});
 
 	test('Creation', () => {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		let part = disposables.add(new MyPart(b));
@@ -157,26 +158,26 @@ suite('Workbench parts', () => {
 
 	test('Part Layout with Title and Content', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart2());
 		part.create(b);
 
-		assert(document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	test('Part Layout with Content only', function () {
 		const b = document.createElement('div');
-		document.getElementById(fixtureId)!.appendChild(b);
+		mainWindow.document.getElementById(fixtureId)!.appendChild(b);
 		hide(b);
 
 		const part = disposables.add(new MyPart3());
 		part.create(b);
 
-		assert(!document.getElementById('myPart.title'));
-		assert(document.getElementById('myPart.content'));
+		assert(!mainWindow.document.getElementById('myPart.title'));
+		assert(mainWindow.document.getElementById('myPart.content'));
 	});
 
 	ensureNoDisposablesAreLeakedInTestSuite();

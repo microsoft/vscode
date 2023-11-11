@@ -307,7 +307,7 @@ export class CellDragAndDropController extends Disposable {
 		}
 
 		const onDragEnd = () => {
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+			if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
 
@@ -324,7 +324,7 @@ export class CellDragAndDropController extends Disposable {
 				return;
 			}
 
-			if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+			if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 				return;
 			}
 
@@ -343,7 +343,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public startExplicitDrag(cell: ICellViewModel, _dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+		if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 			return;
 		}
 
@@ -352,7 +352,7 @@ export class CellDragAndDropController extends Disposable {
 	}
 
 	public explicitDrag(cell: ICellViewModel, dragOffsetY: number) {
-		if (!this.notebookEditor.notebookOptions.getLayoutConfiguration().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
+		if (!this.notebookEditor.notebookOptions.getDisplayOptions().dragAndDropEnabled || !!this.notebookEditor.isReadOnly) {
 			return;
 		}
 

@@ -91,6 +91,8 @@ registerSimpleEditorSettingMigration('autoIndent', [[false, 'advanced'], [true, 
 registerSimpleEditorSettingMigration('matchBrackets', [[true, 'always'], [false, 'never']]);
 registerSimpleEditorSettingMigration('renderFinalNewline', [[true, 'on'], [false, 'off']]);
 registerSimpleEditorSettingMigration('cursorSmoothCaretAnimation', [[true, 'on'], [false, 'off']]);
+registerSimpleEditorSettingMigration('occurrencesHighlight', [[true, 'singleFile'], [false, 'off']]);
+registerSimpleEditorSettingMigration('wordBasedSuggestions', [[true, 'matchingDocuments'], [false, 'off']]);
 
 registerEditorSettingMigration('autoClosingBrackets', (value, read, write) => {
 	if (value === false) {

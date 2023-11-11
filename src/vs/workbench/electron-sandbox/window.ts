@@ -71,6 +71,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class NativeWindow extends Disposable {
 
@@ -139,14 +140,14 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => this.layoutService.layout()));
+		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			this._register(addDisposableListener(window.document.body, event, (e: DragEvent) => {
+			this._register(addDisposableListener(mainWindow.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			}));
 		}
@@ -696,11 +697,11 @@ export class NativeWindow extends Disposable {
 		// asking the main process to focus the window.
 		// https://github.com/electron/electron/issues/25578
 		const that = this;
-		const originalWindowFocus = window.focus.bind(window);
-		window.focus = function () {
+		const originalWindowFocus = mainWindow.focus.bind(mainWindow);
+		mainWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== window) {
+			if (getActiveWindow() !== mainWindow) {
 				that.nativeHostService.focusWindow({ targetWindowId: that.nativeHostService.windowId });
 			}
 		};

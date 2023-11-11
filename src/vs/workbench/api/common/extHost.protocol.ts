@@ -2638,6 +2638,8 @@ export interface ExtHostTestingShape {
 	$refreshTests(controllerId: string, token: CancellationToken): Promise<void>;
 	/** Ensures any pending test diffs are flushed */
 	$syncTests(): Promise<void>;
+	/** Sets the active test run profiles */
+	$setActiveRunProfiles(profiles: Record</* controller id */string, /* profile id */ number[]>): void;
 }
 
 export interface ExtHostLocalizationShape {
