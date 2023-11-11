@@ -170,13 +170,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
-		// TODO: Support multi-line commands
-
-		// Determine prompt length
+		// Determine prompt line count
 		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 
+		// Determine command line count
+		const commandExecutedLine = Math.max(command.executedMarker?.line ?? marker.line, marker.line);
+		const commandRowCount = commandExecutedLine - marker.line;
+
+		// Determine sticky scroll line count
 		const stickyScrollLineStart = marker.line - (promptRowCount - 1);
-		const stickyScrollLineCount = Math.min(promptRowCount, this._maxLineCount);
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount, this._maxLineCount);
 
 		// Clear attrs, reset cursor position, clear right
 		const content = this._serializeAddon.serialize({
