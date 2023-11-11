@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -251,10 +251,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			}
 		}));
 
-		// Instead of juggling decorations for hover styles, use the selection to indicate the
-		// hover state as the selection is inaccessible anyway
-		this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => overlay.selectAll()));
-		this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => overlay.clearSelection()));
+		// Instead of juggling decorations for hover styles, swap out the theme to indicate the
+		// hover state. This comes with the benefit over other methods of working well with special
+		// decorative characters like powerline symbols.
+		this._register(addStandardDisposableListener(hoverOverlay, 'mouseover', () => overlay.options.theme = this._getTheme(true)));
+		this._register(addStandardDisposableListener(hoverOverlay, 'mouseleave', () => overlay.options.theme = this._getTheme(false)));
 	}
 
 	@throttle(0)
@@ -296,20 +297,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 	private _getOptions(): ITerminalOptions {
 		const o = this._xterm.raw.options;
-		const theme = this._themeService.getColorTheme();
 		return {
 			cursorInactiveStyle: 'none',
 			scrollback: 0,
 			logLevel: 'off',
 
-			// Selection is used for hover state in the overlay
-			theme: {
-				...this._xterm.getXtermTheme(),
-				background: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
-				selectionBackground: theme.getColor(terminalStickyScrollHoverBackground)?.toString(),
-				selectionInactiveBackground: undefined
-			},
-
+			theme: this._getTheme(false),
 			documentOverride: o.documentOverride,
 			fontFamily: o.fontFamily,
 			fontWeight: o.fontWeight,
@@ -321,6 +314,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			minimumContrastRatio: o.minimumContrastRatio,
 			tabStopWidth: o.tabStopWidth,
 			overviewRulerWidth: o.overviewRulerWidth,
+		};
+	}
+
+	private _getTheme(isHovering: boolean): ITheme {
+		const theme = this._themeService.getColorTheme();
+		return {
+			...this._xterm.getXtermTheme(),
+			background: isHovering
+				? theme.getColor(terminalStickyScrollHoverBackground)?.toString() ?? this._xtermColorProvider.getBackgroundColor(theme)?.toString()
+				: this._xtermColorProvider.getBackgroundColor(theme)?.toString(),
+			selectionBackground: undefined,
+			selectionInactiveBackground: undefined
 		};
 	}
 
