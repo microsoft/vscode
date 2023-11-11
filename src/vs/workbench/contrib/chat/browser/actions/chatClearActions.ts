@@ -6,7 +6,7 @@
 import { Codicon } from 'vs/base/common/codicons';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
-import { localize } from 'vs/nls';
+import { localize2 } from 'vs/nls';
 import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 import { Action2, IAction2Options, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -28,11 +28,8 @@ export function registerClearActions() {
 		constructor() {
 			super({
 				id: 'workbench.action.chatEditor.clear',
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
-				icon: Codicon.clearAll,
+				title: localize2('chat.newSession.label', "New Session"),
+				icon: Codicon.plus,
 				f1: false,
 				precondition: CONTEXT_PROVIDER_EXISTS,
 				menu: [{
@@ -54,10 +51,7 @@ export function registerClearActions() {
 		constructor() {
 			super({
 				id: ACTION_ID_CLEAR_CHAT,
-				title: {
-					value: localize('interactiveSession.clear.label', "Clear"),
-					original: 'Clear'
-				},
+				title: localize2('chat.newSession.label', "New Session"),
 				category: CHAT_CATEGORY,
 				icon: Codicon.clearAll,
 				precondition: CONTEXT_PROVIDER_EXISTS,
@@ -90,10 +84,7 @@ export function registerClearActions() {
 const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: string): Readonly<IAction2Options> & { viewId: string } => ({
 	viewId,
 	id: `workbench.action.chat.${providerId}.clear`,
-	title: {
-		value: localize('interactiveSession.clear.label', "Clear"),
-		original: 'Clear'
-	},
+	title: localize2('chat.newSession.label', "New Session"),
 	menu: {
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
@@ -102,7 +93,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 	},
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,
-	icon: Codicon.clearAll,
+	icon: Codicon.plus,
 	f1: false
 });
 

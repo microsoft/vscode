@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
+import { recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import type { derivedOpts } from 'vs/base/common/observableInternal/derived';
 import { getLogger } from 'vs/base/common/observableInternal/logging';
 
@@ -62,6 +63,11 @@ export interface IObservable<T, TChange = unknown> {
 	 */
 	map<TNew>(fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
 	map<TNew>(owner: object, fn: (value: T, reader: IReader) => TNew): IObservable<TNew>;
+
+	/**
+	 * Makes sure this value is computed eagerly.
+	 */
+	recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T>;
 
 	/**
 	 * A human-readable name for debugging purposes.
@@ -145,6 +151,12 @@ export interface ITransaction {
 	updateObserver(observer: IObserver, observable: IObservable<any, any>): void;
 }
 
+let _recomputeInitiallyAndOnChange: typeof recomputeInitiallyAndOnChange;
+
+export function _setRecomputeInitiallyAndOnChange(recomputeInitiallyAndOnChange: typeof _recomputeInitiallyAndOnChange) {
+	_recomputeInitiallyAndOnChange = recomputeInitiallyAndOnChange;
+}
+
 let _derived: typeof derivedOpts;
 /**
  * @internal
@@ -205,6 +217,11 @@ export abstract class ConvenientObservable<T, TChange> implements IObservable<T,
 			},
 			(reader) => fn(this.read(reader), reader),
 		);
+	}
+
+	public recomputeInitiallyAndOnChange(store: DisposableStore, handleValue?: (value: T) => void): IObservable<T> {
+		store.add(_recomputeInitiallyAndOnChange!(this, handleValue));
+		return this;
 	}
 
 	public abstract get debugName(): string;
