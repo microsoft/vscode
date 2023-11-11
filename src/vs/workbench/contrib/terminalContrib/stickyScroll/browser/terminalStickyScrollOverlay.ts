@@ -150,12 +150,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
 		this._currentStickyCommand = undefined;
 
-		// Sticky scroll only works with non-partial commands
+		// No command
 		if (!command) {
 			this._setVisible(false);
 			return;
 		}
 
+		// Partial command
 		if (!('marker' in command)) {
 			const partialCommand = this._commandDetection.currentCommand;
 			if (partialCommand?.commandStartMarker && partialCommand.commandExecutedMarker) {
