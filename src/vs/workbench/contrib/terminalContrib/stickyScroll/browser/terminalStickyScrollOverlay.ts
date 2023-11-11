@@ -148,7 +148,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
 		// scroll.
-		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY + 1);
+		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
 		this._currentStickyCommand = undefined;
 
 		// No command
@@ -168,16 +168,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
-		const buffer = this._xterm.raw.buffer.active;
+		// If the marker doesn't exist or it was trimmed from scrollback
 		const marker = command.marker;
-		if (
-			// The marker doesn't exist
-			!marker ||
-			// The marker was trimmed from the scrollback
-			marker.line === -1 ||
-			// Hide sticky scroll if it's on the same line
-			marker.line === buffer.viewportY
-		) {
+		if (!marker || marker.line === -1) {
+			// TODO: It would be nice if we kept the cached command around even if it was trimmed
+			// from scrollback
 			this._setVisible(false);
 			return;
 		}
@@ -189,17 +184,31 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
+
 		// Determine sticky scroll line count
+		const buffer = this._xterm.raw.buffer.active;
 		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 		const commandRowCount = getCommandRowCount(command);
 		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount);
+
+		// Calculate the row offset, this is the number of rows that will be clipped from the top
+		// of the sticky overlay because we do not want to show any content above the bounds of the
+		// original terminal. This is done because it seems like scrolling flickers more when a
+		// partial line can be drawn on the top.
+		const rowOffset = 'getOutput' in command && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount) - rowOffset;
+
+		// Hide sticky scroll if it's currently on a line that contains it
+		if (buffer.viewportY === stickyScrollLineStart) {
+			this._setVisible(false);
+			return;
+		}
 
 		// Clear attrs, reset cursor position, clear right
 		const content = this._serializeAddon.serialize({
 			range: {
-				start: stickyScrollLineStart,
-				end: stickyScrollLineStart + stickyScrollLineCount - 1
+				start: stickyScrollLineStart + rowOffset,
+				end: stickyScrollLineStart + rowOffset + stickyScrollLineCount - 1
 			}
 		});
 
@@ -218,6 +227,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		if (content) {
 			this._currentStickyCommand = command;
 			this._setVisible(true);
+
+			// Position the sticky scroll such that it never overlaps the prompt/output of the
+			// following command. This must happen after setVisible to ensure the element is
+			// initialized.
+			if (this._element) {
+				const termBox = this._xterm.raw.element.getBoundingClientRect();
+				const rowHeight = termBox.height / this._xterm.raw.rows;
+				const overlayHeight = stickyScrollLineCount * rowHeight;
+				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
+			}
 		} else {
 			this._setVisible(false);
 		}

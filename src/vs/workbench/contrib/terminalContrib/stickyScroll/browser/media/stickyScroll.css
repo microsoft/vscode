@@ -8,7 +8,6 @@
 	position: absolute;
 	left: 0;
 	right: 0;
-	top: 0;
 	z-index: 32; /* Must be higher than .xterm-viewport and decorations */
 	background: var(--vscode-terminalStickyScroll-background, var(--vscode-terminal-background, var(--vscode-panel-background)));
 	box-shadow: var(--vscode-scrollbar-shadow) 0 3px 2px -2px;

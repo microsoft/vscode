@@ -230,13 +230,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 
 		// Line is before any registered commands
-		if (this._commands[0].marker!.line > line) {
+		if ((this._commands[0].promptStartMarker ?? this._commands[0].marker!).line > line) {
 			return undefined;
 		}
 
 		// Iterate backwards through commands to find the right one
 		for (let i = this.commands.length - 1; i >= 0; i--) {
-			if (this.commands[i].marker!.line <= line - 1) {
+			if ((this.commands[i].promptStartMarker ?? this.commands[i].marker!).line <= line - 1) {
 				return this.commands[i];
 			}
 		}
