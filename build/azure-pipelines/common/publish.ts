@@ -438,9 +438,10 @@ export async function processArtifact(product: string, os: string, arch: string,
 }
 
 export async function main() {
-	const state = new State();
+	const done = new State();
+	const processing = new Set<string>();
 
-	for (const name of state) {
+	for (const name of done) {
 		console.log(`Already processed artifact: ${name}`);
 	}
 
@@ -457,24 +458,19 @@ export async function main() {
 		const artifacts = await getPipelineArtifacts();
 
 		for (const artifact of artifacts) {
-			if (!state.has(artifact.name)) {
+			if (!done.has(artifact.name) && !processing.has(artifact.name)) {
 				const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<type>[^_]+)$/.exec(artifact.name);
 
 				if (!match) {
-					console.warn('Invalid artifact name:', artifact.name);
-					continue;
+					throw new Error(`Invalid artifact name: ${artifact.name}`);
 				}
 
 				let artifactPath: string;
 
 				try {
-					console.log(`Processing ${artifact.name} (${artifact.resource.downloadUrl})`);
-
+					console.log(`Downloading and extracting ${artifact.name} (${artifact.resource.downloadUrl})...`);
 					const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-					console.log(`Downloading artifact...`);
 					await downloadArtifact(artifact, artifactZipPath);
-
-					console.log(`Extracting artifact...`);
 					artifactPath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
 					const artifactSize = fs.statSync(artifactPath).size;
 
@@ -488,21 +484,25 @@ export async function main() {
 
 				const { product, os, arch, type } = match.groups!;
 				console.log('Submitting artifact for publish:', { path: artifactPath, product, os, arch, type });
-				publishPromises.push(processArtifact(product, os, arch, type, artifactPath));
 
-				state.add(artifact.name);
+				processing.add(artifact.name);
+				publishPromises.push((async () => {
+					await processArtifact(product, os, arch, type, artifactPath);
+					processing.delete(artifact.name);
+					done.add(artifact.name);
+				})());
 			}
 		}
 
 		const [timeline, artifacts2] = await Promise.all([getPipelineTimeline(), getPipelineArtifacts()]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
-		if (stagesCompleted.size === stages.size && artifacts2.length === state.size) {
+		if (stagesCompleted.size === stages.size && artifacts2.length === done.size) {
 			break;
 		}
 
 		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
-		console.log(`Artifacts processed: ${state.size}/${artifacts2.length}`);
+		console.log(`Artifacts processed: ${done.size}/${artifacts2.length}`);
 
 		await new Promise(c => setTimeout(c, 10_000));
 	}
@@ -521,7 +521,7 @@ export async function main() {
 		throw new Error('Some artifacts failed to publish');
 	}
 
-	console.log(`All ${state.size} artifacts published!`);
+	console.log(`All ${done.size} artifacts published!`);
 }
 
 if (require.main === module) {
