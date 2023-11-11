@@ -169,7 +169,11 @@ export class Response implements IResponse {
 			} else if (lastResponsePart) {
 				// Combine this part with the last, non-resolving string part
 				if (isMarkdownString(responsePart)) {
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, responsePart) };
+					// Merge all enabled commands
+					const lastPartEnabledCommands = typeof lastResponsePart.string.isTrusted === 'object' ? lastResponsePart.string.isTrusted.enabledCommands : [];
+					const thisPartEnabledCommands = typeof responsePart.isTrusted === 'object' ? responsePart.isTrusted.enabledCommands : [];
+					const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, { isTrusted: { enabledCommands } }) };
 				} else {
 					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart, lastResponsePart.string) };
 				}
