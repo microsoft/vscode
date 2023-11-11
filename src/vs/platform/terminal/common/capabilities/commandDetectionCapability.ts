@@ -1085,20 +1085,27 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 }
 
 export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
-	if (!command.marker) {
+	if (!command.marker || !command.promptStartMarker) {
 		return 1;
 	}
 	let promptRowCount = 1;
-	let promptStartLine = command.marker.line;
-	if (command.promptStartMarker) {
-		promptStartLine = Math.min(command.promptStartMarker?.line ?? command.marker.line, command.marker.line);
-		// Trim any leading whitespace-only lines to retain vertical space
-		while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
-			promptStartLine++;
-		}
-		promptRowCount = command.marker.line - promptStartLine + 1;
+	let promptStartLine = command.promptStartMarker.line;
+	// Trim any leading whitespace-only lines to retain vertical space
+	while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+		promptStartLine++;
 	}
+	promptRowCount = command.marker.line - promptStartLine + 1;
 	return promptRowCount;
+}
+
+export function getCommandRowCount(command: ITerminalCommand): number {
+	if (!command.marker || !command.executedMarker) {
+		return 1;
+	}
+	const commandExecutedLine = Math.max(command.executedMarker.line, command.marker.line);
+	const commandRowCount = commandExecutedLine - command.marker.line + 1;
+	return commandRowCount;
+
 }
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {

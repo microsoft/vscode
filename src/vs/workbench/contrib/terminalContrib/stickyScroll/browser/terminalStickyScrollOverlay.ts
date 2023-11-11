@@ -14,7 +14,7 @@ import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { getCommandRowCount, getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -170,16 +170,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
-		// Determine prompt line count
-		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
-
-		// Determine command line count
-		const commandExecutedLine = Math.max(command.executedMarker?.line ?? marker.line, marker.line);
-		const commandRowCount = commandExecutedLine - marker.line;
-
 		// Determine sticky scroll line count
+		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
+		const commandRowCount = getCommandRowCount(command);
 		const stickyScrollLineStart = marker.line - (promptRowCount - 1);
-		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount, this._maxLineCount);
+		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount);
 
 		// Clear attrs, reset cursor position, clear right
 		const content = this._serializeAddon.serialize({
