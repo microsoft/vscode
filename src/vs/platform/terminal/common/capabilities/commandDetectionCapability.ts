@@ -1084,26 +1084,29 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
-export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
-	if (!command.marker || !command.promptStartMarker) {
+export function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, buffer: IBuffer): number {
+	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	if (!marker || !command.promptStartMarker) {
 		return 1;
 	}
 	let promptRowCount = 1;
 	let promptStartLine = command.promptStartMarker.line;
 	// Trim any leading whitespace-only lines to retain vertical space
-	while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+	while (promptStartLine < marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
 		promptStartLine++;
 	}
-	promptRowCount = command.marker.line - promptStartLine + 1;
+	promptRowCount = marker.line - promptStartLine + 1;
 	return promptRowCount;
 }
 
-export function getCommandRowCount(command: ITerminalCommand): number {
-	if (!command.marker || !command.executedMarker) {
+export function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCommand): number {
+	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	const executedMarker = 'hasOutput' in command ? command.executedMarker : command.commandExecutedMarker;
+	if (!marker || !executedMarker) {
 		return 1;
 	}
-	const commandExecutedLine = Math.max(command.executedMarker.line, command.marker.line);
-	const commandRowCount = commandExecutedLine - command.marker.line + 1;
+	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
+	const commandRowCount = commandExecutedLine - marker.line + 1;
 	return commandRowCount;
 
 }

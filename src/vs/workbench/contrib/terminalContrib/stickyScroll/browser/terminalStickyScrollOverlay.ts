@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import type { ITerminalOptions, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IMarker, ITerminalOptions, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -14,7 +14,7 @@ import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { getCommandRowCount, getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { ICurrentPartialCommand, getCommandRowCount, getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -39,7 +39,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _pendingCanvasAddon?: CancelablePromise<void>;
 
 	private _element?: HTMLElement;
-	private _currentStickyCommand?: ITerminalCommand;
+	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
 	private _currentContent?: string;
 
 	private _refreshListeners = this._register(new MutableDisposable());
@@ -151,7 +151,17 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._currentStickyCommand = undefined;
 
 		// Sticky scroll only works with non-partial commands
-		if (!command || !('marker' in command)) {
+		if (!command) {
+			this._setVisible(false);
+			return;
+		}
+
+		if (!('marker' in command)) {
+			const partialCommand = this._commandDetection.currentCommand;
+			if (partialCommand?.commandStartMarker && partialCommand.commandExecutedMarker) {
+				this._updateContent(partialCommand, partialCommand.commandStartMarker);
+				return;
+			}
 			this._setVisible(false);
 			return;
 		}
@@ -170,10 +180,17 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			return;
 		}
 
+		this._updateContent(command, marker);
+	}
+
+	private _updateContent(command: ITerminalCommand | ICurrentPartialCommand, startMarker: IMarker) {
+		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
+			return;
+		}
 		// Determine sticky scroll line count
 		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 		const commandRowCount = getCommandRowCount(command);
-		const stickyScrollLineStart = marker.line - (promptRowCount - 1);
+		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount);
 
 		// Clear attrs, reset cursor position, clear right
@@ -196,7 +213,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// this._stickyScrollOverlay.write(` [${command?.command}]`);
 		}
 
-		if (content && command.exitCode !== undefined) {
+		if (content) {
 			this._currentStickyCommand = command;
 			this._setVisible(true);
 		} else {
@@ -228,7 +245,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Scroll to the command on click
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
-			if (this._xterm && this._currentStickyCommand) {
+			if (this._xterm && this._currentStickyCommand && 'getOutput' in this._currentStickyCommand) {
 				this._xterm.markTracker.revealCommand(this._currentStickyCommand);
 			}
 		}));
