@@ -194,7 +194,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
 			this._currentContent = content;
-			// Debug log to show the command
+			// DEBUG: Log to show the command line we know
 			// this._stickyScrollOverlay.write(` [${command?.command}]`);
 		}
 
