@@ -15,6 +15,7 @@ import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
@@ -44,6 +45,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _refreshListeners = this._register(new MutableDisposable());
 
 	private _state: OverlayState = OverlayState.Off;
+	private _maxLineCount: number = 5;
 
 	constructor(
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
@@ -60,14 +62,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			this._setState((buffer ?? this._xterm.raw.buffer.active).type === 'normal' ? OverlayState.On : OverlayState.Off);
 		}));
 
-		// React to option changes
-		this._register(configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
-				this._syncOptions();
+		// React to configuration changes
+		this._register(Event.runAndSubscribe(configurationService.onDidChangeConfiguration, e => {
+			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollMaxLineCount)) {
+				this._maxLineCount = configurationService.getValue(TerminalSettingId.StickyScrollMaxLineCount);
 			}
-		}));
-		this._register(this._themeService.onDidColorThemeChange(() => {
-			this._syncOptions();
 		}));
 
 		// Eagerly create the overlay
@@ -77,6 +76,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				cols: this._xterm.raw.cols,
 				allowProposedApi: true,
 				...this._getOptions()
+			}));
+			this._register(configurationService.onDidChangeConfiguration(e => {
+				if (e.affectsConfiguration(TERMINAL_CONFIG_SECTION)) {
+					this._syncOptions();
+				}
+			}));
+			this._register(this._themeService.onDidColorThemeChange(() => {
+				this._syncOptions();
 			}));
 
 			this._getSerializeAddonConstructor().then(SerializeAddon => {
@@ -168,18 +175,21 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// Determine prompt length
 		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
 
+		const stickyScrollLineStart = marker.line - (promptRowCount - 1);
+		const stickyScrollLineCount = Math.min(promptRowCount, this._maxLineCount);
+
 		// Clear attrs, reset cursor position, clear right
 		const content = this._serializeAddon.serialize({
 			range: {
-				start: marker.line - (promptRowCount - 1),
-				end: marker.line
+				start: stickyScrollLineStart,
+				end: stickyScrollLineStart + stickyScrollLineCount - 1
 			}
 		});
 
 		// Write content if it differs
 		if (content && this._currentContent !== content) {
-			if (this._stickyScrollOverlay.rows !== promptRowCount) {
-				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, promptRowCount);
+			if (this._stickyScrollOverlay.rows !== stickyScrollLineCount) {
+				this._stickyScrollOverlay.resize(this._stickyScrollOverlay.cols, stickyScrollLineCount);
 			}
 			this._stickyScrollOverlay.write('\x1b[0m\x1b[H\x1b[2J');
 			this._stickyScrollOverlay.write(content);
