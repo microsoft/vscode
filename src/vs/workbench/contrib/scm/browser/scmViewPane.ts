@@ -736,6 +736,8 @@ interface HistoryItemTemplate {
 	readonly label: IconLabel;
 	readonly statsContainer: HTMLElement;
 	readonly statsLabel: IconLabel;
+	readonly actionBar: ActionBar;
+	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
 }
 
@@ -743,6 +745,10 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 
 	static readonly TEMPLATE_ID = 'history-item';
 	get templateId(): string { return HistoryItemRenderer.TEMPLATE_ID; }
+
+	constructor(
+		private actionViewItemProvider: IActionViewItemProvider,
+		@ISCMViewService private scmViewService: ISCMViewService) { }
 
 	renderTemplate(container: HTMLElement): HistoryItemTemplate {
 		// hack
@@ -753,10 +759,15 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		const iconLabel = new IconLabel(element, { supportIcons: true });
 		const iconContainer = prepend(iconLabel.element, $('.icon-container'));
 
+		const disposables = new DisposableStore();
+		const actionsContainer = append(element, $('.actions'));
+		const actionBar = new ActionBar(actionsContainer, { actionViewItemProvider: this.actionViewItemProvider });
+		disposables.add(actionBar);
+
 		const statsContainer = append(element, $('.stats-container'));
 		const statsLabel = new IconLabel(statsContainer, { supportIcons: true });
 
-		return { iconContainer, label: iconLabel, statsContainer, statsLabel, disposables: new DisposableStore() };
+		return { iconContainer, label: iconLabel, actionBar, statsContainer, statsLabel, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -768,6 +779,15 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		}
 
 		templateData.label.setLabel(historyItem.label, historyItem.description);
+
+		templateData.actionBar.clear();
+		templateData.actionBar.context = historyItem;
+
+		const menus = this.scmViewService.menus.getRepositoryMenus(historyItem.historyItemGroup.repository.provider);
+		if (menus.historyProviderMenu) {
+			templateData.elementDisposables.add(connectPrimaryMenuToInlineActionBar(menus.historyProviderMenu.getHistoryItemMenu(historyItem), templateData.actionBar));
+		}
+
 		this.renderStatistics(node, index, templateData, height);
 	}
 
@@ -808,6 +828,9 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		}
 	}
 
+	disposeElement(element: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
+		templateData.elementDisposables.clear();
+	}
 	disposeTemplate(templateData: HistoryItemTemplate): void {
 		templateData.disposables.dispose();
 	}
@@ -1634,6 +1657,51 @@ class ExpandAllRepositoriesAction extends ViewAction<SCMViewPane>  {
 registerAction2(CollapseAllRepositoriesAction);
 registerAction2(ExpandAllRepositoriesAction);
 
+class HistoryItemViewChangesAction extends Action2 {
+
+	constructor() {
+		super({
+			id: `workbench.scm.action.historyItemViewChanges`,
+			title: localize('historyItemViewChanges', "View Changes"),
+			icon: Codicon.search,
+			f1: false,
+			menu: {
+				id: MenuId.SCMHistoryItem,
+				group: 'inline'
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor, historyItem: SCMHistoryItemTreeElement): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+
+		const historyProvider = historyItem.historyItemGroup.repository.provider.historyProvider;
+		if (!historyProvider) {
+			return;
+		}
+
+		const historyItemChanges = await historyProvider.provideHistoryItemChanges(historyItem.id);
+		if (!historyItemChanges || historyItemChanges.length === 0) {
+			return;
+		}
+
+		let [originalRef, modifiedRef] = historyItem.id.includes('..')
+			? historyItem.id.split('..') : [undefined, historyItem.id];
+
+		if (!originalRef) {
+			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${modifiedRef}^`;
+		}
+
+		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef.substring(0, 8), modifiedRef.substring(0, 8));
+		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
+
+		return commandService.executeCommand('_workbench.changes', title, args);
+	}
+
+}
+
+registerAction2(HistoryItemViewChangesAction);
+
 class SCMInputWidget {
 
 	private static readonly ValidationTimeouts: { [severity: number]: number } = {
@@ -1691,8 +1759,8 @@ class SCMInputWidget {
 		}
 
 		const uri = input.repository.provider.inputBoxDocumentUri;
-		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== false) {
-			this.configurationService.updateValue('editor.wordBasedSuggestions', false, { resource: uri }, ConfigurationTarget.MEMORY);
+		if (this.configurationService.getValue('editor.wordBasedSuggestions', { resource: uri }) !== 'off') {
+			this.configurationService.updateValue('editor.wordBasedSuggestions', 'off', { resource: uri }, ConfigurationTarget.MEMORY);
 		}
 
 		const modelValue: typeof this.model = { input, textModelRef: undefined };
@@ -2436,7 +2504,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(ResourceGroupRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(ResourceRenderer, () => this.viewMode, this.listLabels, getActionViewItemProvider(this.instantiationService), actionRunner),
 				this.instantiationService.createInstance(HistoryItemGroupRenderer),
-				this.instantiationService.createInstance(HistoryItemRenderer),
+				this.instantiationService.createInstance(HistoryItemRenderer, getActionViewItemProvider(this.instantiationService)),
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)
 			],

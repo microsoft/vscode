@@ -253,7 +253,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 		this._notebookGlobalActionsMenu = this._register(this.menuService.createMenu(this.notebookEditor.creationOptions.menuIds.notebookToolbar, this.contextKeyService));
 		this._register(this._notebookGlobalActionsMenu);
 
-		this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
+		this._useGlobalToolbar = this.notebookOptions.getDisplayOptions().globalToolbar;
 		this._renderLabel = this._convertConfiguration(this.configurationService.getValue(NotebookSetting.globalToolbarShowLabel));
 		this._updateStrategy();
 
@@ -337,7 +337,7 @@ export class NotebookEditorWorkbenchToolbar extends Disposable {
 
 		this._register(this.notebookOptions.onDidChangeOptions(e => {
 			if (e.globalToolbar !== undefined) {
-				this._useGlobalToolbar = this.notebookOptions.getLayoutConfiguration().globalToolbar;
+				this._useGlobalToolbar = this.notebookOptions.getDisplayOptions().globalToolbar;
 				this._showNotebookActionsinEditorToolbar();
 			}
 		}));
