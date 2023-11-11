@@ -143,8 +143,8 @@ class ESRPClient {
         const releaseId = submitReleaseResult.submissionResponse.operationId;
         this.log(`Successfully submitted release ${releaseId}. Polling for completion...`);
         let details;
-        // Poll every 5 seconds, wait 30 minutes max -> poll 60/5*30=360 times
-        for (let i = 0; i < 360; i++) {
+        // Poll every 5 seconds, wait 60 minutes max -> poll 60/5*60=720 times
+        for (let i = 0; i < 720; i++) {
             details = await this.ReleaseDetails(releaseId);
             if (details.releaseDetails[0].statusCode === 'pass') {
                 break;
