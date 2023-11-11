@@ -18,6 +18,7 @@ import { ICurrentPartialCommand, getCommandRowCount, getPromptRowCount } from 'v
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
 
@@ -241,6 +242,11 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._element.append(hoverOverlay);
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
+
+		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
+		if (scrollBarWidth !== undefined) {
+			this._element.style.right = `${scrollBarWidth}px`;
+		}
 
 		this._stickyScrollOverlay.open(this._element);
 
