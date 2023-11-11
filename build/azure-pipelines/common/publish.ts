@@ -298,6 +298,9 @@ function hashStream(hashName: string, stream: Readable): Promise<string> {
 	});
 }
 
+const azureSequencer = new Sequencer();
+const mooncakeSequencer = new Sequencer();
+
 export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ blobName: string; assetUrl: string; mooncakeUrl: string }> {
 	const fileName = path.basename(filePath);
 	const blobName = commit + '/' + fileName;
@@ -327,7 +330,7 @@ export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: 
 		} else {
 			await retry(async (attempt) => {
 				log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
-				await blobClient.uploadFile(filePath, blobOptions);
+				await azureSequencer.queue(() => blobClient.uploadFile(filePath, blobOptions));
 				log('Blob successfully uploaded to Azure storage.');
 			});
 		}
@@ -349,7 +352,7 @@ export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: 
 			} else {
 				await retry(async (attempt) => {
 					log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
-					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+					await mooncakeSequencer.queue(() => mooncakeBlobClient.uploadFile(filePath, blobOptions));
 					log('Blob successfully uploaded to Mooncake Azure storage.');
 				});
 			}
@@ -376,7 +379,7 @@ export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: 
 	return { blobName, assetUrl, mooncakeUrl };
 }
 
-const sequencer = new Sequencer();
+const cosmosSequencer = new Sequencer();
 
 export async function processArtifact(product: string, os: string, arch: string, unprocessedType: string, filePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${product} ${os} ${arch} ${unprocessedType}]`, ...args);
@@ -399,7 +402,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 	log('SHA256:', sha256hash);
 
 	const [{ blobName, assetUrl, mooncakeUrl }] = await Promise.all([
-		sequencer.queue(() => uploadAssetLegacy(log, quality, commit, filePath)),
+		uploadAssetLegacy(log, quality, commit, filePath),
 		releaseAndProvision(
 			log,
 			e('RELEASE_TENANT_ID'),
@@ -432,7 +435,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 	const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 	const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 	const scripts = client.database('builds').container(quality).scripts;
-	await retry(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true]));
+	await retry(() => cosmosSequencer.queue(() => scripts.storedProcedure('createAsset').execute('', [commit, asset, true])));
 
 	log('Asset successfully created');
 }
