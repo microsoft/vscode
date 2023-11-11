@@ -1106,7 +1106,12 @@ export function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCo
 		return 1;
 	}
 	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
-	const commandRowCount = commandExecutedLine - marker.line + 1;
+	let commandRowCount = commandExecutedLine - marker.line + 1;
+	// Trim the last line if the cursor X is in the left-most cell
+	const executedX = 'hasOutput' in command ? command.executedX : command.commandExecutedX;
+	if (executedX === 0) {
+		commandRowCount--;
+	}
 	return commandRowCount;
 
 }
