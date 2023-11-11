@@ -39,6 +39,7 @@ export interface IQuickChatService {
 	readonly _serviceBrand: undefined;
 	readonly onDidClose: Event<void>;
 	readonly enabled: boolean;
+	readonly focused: boolean;
 	toggle(providerId?: string, options?: IQuickChatOpenOptions): void;
 	focus(): void;
 	open(providerId?: string, options?: IQuickChatOpenOptions): void;
