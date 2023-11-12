@@ -5,7 +5,7 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import * as https from 'https';
+import fetch from 'node-fetch';
 import { Readable } from 'stream';
 import { finished } from 'stream/promises';
 import * as yauzl from 'yauzl';
@@ -71,14 +71,14 @@ class State {
 
 const azdoOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } };
 
-function requestAZDOAPI<T>(path: string): Promise<T> {
-	return new Promise((resolve, reject) => {
-		https.get(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoOptions, res => {
-			const chunks: Buffer[] = [];
-			res.on('data', chunk => chunks.push(chunk));
-			res.on('end', () => resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))));
-		}).on('error', reject);
-	});
+async function requestAZDOAPI<T>(path: string): Promise<T> {
+	const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoOptions);
+
+	if (!res.ok) {
+		throw new Error(`Unexpected status code: ${res.status}`);
+	}
+
+	return await res.json();
 }
 
 interface Artifact {
@@ -110,12 +110,14 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
 	return await retry(async () => {
-		return new Promise((resolve, reject) => {
-			https.get(artifact.resource.downloadUrl, azdoOptions, res => {
-				const ostream = fs.createWriteStream(downloadPath);
-				finished(res.pipe(ostream)).then(resolve, reject);
-			}).on('error', reject);
-		});
+		const res = await fetch(artifact.resource.downloadUrl, azdoOptions);
+
+		if (!res.ok) {
+			throw new Error(`Unexpected status code: ${res.status}`);
+		}
+
+		const ostream = fs.createWriteStream(downloadPath);
+		await finished(res.body.pipe(ostream));
 	});
 }
 

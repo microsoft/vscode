@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ClientSecretCredential } from '@azure/identity';
-import * as https from 'https';
+import fetch, { RequestInit } from 'node-fetch';
 import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -95,42 +95,22 @@ class ProvisionService {
 	}
 
 	private async request<T>(method: string, url: string, options?: RequestOptions): Promise<T> {
-		return await new Promise<T>((c, e) => {
-			const headers: Record<string, string> = {
-				'Authorization': `Bearer ${this.accessToken}`,
+		const opts: RequestInit = {
+			method,
+			body: options?.body,
+			headers: {
+				Authorization: `Bearer ${this.accessToken}`,
 				'Content-Type': 'application/json'
-			};
-
-			if (options?.body) {
-				headers['Content-Length'] = String(options.body.length);
 			}
+		};
 
-			const req = https.request(`https://dsprovisionapi.microsoft.com${url}`, { method, headers }, res => {
-				if (!res.statusCode || res.statusCode < 200 || res.statusCode >= 500) {
-					return e(new Error(`Unexpected status code: ${res.statusCode}`));
-				}
+		const res = await fetch(`https://dsprovisionapi.microsoft.com${url}`, opts);
 
-				const chunks: Buffer[] = [];
-				res.on('data', chunk => chunks.push(chunk));
-				res.on('end', () => {
-					const body = Buffer.concat(chunks).toString();
+		if (!res.ok || res.status < 200 || res.status >= 500) {
+			throw new Error(`Unexpected status code: ${res.status}`);
+		}
 
-					try {
-						c(JSON.parse(body));
-					} catch (err) {
-						e(err);
-					}
-				});
-			});
-
-			req.on('error', e);
-
-			if (options?.body) {
-				req.write(options?.body);
-			}
-
-			req.end();
-		});
+		return await res.json();
 	}
 }
 
