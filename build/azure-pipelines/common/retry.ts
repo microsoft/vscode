@@ -10,7 +10,7 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>): Promise<T> 
 		try {
 			return await fn(run);
 		} catch (err) {
-			if (!/fetch failed|RestError|ECONNRESET|CredentialUnavailableError|Audience validation failed/i.test(err.message)) {
+			if (!/fetch failed|TimeoutError|RestError|ECONNRESET|CredentialUnavailableError|Audience validation failed/i.test(err.message)) {
 				throw err;
 			}
 
