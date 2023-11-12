@@ -5,7 +5,6 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
 import { assertSnapshot } from 'vs/base/test/common/snapshot';
@@ -25,7 +24,7 @@ import { IViewsService } from 'vs/workbench/common/views';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChat, IChatProgress, IChatProvider, IChatRequest, IPersistedChatState } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatProgress, IChatProvider, IChatRequest } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatService } from 'vs/workbench/contrib/chat/common/chatServiceImpl';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
@@ -36,29 +35,18 @@ import { TestContextService, TestExtensionService, TestStorageService } from 'vs
 class SimpleTestProvider extends Disposable implements IChatProvider {
 	private static sessionId = 0;
 
-	lastInitialState = undefined;
-
 	readonly displayName = 'Test';
-
-	private _onDidChangeState = this._register(new Emitter());
 
 	constructor(readonly id: string) {
 		super();
 	}
 
-	prepareSession(initialState: any) {
-		this.lastInitialState = initialState;
-		return Promise.resolve(<IChat>{
+	async prepareSession(): Promise<IChat> {
+		return {
 			id: SimpleTestProvider.sessionId++,
-			username: 'test',
 			responderUsername: 'test',
 			requesterUsername: 'test',
-			onDidChangeState: this._onDidChangeState.event
-		});
-	}
-
-	changeState(state: any) {
-		this._onDidChangeState.fire(state);
+		};
 	}
 
 	async provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void): Promise<{ session: IChat; followups: never[] }> {
@@ -93,7 +81,6 @@ const chatAgentWithUsedContext: IChatAgent = {
 suite('Chat', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
-	let storageService: IStorageService;
 	let instantiationService: TestInstantiationService;
 
 	let chatAgentService: IChatAgentService;
@@ -102,7 +89,7 @@ suite('Chat', () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
 		)));
-		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
+		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
@@ -140,12 +127,6 @@ suite('Chat', () => {
 		await session2.waitForInitialization();
 		session2!.addRequest({ parts: [], text: 'request 2' });
 
-		assert.strictEqual(provider1.lastInitialState, undefined);
-		assert.strictEqual(provider2.lastInitialState, undefined);
-		provider1.changeState({ state: 'provider1_state' });
-		provider2.changeState({ state: 'provider2_state' });
-		storageService.flush();
-
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService2.registerProvider(provider1));
 		testDisposables.add(testService2.registerProvider(provider2));
@@ -153,8 +134,8 @@ suite('Chat', () => {
 		await retrieved1!.waitForInitialization();
 		const retrieved2 = testDisposables.add(testService2.getOrRestoreSession(session2.sessionId)!);
 		await retrieved2!.waitForInitialization();
-		assert.deepStrictEqual(provider1.lastInitialState, { state: 'provider1_state' });
-		assert.deepStrictEqual(provider2.lastInitialState, { state: 'provider2_state' });
+		assert.deepStrictEqual(retrieved1.getRequests()[0]?.message.text, 'request 1');
+		assert.deepStrictEqual(retrieved2.getRequests()[0]?.message.text, 'request 2');
 	});
 
 	test('Handles failed session startup', async () => {
@@ -189,7 +170,7 @@ suite('Chat', () => {
 		testDisposables.add(testService.registerProvider({
 			id,
 			displayName: 'Test',
-			prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
+			prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
 				throw new Error('Function not implemented.');
 			}
 		}));
@@ -198,7 +179,7 @@ suite('Chat', () => {
 			testDisposables.add(testService.registerProvider({
 				id,
 				displayName: 'Test',
-				prepareSession: function (initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined> {
+				prepareSession: function (token: CancellationToken): ProviderResult<IChat | undefined> {
 					throw new Error('Function not implemented.');
 				}
 			}));

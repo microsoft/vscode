@@ -393,7 +393,6 @@ export interface IExportableChatData {
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: UriComponents | undefined;
-	providerState: any;
 }
 
 export interface ISerializableChatData extends IExportableChatData {
@@ -469,11 +468,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._welcomeMessage;
 	}
 
-	private _providerState: any;
-	get providerState(): any {
-		return this._providerState;
-	}
-
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
 	private _sessionId: string;
@@ -539,7 +533,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isImported = (!!initialData && !isSerializableSessionData(initialData)) || (initialData?.isImported ?? false);
 		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
-		this._providerState = initialData ? initialData.providerState : undefined;
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
@@ -621,13 +614,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._isInitializedDeferred.complete();
-
-		if (session.onDidChangeState) {
-			this._register(session.onDidChangeState(state => {
-				this._providerState = state;
-				this.logService.trace('ChatModel#acceptNewSessionState');
-			}));
-		}
 		this._onDidChange.fire({ kind: 'initialize' });
 	}
 
@@ -768,7 +754,6 @@ export class ChatModel extends Disposable implements IChatModel {
 				};
 			}),
 			providerId: this.providerId,
-			providerState: this._providerState
 		};
 	}
 

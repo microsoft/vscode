@@ -23,7 +23,6 @@ export interface IChat {
 	responderUsername: string;
 	responderAvatarIconUri?: URI;
 	inputPlaceholder?: string;
-	onDidChangeState?: Event<any>;
 	dispose?(): void;
 }
 
@@ -107,12 +106,11 @@ export type IChatProgress =
 	| IChatContentInlineReference
 	| IChatAgentDetection;
 
-export interface IPersistedChatState { }
 export interface IChatProvider {
 	readonly id: string;
 	readonly displayName: string;
 	readonly iconUrl?: string;
-	prepareSession(initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined>;
+	prepareSession(token: CancellationToken): ProviderResult<IChat | undefined>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
 }

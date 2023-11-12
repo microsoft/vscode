@@ -9,7 +9,7 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import { ExtHostChatShape, ExtHostContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
-import { IChat, IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatDynamicRequest, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadChat)
@@ -56,8 +56,8 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 		const unreg = this._chatService.registerProvider({
 			id,
 			displayName: registration.label,
-			prepareSession: async (initialState, token) => {
-				const session = await this._proxy.$prepareChat(handle, initialState, token);
+			prepareSession: async (token) => {
+				const session = await this._proxy.$prepareChat(handle, token);
 				if (!session) {
 					return undefined;
 				}
@@ -67,14 +67,13 @@ export class MainThreadChat extends Disposable implements MainThreadChatShape {
 
 				const emitter = new Emitter<any>();
 				this._stateEmitters.set(session.id, emitter);
-				return <IChat>{
+				return {
 					id: session.id,
 					requesterUsername: session.requesterUsername,
 					requesterAvatarIconUri: URI.revive(session.requesterAvatarIconUri),
 					responderUsername: session.responderUsername,
 					responderAvatarIconUri,
 					inputPlaceholder: session.inputPlaceholder,
-					onDidChangeState: emitter.event,
 					dispose: () => {
 						emitter.dispose();
 						this._stateEmitters.delete(session.id);

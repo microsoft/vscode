@@ -365,7 +365,7 @@ export class ChatService extends Disposable implements IChatService {
 
 			let session: IChat | undefined;
 			try {
-				session = await provider.prepareSession(model.providerState, token) ?? undefined;
+				session = await provider.prepareSession(token) ?? undefined;
 			} catch (err) {
 				this.trace('initializeSession', `Provider initializeSession threw: ${err}`);
 			}

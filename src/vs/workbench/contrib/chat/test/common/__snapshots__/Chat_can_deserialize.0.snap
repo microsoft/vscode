@@ -79,6 +79,5 @@
       contentReferences: [  ]
     }
   ],
-  providerId: "testProvider",
-  providerState: undefined
+  providerId: "testProvider"
 }

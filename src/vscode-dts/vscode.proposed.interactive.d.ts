@@ -85,9 +85,6 @@ declare module 'vscode' {
 		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
-
-	export interface InteractiveSessionState { }
-
 	export interface InteractiveSessionParticipantInformation {
 		name: string;
 
@@ -101,8 +98,6 @@ declare module 'vscode' {
 		requester: InteractiveSessionParticipantInformation;
 		responder: InteractiveSessionParticipantInformation;
 		inputPlaceholder?: string;
-
-		saveState?(): InteractiveSessionState;
 	}
 
 	export interface InteractiveSessionReplyFollowup {
@@ -116,7 +111,7 @@ declare module 'vscode' {
 	export interface InteractiveSessionProvider<S extends InteractiveSession = InteractiveSession> {
 		provideWelcomeMessage?(token: CancellationToken): ProviderResult<InteractiveWelcomeMessageContent[]>;
 		provideSampleQuestions?(token: CancellationToken): ProviderResult<InteractiveSessionReplyFollowup[]>;
-		prepareSession(initialState: InteractiveSessionState | undefined, token: CancellationToken): ProviderResult<S>;
+		prepareSession(token: CancellationToken): ProviderResult<S>;
 	}
 
 	export interface InteractiveSessionDynamicRequest {

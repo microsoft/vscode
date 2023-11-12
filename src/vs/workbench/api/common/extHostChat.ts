@@ -69,13 +69,13 @@ export class ExtHostChat implements ExtHostChatShape {
 		this._proxy.$sendRequestToProvider(providerId, message);
 	}
 
-	async $prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined> {
+	async $prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined> {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const session = await entry.provider.prepareSession(initialState, token);
+		const session = await entry.provider.prepareSession(token);
 		if (!session) {
 			return undefined;
 		}
