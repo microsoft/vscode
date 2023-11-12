@@ -51,7 +51,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		const markCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
 		let markers: IMarker[] = [];
 		if (commandCapability) {
-			markers = coalesce(commandCapability.commands.filter(e => e.exitCode !== undefined).map(e => e.marker));
+			markers = coalesce(commandCapability.commands.filter(e => skipEmptyCommands ? e.exitCode !== undefined : true).map(e => e.marker));
 		} else if (partialCommandCapability) {
 			markers.push(...partialCommandCapability.commands);
 		}
@@ -127,12 +127,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = -1;
 		} else if (this._isDisposable) {
-			markerIndex = this._findPreviousMarker(this._terminal, skipEmptyCommands);
+			markerIndex = this._findPreviousMarker(skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
 			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
-				markerIndex = this._findPreviousMarker(this._terminal, true);
+				markerIndex = this._findPreviousMarker(true);
 			} else {
 				markerIndex = this._getMarkers(skipEmptyCommands).indexOf(this._currentMarker) - 1;
 			}
@@ -173,12 +173,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		} else if (this._currentMarker === Boundary.Top) {
 			markerIndex = 0;
 		} else if (this._isDisposable) {
-			markerIndex = this._findNextMarker(this._terminal, skipEmptyCommands);
+			markerIndex = this._findNextMarker(skipEmptyCommands);
 			this._currentMarker.dispose();
 			this._isDisposable = false;
 		} else {
 			if (skipEmptyCommands && this._isEmptyCommand(this._currentMarker)) {
-				markerIndex = this._findNextMarker(this._terminal, true);
+				markerIndex = this._findNextMarker(true);
 			} else {
 				markerIndex = this._getMarkers(skipEmptyCommands).indexOf(this._currentMarker) + 1;
 			}
@@ -443,7 +443,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	private _findPreviousMarker(xterm: Terminal, skipEmptyCommands: boolean = false): number {
+	private _findPreviousMarker(skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
@@ -460,7 +460,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return -1;
 	}
 
-	private _findNextMarker(xterm: Terminal, skipEmptyCommands: boolean = false): number {
+	private _findNextMarker(skipEmptyCommands: boolean = false): number {
 		if (this._currentMarker === Boundary.Top) {
 			return 0;
 		} else if (this._currentMarker === Boundary.Bottom) {
