@@ -1167,7 +1167,7 @@ export interface ExtHostChatProviderShape {
 
 export interface IExtensionChatAgentMetadata extends Dto<IChatAgentMetadata> {
 	hasSlashCommands?: boolean;
-	hasFollowup?: boolean;
+	hasFollowups?: boolean;
 }
 
 export interface MainThreadChatAgentsShape2 extends IDisposable {
