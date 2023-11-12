@@ -457,7 +457,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Find target anchor
 			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (isMouseEvent(e)) {
-				anchor = new StandardMouseEvent(e);
+				anchor = new StandardMouseEvent(getWindow(tabsContainer), e);
 			}
 
 			// Show it

@@ -195,7 +195,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: MarkdownRende
 		const onClick = options.actionHandler.disposables.add(new DomEmitter(element, 'click'));
 		const onAuxClick = options.actionHandler.disposables.add(new DomEmitter(element, 'auxclick'));
 		options.actionHandler.disposables.add(Event.any(onClick.event, onAuxClick.event)(e => {
-			const mouseEvent = new StandardMouseEvent(e);
+			const mouseEvent = new StandardMouseEvent(DOM.getWindow(element), e);
 			if (!mouseEvent.leftButton && !mouseEvent.middleButton) {
 				return;
 			}

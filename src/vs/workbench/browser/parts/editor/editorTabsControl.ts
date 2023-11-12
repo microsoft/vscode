@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { Dimension, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -381,7 +381,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (isMouseEvent(e)) {
-			anchor = new StandardMouseEvent(e);
+			anchor = new StandardMouseEvent(getWindow(node), e);
 		}
 
 		// Show it
