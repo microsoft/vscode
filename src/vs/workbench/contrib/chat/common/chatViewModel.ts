@@ -55,7 +55,6 @@ export interface IChatViewModel {
 
 export interface IChatRequestViewModel {
 	readonly id: string;
-	readonly providerRequestId: string | undefined;
 	readonly sessionId: string;
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
@@ -88,7 +87,6 @@ export interface IChatResponseViewModel {
 	/** This ID updates every time the underlying data changes */
 	readonly dataId: string;
 	readonly providerId: string;
-	readonly providerResponseId: string | undefined;
 	/** The ID of the associated IChatRequestViewModel */
 	readonly requestId: string;
 	readonly username: string;
@@ -173,12 +171,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 			} else if (e.kind === 'addResponse') {
 				this.onAddResponse(e.response);
 			} else if (e.kind === 'removeRequest') {
-				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.providerRequestId === e.requestId);
+				const requestIdx = this._items.findIndex(item => isRequestVM(item) && item.id === e.requestId);
 				if (requestIdx >= 0) {
 					this._items.splice(requestIdx, 1);
 				}
 
-				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.providerResponseId === e.responseId);
+				const responseIdx = e.responseId && this._items.findIndex(item => isResponseVM(item) && item.id === e.responseId);
 				if (typeof responseIdx === 'number' && responseIdx >= 0) {
 					const items = this._items.splice(responseIdx, 1);
 					const item = items[0];
@@ -216,10 +214,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 export class ChatRequestViewModel implements IChatRequestViewModel {
 	get id() {
 		return this._model.id;
-	}
-
-	get providerRequestId() {
-		return this._model.providerRequestId;
 	}
 
 	get dataId() {
@@ -267,10 +261,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get providerId() {
 		return this._model.providerId;
-	}
-
-	get providerResponseId() {
-		return this._model.providerResponseId;
 	}
 
 	get sessionId() {
