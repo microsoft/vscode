@@ -1,0 +1,17 @@
+{
+	"name": "my theme",
+	"colorPalette":{
+		"$primary": "#4e321a",
+		"$secondary": "#110802",
+		"$accent1": "#400000",
+		"$accent2": "#0400ff"
+	},
+	"colors": {
+		"editorGroup.emptyBackground": "$primary",
+		"statusBar.border": "$secondary",
+		"focusBorder": "#0400ff",
+		"badge.background": "#fce566",
+		"badge.foreground": null,
+		"editorGroup.dropBackground": "$notExist"
+	}
+}

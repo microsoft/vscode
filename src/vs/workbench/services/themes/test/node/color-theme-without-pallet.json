@@ -1,0 +1,11 @@
+{
+	"name": "my theme",
+	"colors": {
+		"editorGroup.emptyBackground": "$primary",
+		"statusBar.border": "$secondary",
+		"focusBorder": "#0400ff",
+		"badge.background": "#fce566",
+		"badge.foreground": null,
+		"editorGroup.dropBackground": "$notExist"
+	}
+}
