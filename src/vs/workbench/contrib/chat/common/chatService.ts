@@ -116,10 +116,6 @@ export interface IChatProvider {
 	prepareSession(initialState: IPersistedChatState | undefined, token: CancellationToken): ProviderResult<IChat | undefined>;
 	provideWelcomeMessage?(token: CancellationToken): ProviderResult<(string | IMarkdownString | IChatReplyFollowup[])[] | undefined>;
 	provideSampleQuestions?(token: CancellationToken): ProviderResult<IChatReplyFollowup[] | undefined>;
-	provideFollowups?(session: IChat, token: CancellationToken): ProviderResult<IChatFollowup[] | undefined>;
-	provideReply(request: IChatRequest, progress: (progress: IChatProgress) => void, token: CancellationToken): ProviderResult<IChatResponse>;
-	provideSlashCommands?(session: IChat, token: CancellationToken): ProviderResult<ISlashCommand[]>;
-	removeRequest?(session: IChat, requestId: string): void;
 }
 
 export interface ISlashCommand {
@@ -271,7 +267,7 @@ export interface IChatService {
 	_serviceBrand: undefined;
 	transferredSessionData: IChatTransferredSessionData | undefined;
 
-	onDidSubmitSlashCommand: Event<{ slashCommand: string; sessionId: string } | { agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
+	onDidSubmitAgent: Event<{ agent: IChatAgentData; slashCommand: IChatAgentCommand; sessionId: string }>;
 	onDidRegisterProvider: Event<{ providerId: string }>;
 	registerProvider(provider: IChatProvider): IDisposable;
 	hasSessions(providerId: string): boolean;
@@ -285,10 +281,9 @@ export interface IChatService {
 	/**
 	 * Returns whether the request was accepted.
 	 */
-	sendRequest(sessionId: string, message: string, usedSlashCommand?: ISlashCommand): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
+	sendRequest(sessionId: string, message: string): Promise<{ responseCompletePromise: Promise<void> } | undefined>;
 	removeRequest(sessionid: string, requestId: string): Promise<void>;
 	cancelCurrentRequestForSession(sessionId: string): void;
-	getSlashCommands(sessionId: string, token: CancellationToken): Promise<ISlashCommand[]>;
 	clearSession(sessionId: string): void;
 	addCompleteRequest(sessionId: string, message: IParsedChatRequest | string, response: IChatCompleteResponse): void;
 	sendRequestToProvider(sessionId: string, message: IChatDynamicRequest): void;

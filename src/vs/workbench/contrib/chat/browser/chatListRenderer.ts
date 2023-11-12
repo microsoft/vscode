@@ -57,7 +57,7 @@ import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents'
 import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -89,7 +89,6 @@ const forceVerboseLayoutTracing = false;
 
 export interface IChatRendererDelegate {
 	getListLength(): number;
-	getSlashCommands(): ISlashCommand[];
 }
 
 export interface IChatListItemRendererOptions {
@@ -465,7 +464,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate, height?: number) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
-		const slashCommands = this.delegate.getSlashCommands();
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
@@ -477,11 +475,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					templateData.contextKeyService));
 			} else {
 				const result = this.renderMarkdown(item as IMarkdownString, element, templateData);
-				for (const codeElement of result.element.querySelectorAll('code')) {
-					if (codeElement.textContent && slashCommands.find(command => codeElement.textContent === `/${command.command}`)) {
-						codeElement.classList.add('interactive-slash-command');
-					}
-				}
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
 			}
@@ -779,11 +772,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
-		// TODO if the slash commands stay completely dynamic, this isn't quite right
-		const slashCommands = this.delegate.getSlashCommands();
-		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
-		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
-		markdown = new MarkdownString(toRender, {
+		markdown = new MarkdownString(markdown.value, {
 			isTrusted: {
 				// Disable all other config options except isTrusted
 				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
@@ -830,15 +819,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		walkTreeAndAnnotateReferenceLinks(result.element);
-
-		if (usedSlashCommand) {
-			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
-			if (result.element.firstChild?.nodeName.toLowerCase() === 'p') {
-				result.element.firstChild.insertBefore(slashCommandElement, result.element.firstChild.firstChild);
-			} else {
-				result.element.insertBefore($('p', undefined, slashCommandElement), result.element.firstChild);
-			}
-		}
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {

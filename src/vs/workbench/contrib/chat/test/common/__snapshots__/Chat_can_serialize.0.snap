@@ -5,6 +5,6 @@
   responderAvatarIconUri: undefined,
   welcomeMessage: undefined,
   requests: [  ],
-  providerId: "ChatProviderWithUsedContext",
+  providerId: "testProvider",
   providerState: undefined
 }

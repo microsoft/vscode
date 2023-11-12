@@ -789,7 +789,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent,
+					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.response.usedContext,
 					contentReferences: r.response?.response.contentReferences

@@ -781,6 +781,10 @@ export class DisposableMap<K, V extends IDisposable = IDisposable> implements ID
 		return this._store.keys();
 	}
 
+	values(): IterableIterator<V> {
+		return this._store.values();
+	}
+
 	[Symbol.iterator](): IterableIterator<[K, V]> {
 		return this._store[Symbol.iterator]();
 	}
