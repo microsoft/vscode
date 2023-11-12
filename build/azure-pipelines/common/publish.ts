@@ -438,7 +438,10 @@ export async function processArtifact(product: string, os: string, arch: string,
 		const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
 		const scripts = client.database('builds').container(quality).scripts;
-		await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+		await retry(async (attempt) => {
+			log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
+			await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
+		});
 	});
 
 	log('Asset successfully created');
