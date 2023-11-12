@@ -330,13 +330,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 		if (this._selectionStart === null) {
-			// Special case for bottom marker; skip any empty commands as it's unlikely the user
-			// will want to select empty commands
-			if (this._currentMarker === Boundary.Bottom) {
-				this._selectionStart = this._getMarkers(false)[this._findPreviousMarker(false)];
-			} else {
-				this._selectionStart = this._currentMarker;
-			}
+			this._selectionStart = this._currentMarker;
 		}
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this.scrollToPreviousMark(ScrollPosition.Middle, true, true);
