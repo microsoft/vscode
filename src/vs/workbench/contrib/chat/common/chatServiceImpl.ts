@@ -485,7 +485,7 @@ export class ChatService extends Disposable implements IChatService {
 				} else if ('agentName' in progress) {
 					this.trace('sendRequest', `Provider returned an agent detection for session ${model.sessionId}:\n ${JSON.stringify(progress, null, '\t')}`);
 				} else {
-					this.trace('sendRequest', `Provider returned id for session ${model.sessionId}, ${progress.requestId}`);
+					this.trace('sendRequest', `Provider returned unknown progress for session ${model.sessionId}:\n ${JSON.stringify(progress, null, '\t')}`);
 				}
 
 				model.acceptResponseProgress(request, progress);

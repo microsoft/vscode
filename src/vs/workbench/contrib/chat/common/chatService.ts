@@ -100,7 +100,6 @@ export interface IChatAgentDetection {
 
 export type IChatProgress =
 	| { content: string | IMarkdownString }
-	| { requestId: string }
 	| { treeData: IChatResponseProgressFileTreeData }
 	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
 	| IUsedContext
@@ -173,7 +172,6 @@ export enum InteractiveSessionVoteDirection {
 
 export interface IChatVoteAction {
 	kind: 'vote';
-	responseId: string;
 	direction: InteractiveSessionVoteDirection;
 }
 
@@ -185,7 +183,6 @@ export enum InteractiveSessionCopyKind {
 
 export interface IChatCopyAction {
 	kind: 'copy';
-	responseId: string;
 	codeBlockIndex: number;
 	copyType: InteractiveSessionCopyKind;
 	copiedCharacters: number;
@@ -195,7 +192,6 @@ export interface IChatCopyAction {
 
 export interface IChatInsertAction {
 	kind: 'insert';
-	responseId: string;
 	codeBlockIndex: number;
 	totalCharacters: number;
 	newFile?: boolean;
@@ -203,7 +199,6 @@ export interface IChatInsertAction {
 
 export interface IChatTerminalAction {
 	kind: 'runInTerminal';
-	responseId: string;
 	codeBlockIndex: number;
 	languageId?: string;
 }

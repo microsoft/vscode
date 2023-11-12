@@ -2306,8 +2306,6 @@ export namespace ChatResponseProgress {
 	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
 			return { placeholder: progress.placeholder };
-		} else if ('responseId' in progress) {
-			return { requestId: progress.responseId };
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent) };

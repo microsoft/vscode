@@ -6,11 +6,14 @@
 import * as assert from 'assert';
 import { timeout } from 'vs/base/common/async';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Range } from 'vs/editor/common/core/range';
+import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatRequestTextPart } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 
@@ -97,5 +100,19 @@ suite('ChatModel', () => {
 		model.dispose();
 
 		assert.throws(() => model.initialize({} as any, undefined));
+	});
+
+	test('removeRequest', async () => {
+		const model = testDisposables.add(instantiationService.createInstance(ChatModel, 'provider', undefined));
+
+		model.startInitialize();
+		model.initialize({} as any, undefined);
+		const text = 'hello';
+		model.addRequest({ text, parts: [new ChatRequestTextPart(new OffsetRange(0, text.length), new Range(1, text.length, 1, text.length), text)] });
+		const requests = model.getRequests();
+		assert.strictEqual(requests.length, 1);
+
+		model.removeRequest(requests[0].id);
+		assert.strictEqual(model.getRequests().length, 0);
 	});
 });

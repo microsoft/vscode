@@ -1252,7 +1252,6 @@ export type IDocumentContextDto = {
 
 export type IChatResponseProgressDto =
 	| { content: string | IMarkdownString }
-	| { requestId: string }
 	| { placeholder: string }
 	| { treeData: IChatResponseProgressFileTreeData }
 	| { documents: IDocumentContextDto[] }

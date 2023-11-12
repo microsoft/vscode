@@ -6,7 +6,6 @@
   welcomeMessage: undefined,
   requests: [
     {
-      providerRequestId: undefined,
       message: {
         parts: [
           {

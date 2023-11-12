@@ -138,10 +138,6 @@ declare module 'vscode' {
 		content: string | MarkdownString;
 	}
 
-	export interface InteractiveProgressId {
-		responseId: string;
-	}
-
 	export interface InteractiveProgressTask {
 		placeholder: string;
 		resolvedContent: Thenable<InteractiveProgressContent | InteractiveProgressFileTree>;
@@ -169,7 +165,6 @@ declare module 'vscode' {
 
 	export type InteractiveProgress =
 		| InteractiveProgressContent
-		| InteractiveProgressId
 		| InteractiveProgressTask
 		| InteractiveProgressFileTree
 		| InteractiveProgressUsedContext
