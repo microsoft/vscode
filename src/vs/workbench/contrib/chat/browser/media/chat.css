@@ -390,10 +390,6 @@
 	color: var(--vscode-notificationsInfoIcon-foreground) !important; /* Have to override default styles which apply to all lists */
 }
 
-.interactive-item-container .value .interactive-slash-command {
-	color: var(--vscode-textLink-foreground);
-}
-
 .interactive-session .interactive-input-part {
 	padding: 12px 0px;
 	display: flex;

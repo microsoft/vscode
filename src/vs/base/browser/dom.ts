@@ -133,9 +133,9 @@ export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
-function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
+function _wrapAsStandardMouseEvent(targetWindow: Window, handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
-		return handler(new StandardMouseEvent(e));
+		return handler(new StandardMouseEvent(targetWindow, e));
 	};
 }
 function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e: KeyboardEvent) => void {
@@ -147,7 +147,7 @@ export const addStandardDisposableListener: IAddStandardDisposableListenerSignat
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown') {
-		wrapHandler = _wrapAsStandardMouseEvent(handler);
+		wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
@@ -156,13 +156,13 @@ export const addStandardDisposableListener: IAddStandardDisposableListenerSignat
 };
 
 export const addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
 export const addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
