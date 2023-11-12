@@ -12,6 +12,7 @@ import { isStandalone } from 'vs/base/browser/browser';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ActivityBarPosition, EditorTabsMode, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
+import product from 'vs/platform/product/common/product';
 
 const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -49,15 +50,16 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'description': localize('showEditorTabs', "Controls whether opened editors should show as individual tabs, one single large tab or if the title area should not be shown."),
 				'default': 'multiple'
 			},
-			'workbench.editor.showEditorActionsInTitleBar': {
+			'workbench.editor.editorActionsLocation': {
 				'type': 'string',
-				'enum': ['noTabs', 'never'],
+				'enum': ['default', 'titleBar', 'hidden'],
 				'enumDescriptions': [
-					localize('workbench.editor.showEditorActionsInTitleBar.noTabs', "Show editor actions in the editor title bar only when `#workbench.editor.showTabs#` is set to `none`. Otherwise, editor actions show up in the tab bar."),
-					localize('workbench.editor.showEditorActionsInTitleBar.never', "Do not show editor actions in the editor title bar"),
+					localize('workbench.editor.editorActionsLocation.default', "Show editor actions in the window title bar when `#workbench.editor.showTabs#` is set to `none`. Otherwise, editor actions are shown in the editor tab bar."),
+					localize('workbench.editor.editorActionsLocation.titleBar', "Show editor actions in the window title bar. If `#window.titleBarStyle#` is set to `native`, editor actions are hidden."),
+					localize('workbench.editor.editorActionsLocation.hidden', "Editor actions are not shown."),
 				],
-				'markdownDescription': localize('showEditorActionsInTitleBar', "Controls whether editor actions are shown in the title bar. This value only applies when `#window.titleBarStyle#` is set to `custom`."),
-				'default': 'noTabs'
+				'markdownDescription': localize('editorActionsLocation', "Controls where the editor actions are shown."),
+				'default': 'default'
 			},
 			'workbench.editor.wrapTabs': {
 				'type': 'boolean',
@@ -241,6 +243,11 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
+			},
+			'workbench.editor.dragToOpenWindow': {
+				'type': 'boolean',
+				'default': product.quality !== 'stable',
+				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new floating window. Press and hold `Alt`-key while dragging to toggle this dynamically.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',

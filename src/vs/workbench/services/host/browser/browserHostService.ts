@@ -14,7 +14,7 @@ import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/edito
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
-import { ModifierKeyEmitter, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
+import { ModifierKeyEmitter, disposableWindowInterval, getActiveDocument, getWindowId, onDidRegisterWindow, trackFocus } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IBrowserWorkbenchEnvironmentService } from 'vs/workbench/services/environment/browser/environmentService';
 import { memoize } from 'vs/base/common/decorators';
@@ -37,8 +37,8 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
-import { disposableInterval } from 'vs/base/common/async';
 import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { mainWindow } from 'vs/base/browser/window';
 
 /**
  * A workspace to open in the workbench can either be:
@@ -192,7 +192,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 				Event.map(focusTracker.onDidBlur, () => this.hasFocus, disposables),
 				Event.map(visibilityTracker.event, () => this.hasFocus, disposables),
 			), undefined, disposables)(focus => emitter.fire(focus));
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 
 		return emitter.event;
 	}
@@ -229,7 +229,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 			// it is possible that document focus has not yet changed, so we
 			// poll for a while to ensure we catch the event.
 			if (isAuxiliaryWindow(window)) {
-				disposables.add(disposableInterval(() => {
+				disposables.add(disposableWindowInterval(window, () => {
 					const hasFocus = window.document.hasFocus();
 					if (hasFocus) {
 						emitter.fire(windowId);
@@ -238,7 +238,7 @@ export class BrowserHostService extends Disposable implements IHostService {
 					return hasFocus;
 				}, 100, 20));
 			}
-		}, { window, disposables: this._store }));
+		}, { window: mainWindow, disposables: this._store }));
 
 		return Event.map(Event.latch(emitter.event, undefined, this._store), () => undefined, this._store);
 	}
@@ -553,13 +553,13 @@ export class BrowserHostService extends Disposable implements IHostService {
 	async reload(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.RELOAD);
 
-		window.location.reload();
+		mainWindow.location.reload();
 	}
 
 	async close(): Promise<void> {
 		await this.handleExpectedShutdown(ShutdownReason.CLOSE);
 
-		window.close();
+		mainWindow.close();
 	}
 
 	async withExpectedShutdown<T>(expectedShutdownTask: () => Promise<T>): Promise<T> {

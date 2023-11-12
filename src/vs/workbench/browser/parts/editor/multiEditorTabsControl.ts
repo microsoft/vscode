@@ -6,7 +6,7 @@
 import 'vs/css!./media/multieditortabscontrol';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { EditorResourceAccessor, GroupIdentifier, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
+import { EditorResourceAccessor, Verbosity, IEditorPartOptions, SideBySideEditor, DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities, IUntypedEditorInput, preventEditorClose, EditorCloseMethod, EditorsOrder, IToolbarActions } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { computeEditorAriaLabel } from 'vs/workbench/browser/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
@@ -28,18 +28,18 @@ import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BACKGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, TAB_ACTIVE_MODIFIED_BORDER, TAB_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_ACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_MODIFIED_BORDER, TAB_UNFOCUSED_INACTIVE_BACKGROUND, TAB_HOVER_FOREGROUND, TAB_UNFOCUSED_HOVER_FOREGROUND, EDITOR_GROUP_HEADER_TABS_BORDER, TAB_LAST_PINNED_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, extractTreeDropData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { MergeGroupMode, IMergeGroupOptions, IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode, DragAndDropObserver, isMouseEvent, getWindow, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsView, EditorServiceImpl, IEditorGroupView, IInternalEditorOpenOptions, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction, UnpinEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { assertAllDefined, assertIsDefined } from 'vs/base/common/types';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { RunOnceScheduler, runWhenIdle } from 'vs/base/common/async';
+import { RunOnceScheduler } from 'vs/base/common/async';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IPath, win32, posix } from 'vs/base/common/path';
 import { coalesce, insert } from 'vs/base/common/arrays';
@@ -106,7 +106,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private titleContainer: HTMLElement | undefined;
 	private tabsAndActionsContainer: HTMLElement | undefined;
 	private tabsContainer: HTMLElement | undefined;
-	private editorToolbarContainer: HTMLElement | undefined;
 	private tabsScrollbar: ScrollableElement | undefined;
 	private tabSizingFixedDisposables: DisposableStore | undefined;
 
@@ -148,12 +147,12 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IThemeService themeService: IThemeService,
 		@IEditorService private readonly editorService: EditorServiceImpl,
 		@IPathService private readonly pathService: IPathService,
-		@IEditorGroupsService private readonly editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, editorGroupService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -191,13 +190,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		// Tabs Container listeners
 		this.registerTabsContainerListeners(this.tabsContainer, this.tabsScrollbar);
 
-		// Editor Toolbar Container
-		this.editorToolbarContainer = document.createElement('div');
-		this.editorToolbarContainer.classList.add('editor-actions');
-		this.tabsAndActionsContainer.appendChild(this.editorToolbarContainer);
-
-		// Editor Actions Toolbar
-		this.createEditorActionsToolBar(this.editorToolbarContainer);
+		// Create Editor Toolbar
+		this.createEditorActionsToolBar(this.tabsAndActionsContainer, ['editor-actions']);
 
 		// Set tabs control visibility
 		this.updateTabsControlVisibility();
@@ -277,9 +271,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 	private registerTabsContainerListeners(tabsContainer: HTMLElement, tabsScrollbar: ScrollableElement): void {
 
-		// Group dragging
-		this.enableGroupDragging(tabsContainer);
-
 		// Forward scrolling inside the container to our custom scrollbar
 		this._register(addDisposableListener(tabsContainer, EventType.SCROLL, () => {
 			if (tabsContainer.classList.contains('scroll')) {
@@ -326,8 +317,17 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}));
 
-		// Drop support
+		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
 		this._register(new DragAndDropObserver(tabsContainer, {
+			onDragStart: e => {
+				this.onGroupDragStart(e, tabsContainer);
+			},
+
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
 			onDragEnter: e => {
 
 				// Always enable support to scroll while dragging
@@ -385,6 +385,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			onDragEnd: e => {
 				this.updateDropFeedback(tabsContainer, false);
 				tabsContainer.classList.remove('scroll');
+
+				this.onGroupDragEnd(e, lastDragEvent, tabsContainer);
 			},
 
 			onDrop: e => {
@@ -455,7 +457,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Find target anchor
 			let anchor: HTMLElement | StandardMouseEvent = tabsContainer;
 			if (isMouseEvent(e)) {
-				anchor = new StandardMouseEvent(e);
+				anchor = new StandardMouseEvent(getWindow(tabsContainer), e);
 			}
 
 			// Show it
@@ -1020,29 +1022,33 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			}
 		}, true /* use capture to fix https://github.com/microsoft/vscode/issues/19145 */));
 
-		// Drag support
-		disposables.add(addDisposableListener(tab, EventType.DRAG_START, e => {
-			const editor = this.tabsModel.getEditorByIndex(tabIndex);
-			if (!editor) {
-				return;
-			}
-
-			this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
-
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
-			}
-
-			// Apply some datatransfer types to allow for dragging the element outside of the application
-			this.doFillResourceDataTransfers([editor], e);
-
-			// Fixes https://github.com/microsoft/vscode/issues/18733
-			tab.classList.add('dragged');
-			scheduleAtNextAnimationFrame(() => tab.classList.remove('dragged'), getWindow(tab));
-		}));
-
-		// Drop support
+		// Drag & Drop support
+		let lastDragEvent: DragEvent | undefined = undefined;
 		disposables.add(new DragAndDropObserver(tab, {
+			onDragStart: e => {
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (!editor) {
+					return;
+				}
+
+				this.editorTransfer.setData([new DraggedEditorIdentifier({ editor, groupId: this.groupView.id })], DraggedEditorIdentifier.prototype);
+
+				if (e.dataTransfer) {
+					e.dataTransfer.effectAllowed = 'copyMove';
+				}
+
+				// Apply some datatransfer types to allow for dragging the element outside of the application
+				this.doFillResourceDataTransfers([editor], e);
+
+				// Fixes https://github.com/microsoft/vscode/issues/18733
+				tab.classList.add('dragged');
+				scheduleAtNextAnimationFrame(getWindow(tab), () => tab.classList.remove('dragged'));
+			},
+
+			onDrag: e => {
+				lastDragEvent = e;
+			},
+
 			onDragEnter: e => {
 
 				// Update class to signal drag operation
@@ -1100,11 +1106,33 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				this.updateDropFeedback(tab, false, tabIndex);
 			},
 
-			onDragEnd: () => {
+			onDragEnd: async e => {
 				tab.classList.remove('dragged-over');
 				this.updateDropFeedback(tab, false, tabIndex);
 
 				this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+
+				const editor = this.tabsModel.getEditorByIndex(tabIndex);
+				if (
+					!this.isNewWindowOperation(lastDragEvent ?? e) ||
+					isWindowDraggedOver() ||
+					!editor
+				) {
+					return; // drag to open in new window is disabled
+				}
+
+				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
+					bounds: { x: e.screenX, y: e.screenY }
+				});
+
+				const targetGroup = auxiliaryEditorPart.activeGroup;
+				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {
+					this.groupView.moveEditor(editor, targetGroup);
+				} else {
+					this.groupView.copyEditor(editor, targetGroup);
+				}
+
+				targetGroup.focus();
 			},
 
 			onDrop: e => {
@@ -1622,9 +1650,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 
 				let scheduledLayout: IDisposable;
 				if (this.lifecycleService.phase >= LifecyclePhase.Restored) {
-					scheduledLayout = scheduleAtNextAnimationFrame(layoutFunction, getWindow(this.tabsContainer));
+					scheduledLayout = scheduleAtNextAnimationFrame(getWindow(this.tabsContainer), layoutFunction);
 				} else {
-					scheduledLayout = runWhenIdle(layoutFunction);
+					scheduledLayout = runWhenWindowIdle(getWindow(this.tabsContainer), layoutFunction);
 				}
 
 				this.layoutScheduler.value = { options, dispose: () => scheduledLayout.dispose() };
@@ -1683,7 +1711,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	}
 
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
-		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorToolbarContainer, this.tabsScrollbar);
+		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
@@ -2093,16 +2121,6 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
 			dropHandler.handleDrop(e, getWindow(this.titleContainer), () => this.groupView, () => this.groupView.focus(), options);
 		}
-	}
-
-	private isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput) {
-		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
-			return true; // Singleton editors cannot be split
-		}
-
-		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
-
-		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
 	override dispose(): void {

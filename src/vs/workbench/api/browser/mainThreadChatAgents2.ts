@@ -75,7 +75,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				}
 			},
 			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
-				if (!this._agents.get(handle)?.hasSlashCommands) {
+				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 

@@ -501,10 +501,10 @@ export class AccessibleView extends Disposable {
 		this._updateToolbar(provider.actions, provider.options.type);
 
 		const hide = (e: KeyboardEvent | IKeyboardEvent): void => {
+			provider.onClose();
 			e.stopPropagation();
 			this._contextViewService.hideContextView();
 			this._updateContextKeys(provider, false);
-			provider.onClose();
 		};
 		const disposableStore = new DisposableStore();
 		disposableStore.add(this._editorWidget.onKeyDown((e) => {

@@ -177,13 +177,13 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		return containers;
 	}
 
-	private getContainerFromDocument(document: Document): HTMLElement {
-		if (document === this.container.ownerDocument) {
+	private getContainerFromDocument(targetDocument: Document): HTMLElement {
+		if (targetDocument === this.container.ownerDocument) {
 			// main window
 			return this.container;
 		} else {
 			// auxiliary window
-			return document.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
+			return targetDocument.body.getElementsByClassName('monaco-workbench')[0] as HTMLElement;
 		}
 	}
 
@@ -230,7 +230,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			// main window
 			return this.mainContainerOffset;
 		} else {
-			// TODO@bpasero auxiliary window: no support for custom title bar or banner yet
+			// auxiliary window: no support for custom title bar or banner yet
 			return { top: 0, quickPickTop: 0 };
 		}
 	}
@@ -257,6 +257,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 	private storageService!: IStorageService;
 	private hostService!: IHostService;
 	private editorService!: IEditorService;
+	private mainPartEditorService!: IEditorService;
 	private editorGroupService!: IEditorGroupsService;
 	private paneCompositeService!: IPaneCompositePartService;
 	private titleService!: ITitleService;
@@ -298,6 +299,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Parts
 		this.editorService = accessor.get(IEditorService);
+		this.mainPartEditorService = this.editorService.createScoped('main', this._store);
 		this.editorGroupService = accessor.get(IEditorGroupsService);
 		this.paneCompositeService = accessor.get(IPaneCompositePartService);
 		this.viewDescriptorService = accessor.get(IViewDescriptorService);
@@ -326,9 +328,9 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		// is ready to avoid conflicts on startup
 		this.editorGroupService.mainPart.whenRestored.then(() => {
 
-			// Restore editor part on any editor change
-			this._register(this.editorService.onDidVisibleEditorsChange(showEditorIfHidden));
-			this._register(this.editorGroupService.onDidActivateGroup(showEditorIfHidden));
+			// Restore main editor part on any editor change in main part
+			this._register(this.mainPartEditorService.onDidVisibleEditorsChange(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode.
 			this._register(this.editorService.onDidActiveEditorChange(() => this.centerEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.EDITOR_CENTERED))));
@@ -1593,22 +1595,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
 
 				// Single Editor Group
-				if (this.editorGroupService.count === 1) {
+				if (this.editorGroupService.mainPart.count === 1) {
 					this.workbenchGrid.resizeView(this.editorPartView,
 						{
 							width: viewSize.width + sizeChangePxWidth,
 							height: viewSize.height + sizeChangePxHeight
 						});
 				} else {
-					const activeGroup = this.editorGroupService.activeGroup;
+					const activeGroup = this.editorGroupService.mainPart.activeGroup;
 
-					const { width, height } = this.editorGroupService.getSize(activeGroup);
-					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+					const { width, height } = this.editorGroupService.mainPart.getSize(activeGroup);
+					this.editorGroupService.mainPart.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
 
 					// After resizing the editor group
 					// if it does not change in either direction
 					// try resizing the full editor part
-					const { width: newWidth, height: newHeight } = this.editorGroupService.getSize(activeGroup);
+					const { width: newWidth, height: newHeight } = this.editorGroupService.mainPart.getSize(activeGroup);
 					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
 						this.workbenchGrid.resizeView(this.editorPartView,
 							{

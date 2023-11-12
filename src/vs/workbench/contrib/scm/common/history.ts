@@ -6,7 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { IMenu } from 'vs/platform/actions/common/actions';
+import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+
+export interface ISCMHistoryProviderMenus {
+	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+}
 
 export interface ISCMHistoryProvider {
 
@@ -30,15 +35,29 @@ export interface ISCMHistoryOptions {
 	readonly limit?: number | { id?: string };
 }
 
+export interface ISCMRemoteHistoryItemGroup {
+	readonly id: string;
+	readonly label: string;
+}
+
 export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly label: string;
 	readonly upstream?: ISCMRemoteHistoryItemGroup;
 }
 
-export interface ISCMRemoteHistoryItemGroup {
-	readonly id: string;
-	readonly label: string;
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
+	readonly description?: string;
+	readonly ancestor?: string;
+	readonly count?: number;
+	readonly repository: ISCMRepository;
+	readonly type: 'historyItemGroup';
+}
+
+export interface ISCMHistoryItemStatistics {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export interface ISCMHistoryItem {
@@ -48,6 +67,12 @@ export interface ISCMHistoryItem {
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: ISCMHistoryItemStatistics;
+}
+
+export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
+	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
+	readonly type: 'historyItem';
 }
 
 export interface ISCMHistoryItemChange {
@@ -55,4 +80,15 @@ export interface ISCMHistoryItemChange {
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
 	readonly renameUri?: URI;
+}
+
+export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
+	readonly historyItem: SCMHistoryItemTreeElement;
+	readonly type: 'historyItemChange';
+}
+
+export interface SCMViewSeparatorElement {
+	readonly label: string;
+	readonly repository: ISCMRepository;
+	readonly type: 'separator';
 }

@@ -71,6 +71,7 @@ import { IPreferencesService } from 'vs/workbench/services/preferences/common/pr
 import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/utilityProcess/electron-sandbox/utilityProcessWorkerWorkbenchService';
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class NativeWindow extends Disposable {
 
@@ -82,8 +83,6 @@ export class NativeWindow extends Disposable {
 
 	private readonly addFoldersScheduler = this._register(new RunOnceScheduler(() => this.doAddFolders(), 100));
 	private pendingFoldersToAdd: URI[] = [];
-
-	private readonly closeEmptyWindowScheduler = this._register(new RunOnceScheduler(() => this.onDidAllEditorsClose(), 50));
 
 	private isDocumentedEdited = false;
 
@@ -139,14 +138,14 @@ export class NativeWindow extends Disposable {
 	private registerListeners(): void {
 
 		// Layout
-		this._register(addDisposableListener(window, EventType.RESIZE, () => this.layoutService.layout()));
+		this._register(addDisposableListener(mainWindow, EventType.RESIZE, () => this.layoutService.layout()));
 
 		// React to editor input changes
 		this._register(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// Prevent opening a real URL inside the window
 		for (const event of [EventType.DRAG_OVER, EventType.DROP]) {
-			this._register(addDisposableListener(window.document.body, event, (e: DragEvent) => {
+			this._register(addDisposableListener(mainWindow.document.body, event, (e: DragEvent) => {
 				EventHelper.stop(e);
 			}));
 		}
@@ -339,8 +338,8 @@ export class NativeWindow extends Disposable {
 			}
 		}));
 
-		// Listen to visible editor changes
-		this._register(this.mainPartEditorService.onDidVisibleEditorsChange(() => this.onDidChangeVisibleEditors()));
+		// Listen to visible editor changes (debounced)
+		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 50, undefined, undefined, undefined, this._store)(() => this.onDidChangeVisibleEditors()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.filesToWait;
@@ -600,22 +599,25 @@ export class NativeWindow extends Disposable {
 
 	private onDidChangeVisibleEditors(): void {
 
-		// Close when empty: check if we should close the window based on the setting
-		// Overruled by: window has a workspace opened or this window is for extension development
-		// or setting is disabled. Also enabled when running with --wait from the command line.
-		const visibleEditorPanes = this.mainPartEditorService.visibleEditorPanes;
-		if (visibleEditorPanes.length === 0 && this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && !this.environmentService.isExtensionDevelopment) {
-			const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty');
-			if (closeWhenEmpty || this.environmentService.args.wait) {
-				this.closeEmptyWindowScheduler.schedule();
+		// Close empty editor groups based on setting and environment
+		for (const editorPart of this.editorGroupService.parts) {
+			if (editorPart.groups.some(group => !group.isEmpty)) {
+				continue; // not empty
 			}
-		}
-	}
 
-	private onDidAllEditorsClose(): void {
-		const visibleEditorPanes = this.mainPartEditorService.visibleEditorPanes.length;
-		if (visibleEditorPanes === 0) {
-			this.nativeHostService.closeWindow();
+			let closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.environmentService.args.wait;
+			if (editorPart === this.editorGroupService.mainPart && (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY || this.environmentService.isExtensionDevelopment)) {
+				closeWhenEmpty = false; // disabled for main part when window is not empty or extension development
+			}
+			if (!closeWhenEmpty) {
+				continue; // not enabled to close when empty
+			}
+
+			if (editorPart === this.editorGroupService.mainPart) {
+				this.nativeHostService.closeWindow();
+			} else {
+				editorPart.removeGroup(editorPart.activeGroup);
+			}
 		}
 	}
 
@@ -696,11 +698,11 @@ export class NativeWindow extends Disposable {
 		// asking the main process to focus the window.
 		// https://github.com/electron/electron/issues/25578
 		const that = this;
-		const originalWindowFocus = window.focus.bind(window);
-		window.focus = function () {
+		const originalWindowFocus = mainWindow.focus.bind(mainWindow);
+		mainWindow.focus = function () {
 			originalWindowFocus();
 
-			if (getActiveWindow() !== window) {
+			if (getActiveWindow() !== mainWindow) {
 				that.nativeHostService.focusWindow({ targetWindowId: that.nativeHostService.windowId });
 			}
 		};

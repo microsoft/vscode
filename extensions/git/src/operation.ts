@@ -137,7 +137,7 @@ export const Operation = {
 	CheckoutTracking: (refLabel: string) => ({ kind: OperationKind.CheckoutTracking, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true, refLabel } as CheckoutTrackingOperation),
 	Clean: (showProgress: boolean) => ({ kind: OperationKind.Clean, blocking: false, readOnly: false, remote: false, retry: false, showProgress } as CleanOperation),
 	Commit: { kind: OperationKind.Commit, blocking: true, readOnly: false, remote: false, retry: false, showProgress: true } as CommitOperation,
-	Config: { kind: OperationKind.Config, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as ConfigOperation,
+	Config: (readOnly: boolean) => ({ kind: OperationKind.Config, blocking: false, readOnly, remote: false, retry: false, showProgress: true } as ConfigOperation),
 	DeleteBranch: { kind: OperationKind.DeleteBranch, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteBranchOperation,
 	DeleteRef: { kind: OperationKind.DeleteRef, blocking: false, readOnly: false, remote: false, retry: false, showProgress: true } as DeleteRefOperation,
 	DeleteRemoteTag: { kind: OperationKind.DeleteRemoteTag, blocking: false, readOnly: false, remote: true, retry: false, showProgress: true } as DeleteRemoteTagOperation,

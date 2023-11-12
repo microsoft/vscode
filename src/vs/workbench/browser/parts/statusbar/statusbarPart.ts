@@ -16,7 +16,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { STATUS_BAR_BACKGROUND, STATUS_BAR_FOREGROUND, STATUS_BAR_NO_FOLDER_BACKGROUND, STATUS_BAR_ITEM_HOVER_BACKGROUND, STATUS_BAR_BORDER, STATUS_BAR_NO_FOLDER_FOREGROUND, STATUS_BAR_NO_FOLDER_BORDER, STATUS_BAR_ITEM_COMPACT_HOVER_BACKGROUND, STATUS_BAR_ITEM_FOCUS_BORDER, STATUS_BAR_FOCUS_BORDER } from 'vs/workbench/common/theme';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode } from 'vs/base/browser/dom';
+import { EventHelper, createStyleSheet, addDisposableListener, EventType, clearNode, getWindow } from 'vs/base/browser/dom';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -451,7 +451,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private showContextMenu(e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(getWindow(this.element), e);
 
 		let actions: IAction[] | undefined = undefined;
 		this.contextMenuService.showContextMenu({

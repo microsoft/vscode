@@ -33,6 +33,11 @@ export const enum ViewDimUnfocusedOpacityProperties {
 	Maximum = 1
 }
 
+export const enum AccessibilityVoiceSettingId {
+	SpeechTimeout = 'accessibility.voice.speechTimeout',
+}
+export const SpeechTimeoutDefault = 1200;
+
 export const enum AccessibilityVerbositySettingId {
 	Terminal = 'accessibility.verbosity.terminal',
 	DiffEditor = 'accessibility.verbosity.diffEditor',
@@ -148,6 +153,13 @@ const configuration: IConfigurationNode = {
 			],
 			tags: ['accessibility']
 		},
+		[AccessibilityVoiceSettingId.SpeechTimeout]: {
+			'markdownDescription': localize('voice.speechTimeout', "Define the duration for which the voice speech recognition remains active after you stop speaking. For example in a chat session the transcribed text is submitted automatically after the timeout is met. Set to `0` to disable this feature."),
+			'type': 'number',
+			'default': SpeechTimeoutDefault,
+			'minimum': 0,
+			'tags': ['accessibility']
+		}
 	}
 };
 

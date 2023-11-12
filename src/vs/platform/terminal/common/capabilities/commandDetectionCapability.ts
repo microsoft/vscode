@@ -6,7 +6,7 @@
 import { Barrier, timeout } from 'vs/base/common/async';
 import { debounce } from 'vs/base/common/decorators';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ICommandDetectionCapability, TerminalCapability, ITerminalCommand, IHandleCommandOptions, ICommandInvalidationRequest, CommandInvalidationReason, ISerializedTerminalCommand, ISerializedCommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
@@ -63,14 +63,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
-	private _isWindowsPty: boolean = false;
-	private _onCursorMoveListener?: IDisposable;
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
 	private _handleCommandStartOptions?: IHandleCommandOptions;
-	private _commandStartedWindowsBarrier?: Barrier;
-	private _windowsPromptPollingInProcess: boolean = false;
+
+	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
+	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
 	get commands(): readonly ITerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
@@ -81,7 +80,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		return undefined;
 	}
-	get currentCommand(): ICurrentPartialCommand | undefined {
+	get currentCommand(): ICurrentPartialCommand {
 		return this._currentCommand;
 	}
 	get cwd(): string | undefined { return this._cwd; }
@@ -121,19 +120,31 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		private readonly _logService: ILogService
 	) {
 		super();
+
+		// Set up platform-specific behaviors
+		const that = this;
+		this._ptyHeuristicsHooks = new class implements ICommandDetectionHeuristicsHooks {
+			get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
+			get onCommandStartedEmitter() { return that._onCommandStarted; }
+			get onCommandExecutedEmitter() { return that._onCommandExecuted; }
+			get dimensions() { return that._dimensions; }
+			get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
+			get commandMarkers() { return that._commandMarkers; }
+			set commandMarkers(value) { that._commandMarkers = value; }
+			get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
+		};
+		this._ptyHeuristics = this._register(new MandatoryMutableDisposable(new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService)));
+
 		this._dimensions = {
 			cols: this._terminal.cols,
 			rows: this._terminal.rows
 		};
 		this._register(this._terminal.onResize(e => this._handleResize(e)));
 		this._register(this._terminal.onCursorMove(() => this._handleCursorMove()));
-		this._setupClearListeners();
 	}
 
 	private _handleResize(e: { cols: number; rows: number }) {
-		if (this._isWindowsPty) {
-			this._preHandleResizeWindows(e);
-		}
+		this._ptyHeuristics.value.preHandleResize?.(e);
 		this._dimensions.cols = e.cols;
 		this._dimensions.rows = e.rows;
 	}
@@ -159,85 +170,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
-	private _setupClearListeners() {
-		// Setup listeners for when clear is run in the shell. Since we don't know immediately if
-		// this is a Windows pty, listen to both routes and do the Windows check inside them
-
-		// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
-		// cls will clear all commands in the viewport. This is not perfect but it's right most
-		// of the time.
-		this._register(this.onBeforeCommandFinished(command => {
-			if (this._isWindowsPty) {
-				if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
-					this._clearCommandsInViewport();
-					this._currentCommand.isInvalid = true;
-					this._onCurrentCommandInvalidated.fire({ reason: CommandInvalidationReason.Windows });
-				}
-			}
-		}));
-
-		// For non-Windows backends we can just listen to CSI J which is what the clear command
-		// typically emits.
-		this._terminal.parser.registerCsiHandler({ final: 'J' }, params => {
-			if (!this._isWindowsPty) {
-				if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
-					this._clearCommandsInViewport();
-				}
-			}
-			// We don't want to override xterm.js' default behavior, just augment it
-			return false;
-		});
-	}
-
-	private _preHandleResizeWindows(e: { cols: number; rows: number }) {
-		// Resize behavior is different under conpty; instead of bringing parts of the scrollback
-		// back into the viewport, new lines are inserted at the bottom (ie. the same behavior as if
-		// there was no scrollback).
-		//
-		// On resize this workaround will wait for a conpty reprint to occur by waiting for the
-		// cursor to move, it will then calculate the number of lines that the commands within the
-		// viewport _may have_ shifted. After verifying the content of the current line is
-		// incorrect, the line after shifting is checked and if that matches delete events are fired
-		// on the xterm.js buffer to move the markers.
-		//
-		// While a bit hacky, this approach is quite safe and seems to work great at least for pwsh.
-		const baseY = this._terminal.buffer.active.baseY;
-		const rowsDifference = e.rows - this._dimensions.rows;
-		// Only do when rows increase, do in the next frame as this needs to happen after
-		// conpty reprints the screen
-		if (rowsDifference > 0) {
-			this._waitForCursorMove().then(() => {
-				// Calculate the number of lines the content may have shifted, this will max out at
-				// scrollback count since the standard behavior will be used then
-				const potentialShiftedLineCount = Math.min(rowsDifference, baseY);
-				// For each command within the viewport, assume commands are in the correct order
-				for (let i = this.commands.length - 1; i >= 0; i--) {
-					const command = this.commands[i];
-					if (!command.marker || command.marker.line < baseY || command.commandStartLineContent === undefined) {
-						break;
-					}
-					const line = this._terminal.buffer.active.getLine(command.marker.line);
-					if (!line || line.translateToString(true) === command.commandStartLineContent) {
-						continue;
-					}
-					const shiftedY = command.marker.line - potentialShiftedLineCount;
-					const shiftedLine = this._terminal.buffer.active.getLine(shiftedY);
-					if (shiftedLine?.translateToString(true) !== command.commandStartLineContent) {
-						continue;
-					}
-					// HACK: xterm.js doesn't expose this by design as it's an internal core
-					// function an embedder could easily do damage with. Additionally, this
-					// can't really be upstreamed since the event relies on shell integration to
-					// verify the shifting is necessary.
-					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
-						index: this._terminal.buffer.active.baseY,
-						amount: potentialShiftedLineCount
-					});
-				}
-			});
-		}
-	}
-
 	private _clearCommandsInViewport(): void {
 		// Find the number of commands on the tail end of the array that are within the viewport
 		let count = 0;
@@ -254,36 +186,62 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 	}
 
-	private _waitForCursorMove(): Promise<void> {
-		const cursorX = this._terminal.buffer.active.cursorX;
-		const cursorY = this._terminal.buffer.active.cursorY;
-		let totalDelay = 0;
-		return new Promise<void>((resolve, reject) => {
-			const interval = setInterval(() => {
-				if (cursorX !== this._terminal.buffer.active.cursorX || cursorY !== this._terminal.buffer.active.cursorY) {
-					resolve();
-					clearInterval(interval);
-					return;
-				}
-				totalDelay += 10;
-				if (totalDelay > 1000) {
-					clearInterval(interval);
-					resolve();
-				}
-			}, 10);
-		});
-	}
-
 	setCwd(value: string) {
 		this._cwd = value;
 	}
 
 	setIsWindowsPty(value: boolean) {
-		this._isWindowsPty = value;
+		if (value && !(this._ptyHeuristics.value instanceof WindowsPtyHeuristics)) {
+			const that = this;
+			this._ptyHeuristics.value = new WindowsPtyHeuristics(
+				this._terminal,
+				this,
+				new class {
+					get onCurrentCommandInvalidatedEmitter() { return that._onCurrentCommandInvalidated; }
+					get onCommandStartedEmitter() { return that._onCommandStarted; }
+					get onCommandExecutedEmitter() { return that._onCommandExecuted; }
+					get dimensions() { return that._dimensions; }
+					get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
+					get commandMarkers() { return that._commandMarkers; }
+					set commandMarkers(value) { that._commandMarkers = value; }
+					get clearCommandsInViewport() { return that._clearCommandsInViewport; }
+				},
+				this._logService
+			);
+		} else if (!value && !(this._ptyHeuristics.value instanceof UnixPtyHeuristics)) {
+			this._ptyHeuristics.value = new UnixPtyHeuristics(this._terminal, this, this._ptyHeuristicsHooks, this._logService);
+		}
 	}
 
 	setIsCommandStorageDisabled(): void {
 		this.__isCommandStorageDisabled = true;
+	}
+
+	getCommandForLine(line: number): ITerminalCommand | ICurrentPartialCommand | undefined {
+		// Handle the current partial command first, anything below it's prompt is considered part
+		// of the current command
+		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
+			return this._currentCommand;
+		}
+
+		// No commands
+		if (this._commands.length === 0) {
+			return undefined;
+		}
+
+		// Line is before any registered commands
+		if (this._commands[0].marker!.line > line) {
+			return undefined;
+		}
+
+		// Iterate backwards through commands to find the right one
+		for (let i = this.commands.length - 1; i >= 0; i--) {
+			if (this.commands[i].marker!.line <= line - 1) {
+				return this.commands[i];
+			}
+		}
+
+		return undefined;
 	}
 
 	getCwdForLine(line: number): string | undefined {
@@ -292,10 +250,13 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		if (this._currentCommand.promptStartMarker && line >= this._currentCommand.promptStartMarker?.line) {
 			return this._cwd;
 		}
-		// TODO: It would be more reliable to take the closest cwd above the line if it isn't found for the line
-		// TODO: Use a reverse for loop to find the line to avoid creating another array
-		const reversed = [...this._commands].reverse();
-		return reversed.find(c => c.marker!.line <= line - 1)?.cwd;
+
+		const command = this.getCommandForLine(line);
+		if (command && 'cwd' in command) {
+			return command.cwd;
+		}
+
+		return undefined;
 	}
 
 	handlePromptStart(options?: IHandleCommandOptions): void {
@@ -343,35 +304,375 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
 			return;
 		}
-		if (this._isWindowsPty) {
-			this._handleCommandStartWindows();
-			return;
-		}
-		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
-		this._currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
-
-		// Clear executed as it must happen after command start
-		this._currentCommand.commandExecutedMarker?.dispose();
-		this._currentCommand.commandExecutedMarker = undefined;
-		this._currentCommand.commandExecutedX = undefined;
-		for (const m of this._commandMarkers) {
-			m.dispose();
-		}
-		this._commandMarkers.length = 0;
-
-		this._onCommandStarted.fire({ marker: options?.marker || this._currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
-		this._logService.debug('CommandDetectionCapability#handleCommandStart', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+		this._ptyHeuristics.value.handleCommandStart(options);
 	}
 
-	private async _handleCommandStartWindows(): Promise<void> {
+	handleGenericCommand(options?: IHandleCommandOptions): void {
+		if (options?.markProperties?.disableCommandStorage) {
+			this.setIsCommandStorageDisabled();
+		}
+		this.handlePromptStart(options);
+		this.handleCommandStart(options);
+		this.handleCommandExecuted(options);
+		this.handleCommandFinished(undefined, options);
+	}
+
+	handleCommandExecuted(options?: IHandleCommandOptions): void {
+		this._ptyHeuristics.value.handleCommandExecuted(options);
+	}
+
+	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
+		this._ptyHeuristics.value?.preHandleCommandFinished?.();
+
+		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
+		let command = this._currentCommand.command;
+		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
+		this._exitCode = exitCode;
+
+		// HACK: Handle a special case on some versions of bash where identical commands get merged
+		// in the output of `history`, this detects that case and sets the exit code to the the last
+		// command's exit code. This covered the majority of cases but will fail if the same command
+		// runs with a different exit code, that will need a more robust fix where we send the
+		// command ID and exit code over to the capability to adjust there.
+		if (this._exitCode === undefined) {
+			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
+			if (command && command.length > 0 && lastCommand?.command === command) {
+				this._exitCode = lastCommand.exitCode;
+			}
+		}
+
+		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
+			return;
+		}
+
+		// When the command finishes and executed never fires the placeholder selector should be used.
+		if (this._exitCode === undefined && command === undefined) {
+			command = '';
+		}
+
+		this._ptyHeuristics.value?.postHandleCommandFinished?.();
+
+		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
+			const buffer = this._terminal.buffer.active;
+			const timestamp = Date.now();
+			const executedMarker = this._currentCommand.commandExecutedMarker;
+			const endMarker = this._currentCommand.commandFinishedMarker;
+			const newCommand: ITerminalCommand = {
+				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
+				isTrusted: !!this._currentCommand.isTrusted,
+				promptStartMarker: this._currentCommand.promptStartMarker,
+				marker: this._currentCommand.commandStartMarker,
+				startX: this._currentCommand.commandStartX,
+				endMarker,
+				executedMarker,
+				executedX: this._currentCommand.commandExecutedX,
+				timestamp,
+				cwd: this._cwd,
+				exitCode: this._exitCode,
+				commandStartLineContent: this._currentCommand.commandStartLineContent,
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: options?.markProperties
+			};
+			this._commands.push(newCommand);
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+
+			this._onBeforeCommandFinished.fire(newCommand);
+			if (!this._currentCommand.isInvalid) {
+				this._onCommandFinished.fire(newCommand);
+			}
+		}
+		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
+		this._currentCommand = {};
+		this._handleCommandStartOptions = undefined;
+	}
+
+	setCommandLine(commandLine: string, isTrusted: boolean) {
+		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
+		this._currentCommand.command = commandLine;
+		this._currentCommand.isTrusted = isTrusted;
+	}
+
+	serialize(): ISerializedCommandDetectionCapability {
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
+			return {
+				promptStartLine: e.promptStartMarker?.line,
+				startLine: e.marker?.line,
+				startX: undefined,
+				endLine: e.endMarker?.line,
+				executedLine: e.executedMarker?.line,
+				executedX: e.executedX,
+				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
+				cwd: e.cwd,
+				exitCode: e.exitCode,
+				commandStartLineContent: e.commandStartLineContent,
+				timestamp: e.timestamp,
+				markProperties: e.markProperties,
+				aliases: e.aliases
+			};
+		});
+		if (this._currentCommand.commandStartMarker) {
+			commands.push({
+				promptStartLine: this._currentCommand.promptStartMarker?.line,
+				startLine: this._currentCommand.commandStartMarker.line,
+				startX: this._currentCommand.commandStartX,
+				endLine: undefined,
+				executedLine: undefined,
+				executedX: undefined,
+				command: '',
+				isTrusted: true,
+				cwd: this._cwd,
+				exitCode: undefined,
+				commandStartLineContent: undefined,
+				timestamp: 0,
+				markProperties: undefined
+			});
+		}
+		return {
+			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
+			commands
+		};
+	}
+
+	deserialize(serialized: ISerializedCommandDetectionCapability): void {
+		if (serialized.isWindowsPty) {
+			this.setIsWindowsPty(serialized.isWindowsPty);
+		}
+		const buffer = this._terminal.buffer.normal;
+		for (const e of serialized.commands) {
+			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			// Check for invalid command
+			if (!marker) {
+				continue;
+			}
+			const promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			// Partial command
+			if (!e.endLine) {
+				this._currentCommand.commandStartMarker = marker;
+				this._currentCommand.commandStartX = e.startX;
+				if (promptStartMarker) {
+					this._currentCommand.promptStartMarker = promptStartMarker;
+				}
+				this._cwd = e.cwd;
+				this._onCommandStarted.fire({ marker } as ITerminalCommand);
+				continue;
+			}
+			// Full command
+			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
+			const newCommand: ITerminalCommand = {
+				command: this.__isCommandStorageDisabled ? '' : e.command,
+				isTrusted: e.isTrusted,
+				promptStartMarker,
+				marker,
+				startX: e.startX,
+				endMarker,
+				executedMarker,
+				executedX: e.executedX,
+				timestamp: e.timestamp,
+				cwd: e.cwd,
+				commandStartLineContent: e.commandStartLineContent,
+				exitCode: e.exitCode,
+				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
+				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
+				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
+				markProperties: e.markProperties,
+				wasReplayed: true
+			};
+			this._commands.push(newCommand);
+			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
+			this._onCommandFinished.fire(newCommand);
+		}
+	}
+}
+
+/**
+ * Additional hooks to private methods on {@link CommandDetectionCapability} that are needed by the
+ * heuristics objects.
+ */
+interface ICommandDetectionHeuristicsHooks {
+	readonly onCurrentCommandInvalidatedEmitter: Emitter<ICommandInvalidationRequest>;
+	readonly onCommandExecutedEmitter: Emitter<void>;
+	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
+	readonly dimensions: ITerminalDimensions;
+	readonly isCommandStorageDisabled: boolean;
+
+	commandMarkers: IMarker[];
+
+	clearCommandsInViewport(): void;
+}
+
+type IPtyHeuristics = (
+	// All optional methods
+	Partial<UnixPtyHeuristics> & Partial<WindowsPtyHeuristics> &
+	// All common methods
+	(UnixPtyHeuristics | WindowsPtyHeuristics) &
+	IDisposable
+);
+
+/**
+ * Non-Windows-specific behavior.
+ */
+class UnixPtyHeuristics extends Disposable {
+	constructor(
+		private readonly _terminal: Terminal,
+		private readonly _capability: CommandDetectionCapability,
+		private readonly _hooks: ICommandDetectionHeuristicsHooks,
+		private readonly _logService: ILogService
+	) {
+		super();
+		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+				_hooks.clearCommandsInViewport();
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		}));
+	}
+
+	async handleCommandStart(options?: IHandleCommandOptions) {
+		const currentCommand = this._capability.currentCommand;
+		currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+		currentCommand.commandStartMarker = options?.marker || this._terminal.registerMarker(0);
+
+		// Clear executed as it must happen after command start
+		currentCommand.commandExecutedMarker?.dispose();
+		currentCommand.commandExecutedMarker = undefined;
+		currentCommand.commandExecutedX = undefined;
+		for (const m of this._hooks.commandMarkers) {
+			m.dispose();
+		}
+		this._hooks.commandMarkers.length = 0;
+
+		this._hooks.onCommandStartedEmitter.fire({ marker: options?.marker || currentCommand.commandStartMarker, markProperties: options?.markProperties } as ITerminalCommand);
+		this._logService.debug('CommandDetectionCapability#handleCommandStart', currentCommand.commandStartX, currentCommand.commandStartMarker?.line);
+	}
+
+	handleCommandExecuted(options?: IHandleCommandOptions) {
+		const currentCommand = this._capability.currentCommand;
+		currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
+		currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', currentCommand.commandExecutedX, currentCommand.commandExecutedMarker?.line);
+
+		// Sanity check optional props
+		if (!currentCommand.commandStartMarker || !currentCommand.commandExecutedMarker || currentCommand.commandStartX === undefined) {
+			return;
+		}
+
+		// Calculate the command
+		currentCommand.command = this._hooks.isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(currentCommand.commandStartMarker.line)?.translateToString(true, currentCommand.commandStartX, currentCommand.commandRightPromptStartX).trim();
+		let y = currentCommand.commandStartMarker.line + 1;
+		const commandExecutedLine = currentCommand.commandExecutedMarker.line;
+		for (; y < commandExecutedLine; y++) {
+			const line = this._terminal.buffer.active.getLine(y);
+			if (line) {
+				const continuation = currentCommand.continuations?.find(e => e.marker.line === y);
+				if (continuation) {
+					currentCommand.command += '\n';
+				}
+				const startColumn = continuation?.end ?? 0;
+				currentCommand.command += line.translateToString(true, startColumn);
+			}
+		}
+		if (y === commandExecutedLine) {
+			currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, currentCommand.commandExecutedX) || '';
+		}
+		this._hooks.onCommandExecutedEmitter.fire();
+	}
+}
+
+/**
+ * An object that integrated with and decorates the command detection capability to add heuristics
+ * that adjust various markers to work better with Windows and ConPTY. This isn't depended upon the
+ * frontend OS, or even the backend OS, but the `IsWindows` property which technically a non-Windows
+ * client can emit (for example in tests).
+ */
+class WindowsPtyHeuristics extends Disposable {
+
+	private _onCursorMoveListener = this._register(new MutableDisposable());
+	private _commandStartedWindowsBarrier?: Barrier;
+	private _windowsPromptPollingInProcess: boolean = false;
+
+	constructor(
+		private readonly _terminal: Terminal,
+		private readonly _capability: CommandDetectionCapability,
+		private readonly _hooks: ICommandDetectionHeuristicsHooks,
+		@ILogService private readonly _logService: ILogService,
+	) {
+		super();
+
+		this._register(this._capability.onBeforeCommandFinished(command => {
+			// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
+			// cls will clear all commands in the viewport. This is not perfect but it's right most
+			// of the time.
+			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
+				this._hooks.clearCommandsInViewport();
+				this._capability.currentCommand.isInvalid = true;
+				this._hooks.onCurrentCommandInvalidatedEmitter.fire({ reason: CommandInvalidationReason.Windows });
+			}
+		}));
+	}
+
+	preHandleResize(e: { cols: number; rows: number }) {
+		// Resize behavior is different under conpty; instead of bringing parts of the scrollback
+		// back into the viewport, new lines are inserted at the bottom (ie. the same behavior as if
+		// there was no scrollback).
+		//
+		// On resize this workaround will wait for a conpty reprint to occur by waiting for the
+		// cursor to move, it will then calculate the number of lines that the commands within the
+		// viewport _may have_ shifted. After verifying the content of the current line is
+		// incorrect, the line after shifting is checked and if that matches delete events are fired
+		// on the xterm.js buffer to move the markers.
+		//
+		// While a bit hacky, this approach is quite safe and seems to work great at least for pwsh.
+		const baseY = this._terminal.buffer.active.baseY;
+		const rowsDifference = e.rows - this._hooks.dimensions.rows;
+		// Only do when rows increase, do in the next frame as this needs to happen after
+		// conpty reprints the screen
+		if (rowsDifference > 0) {
+			this._waitForCursorMove().then(() => {
+				// Calculate the number of lines the content may have shifted, this will max out at
+				// scrollback count since the standard behavior will be used then
+				const potentialShiftedLineCount = Math.min(rowsDifference, baseY);
+				// For each command within the viewport, assume commands are in the correct order
+				for (let i = this._capability.commands.length - 1; i >= 0; i--) {
+					const command = this._capability.commands[i];
+					if (!command.marker || command.marker.line < baseY || command.commandStartLineContent === undefined) {
+						break;
+					}
+					const line = this._terminal.buffer.active.getLine(command.marker.line);
+					if (!line || line.translateToString(true) === command.commandStartLineContent) {
+						continue;
+					}
+					const shiftedY = command.marker.line - potentialShiftedLineCount;
+					const shiftedLine = this._terminal.buffer.active.getLine(shiftedY);
+					if (shiftedLine?.translateToString(true) !== command.commandStartLineContent) {
+						continue;
+					}
+					// HACK: xterm.js doesn't expose this by design as it's an internal core
+					// function an embedder could easily do damage with. Additionally, this
+					// can't really be upstreamed since the event relies on shell integration to
+					// verify the shifting is necessary.
+					(this._terminal as any)._core._bufferService.buffer.lines.onDeleteEmitter.fire({
+						index: this._terminal.buffer.active.baseY,
+						amount: potentialShiftedLineCount
+					});
+				}
+			});
+		}
+	}
+
+	async handleCommandStart() {
 		if (this._windowsPromptPollingInProcess) {
 			this._windowsPromptPollingInProcess = false;
 		}
 		this._commandStartedWindowsBarrier = new Barrier();
-		this._currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
+		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
-		this._commandMarkers.length = 0;
+		this._hooks.commandMarkers.length = 0;
 
 		let prompt: string | undefined = this._getWindowsPrompt();
 		// Conpty could have the wrong cursor position at this point.
@@ -394,7 +695,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows reached max attempts, ', this._cursorOnNextLine(), this._getWindowsPrompt());
 			} else if (prompt) {
 				// use the regex to set the position as it's possible input has occurred
-				this._currentCommand.commandStartX = prompt.length;
+				this._capability.currentCommand.commandStartX = prompt.length;
 			}
 		} else {
 			// HACK: Fire command started on the following frame on Windows to allow the cursor
@@ -403,30 +704,135 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			await timeout(0);
 		}
 
-		if (!this._currentCommand.commandExecutedMarker) {
-			this._onCursorMoveListener = this._terminal.onCursorMove(() => {
-				if (this._commandMarkers.length === 0 || this._commandMarkers[this._commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
+		if (!this._capability.currentCommand.commandExecutedMarker) {
+			this._onCursorMoveListener.value = this._terminal.onCursorMove(() => {
+				if (this._hooks.commandMarkers.length === 0 || this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1].line !== this._terminal.buffer.active.cursorY) {
 					const marker = this._terminal.registerMarker(0);
 					if (marker) {
-						this._commandMarkers.push(marker);
+						this._hooks.commandMarkers.push(marker);
 					}
 				}
 			});
 		}
-		this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-		if (this._currentCommand.commandStartMarker) {
-			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
+		this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+		if (this._capability.currentCommand.commandStartMarker) {
+			const line = this._terminal.buffer.active.getLine(this._capability.currentCommand.commandStartMarker.line);
 			if (line) {
-				this._currentCommand.commandStartLineContent = line.translateToString(true);
+				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
 			}
 		}
-		this._onCommandStarted.fire({ marker: this._currentCommand.commandStartMarker } as ITerminalCommand);
-		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._currentCommand.commandStartX, this._currentCommand.commandStartMarker?.line);
+		this._hooks.onCommandStartedEmitter.fire({ marker: this._capability.currentCommand.commandStartMarker } as ITerminalCommand);
+		this._logService.debug('CommandDetectionCapability#_handleCommandStartWindows', this._capability.currentCommand.commandStartX, this._capability.currentCommand.commandStartMarker?.line);
 		this._commandStartedWindowsBarrier.open();
 	}
 
+	handleCommandExecuted(options: IHandleCommandOptions | undefined) {
+		// TODO: Flush here?
+		// await this._commandStartedWindowsBarrier?.wait();
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers
+		this._onCursorMoveListener.clear();
+		this._evaluateCommandMarkers();
+		this._capability.currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
+		this._hooks.onCommandExecutedEmitter.fire();
+		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._capability.currentCommand.commandExecutedX, this._capability.currentCommand.commandExecutedMarker?.line);
+	}
+
+	preHandleCommandFinished() {
+		if (this._capability.currentCommand.commandExecutedMarker) {
+			return;
+		}
+		// This is done on command finished just in case command executed never happens (for example
+		// PSReadLine tab completion)
+		if (this._hooks.commandMarkers.length === 0) {
+			// If the command start timeout doesn't happen before command finished, just use the
+			// current marker.
+			if (!this._capability.currentCommand.commandStartMarker) {
+				this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0);
+			}
+			if (this._capability.currentCommand.commandStartMarker) {
+				this._hooks.commandMarkers.push(this._capability.currentCommand.commandStartMarker);
+			}
+		}
+		this._evaluateCommandMarkers();
+	}
+
+	postHandleCommandFinished(): void {
+		const currentCommand = this._capability.currentCommand;
+		const commandText = currentCommand.command;
+		const commandLine = currentCommand.commandStartMarker?.line;
+		const executedLine = currentCommand.commandExecutedMarker?.line;
+		if (
+			!commandText || commandText.length === 0 ||
+			commandLine === undefined || commandLine === -1 ||
+			executedLine === undefined || executedLine === -1
+		) {
+			return;
+		}
+
+		// Scan downwards from the command start line and search for every character in the actual
+		// command line. This may end up matching the wrong characters, but it shouldn't matter at
+		// least in the typical case as the entire command will still get matched.
+		let current = 0;
+		let found = false;
+		for (let i = commandLine; i <= executedLine; i++) {
+			const line = this._terminal.buffer.active.getLine(i);
+			if (!line) {
+				break;
+			}
+			const text = line.translateToString(true);
+			for (let j = 0; j < text.length; j++) {
+				// Skip whitespace in case it was not actually rendered or could be trimmed from the
+				// end of the line
+				while (commandText.length < current && commandText[current] === ' ') {
+					current++;
+				}
+
+				// Character match
+				if (text[j] === commandText[current]) {
+					current++;
+				}
+
+				// Full command match
+				if (current === commandText.length) {
+					// It's ambiguous whether the command executed marker should ideally appear at
+					// the end of the line or at the beginning of the next line. Since it's more
+					// useful for extracting the command at the end of the current line we go with
+					// that.
+					const wrapsToNextLine = j >= this._terminal.cols - 1;
+					currentCommand.commandExecutedMarker = this._terminal.registerMarker(i - (this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY) + (wrapsToNextLine ? 1 : 0));
+					currentCommand.commandExecutedX = wrapsToNextLine ? 0 : j + 1;
+					found = true;
+					break;
+				}
+			}
+			if (found) {
+				break;
+			}
+		}
+	}
+
+	private _evaluateCommandMarkers(): void {
+		// On Windows, use the gathered cursor move markers to correct the command start and
+		// executed markers.
+		if (this._hooks.commandMarkers.length === 0) {
+			return;
+		}
+		this._hooks.commandMarkers = this._hooks.commandMarkers.sort((a, b) => a.line - b.line);
+		this._capability.currentCommand.commandStartMarker = this._hooks.commandMarkers[0];
+		if (this._capability.currentCommand.commandStartMarker) {
+			const line = this._terminal.buffer.active.getLine(this._capability.currentCommand.commandStartMarker.line);
+			if (line) {
+				this._capability.currentCommand.commandStartLineContent = line.translateToString(true);
+			}
+		}
+		this._capability.currentCommand.commandExecutedMarker = this._hooks.commandMarkers[this._hooks.commandMarkers.length - 1];
+		// Fire this now to prevent issues like #197409
+		this._hooks.onCommandExecutedEmitter.fire();
+	}
+
 	private _cursorOnNextLine(): boolean {
-		const lastCommand = this.commands.at(-1);
+		const lastCommand = this._capability.commands.at(-1);
 
 		// There is only a single command, so this check is unnecessary
 		if (!lastCommand) {
@@ -437,6 +843,26 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		// If the cursor position is within the last command, we should poll.
 		const lastCommandYAbsolute = (lastCommand.endMarker ? lastCommand.endMarker.line : lastCommand.marker?.line) ?? -1;
 		return cursorYAbsolute > lastCommandYAbsolute;
+	}
+
+	private _waitForCursorMove(): Promise<void> {
+		const cursorX = this._terminal.buffer.active.cursorX;
+		const cursorY = this._terminal.buffer.active.cursorY;
+		let totalDelay = 0;
+		return new Promise<void>((resolve, reject) => {
+			const interval = setInterval(() => {
+				if (cursorX !== this._terminal.buffer.active.cursorX || cursorY !== this._terminal.buffer.active.cursorY) {
+					resolve();
+					clearInterval(interval);
+					return;
+				}
+				totalDelay += 10;
+				if (totalDelay > 1000) {
+					clearInterval(interval);
+					resolve();
+				}
+			}, 10);
+		});
 	}
 
 	private _getWindowsPrompt(): string | undefined {
@@ -482,252 +908,6 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			prompt += ' ';
 		}
 		return prompt;
-	}
-
-	handleGenericCommand(options?: IHandleCommandOptions): void {
-		if (options?.markProperties?.disableCommandStorage) {
-			this.setIsCommandStorageDisabled();
-		}
-		this.handlePromptStart(options);
-		this.handleCommandStart(options);
-		this.handleCommandExecuted(options);
-		this.handleCommandFinished(undefined, options);
-	}
-
-	handleCommandExecuted(options?: IHandleCommandOptions): void {
-		if (this._isWindowsPty) {
-			this._handleCommandExecutedWindows();
-			return;
-		}
-
-		this._currentCommand.commandExecutedMarker = options?.marker || this._terminal.registerMarker(0);
-		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
-		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-
-		// Sanity check optional props
-		if (!this._currentCommand.commandStartMarker || !this._currentCommand.commandExecutedMarker || this._currentCommand.commandStartX === undefined) {
-			return;
-		}
-
-		// Calculate the command
-		this._currentCommand.command = this.__isCommandStorageDisabled ? '' : this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line)?.translateToString(true, this._currentCommand.commandStartX, this._currentCommand.commandRightPromptStartX).trim();
-		let y = this._currentCommand.commandStartMarker.line + 1;
-		const commandExecutedLine = this._currentCommand.commandExecutedMarker.line;
-		for (; y < commandExecutedLine; y++) {
-			const line = this._terminal.buffer.active.getLine(y);
-			if (line) {
-				const continuation = this._currentCommand.continuations?.find(e => e.marker.line === y);
-				if (continuation) {
-					this._currentCommand.command += '\n';
-				}
-				const startColumn = continuation?.end ?? 0;
-				this._currentCommand.command += line.translateToString(true, startColumn);
-			}
-		}
-		if (y === commandExecutedLine) {
-			this._currentCommand.command += this._terminal.buffer.active.getLine(commandExecutedLine)?.translateToString(true, undefined, this._currentCommand.commandExecutedX) || '';
-		}
-		this._onCommandExecuted.fire();
-	}
-
-	private async _handleCommandExecutedWindows(): Promise<void> {
-		await this._commandStartedWindowsBarrier?.wait();
-		// On Windows, use the gathered cursor move markers to correct the command start and
-		// executed markers
-		this._onCursorMoveListener?.dispose();
-		this._onCursorMoveListener = undefined;
-		this._evaluateCommandMarkersWindows();
-		this._currentCommand.commandExecutedX = this._terminal.buffer.active.cursorX;
-		this._onCommandExecuted.fire();
-		this._logService.debug('CommandDetectionCapability#handleCommandExecuted', this._currentCommand.commandExecutedX, this._currentCommand.commandExecutedMarker?.line);
-	}
-
-	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
-		if (this._isWindowsPty) {
-			this._preHandleCommandFinishedWindows();
-		}
-
-		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
-		let command = this._currentCommand.command;
-		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
-		this._exitCode = exitCode;
-
-		// HACK: Handle a special case on some versions of bash where identical commands get merged
-		// in the output of `history`, this detects that case and sets the exit code to the the last
-		// command's exit code. This covered the majority of cases but will fail if the same command
-		// runs with a different exit code, that will need a more robust fix where we send the
-		// command ID and exit code over to the capability to adjust there.
-		if (this._exitCode === undefined) {
-			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
-			if (command && command.length > 0 && lastCommand?.command === command) {
-				this._exitCode = lastCommand.exitCode;
-			}
-		}
-
-		if (this._currentCommand.commandStartMarker === undefined || !this._terminal.buffer.active) {
-			return;
-		}
-
-		// When the command finishes and executed never fires the placeholder selector should be used.
-		if (this._exitCode === undefined && command === undefined) {
-			command = '';
-		}
-
-		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
-			const buffer = this._terminal.buffer.active;
-			const timestamp = Date.now();
-			const executedMarker = this._currentCommand.commandExecutedMarker;
-			const endMarker = this._currentCommand.commandFinishedMarker;
-			const newCommand: ITerminalCommand = {
-				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
-				isTrusted: !!this._currentCommand.isTrusted,
-				marker: this._currentCommand.commandStartMarker,
-				endMarker,
-				executedMarker,
-				timestamp,
-				cwd: this._cwd,
-				exitCode: this._exitCode,
-				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
-				markProperties: options?.markProperties
-			};
-			this._commands.push(newCommand);
-			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-
-			this._onBeforeCommandFinished.fire(newCommand);
-			if (!this._currentCommand.isInvalid) {
-				this._onCommandFinished.fire(newCommand);
-			}
-		}
-		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
-		this._currentCommand = {};
-		this._handleCommandStartOptions = undefined;
-	}
-
-	private async _preHandleCommandFinishedWindows(): Promise<void> {
-		if (this._currentCommand.commandExecutedMarker) {
-			return;
-		}
-		// This is done on command finished just in case command executed never happens (for example
-		// PSReadLine tab completion)
-		if (this._commandMarkers.length === 0) {
-			// If the command start timeout doesn't happen before command finished, just use the
-			// current marker.
-			if (!this._currentCommand.commandStartMarker) {
-				this._currentCommand.commandStartMarker = this._terminal.registerMarker(0);
-			}
-			if (this._currentCommand.commandStartMarker) {
-				this._commandMarkers.push(this._currentCommand.commandStartMarker);
-			}
-		}
-		this._evaluateCommandMarkersWindows();
-	}
-
-	private _evaluateCommandMarkersWindows(): void {
-		// On Windows, use the gathered cursor move markers to correct the command start and
-		// executed markers.
-		if (this._commandMarkers.length === 0) {
-			return;
-		}
-		this._commandMarkers = this._commandMarkers.sort((a, b) => a.line - b.line);
-		this._currentCommand.commandStartMarker = this._commandMarkers[0];
-		if (this._currentCommand.commandStartMarker) {
-			const line = this._terminal.buffer.active.getLine(this._currentCommand.commandStartMarker.line);
-			if (line) {
-				this._currentCommand.commandStartLineContent = line.translateToString(true);
-			}
-		}
-		this._currentCommand.commandExecutedMarker = this._commandMarkers[this._commandMarkers.length - 1];
-	}
-
-	setCommandLine(commandLine: string, isTrusted: boolean) {
-		this._logService.debug('CommandDetectionCapability#setCommandLine', commandLine, isTrusted);
-		this._currentCommand.command = commandLine;
-		this._currentCommand.isTrusted = isTrusted;
-	}
-
-	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
-			return {
-				startLine: e.marker?.line,
-				startX: undefined,
-				endLine: e.endMarker?.line,
-				executedLine: e.executedMarker?.line,
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				cwd: e.cwd,
-				exitCode: e.exitCode,
-				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp,
-				markProperties: e.markProperties,
-				aliases: e.aliases
-			};
-		});
-		if (this._currentCommand.commandStartMarker) {
-			commands.push({
-				startLine: this._currentCommand.commandStartMarker.line,
-				startX: this._currentCommand.commandStartX,
-				endLine: undefined,
-				executedLine: undefined,
-				command: '',
-				isTrusted: true,
-				cwd: this._cwd,
-				exitCode: undefined,
-				commandStartLineContent: undefined,
-				timestamp: 0,
-				markProperties: undefined
-			});
-		}
-		return {
-			isWindowsPty: this._isWindowsPty,
-			commands
-		};
-	}
-
-	deserialize(serialized: ISerializedCommandDetectionCapability): void {
-		if (serialized.isWindowsPty) {
-			this.setIsWindowsPty(serialized.isWindowsPty);
-		}
-		const buffer = this._terminal.buffer.normal;
-		for (const e of serialized.commands) {
-			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			// Check for invalid command
-			if (!marker) {
-				continue;
-			}
-			// Partial command
-			if (!e.endLine) {
-				this._currentCommand.commandStartMarker = marker;
-				this._currentCommand.commandStartX = e.startX;
-				this._cwd = e.cwd;
-				this._onCommandStarted.fire({ marker } as ITerminalCommand);
-				continue;
-			}
-			// Full command
-			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand: ITerminalCommand = {
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				marker,
-				endMarker,
-				executedMarker,
-				timestamp: e.timestamp,
-				cwd: e.cwd,
-				commandStartLineContent: e.commandStartLineContent,
-				exitCode: e.exitCode,
-				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._isWindowsPty && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
-				markProperties: e.markProperties,
-				wasReplayed: true
-			};
-			this._commands.push(newCommand);
-			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
-			this._onCommandFinished.fire(newCommand);
-		}
 	}
 }
 
@@ -846,6 +1026,22 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
+export function getPromptRowCount(command: ITerminalCommand, buffer: IBuffer): number {
+	if (!command.marker) {
+		return 1;
+	}
+	let promptRowCount = 1;
+	let promptStartLine = command.marker.line;
+	if (command.promptStartMarker) {
+		promptStartLine = Math.min(command.promptStartMarker?.line ?? command.marker.line, command.marker.line);
+		// Trim any leading whitespace-only lines to retain vertical space
+		while (promptStartLine < command.marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+			promptStartLine++;
+		}
+		promptRowCount = command.marker.line - promptStartLine + 1;
+	}
+	return promptRowCount;
+}
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is

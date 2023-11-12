@@ -70,6 +70,7 @@ export class MenuId {
 	static readonly EmptyEditorGroupContext = new MenuId('EmptyEditorGroupContext');
 	static readonly EditorTabsBarContext = new MenuId('EditorTabsBarContext');
 	static readonly EditorTabsBarShowTabsSubmenu = new MenuId('EditorTabsBarShowTabsSubmenu');
+	static readonly EditorActionsPositionSubmenu = new MenuId('EditorActionsPositionSubmenu');
 	static readonly ExplorerContext = new MenuId('ExplorerContext');
 	static readonly ExplorerContextShare = new MenuId('ExplorerContextShare');
 	static readonly ExtensionContext = new MenuId('ExtensionContext');
@@ -103,6 +104,7 @@ export class MenuId {
 	static readonly OpenEditorsContext = new MenuId('OpenEditorsContext');
 	static readonly OpenEditorsContextShare = new MenuId('OpenEditorsContextShare');
 	static readonly ProblemsPanelContext = new MenuId('ProblemsPanelContext');
+	static readonly SCMHistoryItem = new MenuId('SCMHistoryItem');
 	static readonly SCMChangeContext = new MenuId('SCMChangeContext');
 	static readonly SCMResourceContext = new MenuId('SCMResourceContext');
 	static readonly SCMResourceContextShare = new MenuId('SCMResourceContextShare');

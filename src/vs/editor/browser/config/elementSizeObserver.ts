@@ -66,10 +66,10 @@ export class ElementSizeObserver extends Disposable {
 						alreadyObservedThisAnimationFrame = true;
 						observeNow();
 					} finally {
-						scheduleAtNextAnimationFrame(() => {
+						scheduleAtNextAnimationFrame(getWindow(this._referenceDomElement), () => {
 							alreadyObservedThisAnimationFrame = false;
 							update();
-						}, getWindow(this._referenceDomElement));
+						});
 					}
 				}
 			};

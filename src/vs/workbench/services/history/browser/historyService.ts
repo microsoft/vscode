@@ -24,16 +24,16 @@ import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/la
 import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, remove } from 'vs/base/common/arrays';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { addDisposableListener, EventType, EventHelper } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, WindowIdleValue } from 'vs/base/browser/dom';
 import { IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { IdleValue } from 'vs/base/common/async';
 import { ResourceGlobMatcher } from 'vs/workbench/common/resources';
 import { IPathService } from 'vs/workbench/services/path/common/pathService';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { ILogService, LogLevel } from 'vs/platform/log/common/log';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class HistoryService extends Disposable implements IHistoryService {
 
@@ -752,7 +752,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 	private readonly editorHistoryListeners = new Map<EditorInput, DisposableStore>();
 
-	private readonly resourceExcludeMatcher = this._register(new IdleValue(() => {
+	private readonly resourceExcludeMatcher = this._register(new WindowIdleValue(mainWindow, () => {
 		const matcher = this._register(this.instantiationService.createInstance(
 			ResourceGlobMatcher,
 			root => getExcludes(root ? this.configurationService.getValue<ISearchConfiguration>({ resource: root }) : this.configurationService.getValue<ISearchConfiguration>()) || Object.create(null),

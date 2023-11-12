@@ -1316,15 +1316,23 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
 
 		const result = await this.exec(args);
 		if (result.exitCode) {
-			return '';
+			return { files: 0, insertions: 0, deletions: 0 };
 		}
 
-		return result.stdout.trim();
+		const regex = /(\d+) files? changed(?:, (\d+) insertions\(\+\))?(?:, (\d+) deletions\(-\))?/;
+		const matches = result.stdout.trim().match(regex);
+
+		if (!matches) {
+			return { files: 0, insertions: 0, deletions: 0 };
+		}
+
+		const [, files, insertions = undefined, deletions = undefined] = matches;
+		return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
@@ -2550,6 +2558,11 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async getCommitFiles(ref: string): Promise<string[]> {
+		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
+		return result.stdout.split('\n').filter(l => !!l);
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {
