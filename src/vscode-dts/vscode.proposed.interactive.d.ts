@@ -100,6 +100,13 @@ declare module 'vscode' {
 		inputPlaceholder?: string;
 	}
 
+	export interface InteractiveResponseCommand {
+		commandId: string;
+		args?: any[];
+		title: string; // supports codicon strings
+		when?: string;
+	}
+
 	export interface InteractiveSessionReplyFollowup {
 		message: string;
 		tooltip?: string;
