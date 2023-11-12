@@ -709,6 +709,9 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			return null;
 		}
 		result.semanticHighlighting = result.semanticHighlighting || contentValue.semanticHighlighting;
+
+		const colorPalette = contentValue.colorPalette;
+
 		const colors = contentValue.colors;
 		if (colors) {
 			if (typeof colors !== 'object') {
@@ -716,9 +719,9 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 			}
 			// new JSON color themes format
 			for (const colorId in colors) {
-				const colorHex = colors[colorId];
-				if (typeof colorHex === 'string') { // ignore colors tht are null
-					result.colors[colorId] = Color.fromHex(colors[colorId]);
+				const parsedColor = _parseColor(colors[colorId], colorPalette);
+				if (typeof parsedColor === 'string') { // ignore colors that are null
+					result.colors[colorId] = Color.fromHex(parsedColor);
 				}
 			}
 		}
@@ -748,6 +751,25 @@ async function _loadColorTheme(extensionResourceLoaderService: IExtensionResourc
 	} else {
 		return _loadSyntaxTokens(extensionResourceLoaderService, themeLocation, result);
 	}
+}
+
+function _parseColor(colorValue: string | null, colorPalette: { [key: string]: string } | undefined): string | null {
+	if (!colorValue) {
+		return null;
+	}
+
+	if (colorValue.startsWith('#')) {
+		return colorValue;
+	}
+
+	if (colorPalette && colorValue.startsWith('$')) {
+		const hex = colorPalette[colorValue];
+		if (hex) {
+			return hex;
+		}
+	}
+
+	return null;
 }
 
 function _loadSyntaxTokens(extensionResourceLoaderService: IExtensionResourceLoaderService, themeLocation: URI, result: { textMateRules: ITextMateThemingRule[]; colors: IColorMap }): Promise<any> {
