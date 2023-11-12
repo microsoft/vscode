@@ -81,6 +81,7 @@ const chatAgentWithUsedContext: IChatAgent = {
 suite('Chat', () => {
 	const testDisposables = ensureNoDisposablesAreLeakedInTestSuite();
 
+	let storageService: IStorageService;
 	let instantiationService: TestInstantiationService;
 
 	let chatAgentService: IChatAgentService;
@@ -89,7 +90,7 @@ suite('Chat', () => {
 		instantiationService = testDisposables.add(new TestInstantiationService(new ServiceCollection(
 			[IChatVariablesService, new MockChatVariablesService()],
 		)));
-		instantiationService.stub(IStorageService, testDisposables.add(new TestStorageService()));
+		instantiationService.stub(IStorageService, storageService = testDisposables.add(new TestStorageService()));
 		instantiationService.stub(ILogService, new NullLogService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IExtensionService, new TestExtensionService());
@@ -127,6 +128,7 @@ suite('Chat', () => {
 		await session2.waitForInitialization();
 		session2!.addRequest({ parts: [], text: 'request 2' });
 
+		storageService.flush();
 		const testService2 = testDisposables.add(instantiationService.createInstance(ChatService));
 		testDisposables.add(testService2.registerProvider(provider1));
 		testDisposables.add(testService2.registerProvider(provider2));
