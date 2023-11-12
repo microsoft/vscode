@@ -51,7 +51,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		const markCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
 		let markers: IMarker[] = [];
 		if (commandCapability) {
-			markers = coalesce(commandCapability.commands.filter(e => skipEmptyCommands ? e.exitCode !== undefined : true).map(e => e.marker));
+			markers = coalesce(commandCapability.commands.filter(e => skipEmptyCommands ? e.exitCode !== undefined : true).map(e => e.promptStartMarker ?? e.marker));
 		} else if (partialCommandCapability) {
 			markers.push(...partialCommandCapability.commands);
 		}
@@ -71,7 +71,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	private _findCommand(marker: IMarker): ITerminalCommand | undefined {
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandCapability) {
-			return commandCapability.commands.find(e => e.marker?.line === marker.line);
+			return commandCapability.commands.find(e => e.marker?.line === marker.line || e.promptStartMarker?.line === marker.line);
 		}
 		return undefined;
 	}
@@ -330,7 +330,13 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 		if (this._selectionStart === null) {
-			this._selectionStart = this._currentMarker;
+			// Special case for bottom marker; skip any empty commands as it's unlikely the user
+			// will want to select empty commands
+			if (this._currentMarker === Boundary.Bottom) {
+				this._selectionStart = this._getMarkers(false)[this._findPreviousMarker(false)];
+			} else {
+				this._selectionStart = this._currentMarker;
+			}
 		}
 		if (this._capabilities.has(TerminalCapability.CommandDetection)) {
 			this.scrollToPreviousMark(ScrollPosition.Middle, true, true);
