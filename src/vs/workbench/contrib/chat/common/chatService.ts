@@ -151,7 +151,6 @@ export interface IChatReplyFollowup {
 	message: string;
 	title?: string;
 	tooltip?: string;
-	metadata?: any;
 }
 
 export interface IChatResponseCommandFollowup {
