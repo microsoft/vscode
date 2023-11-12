@@ -135,7 +135,7 @@ export class NotebookStickyScroll extends Disposable {
 	}
 
 	private onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(DOM.getWindow(this.domNode), e);
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.NotebookStickyScrollContext,
 			getAnchor: () => event,

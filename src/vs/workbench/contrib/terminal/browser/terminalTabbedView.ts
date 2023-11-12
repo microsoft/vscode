@@ -353,7 +353,7 @@ export class TerminalTabbedView extends Disposable {
 				else if (rightClickBehavior === 'copyPaste' || rightClickBehavior === 'paste') {
 					// copyPaste: Shift+right click should open context menu
 					if (rightClickBehavior === 'copyPaste' && event.shiftKey) {
-						openContextMenu(event, terminal, this._instanceMenu, this._contextMenuService);
+						openContextMenu(dom.getWindow(terminalContainer), event, terminal, this._instanceMenu, this._contextMenuService);
 						return;
 					}
 
@@ -387,7 +387,7 @@ export class TerminalTabbedView extends Disposable {
 			}
 			terminalContainer.focus();
 			if (!this._cancelContextMenu) {
-				openContextMenu(event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
+				openContextMenu(dom.getWindow(terminalContainer), event, this._terminalGroupService.activeInstance!, this._instanceMenu, this._contextMenuService);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
@@ -412,7 +412,7 @@ export class TerminalTabbedView extends Disposable {
 					selectedInstances.unshift(focusedInstance);
 				}
 
-				openContextMenu(event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
+				openContextMenu(dom.getWindow(this._tabContainer), event, selectedInstances, emptyList ? this._tabsListEmptyMenu : this._tabsListMenu, this._contextMenuService, emptyList ? this._getTabActions() : undefined);
 			}
 			event.preventDefault();
 			event.stopImmediatePropagation();
