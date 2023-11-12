@@ -51,7 +51,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		const markCapability = this._capabilities.get(TerminalCapability.BufferMarkDetection);
 		let markers: IMarker[] = [];
 		if (commandCapability) {
-			markers = coalesce(commandCapability.commands.map(e => e.marker));
+			markers = coalesce(commandCapability.commands.filter(e => e.exitCode !== undefined).map(e => e.marker));
 		} else if (partialCommandCapability) {
 			markers.push(...partialCommandCapability.commands);
 		}
@@ -103,7 +103,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return !this._getMarkers(true).includes(marker);
 	}
 
-	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = false): void {
+	scrollToPreviousMark(scrollPosition: ScrollPosition = ScrollPosition.Middle, retainSelection: boolean = false, skipEmptyCommands: boolean = true): void {
 		if (!this._terminal) {
 			return;
 		}
