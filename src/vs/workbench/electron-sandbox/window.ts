@@ -16,7 +16,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { WindowMinimumSize, IOpenFileRequest, IWindowsConfiguration, getTitleBarStyle, IAddFoldersRequest, INativeRunActionInWindowRequest, INativeRunKeybindingInWindowRequest, INativeOpenFileRequest } from 'vs/platform/window/common/window';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { applyZoom } from 'vs/platform/window/electron-sandbox/window';
+import { applyZoom, registerDeviceAccessHandler } from 'vs/platform/window/electron-sandbox/window';
 import { setFullscreen, getZoomLevel } from 'vs/base/browser/browser';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IResourceEditorInput } from 'vs/platform/editor/common/editor';
@@ -73,6 +73,7 @@ import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sand
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
 import { HidDeviceData, SerialPortData, UsbDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice } from 'vs/base/browser/deviceAccess';
+import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 
 export class NativeWindow extends Disposable {
 
@@ -128,7 +129,8 @@ export class NativeWindow extends Disposable {
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
-		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
+		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService,
+		@IQuickInputService private readonly quickInputService: IQuickInputService
 	) {
 		super();
 
@@ -686,6 +688,9 @@ export class NativeWindow extends Disposable {
 		// Commands
 		this.registerCommands();
 
+		// Handlers
+		this.registerHandlers();
+
 		// Smoke Test Driver
 		if (this.environmentService.enableSmokeTestDriver) {
 			this.setupDriver();
@@ -1054,6 +1059,15 @@ export class NativeWindow extends Disposable {
 		// Allow extensions to request HID devices in Web
 		CommandsRegistry.registerCommand('workbench.experimental.requestHidDevice', async (_accessor: ServicesAccessor, options?: { filters?: unknown[] }): Promise<HidDeviceData | undefined> => {
 			return requestHidDevice(options);
+		});
+	}
+
+	private registerHandlers(): void {
+
+		// Show a picker when a device is requested
+		registerDeviceAccessHandler(async devices => {
+			const device = await this.quickInputService.pick(devices, { title: `${this.productService.nameShort} wants to connect` });
+			return device?.id;
 		});
 	}
 }

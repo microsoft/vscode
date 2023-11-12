@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { app, BrowserWindow, Display, Event as ElectronEvent, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
+import { app, BrowserWindow, Display, Event as ElectronEvent, ipcMain, nativeImage, NativeImage, Rectangle, screen, SegmentedControlSegment, systemPreferences, TouchBar, TouchBarSegmentedControl } from 'electron';
 import { DeferredPromise, RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
@@ -662,20 +662,35 @@ export class CodeWindow extends BaseWindow implements ICodeWindow {
 
 		this._win.webContents.session.on('select-usb-device', (event, details, callback) => {
 			event.preventDefault();
-			// ToDo: Show picker of devices instead of returning first
-			callback(details.deviceList?.[0]?.deviceId);
+			const type = 'select-usb-device';
+			const items = details.deviceList.map(device => ({
+				id: device.deviceId,
+				label: device.productName || device.serialNumber || `${device.vendorId}:${device.productId}`
+			}));
+			ipcMain.once(type, (_event, value) => callback(value));
+			this._win.webContents.send('device-access', type, items);
 		});
 
 		this._win.webContents.session.on('select-hid-device', (event, details, callback) => {
 			event.preventDefault();
-			// ToDo: Show picker of devices instead of returning first
-			callback(details.deviceList?.[0]?.deviceId);
+			const type = 'select-hid-device';
+			const items = details.deviceList.map(device => ({
+				id: device.deviceId,
+				label: device.name
+			}));
+			ipcMain.once(type, (_event, value) => callback(value));
+			this._win.webContents.send('device-access', type, items);
 		});
 
 		this._win.webContents.session.on('select-serial-port', (event, portList, _webContents, callback) => {
 			event.preventDefault();
-			// ToDo: Show picker of devices instead of returning first
-			callback(portList[0]?.portId);
+			const type = 'select-serial-port';
+			const items = portList.map(device => ({
+				id: device.portId,
+				label: device.displayName || device.portName
+			}));
+			ipcMain.once(type, (_event, value) => callback(value));
+			this._win.webContents.send('device-access', type, items);
 		});
 	}
 
