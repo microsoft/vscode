@@ -17,7 +17,7 @@ import { ThemeIcon } from 'vs/base/common/themables';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode, KeyMod, ScanCode, ScanCodeUtils } from 'vs/base/common/keyCodes';
 import { ResolvedKeybinding } from 'vs/base/common/keybindings';
-import { Disposable, dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import 'vs/css!./menubar';
@@ -86,6 +86,8 @@ export class MenuBar extends Disposable {
 
 	private numMenusShown: number = 0;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
+
+	private menuDisposables = new DisposableStore();
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
@@ -985,6 +987,8 @@ export class MenuBar extends Disposable {
 
 			this.focusedMenu = { index: this.focusedMenu.index };
 		}
+		this.menuDisposables.dispose();
+		this.menuDisposables = new DisposableStore();
 	}
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
@@ -1025,9 +1029,9 @@ export class MenuBar extends Disposable {
 			useEventAsContext: true
 		};
 
-		const menuWidget = this._register(new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle));
-
-		this._register(menuWidget.onDidCancel(() => {
+		const menuWidget = new Menu(menuHolder, customMenu.actions, menuOptions, this.menuStyle);
+		this.menuDisposables.add(menuWidget);
+		this.menuDisposables.add(menuWidget.onDidCancel(() => {
 			this.focusState = MenubarState.FOCUSED;
 		}));
 
