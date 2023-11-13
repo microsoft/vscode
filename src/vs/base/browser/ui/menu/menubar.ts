@@ -987,8 +987,7 @@ export class MenuBar extends Disposable {
 
 			this.focusedMenu = { index: this.focusedMenu.index };
 		}
-		this.menuDisposables.dispose();
-		this.menuDisposables = new DisposableStore();
+		this.menuDisposables.clear();
 	}
 
 	private showCustomMenu(menuIndex: number, selectFirst = true): void {
