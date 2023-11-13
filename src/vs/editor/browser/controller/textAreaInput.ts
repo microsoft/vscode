@@ -11,13 +11,15 @@ import { inputLatency } from 'vs/base/browser/performance';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { OperatingSystem } from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
 import { ITextAreaWrapper, ITypeData, TextAreaState, _debugComposition } from 'vs/editor/browser/controller/textAreaState';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
+import { ILogService } from 'vs/platform/log/common/log';
 
 export namespace TextAreaSyntethicEvents {
 	export const Tap = '-monaco-textarea-synthetic-tap';
@@ -193,7 +195,8 @@ export class TextAreaInput extends Disposable {
 	// ---
 
 	private readonly _asyncTriggerCut: RunOnceScheduler;
-	private readonly _asyncFocusGainWriteScreenReaderContent: RunOnceScheduler;
+
+	private _asyncFocusGainWriteScreenReaderContent: MutableDisposable<RunOnceScheduler> = new MutableDisposable();
 
 	private _textAreaState: TextAreaState;
 
@@ -210,16 +213,27 @@ export class TextAreaInput extends Disposable {
 		private readonly _host: ITextAreaInputHost,
 		private readonly _textArea: ICompleteTextAreaWrapper,
 		private readonly _OS: OperatingSystem,
-		private readonly _browser: IBrowser
+		private readonly _browser: IBrowser,
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
+		@ILogService private readonly _logService: ILogService
 	) {
 		super();
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
-		this._asyncFocusGainWriteScreenReaderContent = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
-
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
+		}
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
-		this.writeScreenReaderContent('ctor');
-
+		if (this._accessibilityService.isScreenReaderOptimized()) {
+			this.writeScreenReaderContent('ctor');
+		}
+		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
+			if (this._accessibilityService.isScreenReaderOptimized() && !this._asyncFocusGainWriteScreenReaderContent.value) {
+				this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
+			} else {
+				this._asyncFocusGainWriteScreenReaderContent.clear();
+			}
+		}));
 		this._hasFocus = false;
 		this._currentComposition = null;
 
@@ -431,10 +445,14 @@ export class TextAreaInput extends Disposable {
 
 			this._setHasFocus(true);
 
-			if (this._browser.isSafari && !hadFocus && this._hasFocus) {
+			if (this._accessibilityService.isScreenReaderOptimized() && this._browser.isSafari && !hadFocus && this._hasFocus) {
 				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
 				// Safari will always move the selection at offset 0 in the textarea
-				this._asyncFocusGainWriteScreenReaderContent.schedule();
+				if (!this._asyncFocusGainWriteScreenReaderContent.value) {
+					this._asyncFocusGainWriteScreenReaderContent.value = new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0);
+					this._asyncFocusGainWriteScreenReaderContent.value.schedule();
+				}
+				this._asyncFocusGainWriteScreenReaderContent.value.schedule();
 			}
 		}));
 		this._register(this._textArea.onBlur(() => {
@@ -622,11 +640,12 @@ export class TextAreaInput extends Disposable {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		if (this._currentComposition) {
+		if (((reason === 'asyncFocusGain' || reason === 'render') && !this._accessibilityService.isScreenReaderOptimized()) || this._currentComposition) {
+			// Do not write on async focus gain / render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
 			return;
 		}
-
+		this._logService.trace(`writeScreenReaderContent(${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 

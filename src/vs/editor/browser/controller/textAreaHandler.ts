@@ -36,6 +36,7 @@ import { ColorId, ITokenPresentation } from 'vs/editor/common/encodedTokenAttrib
 import { Color } from 'vs/base/common/color';
 import { IME } from 'vs/base/common/ime';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface IVisibleRangeProvider {
 	visibleRangeForPosition(position: Position): HorizontalPosition | null;
@@ -145,7 +146,8 @@ export class TextAreaHandler extends ViewPart {
 		context: ViewContext,
 		viewController: ViewController,
 		visibleRangeProvider: IVisibleRangeProvider,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(context);
 
@@ -303,7 +305,7 @@ export class TextAreaHandler extends ViewPart {
 		};
 
 		const textAreaWrapper = this._register(new TextAreaWrapper(this.textArea.domNode));
-		this._textAreaInput = this._register(new TextAreaInput(textAreaInputHost, textAreaWrapper, platform.OS, {
+		this._textAreaInput = this._register(this._instantiationService.createInstance(TextAreaInput, textAreaInputHost, textAreaWrapper, platform.OS, {
 			isAndroid: browser.isAndroid,
 			isChrome: browser.isChrome,
 			isFirefox: browser.isFirefox,
