@@ -28,7 +28,7 @@ import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatAct
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { ICodeBlockActionContext } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { CONTEXT_IN_CHAT_SESSION, CONTEXT_PROVIDER_EXISTS } from 'vs/workbench/contrib/chat/common/chatContextKeys';
-import { IChatCopyAction, IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatService, IDocumentContext, InteractiveSessionCopyKind } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseViewModel, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { CTX_INLINE_CHAT_VISIBLE } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { insertCell } from 'vs/workbench/contrib/notebook/browser/controller/cellOperations';
@@ -111,9 +111,8 @@ export function registerChatCodeBlockActions() {
 					agentId: context.element.agent?.id,
 					sessionId: context.element.sessionId,
 					requestId: context.element.requestId,
-					action: <IChatCopyAction>{
+					action: {
 						kind: 'copy',
-						responseId: context.element.providerResponseId,
 						codeBlockIndex: context.codeBlockIndex,
 						copyType: InteractiveSessionCopyKind.Toolbar,
 						copiedCharacters: context.code.length,
@@ -149,24 +148,21 @@ export function registerChatCodeBlockActions() {
 		const totalCharacters = editorModel.getValueLength();
 
 		// Report copy to extensions
-		if (context.element.providerResponseId) {
-			const chatService = accessor.get(IChatService);
-			chatService.notifyUserAction({
-				providerId: context.element.providerId,
-				agentId: context.element.agent?.id,
-				sessionId: context.element.sessionId,
-				requestId: context.element.requestId,
-				action: {
-					kind: 'copy',
-					codeBlockIndex: context.codeBlockIndex,
-					responseId: context.element.providerResponseId,
-					copyType: InteractiveSessionCopyKind.Action,
-					copiedText,
-					copiedCharacters: copiedText.length,
-					totalCharacters,
-				}
-			});
-		}
+		const chatService = accessor.get(IChatService);
+		chatService.notifyUserAction({
+			providerId: context.element.providerId,
+			agentId: context.element.agent?.id,
+			sessionId: context.element.sessionId,
+			requestId: context.element.requestId,
+			action: {
+				kind: 'copy',
+				codeBlockIndex: context.codeBlockIndex,
+				copyType: InteractiveSessionCopyKind.Action,
+				copiedText,
+				copiedCharacters: copiedText.length,
+				totalCharacters,
+			}
+		});
 
 		// Copy full cell if no selection, otherwise fall back on normal editor implementation
 		if (noSelection) {
@@ -337,7 +333,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 					}
@@ -386,7 +381,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'insert',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						totalCharacters: context.code.length,
 						newFile: true
@@ -482,7 +476,6 @@ export function registerChatCodeBlockActions() {
 					requestId: context.element.requestId,
 					action: {
 						kind: 'runInTerminal',
-						responseId: context.element.providerResponseId!,
 						codeBlockIndex: context.codeBlockIndex,
 						languageId: context.languageId,
 					}

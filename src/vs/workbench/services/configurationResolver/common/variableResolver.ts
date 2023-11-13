@@ -320,6 +320,9 @@ export class AbstractVariableResolverService implements IConfigurationResolverSe
 					case 'fileWorkspaceFolder':
 						return getFolderPathForFile(VariableKind.FileWorkspaceFolder);
 
+					case 'fileWorkspaceFolderBasename':
+						return paths.basename(getFolderPathForFile(VariableKind.FileWorkspaceFolderBasename));
+
 					case 'relativeFile':
 						if (folderUri || argument) {
 							return paths.relative(this.fsPath(getFolderUri(VariableKind.RelativeFile)), getFilePath(VariableKind.RelativeFile));

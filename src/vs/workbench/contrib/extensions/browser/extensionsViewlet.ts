@@ -591,7 +591,6 @@ export class ExtensionsViewPaneContainer extends ViewPaneContainer implements IE
 
 		// Register DragAndDrop support
 		this._register(new DragAndDropObserver(this.root, {
-			onDragEnd: (e: DragEvent) => undefined,
 			onDragEnter: (e: DragEvent) => {
 				if (this.isSupportedDragElement(e)) {
 					show(overlay);
