@@ -27,12 +27,12 @@ suite('Window', () => {
 			const setTimeoutCalls: number[] = [];
 			const clearTimeoutCalls: number[] = [];
 
-			function createWindow(id: number) {
+			function createWindow(id: number, slow?: boolean) {
 				const res = {
 					setTimeout: function (callback: Function, delay: number, ...args: any[]): number {
 						setTimeoutCalls.push(id);
 
-						return mainWindow.setTimeout(callback, delay, ...args);
+						return mainWindow.setTimeout(() => callback(id), slow ? delay * 2 : delay, ...args);
 					},
 					clearTimeout: function (timeoutId: number): void {
 						clearTimeoutCalls.push(id);
@@ -46,7 +46,7 @@ suite('Window', () => {
 				return res;
 			}
 
-			const window1: any = createWindow(1);
+			const window1 = createWindow(1);
 			windows = [{ window: window1, disposables }];
 
 			// Window Count: 1
@@ -71,8 +71,9 @@ suite('Window', () => {
 			clearTimeoutCalls.length = 0;
 
 			// Window Count: 3
-			const window2: any = createWindow(2);
-			const window3: any = createWindow(3);
+
+			let window2 = createWindow(2);
+			const window3 = createWindow(3);
 			windows = [
 				{ window: window2, disposables },
 				{ window: window1, disposables },
@@ -93,6 +94,34 @@ suite('Window', () => {
 			assert.strictEqual(called, true);
 			assert.deepStrictEqual(setTimeoutCalls, [2, 1, 3]);
 			assert.deepStrictEqual(clearTimeoutCalls, [2, 1, 3]);
+			called = false;
+			setTimeoutCalls.length = 0;
+			clearTimeoutCalls.length = 0;
+
+			// Window Count: 2 (1 fast, 1 slow)
+
+			window2 = createWindow(2, true);
+			windows = [
+				{ window: window2, disposables },
+				{ window: window1, disposables },
+			];
+
+			await new Promise<void>((resolve, reject) => {
+				window1.setTimeout((windowId: number) => {
+					if (!called && windowId === 1) {
+						called = true;
+						resolve();
+					} else if (called) {
+						reject(new Error('timeout called twice'));
+					} else {
+						reject(new Error('timeout called for wrong window'));
+					}
+				}, 1);
+			});
+
+			assert.strictEqual(called, true);
+			assert.deepStrictEqual(setTimeoutCalls, [2, 1]);
+			assert.deepStrictEqual(clearTimeoutCalls, [2, 1]);
 			called = false;
 			setTimeoutCalls.length = 0;
 			clearTimeoutCalls.length = 0;
