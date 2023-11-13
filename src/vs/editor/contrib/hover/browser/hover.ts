@@ -372,6 +372,12 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 	}
 }
 
+enum ShowOrFocusHoverArgument {
+	Never = 'never',
+	Immediately = 'immediately',
+	IfVisible = 'ifVisible'
+}
+
 class ShowOrFocusHoverAction extends EditorAction {
 
 	constructor() {
@@ -394,15 +400,13 @@ class ShowOrFocusHoverAction extends EditorAction {
 						properties: {
 							'focus': {
 								description: nls.localize('showOrFocusHover.focus', "Specifies when the hover should receive focus."),
-								enum: ['never', 'ifVisible', 'immediately', true, false],
+								enum: [ShowOrFocusHoverArgument.Never, ShowOrFocusHoverArgument.IfVisible, ShowOrFocusHoverArgument.Immediately],
 								enumDescriptions: [
 									nls.localize('showOrFocusHover.focus.never', 'The hover is never focused, even if it is already visible.'),
 									nls.localize('showOrFocusHover.focus.ifVisible', 'The hover is focused only if it is already visible.'),
 									nls.localize('showOrFocusHover.focus.immediately', 'The hover is immediately focused when it appears.'),
-									nls.localize('showOrFocusHover.focus.true', 'The hover should take immediate focus, same as "immediately".'),
-									nls.localize('showOrFocusHover.focus.false', 'The hover is focused only if it is already visible, same as "ifVisible".'),
 								],
-								default: 'never',
+								default: 'ifVisible',
 							}
 						},
 					}
@@ -430,9 +434,13 @@ class ShowOrFocusHoverAction extends EditorAction {
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
-		let focusOption = args?.focus ?? 'never';
-		if (typeof focusOption === 'boolean') {
-			focusOption = focusOption ? 'immediately' : 'ifVisible';
+		const focusArgument = args?.focus;
+		let focusOption = ShowOrFocusHoverArgument.IfVisible;
+		if (focusArgument in ShowOrFocusHoverArgument) {
+			focusOption = focusArgument;
+		}
+		if (typeof focusArgument === 'boolean' && focusArgument) {
+			focusOption = ShowOrFocusHoverArgument.Immediately;
 		}
 
 		const showContentHover = (focus: boolean) => {
@@ -440,13 +448,13 @@ class ShowOrFocusHoverAction extends EditorAction {
 		};
 
 		if (controller.isHoverVisible) {
-			if (focusOption !== 'never') {
+			if (focusOption !== ShowOrFocusHoverArgument.Never) {
 				controller.focus();
 			} else {
 				showContentHover(accessibilitySupportEnabled);
 			}
 		} else {
-			showContentHover(accessibilitySupportEnabled || focusOption === 'immediately');
+			showContentHover(accessibilitySupportEnabled || focusOption === ShowOrFocusHoverArgument.Immediately);
 		}
 	}
 }
