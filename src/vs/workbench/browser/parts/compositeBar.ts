@@ -9,7 +9,7 @@ import { IActivity } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ActionBar, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { CompositeActionViewItem, CompositeOverflowActivityAction, CompositeOverflowActivityActionViewItem, CompositeBarAction, ICompositeBar, ICompositeBarColors, IActivityHoverOptions } from 'vs/workbench/browser/parts/compositeBarActions';
-import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor } from 'vs/base/browser/dom';
+import { Dimension, $, addDisposableListener, EventType, EventHelper, isAncestor, getWindow } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Widget } from 'vs/base/browser/ui/widget';
@@ -227,9 +227,9 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}));
 
 		// Contextmenu for composites
-		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(e)));
+		this._register(addDisposableListener(parent, EventType.CONTEXT_MENU, e => this.showContextMenu(getWindow(parent), e)));
 		this._register(Gesture.addTarget(parent));
-		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(e)));
+		this._register(addDisposableListener(parent, TouchEventType.Contextmenu, e => this.showContextMenu(getWindow(parent), e)));
 
 		// Register a drop target on the whole bar to prevent forbidden feedback
 		let insertDropBefore: Before2D | undefined = undefined;
@@ -620,10 +620,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		return this.model.visibleItems.filter(c => overflowingIds.includes(c.id)).map(item => { return { id: item.id, name: this.getAction(item.id)?.label || item.name }; });
 	}
 
-	private showContextMenu(e: MouseEvent | GestureEvent): void {
+	private showContextMenu(targetWindow: Window, e: MouseEvent | GestureEvent): void {
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(targetWindow, e);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
 			getActions: () => this.getContextMenuActions(e)

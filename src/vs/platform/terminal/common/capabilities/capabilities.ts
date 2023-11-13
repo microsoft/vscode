@@ -248,6 +248,8 @@ interface IBaseTerminalCommand {
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	markProperties: IMarkProperties | undefined;
+	executedX: number | undefined;
+	startX: number | undefined;
 }
 
 export interface ITerminalCommand extends IBaseTerminalCommand {
@@ -268,7 +270,6 @@ export interface ISerializedTerminalCommand extends IBaseTerminalCommand {
 	// Optional non-serializable converted for serialization
 	startLine: number | undefined;
 	promptStartLine: number | undefined;
-	startX: number | undefined;
 	endLine: number | undefined;
 	executedLine: number | undefined;
 }

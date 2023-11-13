@@ -824,6 +824,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
 
+	readonly parts: readonly IEditorPart[] = [this];
+
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -1753,6 +1755,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	readonly activePart = this;
 	readonly mainPart = this;
+	readonly parts: readonly IEditorPart[] = [this];
 
 	testSaveState(): void {
 		return super.saveState();

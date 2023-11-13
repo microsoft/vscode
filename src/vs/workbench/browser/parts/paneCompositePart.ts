@@ -15,7 +15,7 @@ import { IView } from 'vs/base/browser/ui/grid/grid';
 import { IWorkbenchLayoutService, Parts } from 'vs/workbench/services/layout/browser/layoutService';
 import { CompositePart, ICompositeTitleLabel } from 'vs/workbench/browser/parts/compositePart';
 import { IPaneCompositeBarOptions, PaneCompositeBar } from 'vs/workbench/browser/parts/paneCompositeBar';
-import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, trackFocus, $, addDisposableListener, EventType, prepend, getWindow } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -291,11 +291,11 @@ export abstract class AbstractPaneCompositePart extends CompositePart<PaneCompos
 		const titleArea = super.createTitleArea(parent);
 
 		this._register(addDisposableListener(titleArea, EventType.CONTEXT_MENU, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+			this.onTitleAreaContextMenu(new StandardMouseEvent(getWindow(titleArea), e));
 		}));
 		this._register(Gesture.addTarget(titleArea));
 		this._register(addDisposableListener(titleArea, GestureEventType.Contextmenu, e => {
-			this.onTitleAreaContextMenu(new StandardMouseEvent(e));
+			this.onTitleAreaContextMenu(new StandardMouseEvent(getWindow(titleArea), e));
 		}));
 
 		const globalTitleActionsContainer = titleArea.appendChild($('.global-actions'));

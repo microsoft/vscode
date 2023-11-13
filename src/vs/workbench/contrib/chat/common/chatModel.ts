@@ -20,7 +20,6 @@ import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowu
 
 export interface IChatRequestModel {
 	readonly id: string;
-	readonly providerRequestId: string | undefined;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
@@ -53,7 +52,6 @@ export interface IChatResponseModel {
 	readonly onDidChange: Event<void>;
 	readonly id: string;
 	readonly providerId: string;
-	readonly providerResponseId: string | undefined;
 	readonly requestId: string;
 	readonly username: string;
 	readonly avatarIconUri?: URI;
@@ -79,10 +77,6 @@ export class ChatRequestModel implements IChatRequestModel {
 		return this._id;
 	}
 
-	public get providerRequestId(): string | undefined {
-		return this._providerRequestId;
-	}
-
 	public get username(): string {
 		return this.session.requesterUsername;
 	}
@@ -93,13 +87,8 @@ export class ChatRequestModel implements IChatRequestModel {
 
 	constructor(
 		public readonly session: ChatModel,
-		public readonly message: IParsedChatRequest,
-		private _providerRequestId?: string) {
+		public readonly message: IParsedChatRequest) {
 		this._id = 'request_' + ChatRequestModel.nextId++;
-	}
-
-	setProviderRequestId(providerRequestId: string) {
-		this._providerRequestId = providerRequestId;
 	}
 }
 
@@ -169,7 +158,11 @@ export class Response implements IResponse {
 			} else if (lastResponsePart) {
 				// Combine this part with the last, non-resolving string part
 				if (isMarkdownString(responsePart)) {
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, responsePart) };
+					// Merge all enabled commands
+					const lastPartEnabledCommands = typeof lastResponsePart.string.isTrusted === 'object' ? lastResponsePart.string.isTrusted.enabledCommands : [];
+					const thisPartEnabledCommands = typeof responsePart.isTrusted === 'object' ? responsePart.isTrusted.enabledCommands : [];
+					const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, { isTrusted: { enabledCommands } }) };
 				} else {
 					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart, lastResponsePart.string) };
 				}
@@ -252,10 +245,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._id;
 	}
 
-	public get providerResponseId(): string | undefined {
-		return this._providerResponseId;
-	}
-
 	public get isComplete(): boolean {
 		return this._isComplete;
 	}
@@ -313,7 +302,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		private _isComplete: boolean = false,
 		private _isCanceled = false,
 		private _vote?: InteractiveSessionVoteDirection,
-		private _providerResponseId?: string,
 		private _errorDetails?: IChatResponseErrorDetails,
 		followups?: ReadonlyArray<IChatFollowup>
 	) {
@@ -333,10 +321,6 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._agent = agent;
 		this._slashCommand = slashCommand;
 		this._onDidChange.fire();
-	}
-
-	setProviderResponseId(providerResponseId: string) {
-		this._providerResponseId = providerResponseId;
 	}
 
 	setErrorDetails(errorDetails?: IChatResponseErrorDetails): void {
@@ -388,7 +372,6 @@ export interface ISerializableChatsData {
 export type ISerializableChatAgentData = UriDto<IChatAgentData>;
 
 export interface ISerializableChatRequestData {
-	providerRequestId: string | undefined;
 	message: string | IParsedChatRequest;
 	response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference> | undefined;
 	agent?: ISerializableChatAgentData;
@@ -410,7 +393,6 @@ export interface IExportableChatData {
 	responderUsername: string;
 	requesterAvatarIconUri: UriComponents | undefined;
 	responderAvatarIconUri: UriComponents | undefined;
-	providerState: any;
 }
 
 export interface ISerializableChatData extends IExportableChatData {
@@ -486,11 +468,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		return this._welcomeMessage;
 	}
 
-	private _providerState: any;
-	get providerState(): any {
-		return this._providerState;
-	}
-
 	// TODO to be clear, this is not the same as the id from the session object, which belongs to the provider.
 	// It's easier to be able to identify this model before its async initialization is complete
 	private _sessionId: string;
@@ -556,7 +533,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._isImported = (!!initialData && !isSerializableSessionData(initialData)) || (initialData?.isImported ?? false);
 		this._sessionId = (isSerializableSessionData(initialData) && initialData.sessionId) || generateUuid();
 		this._requests = initialData ? this._deserialize(initialData) : [];
-		this._providerState = initialData ? initialData.providerState : undefined;
 		this._creationDate = (isSerializableSessionData(initialData) && initialData.creationDate) || Date.now();
 
 		this._initialRequesterAvatarIconUri = initialData?.requesterAvatarIconUri && URI.revive(initialData.requesterAvatarIconUri);
@@ -581,11 +557,11 @@ export class ChatModel extends Disposable implements IChatModel {
 					typeof raw.message === 'string'
 						? this.getParsedRequestFromString(raw.message)
 						: reviveParsedChatRequest(raw.message);
-				const request = new ChatRequestModel(this, parsedRequest, raw.providerRequestId);
+				const request = new ChatRequestModel(this, parsedRequest);
 				if (raw.response || raw.responseErrorDetails) {
 					const agent = (raw.agent && 'metadata' in raw.agent) ? // Check for the new format, ignore entries in the old format
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
-					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.providerRequestId, raw.responseErrorDetails, raw.followups);
+					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
 						request.response.updateContent(raw.usedContext);
 					}
@@ -638,13 +614,6 @@ export class ChatModel extends Disposable implements IChatModel {
 		}
 
 		this._isInitializedDeferred.complete();
-
-		if (session.onDidChangeState) {
-			this._register(session.onDidChangeState(state => {
-				this._providerState = state;
-				this.logService.trace('ChatModel#acceptNewSessionState');
-			}));
-		}
 		this._onDidChange.fire({ kind: 'initialize' });
 	}
 
@@ -703,21 +672,15 @@ export class ChatModel extends Disposable implements IChatModel {
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
-		} else {
-			request.setProviderRequestId(progress.requestId);
-			request.response.setProviderResponseId(progress.requestId);
 		}
 	}
 
-	removeRequest(requestId: string): void {
-		const index = this._requests.findIndex(request => request.providerRequestId === requestId);
+	removeRequest(id: string): void {
+		const index = this._requests.findIndex(request => request.id === id);
 		const request = this._requests[index];
-		if (!request.providerRequestId) {
-			return;
-		}
 
 		if (index !== -1) {
-			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.providerRequestId, responseId: request.response?.providerResponseId });
+			this._onDidChange.fire({ kind: 'removeRequest', requestId: request.id, responseId: request.response?.id });
 			this._requests.splice(index, 1);
 			request.response?.dispose();
 		}
@@ -778,21 +741,19 @@ export class ChatModel extends Disposable implements IChatModel {
 			}),
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
-					providerRequestId: r.providerRequestId,
 					message: r.message,
 					response: r.response ? r.response.response.value : undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,
 					vote: r.response?.vote,
-					agent: r.response?.agent,
+					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
 					slashCommand: r.response?.slashCommand,
 					usedContext: r.response?.response.usedContext,
 					contentReferences: r.response?.response.contentReferences
 				};
 			}),
 			providerId: this.providerId,
-			providerState: this._providerState
 		};
 	}
 

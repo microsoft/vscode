@@ -27,7 +27,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
-import { ITerminalProfile, TerminalExitReason, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
+import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
@@ -609,7 +609,7 @@ export function registerTerminalActions() {
 				text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 			}
 			instance.sendText(text, true, true);
-			await c.service.revealActiveTerminal();
+			await c.service.revealActiveTerminal(true);
 		}
 	});
 
@@ -749,7 +749,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeIcon,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeIcon()
+		run: async (c, accessor) => {
+			let icon: TerminalIcon | undefined;
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				icon = await terminal.changeIcon(icon);
+			}
+		}
 	});
 
 	registerTerminalAction({
@@ -764,7 +769,12 @@ export function registerTerminalActions() {
 		title: terminalStrings.changeColor,
 		f1: false,
 		precondition: ContextKeyExpr.and(ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated), TerminalContextKeys.tabsSingularSelection),
-		run: (c, accessor) => getSelectedInstances(accessor)?.[0].changeColor()
+		run: async (c, accessor) => {
+			let color: string | undefined;
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				color = await terminal.changeColor(color);
+			}
+		}
 	});
 
 	registerTerminalAction({
@@ -1307,7 +1317,7 @@ export function registerTerminalActions() {
 		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});
 
-	registerContextualInstanceAction({
+	registerTerminalAction({
 		id: TerminalCommandId.KillActiveTab,
 		title: terminalStrings.kill,
 		f1: false,
@@ -1321,8 +1331,12 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib,
 			when: TerminalContextKeys.tabsFocus
 		},
-		run: (instance, c) => c.service.safeDisposeTerminal(instance),
-		runAfter: (instances, c) => c.groupService.focusTabs()
+		run: async (c, accessor) => {
+			for (const terminal of getSelectedInstances(accessor) ?? []) {
+				c.service.safeDisposeTerminal(terminal);
+			}
+			c.groupService.focusTabs();
+		}
 	});
 
 	registerTerminalAction({

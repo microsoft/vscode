@@ -227,7 +227,7 @@ abstract class AbstractGlobalActivityActionViewItem extends CompoisteBarActionVi
 			const disposables = new DisposableStore();
 			const actions = await this.resolveContextMenuActions(disposables);
 
-			const event = new StandardMouseEvent(e);
+			const event = new StandardMouseEvent(getWindow(this.container), e);
 
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,
