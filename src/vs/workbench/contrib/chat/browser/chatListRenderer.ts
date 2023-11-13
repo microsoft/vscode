@@ -16,7 +16,7 @@ import { ICompressibleTreeRenderer } from 'vs/base/browser/ui/tree/objectTree';
 import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { IAction } from 'vs/base/common/actions';
 import { distinct } from 'vs/base/common/arrays';
-import { IntervalTimer, disposableTimeout } from 'vs/base/common/async';
+import { disposableTimeout } from 'vs/base/common/async';
 import { Codicon } from 'vs/base/common/codicons';
 import { Emitter, Event } from 'vs/base/common/event';
 import { FuzzyScore } from 'vs/base/common/filters';
@@ -54,10 +54,10 @@ import { convertParsedRequestToMarkdown, reduceInlineContentReferences, walkTree
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_HAS_PROVIDER_ID, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IPlaceholderMarkdownString } from 'vs/workbench/contrib/chat/common/chatModel';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, ISlashCommand, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatContentReference, IChatReplyFollowup, IChatResponseProgressFileTreeData, IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatResponseMarkdownRenderData, IChatResponseRenderData, IChatResponseViewModel, IChatWelcomeMessageViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IWordCountResult, getNWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { createFileIconThemableTreeContainerScope } from 'vs/workbench/contrib/files/browser/views/explorerView';
@@ -89,7 +89,6 @@ const forceVerboseLayoutTracing = false;
 
 export interface IChatRendererDelegate {
 	getListLength(): number;
-	getSlashCommands(): ISlashCommand[];
 }
 
 export interface IChatListItemRendererOptions {
@@ -264,7 +263,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		CONTEXT_RESPONSE.bindTo(templateData.contextKeyService).set(isResponseVM(element));
 		CONTEXT_REQUEST.bindTo(templateData.contextKeyService).set(isRequestVM(element));
-		CONTEXT_RESPONSE_HAS_PROVIDER_ID.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.providerResponseId);
 		if (isResponseVM(element)) {
 			CONTEXT_RESPONSE_VOTE.bindTo(templateData.contextKeyService).set(element.vote === InteractiveSessionVoteDirection.Up ? 'up' : element.vote === InteractiveSessionVoteDirection.Down ? 'down' : '');
 		} else {
@@ -299,7 +297,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.traceLayout('renderElement', `start progressive render ${kind}, index=${index}`);
 
 			const progressiveRenderingDisposables = templateData.elementDisposables.add(new DisposableStore());
-			const timer = templateData.elementDisposables.add(new IntervalTimer());
+			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
 			const runProgressiveRender = (initial?: boolean) => {
 				try {
 					if (this.doNextProgressiveRender(element, index, templateData, !!initial, progressiveRenderingDisposables)) {
@@ -311,7 +309,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					throw err;
 				}
 			};
-			timer.cancelAndSet(runProgressiveRender, 50);
+			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
 			const renderableResponse = reduceInlineContentReferences(element.response.value);
@@ -455,17 +453,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
-			}, dom.getWindow(templateData.value)));
+			}));
 		}
 	}
 
 	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate, height?: number) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
-		const slashCommands = this.delegate.getSlashCommands();
 
 		for (const item of element.content) {
 			if (Array.isArray(item)) {
@@ -477,11 +474,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					templateData.contextKeyService));
 			} else {
 				const result = this.renderMarkdown(item as IMarkdownString, element, templateData);
-				for (const codeElement of result.element.querySelectorAll('code')) {
-					if (codeElement.textContent && slashCommands.find(command => codeElement.textContent === `/${command.command}`)) {
-						codeElement.classList.add('interactive-slash-command');
-					}
-				}
 				templateData.value.appendChild(result.element);
 				templateData.elementDisposables.add(result);
 			}
@@ -493,10 +485,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {
-			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(() => {
+			const disposable = templateData.elementDisposables.add(dom.scheduleAtNextAnimationFrame(dom.getWindow(templateData.value), () => {
 				disposable.dispose();
 				this._onDidChangeItemHeight.fire({ element, height: newHeight });
-			}, dom.getWindow(templateData.value)));
+			}));
 		}
 	}
 
@@ -779,11 +771,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const disposables = new DisposableStore();
 		let codeBlockIndex = 0;
 
-		// TODO if the slash commands stay completely dynamic, this isn't quite right
-		const slashCommands = this.delegate.getSlashCommands();
-		const usedSlashCommand = slashCommands.find(s => markdown.value.startsWith(`/${s.command} `));
-		const toRender = usedSlashCommand ? markdown.value.slice(usedSlashCommand.command.length + 2) : markdown.value;
-		markdown = new MarkdownString(toRender, {
+		markdown = new MarkdownString(markdown.value, {
 			isTrusted: {
 				// Disable all other config options except isTrusted
 				enabledCommands: typeof markdown.isTrusted === 'object' ? markdown.isTrusted?.enabledCommands : [] ?? []
@@ -821,7 +809,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
-			}
+			},
+			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight })
 		});
 
 		if (isResponseVM(element)) {
@@ -830,15 +819,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		walkTreeAndAnnotateReferenceLinks(result.element);
-
-		if (usedSlashCommand) {
-			const slashCommandElement = $('span.interactive-slash-command', { title: usedSlashCommand.detail }, `/${usedSlashCommand.command} `);
-			if (result.element.firstChild?.nodeName.toLowerCase() === 'p') {
-				result.element.firstChild.insertBefore(slashCommandElement, result.element.firstChild.firstChild);
-			} else {
-				result.element.insertBefore($('p', undefined, slashCommandElement), result.element.firstChild);
-			}
-		}
 
 		orderedDisposablesList.reverse().forEach(d => disposables.add(d));
 		return {

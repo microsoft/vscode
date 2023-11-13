@@ -706,6 +706,12 @@ export class Git {
 	}
 }
 
+export interface CommitShortStat {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface Commit {
 	hash: string;
 	message: string;
@@ -715,6 +721,7 @@ export interface Commit {
 	authorEmail?: string;
 	commitDate?: Date;
 	refNames: string[];
+	shortStat?: CommitShortStat;
 }
 
 interface GitConfigSection {
@@ -866,7 +873,7 @@ export function parseGitRemotes(raw: string): MutableRemote[] {
 	return remotes;
 }
 
-const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)/gm;
+const commitRegex = /([0-9a-f]{40})\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)\n(.*)(?:\n([^]*?))?(?:\x00)(?:\n((?:.*)files? changed(?:.*))$)?/gm;
 
 export function parseGitCommits(data: string): Commit[] {
 	const commits: Commit[] = [];
@@ -879,6 +886,7 @@ export function parseGitCommits(data: string): Commit[] {
 	let parents;
 	let refNames;
 	let message;
+	let shortStat;
 	let match;
 
 	do {
@@ -887,7 +895,7 @@ export function parseGitCommits(data: string): Commit[] {
 			break;
 		}
 
-		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message] = match;
+		[, ref, authorName, authorEmail, authorDate, commitDate, parents, refNames, message, shortStat] = match;
 
 		if (message[message.length - 1] === '\n') {
 			message = message.substr(0, message.length - 1);
@@ -902,11 +910,25 @@ export function parseGitCommits(data: string): Commit[] {
 			authorName: ` ${authorName}`.substr(1),
 			authorEmail: ` ${authorEmail}`.substr(1),
 			commitDate: new Date(Number(commitDate) * 1000),
-			refNames: refNames.split(',').map(s => s.trim())
+			refNames: refNames.split(',').map(s => s.trim()),
+			shortStat: shortStat ? parseGitDiffShortStat(shortStat) : undefined
 		});
 	} while (true);
 
 	return commits;
+}
+
+const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions?\(\+\))?(?:, (\d+) deletions?\(-\))?/;
+
+function parseGitDiffShortStat(data: string): CommitShortStat {
+	const matches = data.trim().match(diffShortStatRegex);
+
+	if (!matches) {
+		return { files: 0, insertions: 0, deletions: 0 };
+	}
+
+	const [, files, insertions = undefined, deletions = undefined] = matches;
+	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
 }
 
 interface LsTreeElement {
@@ -1017,6 +1039,10 @@ export class Repository {
 
 	async log(options?: LogOptions): Promise<Commit[]> {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
+
+		if (options?.shortStats) {
+			args.push('--shortstat', '--diff-merges=first-parent');
+		}
 
 		if (options?.reverse) {
 			args.push('--reverse', '--ancestry-path');
@@ -1316,15 +1342,15 @@ export class Repository {
 		return result.stdout.trim();
 	}
 
-	async diffBetweenShortStat(ref1: string, ref2: string): Promise<string> {
+	async diffBetweenShortStat(ref1: string, ref2: string): Promise<{ files: number; insertions: number; deletions: number }> {
 		const args = ['diff', '--shortstat', `${ref1}...${ref2}`];
 
 		const result = await this.exec(args);
 		if (result.exitCode) {
-			return '';
+			return { files: 0, insertions: 0, deletions: 0 };
 		}
 
-		return result.stdout.trim();
+		return parseGitDiffShortStat(result.stdout.trim());
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
@@ -2550,6 +2576,11 @@ export class Repository {
 			return Promise.reject<Commit>('bad commit format');
 		}
 		return commits[0];
+	}
+
+	async getCommitFiles(ref: string): Promise<string[]> {
+		const result = await this.exec(['diff-tree', '--no-commit-id', '--name-only', '-r', ref]);
+		return result.stdout.split('\n').filter(l => !!l);
 	}
 
 	async getCommitCount(range: string): Promise<{ ahead: number; behind: number }> {

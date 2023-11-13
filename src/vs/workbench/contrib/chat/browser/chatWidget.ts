@@ -6,7 +6,6 @@
 import * as dom from 'vs/base/browser/dom';
 import { ITreeContextMenuEvent, ITreeElement } from 'vs/base/browser/ui/tree/tree';
 import { disposableTimeout } from 'vs/base/common/async';
-import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
@@ -23,7 +22,7 @@ import { ServiceCollection } from 'vs/platform/instantiation/common/serviceColle
 import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IViewsService } from 'vs/workbench/common/views';
-import { ChatTreeItem, IChatWidgetViewOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext } from 'vs/workbench/contrib/chat/browser/chat';
+import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewOptions } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatInputPart } from 'vs/workbench/contrib/chat/browser/chatInputPart';
 import { ChatAccessibilityProvider, ChatListDelegate, ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
@@ -31,7 +30,7 @@ import { ChatViewPane } from 'vs/workbench/contrib/chat/browser/chatViewPane';
 import { CONTEXT_CHAT_REQUEST_IN_PROGRESS, CONTEXT_IN_CHAT_SESSION } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatContributionService } from 'vs/workbench/contrib/chat/common/chatContributionService';
 import { ChatModelInitState, IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IChatReplyFollowup, IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatReplyFollowup, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM, isWelcomeVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 const $ = dom.$;
@@ -109,24 +108,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModelDisposables.add(viewModel);
 		}
 
-		this.slashCommandsPromise = undefined;
-		this.lastSlashCommands = undefined;
-
-		this.getSlashCommands().then(() => {
-			if (!this._isDisposed) {
-				this.onDidChangeItems();
-			}
-		});
-
 		this._onDidChangeViewModel.fire();
 	}
 
 	get viewModel() {
 		return this._viewModel;
 	}
-
-	private lastSlashCommands: ISlashCommand[] | undefined;
-	private slashCommandsPromise: Promise<ISlashCommand[] | undefined> | undefined;
 
 	constructor(
 		readonly viewContext: IChatWidgetViewContext,
@@ -162,12 +149,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	get inputUri(): URI {
 		return this.inputPart.inputUri;
-	}
-
-	private _isDisposed: boolean = false;
-	public override dispose(): void {
-		this._isDisposed = true;
-		super.dispose();
 	}
 
 	render(parent: HTMLElement): void {
@@ -260,7 +241,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// TODO? We can give the welcome message a proper VM or get rid of the rest of the VMs
 							((isWelcomeVM(element) && this.viewModel) ? `_${ChatModelInitState[this.viewModel.initState]}` : '') +
 							// Ensure re-rendering an element once slash commands are loaded, so the colorization can be applied.
-							`${(isRequestVM(element) || isWelcomeVM(element)) && !!this.lastSlashCommands ? '_scLoaded' : ''}` +
+							`${(isRequestVM(element) || isWelcomeVM(element)) /* && !!this.lastSlashCommands ? '_scLoaded' : '' */}` +
 							// If a response is in the process of progressive rendering, we need to ensure that it will
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
@@ -309,27 +290,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
-	async getSlashCommands(): Promise<ISlashCommand[] | undefined> {
-		if (!this.viewModel) {
-			return;
-		}
-
-		if (!this.slashCommandsPromise) {
-			this.slashCommandsPromise = this.chatService.getSlashCommands(this.viewModel.sessionId, CancellationToken.None).then(commands => {
-				this.lastSlashCommands = commands ?? [];
-				return this.lastSlashCommands;
-			});
-		}
-
-		return this.slashCommandsPromise;
-	}
-
 	private createList(listContainer: HTMLElement, options: IChatListItemRendererOptions): void {
 		const scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.contextKeyService]));
 		const delegate = scopedInstantiationService.createInstance(ChatListDelegate);
 		const rendererDelegate: IChatRendererDelegate = {
 			getListLength: () => this.tree.getNode(null).visibleChildrenCount,
-			getSlashCommands: () => this.lastSlashCommands ?? [],
 		};
 		this.renderer = this._register(scopedInstantiationService.createInstance(
 			ChatListItemRenderer,
@@ -404,10 +369,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Consider the tree to be scrolled all the way down if it is within 2px of the bottom.
 			const lastElementWasVisible = this.tree.scrollTop + this.tree.renderHeight >= this.previousTreeScrollHeight - 2;
 			if (lastElementWasVisible) {
-				dom.scheduleAtNextAnimationFrame(() => {
+				dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 					// Can't set scrollTop during this event listener, the list might overwrite the change
 					revealLastElement(this.tree);
-				}, dom.getWindow(this.listContainer), 0);
+				}, 0);
 			}
 		}
 
@@ -462,7 +427,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		this.container.setAttribute('data-session-id', model.sessionId);
 		this.viewModel = this.instantiationService.createInstance(ChatViewModel, model);
 		this.viewModelDisposables.add(this.viewModel.onDidChange(e => {
-			this.slashCommandsPromise = undefined;
 			this.requestInProgress.set(this.viewModel!.requestInProgress);
 			this.onDidChangeItems();
 			if (e?.kind === 'addRequest') {
@@ -536,8 +500,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				'query' in opts ? opts.query :
 					`${opts.prefix} ${editorValue}`;
 			const isUserQuery = !opts || 'query' in opts;
-			const usedSlashCommand = this.lookupSlashCommand(input);
-			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input, usedSlashCommand);
+			const result = await this.chatService.sendRequest(this.viewModel.sessionId, input);
 
 			if (result) {
 				this.inputPart.acceptInput(isUserQuery ? input : undefined);
@@ -550,10 +513,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this._chatAccessibilityService.acceptResponse(undefined, requestId);
 			}
 		}
-	}
-
-	private lookupSlashCommand(input: string): ISlashCommand | undefined {
-		return this.lastSlashCommands?.find(sc => input.startsWith(`/${sc.command}`));
 	}
 
 	getCodeBlockInfosForResponse(response: IChatResponseViewModel): IChatCodeBlockInfo[] {
@@ -625,7 +584,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (!this._dynamicMessageLayoutData?.enabled) {
 				return;
 			}
-			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(() => {
+			mutableDisposable.value = dom.scheduleAtNextAnimationFrame(dom.getWindow(this.listContainer), () => {
 				if (!e.scrollTopChanged || e.heightChanged || e.scrollHeightChanged) {
 					return;
 				}
@@ -640,7 +599,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				const inputPartHeight = this.inputPart.layout(possibleMaxHeight, width);
 				const newHeight = Math.min(renderHeight + diff, possibleMaxHeight - inputPartHeight);
 				this.layout(newHeight + inputPartHeight, width);
-			}, dom.getWindow(this.listContainer));
+			});
 		}));
 	}
 

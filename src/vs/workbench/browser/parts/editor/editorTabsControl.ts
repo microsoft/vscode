@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { addDisposableListener, Dimension, EventType, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -22,10 +22,10 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IQuickInputService } from 'vs/platform/quickinput/common/quickInput';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, Themable } from 'vs/platform/theme/common/themeService';
-import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData } from 'vs/workbench/browser/dnd';
+import { DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillEditorsDragData, isWindowDraggedOver } from 'vs/workbench/browser/dnd';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorGroupsView, IEditorGroupView, IEditorPartsView, IInternalEditorOpenOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions } from 'vs/workbench/common/editor';
+import { IEditorCommandsContext, EditorResourceAccessor, IEditorPartOptions, SideBySideEditor, EditorsOrder, EditorInputCapabilities, IToolbarActions, GroupIdentifier } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { ResourceContextKey, ActiveEditorPinnedContext, ActiveEditorStickyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext, ActiveEditorFirstInGroupContext, ActiveEditorAvailableEditorIdsContext, applyAvailableEditorIds, ActiveEditorLastInGroupContext } from 'vs/workbench/common/contextkeys';
 import { AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
@@ -40,6 +40,8 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { isMacintosh } from 'vs/base/common/platform';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -96,8 +98,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		compact: 22 as const
 	};
 
+	protected editorActionsToolbarContainer: HTMLElement | undefined;
 	private editorActionsToolbar: WorkbenchToolBar | undefined;
-	private editorActionsDisposables = this._register(new DisposableStore());
+	private readonly editorActionsToolbarDisposables = this._register(new DisposableStore());
+	private readonly editorActionsDisposables = this._register(new DisposableStore());
 
 	private resourceContext: ResourceContextKey;
 
@@ -127,7 +131,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@INotificationService private readonly notificationService: INotificationService,
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
-		@IEditorResolverService private readonly editorResolverService: IEditorResolverService
+		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
 	) {
 		super(themeService);
 
@@ -153,17 +158,47 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.updateTabHeight();
 	}
 
-	protected createEditorActionsToolBar(container: HTMLElement): void {
+	private get editorActionsEnabled(): boolean {
+		return this.groupsView.partOptions.editorActionsLocation === 'default' && this.groupsView.partOptions.showTabs !== 'none';
+	}
+
+	protected createEditorActionsToolBar(parent: HTMLElement, classes: string[]): void {
+		this.editorActionsToolbarContainer = document.createElement('div');
+		this.editorActionsToolbarContainer.classList.add(...classes);
+		parent.appendChild(this.editorActionsToolbarContainer);
+
+		this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
+	}
+
+	private handleEditorActionToolBarVisibility(container: HTMLElement): void {
+		const editorActionsEnabled = this.editorActionsEnabled;
+		const editorActionsVisible = !!this.editorActionsToolbar;
+
+		// Create toolbar if it is enabled (and not yet created)
+		if (editorActionsEnabled && !editorActionsVisible) {
+			this.doCreateEditorActionsToolBar(container);
+		}
+		// Remove toolbar if it is not enabled (and is visible)
+		else if (!editorActionsEnabled && editorActionsVisible) {
+			this.editorActionsToolbar?.getElement().remove();
+			this.editorActionsToolbar = undefined;
+			this.editorActionsToolbarDisposables.clear();
+			this.editorActionsDisposables.clear();
+		}
+
+		container.classList.toggle('hidden', !editorActionsEnabled);
+	}
+
+	private doCreateEditorActionsToolBar(container: HTMLElement): void {
 		const context: IEditorCommandsContext = { groupId: this.groupView.id };
 
 		// Toolbar Widget
-
-		this.editorActionsToolbar = this._register(this.instantiationService.createInstance(WorkbenchToolBar, container, {
+		this.editorActionsToolbar = this.editorActionsToolbarDisposables.add(this.instantiationService.createInstance(WorkbenchToolBar, container, {
 			actionViewItemProvider: action => this.actionViewItemProvider(action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('ariaLabelEditorActions', "Editor actions"),
 			getKeyBinding: action => this.getKeybinding(action),
-			actionRunner: this._register(new EditorCommandsContextActionRunner(context)),
+			actionRunner: this.editorActionsToolbarDisposables.add(new EditorCommandsContextActionRunner(context)),
 			anchorAlignmentProvider: () => AnchorAlignment.RIGHT,
 			renderDropdownAsChildElement: this.renderDropdownAsChildElement,
 			telemetrySource: 'editorPart',
@@ -176,7 +211,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		this.editorActionsToolbar.context = context;
 
 		// Action Run Handling
-		this._register(this.editorActionsToolbar.actionRunner.onDidRun(e => {
+		this.editorActionsToolbarDisposables.add(this.editorActionsToolbar.actionRunner.onDidRun(e => {
 
 			// Notify for Error
 			if (e.error && !isCancellationError(e.error)) {
@@ -202,6 +237,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected updateEditorActionsToolbar(): void {
+		if (!this.editorActionsEnabled) {
+			return;
+		}
+
 		this.editorActionsDisposables.clear();
 
 		const editorActions = this.groupView.createEditorActions(this.editorActionsDisposables);
@@ -218,61 +257,98 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected clearEditorActionsToolbar(): void {
-		this.editorActionsToolbar?.setActions([], []);
+		if (!this.editorActionsEnabled) {
+			return;
+		}
+
+		const editorActionsToolbar = assertIsDefined(this.editorActionsToolbar);
+		editorActionsToolbar.setActions([], []);
 	}
 
-	protected enableGroupDragging(element: HTMLElement): void {
+	protected onGroupDragStart(e: DragEvent, element: HTMLElement): void {
+		if (e.target !== element) {
+			return; // only if originating from tabs container
+		}
 
-		// Drag start
-		this._register(addDisposableListener(element, EventType.DRAG_START, e => {
-			if (e.target !== element) {
-				return; // only if originating from tabs container
-			}
+		// Set editor group as transfer
+		this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
+		if (e.dataTransfer) {
+			e.dataTransfer.effectAllowed = 'copyMove';
+		}
 
-			// Set editor group as transfer
-			this.groupTransfer.setData([new DraggedEditorGroupIdentifier(this.groupView.id)], DraggedEditorGroupIdentifier.prototype);
-			if (e.dataTransfer) {
-				e.dataTransfer.effectAllowed = 'copyMove';
-			}
+		// Drag all tabs of the group if tabs are enabled
+		let hasDataTransfer = false;
+		if (this.groupsView.partOptions.showTabs === 'multiple') {
+			hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
+		}
 
-			// Drag all tabs of the group if tabs are enabled
-			let hasDataTransfer = false;
-			if (this.groupsView.partOptions.showTabs === 'multiple') {
-				hasDataTransfer = this.doFillResourceDataTransfers(this.groupView.getEditors(EditorsOrder.SEQUENTIAL), e);
-			}
-
-			// Otherwise only drag the active editor
-			else {
-				if (this.groupView.activeEditor) {
-					hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
-				}
-			}
-
-			// Firefox: requires to set a text data transfer to get going
-			if (!hasDataTransfer && isFirefox) {
-				e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
-			}
-
-			// Drag Image
+		// Otherwise only drag the active editor
+		else {
 			if (this.groupView.activeEditor) {
-				let label = this.groupView.activeEditor.getName();
-				if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
-					label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
-				}
-
-				applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+				hasDataTransfer = this.doFillResourceDataTransfers([this.groupView.activeEditor], e);
 			}
-		}));
+		}
 
-		// Drag end
-		this._register(addDisposableListener(element, EventType.DRAG_END, () => {
-			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
-		}));
+		// Firefox: requires to set a text data transfer to get going
+		if (!hasDataTransfer && isFirefox) {
+			e.dataTransfer?.setData(DataTransfers.TEXT, String(this.groupView.label));
+		}
+
+		// Drag Image
+		if (this.groupView.activeEditor) {
+			let label = this.groupView.activeEditor.getName();
+			if (this.groupsView.partOptions.showTabs === 'multiple' && this.groupView.count > 1) {
+				label = localize('draggedEditorGroup', "{0} (+{1})", label, this.groupView.count - 1);
+			}
+
+			applyDragImage(e, label, 'monaco-editor-group-drag-image', this.getColor(listActiveSelectionBackground), this.getColor(listActiveSelectionForeground));
+		}
+	}
+
+	protected async onGroupDragEnd(e: DragEvent, previousDragEvent: DragEvent | undefined, element: HTMLElement): Promise<void> {
+		this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
+
+		if (
+			e.target !== element ||
+			!this.isNewWindowOperation(previousDragEvent ?? e) ||
+			isWindowDraggedOver()
+		) {
+			return; // drag to open in new window is disabled
+		}
+
+		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
+			bounds: { x: e.screenX, y: e.screenY }
+		});
+
+		const targetGroup = auxiliaryEditorPart.activeGroup;
+		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
+			mode: this.isMoveOperation(previousDragEvent ?? e, targetGroup.id) ? MergeGroupMode.MOVE_EDITORS : MergeGroupMode.COPY_EDITORS
+		});
+
+		targetGroup.focus();
+	}
+
+	protected isNewWindowOperation(e: DragEvent): boolean {
+		if (this.groupsView.partOptions.dragToOpenWindow) {
+			return !e.altKey;
+		}
+
+		return e.altKey;
+	}
+
+	protected isMoveOperation(e: DragEvent, sourceGroup: GroupIdentifier, sourceEditor?: EditorInput): boolean {
+		if (sourceEditor?.hasCapability(EditorInputCapabilities.Singleton)) {
+			return true; // Singleton editors cannot be split
+		}
+
+		const isCopy = (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
+
+		return (!isCopy || sourceGroup === this.groupView.id);
 	}
 
 	protected doFillResourceDataTransfers(editors: readonly EditorInput[], e: DragEvent): boolean {
 		if (editors.length) {
-			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e);
+			this.instantiationService.invokeFunction(fillEditorsDragData, editors.map(editor => ({ editor, groupId: this.groupView.id })), e, { disableStandardTransfer: this.isNewWindowOperation(e) });
 
 			return true;
 		}
@@ -305,7 +381,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (isMouseEvent(e)) {
-			anchor = new StandardMouseEvent(e);
+			anchor = new StandardMouseEvent(getWindow(node), e);
 		}
 
 		// Show it
@@ -358,6 +434,17 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Update tab height
 		if (oldOptions.tabHeight !== newOptions.tabHeight) {
 			this.updateTabHeight();
+		}
+
+		// Update Editor Actions Toolbar
+		if (
+			oldOptions.editorActionsLocation !== newOptions.editorActionsLocation ||
+			oldOptions.showTabs !== newOptions.showTabs
+		) {
+			if (this.editorActionsToolbarContainer) {
+				this.handleEditorActionToolBarVisibility(this.editorActionsToolbarContainer);
+				this.updateEditorActionsToolbar();
+			}
 		}
 	}
 

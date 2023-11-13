@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, h } from 'vs/base/browser/dom';
+import { Dimension, getWindow, h, runAtThisOrScheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { MutableDisposable } from 'vs/base/common/lifecycle';
 import { assertType } from 'vs/base/common/types';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EmbeddedCodeEditorWidget, EmbeddedDiffEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { Range } from 'vs/editor/common/core/range';
@@ -35,6 +35,7 @@ import { ILanguageService } from 'vs/editor/common/languages/language';
 import { FoldingController } from 'vs/editor/contrib/folding/browser/folding';
 import { IAccessibilityService } from 'vs/platform/accessibility/common/accessibility';
 import { generateUuid } from 'vs/base/common/uuid';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -43,7 +44,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 	private readonly _elements = h('div.inline-chat-diff-widget@domNode');
 
 	private readonly _decorationCollection: IEditorDecorationsCollection;
-	private readonly _diffEditor: IDiffEditor;
+	private readonly _diffEditor: DiffEditorWidget;
 
 	private _dim: Dimension | undefined;
 	private _isVisible: boolean = false;
@@ -99,6 +100,19 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 
 		if (onDidChangeDiff) {
 			this._disposables.add(this._diffEditor.onDidUpdateDiff(() => { onDidChangeDiff(); }));
+
+			const render = this._disposables.add(new MutableDisposable());
+			this._disposables.add(this._diffEditor.onDidContentSizeChange(e => {
+				if (!this._isVisible || !e.contentHeightChanged) {
+					return;
+				}
+				render.value = runAtThisOrScheduleAtNextAnimationFrame(getWindow(this._diffEditor.getContainerDomNode()), () => {
+					const lineHeight = this.editor.getOption(EditorOption.lineHeight);
+					const heightInLines = e.contentHeight / lineHeight;
+					this._logService.debug(`[IE] relaying with ${heightInLines} lines height`);
+					this._relayout(heightInLines);
+				});
+			}));
 		}
 
 
@@ -211,7 +225,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		const heightInLines = Math.max(lineCountModified, lineCountOriginal);
 
 		super.show(ranges.anchor, heightInLines);
-		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor} with ${heightInLines} lines height`);
+		this._logService.debug(`[IE] diff SHOWING at ${ranges.anchor} with ${heightInLines} (approx) lines height`);
 	}
 
 	private _cleanupFullDiff() {
@@ -219,6 +233,7 @@ export class InlineChatLivePreviewWidget extends ZoneWidget {
 		this._diffEditor.getOriginalEditor().setHiddenAreas([], this._hideId);
 		this._diffEditor.getModifiedEditor().setHiddenAreas([], this._hideId);
 		super.hide();
+		this._isVisible = false;
 	}
 
 	private _computeHiddenRanges(model: ITextModel, changes: readonly LineRangeMapping[]) {

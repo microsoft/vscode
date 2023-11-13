@@ -105,7 +105,7 @@ export interface IDiffEditorModel {
 	modified: ITextModel;
 }
 
-export interface IDiffEditorViewModel {
+export interface IDiffEditorViewModel extends IDisposable {
 	readonly model: IDiffEditorModel;
 
 	waitForDiff(): Promise<void>;

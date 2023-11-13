@@ -32,6 +32,7 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from 'vs/workb
 import { ChatRequestAgentPart, ChatRequestAgentSubcommandPart, ChatRequestSlashCommandPart, ChatRequestTextPart, ChatRequestVariablePart, chatAgentLeader, chatSubcommandLeader, chatVariableLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
 import { IChatService, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -49,7 +50,7 @@ class InputEditorDecorations extends Disposable {
 
 	public readonly id = 'inputEditorDecorations';
 
-	private readonly previouslyUsedSlashCommands = new Set<string>();
+	private readonly previouslyUsedAgents = new Set<string>();
 
 	private readonly viewModelDisposables = this._register(new MutableDisposable());
 
@@ -71,16 +72,12 @@ class InputEditorDecorations extends Disposable {
 		this._register(this.widget.inputEditor.onDidChangeModelContent(() => this.updateInputEditorDecorations()));
 		this._register(this.widget.onDidChangeViewModel(() => {
 			this.registerViewModelListeners();
-			this.previouslyUsedSlashCommands.clear();
+			this.previouslyUsedAgents.clear();
 			this.updateInputEditorDecorations();
 		}));
-		this._register(this.chatService.onDidSubmitSlashCommand((e) => {
+		this._register(this.chatService.onDidSubmitAgent((e) => {
 			if (e.sessionId === this.widget.viewModel?.sessionId) {
-				if ('agent' in e) {
-					this.previouslyUsedSlashCommands.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
-				} else {
-					this.previouslyUsedSlashCommands.add(e.slashCommand);
-				}
+				this.previouslyUsedAgents.add(agentAndCommandToKey(e.agent.id, e.slashCommand.name));
 			}
 		}));
 
@@ -187,7 +184,7 @@ class InputEditorDecorations extends Disposable {
 		const onlyAgentCommandAndWhitespace = agentPart && agentSubcommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestAgentPart || p instanceof ChatRequestAgentSubcommandPart);
 		if (onlyAgentCommandAndWhitespace) {
 			// Agent reference and subcommand with no other text - show the placeholder
-			const isFollowupSlashCommand = this.previouslyUsedSlashCommands.has(agentAndCommandToKey(agentPart.agent.id, agentSubcommandPart.command.name));
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(agentAndCommandToKey(agentPart.agent.id, agentSubcommandPart.command.name));
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && agentSubcommandPart.command.followupPlaceholder;
 			if (agentSubcommandPart?.command.description) {
 				placeholderDecoration = [{
@@ -210,7 +207,7 @@ class InputEditorDecorations extends Disposable {
 		const onlySlashCommandAndWhitespace = slashCommandPart && parsedRequest.every(p => p instanceof ChatRequestTextPart && !p.text.trim().length || p instanceof ChatRequestSlashCommandPart);
 		if (onlySlashCommandAndWhitespace) {
 			// Command reference with no other text - show the placeholder
-			const isFollowupSlashCommand = this.previouslyUsedSlashCommands.has(slashCommandPart.slashCommand.command);
+			const isFollowupSlashCommand = this.previouslyUsedAgents.has(slashCommandPart.slashCommand.command);
 			const shouldRenderFollowupPlaceholder = isFollowupSlashCommand && slashCommandPart.slashCommand.followupPlaceholder;
 			if (shouldRenderFollowupPlaceholder || slashCommandPart.slashCommand.detail) {
 				placeholderDecoration = [{
@@ -264,35 +261,18 @@ class InputEditorSlashCommandMode extends Disposable {
 		@IChatService private readonly chatService: IChatService
 	) {
 		super();
-		this._register(this.chatService.onDidSubmitSlashCommand(e => {
+		this._register(this.chatService.onDidSubmitAgent(e => {
 			if (this.widget.viewModel?.sessionId !== e.sessionId) {
 				return;
 			}
-			if ('agent' in e) {
-				this.repopulateAgentCommand(e.agent, e.slashCommand);
-			} else {
-				this.repopulateSlashCommand(e.slashCommand);
-			}
+
+			this.repopulateAgentCommand(e.agent, e.slashCommand);
 		}));
 	}
 
 	private async repopulateAgentCommand(agent: IChatAgentData, slashCommand: IChatAgentCommand) {
 		if (slashCommand.shouldRepopulate) {
 			const value = `${chatAgentLeader}${agent.id} ${chatSubcommandLeader}${slashCommand.name} `;
-			this.widget.inputEditor.setValue(value);
-			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
-		}
-	}
-
-	private async repopulateSlashCommand(slashCommand: string) {
-		const slashCommands = await this.widget.getSlashCommands();
-
-		if (this.widget.inputEditor.getValue().trim().length !== 0) {
-			return;
-		}
-
-		if (slashCommands?.find(c => c.command === slashCommand)?.shouldRepopulate) {
-			const value = `/${slashCommand} `;
 			this.widget.inputEditor.setValue(value);
 			this.widget.inputEditor.setPosition({ lineNumber: 1, column: value.length + 1 });
 		}
@@ -306,11 +286,12 @@ class SlashCommandCompletions extends Disposable {
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService
 	) {
 		super();
 
 		this._register(this.languageFeaturesService.completionProvider.register({ scheme: ChatInputPart.INPUT_SCHEME, hasAccessToAllModels: true }, {
-			_debugDisplayName: 'chatSlashCommand',
+			_debugDisplayName: 'globalSlashCommands',
 			triggerCharacters: ['/'],
 			provideCompletionItems: async (model: ITextModel, _position: Position, _context: CompletionContext, _token: CancellationToken) => {
 				const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
@@ -329,7 +310,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const slashCommands = await widget.getSlashCommands();
+				const slashCommands = this.chatSlashCommandService.getCommands();
 				if (!slashCommands) {
 					return null;
 				}
@@ -550,6 +531,7 @@ class BuiltinDynamicCompletions extends Disposable {
 							range: { insert, replace },
 							kind: CompletionItemKind.Text,
 							command: { id: SelectAndInsertFileAction.ID, title: SelectAndInsertFileAction.ID, arguments: [{ widget, range }] },
+							sortText: 'z'
 						}
 					]
 				};
@@ -701,7 +683,8 @@ class VariableCompletions extends Disposable {
 						range,
 						insertText: withLeader + ' ',
 						detail: v.description,
-						kind: CompletionItemKind.Text, // The icons are disabled here anyway,
+						kind: CompletionItemKind.Text, // The icons are disabled here anyway
+						sortText: 'z'
 					};
 				});
 
