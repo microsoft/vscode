@@ -123,45 +123,41 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 
 async function unzip(packagePath: string, outputPath: string): Promise<string> {
 	return new Promise((resolve, reject) => {
-		let lastFilePath: string | undefined;
-
 		yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
 			if (err) {
 				return reject(err);
 			}
 
-			zipfile!.on('entry', async entry => {
-				if (!/\/$/.test(entry.fileName)) {
-					await new Promise((resolve, reject) => {
-						zipfile!.openReadStream(entry, async (err, istream) => {
-							if (err) {
-								return reject(err);
-							}
+			zipfile!.on('entry', entry => {
+				if (/\/$/.test(entry.fileName)) {
+					zipfile!.readEntry();
+				} else {
+					zipfile!.openReadStream(entry, async (err, istream) => {
+						if (err) {
+							return reject(err);
+						}
 
-							try {
-								const filePath = path.join(outputPath, entry.fileName);
-								await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-								const ostream = fs.createWriteStream(filePath);
-								await finished(istream!.pipe(ostream));
-								lastFilePath = filePath;
-								resolve(undefined);
-							} catch (err) {
-								reject(err);
-							}
-						});
+						try {
+							const filePath = path.join(outputPath, entry.fileName);
+							await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+							const ostream = fs.createWriteStream(filePath);
+							await finished(istream!.pipe(ostream));
+							resolve(filePath);
+						} catch (err) {
+							reject(err);
+						} finally {
+							zipfile!.close();
+						}
 					});
 				}
-
-				zipfile!.readEntry();
 			});
 
-			zipfile!.on('end', () => resolve(lastFilePath!));
 			zipfile!.readEntry();
 		});
 	});
 }
 
-export class Sequencer {
+class Sequencer {
 
 	private current: Promise<unknown> = Promise.resolve(null);
 
@@ -303,7 +299,7 @@ function hashStream(hashName: string, stream: Readable): Promise<string> {
 const azureSequencer = new Sequencer();
 const mooncakeSequencer = new Sequencer();
 
-export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ assetUrl: string; mooncakeUrl: string }> {
+async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ assetUrl: string; mooncakeUrl: string }> {
 	const fileName = path.basename(filePath);
 	const blobName = commit + '/' + fileName;
 
@@ -383,7 +379,7 @@ export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: 
 
 const cosmosSequencer = new Sequencer();
 
-export async function processArtifact(product: string, os: string, arch: string, unprocessedType: string, filePath: string): Promise<void> {
+async function processArtifact(product: string, os: string, arch: string, unprocessedType: string, filePath: string): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${product} ${os} ${arch} ${unprocessedType}]`, ...args);
 
 	// getPlatform needs the unprocessedType
@@ -391,9 +387,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 	const commit = e('BUILD_SOURCEVERSION');
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
-
-	const stat = await new Promise<fs.Stats>((c, e) => fs.stat(filePath, (err, stat) => err ? e(err) : c(stat)));
-	const size = stat.size;
+	const size = fs.statSync(filePath).size;
 
 	log('Size:', size);
 
@@ -447,7 +441,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 	log('Asset successfully created');
 }
 
-export async function main() {
+async function main() {
 	const done = new State();
 	const processing = new Set<string>();
 
