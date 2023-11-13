@@ -496,11 +496,12 @@ export async function main() {
 				console.log('Submitting artifact for publish:', { path: artifactPath, product, os, arch, type });
 
 				processing.add(artifact.name);
-				publishPromises.push((async () => {
-					await processArtifact(product, os, arch, type, artifactPath);
-					processing.delete(artifact.name);
-					done.add(artifact.name);
-				})());
+				publishPromises.push(
+					processArtifact(product, os, arch, type, artifactPath).then(() => {
+						processing.delete(artifact.name);
+						done.add(artifact.name);
+					})
+				);
 			}
 		}
 
