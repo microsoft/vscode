@@ -107,7 +107,7 @@ export class ModesHoverController extends Disposable implements IEditorContribut
 
 		this._toUnhook.add(this._editor.onMouseLeave((e) => this._onEditorMouseLeave(e)));
 		this._toUnhook.add(this._editor.onDidChangeModel(hideWidgetsCancelSchedulerEventHandler));
-		this._toUnhook.add(this._editor.onDidChangeModelContent(hideWidgetsCancelSchedulerEventHandler));
+		this._toUnhook.add(this._editor.onDidChangeModelContent(() => this._cancelScheduler()));
 		this._toUnhook.add(this._editor.onDidScrollChange((e: IScrollEvent) => this._onEditorScrollChanged(e)));
 	}
 
