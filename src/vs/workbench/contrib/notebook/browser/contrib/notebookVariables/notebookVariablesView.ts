@@ -51,6 +51,8 @@ export class NotebookVariablesView extends ViewPane {
 	}
 
 	public override renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
 		this.tree = this.instantiationService.createInstance(NotebookVariablesTree, 'notebookVariablesView', container,
 			new NotebookVariablesDelegate(),
 			[new NotebookVariableRenderer()],
