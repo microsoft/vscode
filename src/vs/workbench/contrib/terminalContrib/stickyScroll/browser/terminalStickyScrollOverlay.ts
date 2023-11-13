@@ -14,7 +14,7 @@ import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 
 import 'vs/css!./media/stickyScroll';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ICurrentPartialCommand, getCommandRowCount, getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
@@ -187,8 +187,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		// Determine sticky scroll line count
 		const buffer = this._xterm.raw.buffer.active;
-		const promptRowCount = getPromptRowCount(command, this._xterm.raw.buffer.active);
-		const commandRowCount = getCommandRowCount(command);
+		const promptRowCount = command.getPromptRowCount();
+		const commandRowCount = command.getCommandRowCount();
 		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
 
 		// Calculate the row offset, this is the number of rows that will be clipped from the top

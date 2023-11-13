@@ -9,7 +9,6 @@ import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/termin
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
-import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -189,6 +188,53 @@ export class TerminalCommand implements ITerminalCommand {
 			)
 		);
 	}
+
+	getPromptRowCount(): number {
+		return getPromptRowCount(this, this._xterm.buffer.active);
+	}
+
+	getCommandRowCount(): number {
+		return getCommandRowCount(this);
+	}
+}
+
+export interface ICurrentPartialCommand {
+	previousCommandMarker?: IMarker;
+
+	promptStartMarker?: IMarker;
+
+	commandStartMarker?: IMarker;
+	commandStartX?: number;
+	commandStartLineContent?: string;
+
+	commandRightPromptStartX?: number;
+	commandRightPromptEndX?: number;
+
+	commandLines?: IMarker;
+
+	commandExecutedMarker?: IMarker;
+	commandExecutedX?: number;
+
+	commandFinishedMarker?: IMarker;
+
+	currentContinuationMarker?: IMarker;
+	continuations?: { marker: IMarker; end: number }[];
+
+	command?: string;
+
+	/**
+	 * Whether the command line is trusted via a nonce.
+	 */
+	isTrusted?: boolean;
+
+	/**
+	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
+	 * event from firing.
+	 */
+	isInvalid?: boolean;
+
+	getPromptRowCount(): number;
+	getCommandRowCount(): number;
 }
 
 export class PartialTerminalCommand implements ICurrentPartialCommand {
@@ -271,6 +317,14 @@ export class PartialTerminalCommand implements ICurrentPartialCommand {
 
 		return undefined;
 	}
+
+	getPromptRowCount(): number {
+		return getPromptRowCount(this, this._xterm.buffer.active);
+	}
+
+	getCommandRowCount(): number {
+		return getCommandRowCount(this);
+	}
 }
 
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
@@ -302,4 +356,35 @@ function countNewLines(regex: RegExp): number {
 		i = source.indexOf('\\n', i + 1);
 	}
 	return count;
+}
+
+function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, buffer: IBuffer): number {
+	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	if (!marker || !command.promptStartMarker) {
+		return 1;
+	}
+	let promptRowCount = 1;
+	let promptStartLine = command.promptStartMarker.line;
+	// Trim any leading whitespace-only lines to retain vertical space
+	while (promptStartLine < marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
+		promptStartLine++;
+	}
+	promptRowCount = marker.line - promptStartLine + 1;
+	return promptRowCount;
+}
+
+function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCommand): number {
+	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
+	const executedMarker = 'hasOutput' in command ? command.executedMarker : command.commandExecutedMarker;
+	if (!marker || !executedMarker) {
+		return 1;
+	}
+	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
+	let commandRowCount = commandExecutedLine - marker.line + 1;
+	// Trim the last line if the cursor X is in the left-most cell
+	const executedX = 'hasOutput' in command ? command.executedX : command.commandExecutedX;
+	if (executedX === 0) {
+		commandRowCount--;
+	}
+	return commandRowCount;
 }
