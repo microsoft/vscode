@@ -726,7 +726,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 			}
 		}));
 		this.toDispose.push(dom.addDisposableListener(this.domNode, dom.EventType.CONTEXT_MENU, e => {
-			const event = new StandardMouseEvent(e);
+			const event = new StandardMouseEvent(dom.getWindow(this.domNode), e);
 			const actions = this.getContextMenuActions();
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => event,

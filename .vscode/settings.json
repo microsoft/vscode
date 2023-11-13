@@ -171,7 +171,7 @@
 
 	// Temporarily enabled for self-hosting
 	"scm.experimental.showSyncInformation": {
-		"incoming": false,
-		"outgoing": false
+		"incoming": true,
+		"outgoing": true
 	}
 }

@@ -141,6 +141,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 				isTrusted: true,
 				cwd: '/initial/cwd',
 				timestamp: 0,
+				executedX: undefined,
+				startX: undefined,
 				getOutput() { return undefined; },
 				getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 				marker: {
@@ -279,6 +281,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					isTrusted: true,
 					cwd,
 					timestamp: 0,
+					executedX: undefined,
+					startX: undefined,
 					getOutput() { return undefined; },
 					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },
 					marker: {
@@ -372,6 +376,8 @@ suite('Workbench - TerminalLinkOpeners', () => {
 					command: '',
 					isTrusted: true,
 					cwd,
+					executedX: undefined,
+					startX: undefined,
 					timestamp: 0,
 					getOutput() { return undefined; },
 					getOutputMatch(outputMatcher: ITerminalOutputMatcher) { return undefined; },

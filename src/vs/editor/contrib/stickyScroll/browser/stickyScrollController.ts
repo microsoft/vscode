@@ -98,7 +98,7 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 			}
 		}));
 		this._register(dom.addDisposableListener(stickyScrollDomNode, dom.EventType.CONTEXT_MENU, async (event: MouseEvent) => {
-			this._onContextMenu(event);
+			this._onContextMenu(dom.getWindow(stickyScrollDomNode), event);
 		}));
 		this._stickyScrollFocusedContextKey = EditorContextKeys.stickyScrollFocused.bindTo(this._contextKeyService);
 		this._stickyScrollVisibleContextKey = EditorContextKeys.stickyScrollVisible.bindTo(this._contextKeyService);
@@ -378,8 +378,8 @@ export class StickyScrollController extends Disposable implements IEditorContrib
 		}));
 	}
 
-	private _onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+	private _onContextMenu(targetWindow: Window, e: MouseEvent) {
+		const event = new StandardMouseEvent(targetWindow, e);
 
 		this._contextMenuService.showContextMenu({
 			menuId: MenuId.StickyScrollContext,

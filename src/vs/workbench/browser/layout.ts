@@ -1595,22 +1595,22 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				viewSize = this.workbenchGrid.getViewSize(this.editorPartView);
 
 				// Single Editor Group
-				if (this.editorGroupService.count === 1) {
+				if (this.editorGroupService.mainPart.count === 1) {
 					this.workbenchGrid.resizeView(this.editorPartView,
 						{
 							width: viewSize.width + sizeChangePxWidth,
 							height: viewSize.height + sizeChangePxHeight
 						});
 				} else {
-					const activeGroup = this.editorGroupService.activeGroup;
+					const activeGroup = this.editorGroupService.mainPart.activeGroup;
 
-					const { width, height } = this.editorGroupService.getSize(activeGroup);
-					this.editorGroupService.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
+					const { width, height } = this.editorGroupService.mainPart.getSize(activeGroup);
+					this.editorGroupService.mainPart.setSize(activeGroup, { width: width + sizeChangePxWidth, height: height + sizeChangePxHeight });
 
 					// After resizing the editor group
 					// if it does not change in either direction
 					// try resizing the full editor part
-					const { width: newWidth, height: newHeight } = this.editorGroupService.getSize(activeGroup);
+					const { width: newWidth, height: newHeight } = this.editorGroupService.mainPart.getSize(activeGroup);
 					if ((sizeChangePxHeight && height === newHeight) || (sizeChangePxWidth && width === newWidth)) {
 						this.workbenchGrid.resizeView(this.editorPartView,
 							{
