@@ -1041,7 +1041,7 @@ export class Repository {
 		const args = ['log', `--format=${COMMIT_FORMAT}`, '-z'];
 
 		if (options?.shortStats) {
-			args.push('--shortstat');
+			args.push('--shortstat', '--diff-merges=first-parent');
 		}
 
 		if (options?.reverse) {
