@@ -11,12 +11,14 @@ import { IMultiDocumentDiffEditorModel } from 'vs/editor/browser/widget/multiDif
 import { MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
+import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditorWidget/diffEditorItemTemplate';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
 	private readonly _model = observableValue<IMultiDocumentDiffEditorModel | undefined>(this, undefined);
 
 	private readonly widgetImpl = derivedWithStore(this, (reader, store) => {
+		readHotReloadableExport(DiffEditorItemTemplate, reader);
 		return store.add(this._instantiationService.createInstance((
 			readHotReloadableExport(MultiDiffEditorWidgetImpl, reader)),
 			this._element,
@@ -34,7 +36,7 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this.widgetImpl));
 	}
 
-	public setModel(model: IMultiDocumentDiffEditorModel): void {
+	public setModel(model: IMultiDocumentDiffEditorModel | undefined): void {
 		this._model.set(model, undefined);
 	}
 
