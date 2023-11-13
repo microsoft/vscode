@@ -2157,20 +2157,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function to(followup: IChatReplyFollowup): vscode.InteractiveSessionReplyFollowup {
-		return {
-			message: followup.message,
-			metadata: followup.metadata,
-			title: followup.title,
-			tooltip: followup.tooltip,
-		};
-	}
-
 	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
-			metadata: followup.metadata,
 			title: followup.title,
 			tooltip: followup.tooltip,
 		};
@@ -2178,7 +2168,7 @@ export namespace ChatReplyFollowup {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: string | vscode.InteractiveSessionFollowup): IChatFollowup {
+	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
 		if (typeof followup === 'string') {
 			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
 		} else if ('commandId' in followup) {
@@ -2303,11 +2293,9 @@ export namespace InteractiveEditorResponseFeedbackKind {
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.InteractiveProgress | vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
 			return { placeholder: progress.placeholder };
-		} else if ('responseId' in progress) {
-			return { requestId: progress.responseId };
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent) };

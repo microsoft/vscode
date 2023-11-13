@@ -60,7 +60,6 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Up,
-					responseId: item.providerResponseId!,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Up);
@@ -103,7 +102,6 @@ export function registerChatTitleActions() {
 				action: {
 					kind: 'vote',
 					direction: InteractiveSessionVoteDirection.Down,
-					responseId: item.providerResponseId!,
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Down);
@@ -222,12 +220,12 @@ export function registerChatTitleActions() {
 				item = widget?.getFocus();
 			}
 
-			const providerRequestId = isRequestVM(item) ? item.providerRequestId :
-				isResponseVM(item) ? item.providerResponseId : undefined;
+			const requestId = isRequestVM(item) ? item.id :
+				isResponseVM(item) ? item.requestId : undefined;
 
-			if (providerRequestId) {
+			if (requestId) {
 				const chatService = accessor.get(IChatService);
-				chatService.removeRequest(item.sessionId, providerRequestId);
+				chatService.removeRequest(item.sessionId, requestId);
 			}
 		}
 	});

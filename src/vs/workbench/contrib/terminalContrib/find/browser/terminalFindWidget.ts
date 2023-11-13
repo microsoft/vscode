@@ -66,8 +66,9 @@ export class TerminalFindWidget extends SimpleFindWidget {
 				event.stopPropagation();
 			}));
 		}
-		this._register(dom.addDisposableListener(this.getFindInputDomNode(), 'contextmenu', (event) => {
-			openContextMenu(event, _clipboardService, _contextMenuService);
+		const findInputDomNode = this.getFindInputDomNode();
+		this._register(dom.addDisposableListener(findInputDomNode, 'contextmenu', (event) => {
+			openContextMenu(dom.getWindow(findInputDomNode), event, _clipboardService, _contextMenuService);
 			event.stopPropagation();
 		}));
 		this._register(this._themeService.onDidColorThemeChange(() => {
