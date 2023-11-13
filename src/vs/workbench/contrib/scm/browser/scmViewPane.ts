@@ -812,12 +812,14 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			}
 
 			if (historyItem.statistics?.insertions) {
-				const insertionsDescription = localize('insertions', "insertions{0}", '(+)');
+				const insertionsDescription = historyItem.statistics.insertions === 1 ?
+					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
 				statsLabelTitle.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
 			}
 
 			if (historyItem.statistics?.deletions) {
-				const deletionsDescription = localize('deletions', "deletions{0}", '(-)');
+				const deletionsDescription = historyItem.statistics.deletions === 1 ?
+					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
 				statsLabelTitle.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
 			}
 
