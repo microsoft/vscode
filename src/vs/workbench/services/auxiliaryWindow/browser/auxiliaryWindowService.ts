@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow, patchMultiWindowAwareTimeout } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -308,6 +308,9 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		auxiliaryWindow.document.createElement = function () {
 			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
 		};
+
+		// `setTimeout` handling
+		patchMultiWindowAwareTimeout(auxiliaryWindow);
 
 		mark('code/auxiliaryWindow/didPatchMethods');
 	}

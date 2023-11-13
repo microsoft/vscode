@@ -41,7 +41,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mainWindow } from 'vs/base/browser/window';
+import { mainWindow, patchMultiWindowAwareTimeout } from 'vs/base/browser/window';
 
 export interface IWorkbenchOptions {
 
@@ -71,6 +71,7 @@ export class Workbench extends Layout {
 		mark('code/willStartWorkbench');
 
 		this.registerErrorHandler(logService);
+		patchMultiWindowAwareTimeout(mainWindow);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {
