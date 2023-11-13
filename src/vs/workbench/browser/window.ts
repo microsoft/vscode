@@ -35,10 +35,10 @@ export abstract class BaseWindow extends Disposable {
 	private static TIMEOUT_HANDLE_COUNTER = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
 	private static readonly MAP_TIMEOUT_HANDLE_TO_DISPOSABLE = new Map<number, Set<IDisposable>>();
 
-	constructor(targetWindow: CodeWindow) {
+	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
 		super();
 
-		this.patchMultiWindowAwareTimeout(targetWindow);
+		this.enableMultiWindowAwareTimeout(targetWindow, dom);
 	}
 
 	//#region timeout handling in multi-window applications
@@ -49,7 +49,7 @@ export abstract class BaseWindow extends Disposable {
 	 * to throttle timeouts in minimized windows, so with this we can ensure the
 	 * timeout is scheduled without being throttled (unless all windows are minimized).
 	 */
-	protected patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
 		const originalSetTimeout = targetWindow.setTimeout;
 		Object.defineProperty(targetWindow, 'originalSetTimeout', {
 			value: originalSetTimeout,

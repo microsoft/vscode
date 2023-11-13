@@ -17,20 +17,16 @@ suite('Window', () => {
 
 	class TestWindow extends BaseWindow {
 
-		constructor(window: CodeWindow, private readonly dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
-			super(window);
-		}
-
-		protected override patchMultiWindowAwareTimeout(targetWindow: Window): void {
-			super.patchMultiWindowAwareTimeout(targetWindow, this.dom);
+		constructor(window: CodeWindow, dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
+			super(window, dom);
 		}
 	}
 
-	test('patchMultiWindowAwareTimeout()', async function () {
+	test('multi window aware setTimeout()', async function () {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const disposables = new DisposableStore();
 
-			let windows: { window: CodeWindow; disposables: DisposableStore }[] = [];
+			let windows: IRegisteredCodeWindow[] = [];
 			const dom = {
 				getWindowsCount: () => windows.length,
 				getWindows: () => windows
@@ -53,7 +49,7 @@ suite('Window', () => {
 					}
 				} as any;
 
-				new TestWindow(res, dom);
+				disposables.add(new TestWindow(res, dom));
 
 				return res;
 			}
