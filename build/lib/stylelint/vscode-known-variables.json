@@ -180,7 +180,7 @@
 		"--vscode-editorCodeLens-foreground",
 		"--vscode-editorCommentsWidget-rangeActiveBackground",
 		"--vscode-editorCommentsWidget-rangeBackground",
-		"--vscode-editorCommentsWidget-replyButtonBackground",
+		"--vscode-editorCommentsWidget-replyInputBackground",
 		"--vscode-editorCommentsWidget-resolvedBorder",
 		"--vscode-editorCommentsWidget-unresolvedBorder",
 		"--vscode-editorCursor-background",
