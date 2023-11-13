@@ -106,8 +106,6 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			return;
 		}
 
-		this.window.close();
-
 		this._onWillDispose.fire();
 
 		super.dispose();
@@ -164,8 +162,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const eventDisposables = new DisposableStore();
 
 		Event.once(auxiliaryWindow.onWillDispose)(() => {
-			registryDisposables.dispose();
+			targetWindow.close();
+
 			containerDisposables.dispose();
+			registryDisposables.dispose();
 			eventDisposables.dispose();
 		});
 
