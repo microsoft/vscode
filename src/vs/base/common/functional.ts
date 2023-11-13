@@ -17,10 +17,14 @@ export function createSingleCallFunction<T extends Function>(this: unknown, fn: 
 		}
 
 		didCall = true;
-		try {
+		if (fnDidRunCallback) {
+			try {
+				result = fn.apply(_this, arguments);
+			} finally {
+				fnDidRunCallback();
+			}
+		} else {
 			result = fn.apply(_this, arguments);
-		} finally {
-			fnDidRunCallback?.();
 		}
 
 		return result;
