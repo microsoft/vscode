@@ -3,19 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { toDisposable } from 'vs/base/common/lifecycle';
-import { StopWatch } from 'vs/base/common/stopwatch';
-import { localize } from 'vs/nls';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
-import { ILogService } from 'vs/platform/log/common/log';
-import { ExtHostChatShape, IChatRequestDto, IChatResponseDto, IChatDto, IMainContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
+import { ExtHostChatShape, IChatDto, IMainContext, MainContext, MainThreadChatShape } from 'vs/workbench/api/common/extHost.protocol';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
-import { IChatFollowup, IChatReplyFollowup, IChatUserActionEvent, ISlashCommand } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatReplyFollowup, IChatUserActionEvent } from 'vs/workbench/contrib/chat/common/chatService';
 import type * as vscode from 'vscode';
 
 class ChatProviderWrapper<T> {
@@ -36,7 +32,6 @@ export class ExtHostChat implements ExtHostChatShape {
 	private readonly _chatProvider = new Map<number, ChatProviderWrapper<vscode.InteractiveSessionProvider>>();
 
 	private readonly _chatSessions = new Map<number, vscode.InteractiveSession>();
-	// private readonly _providerResponsesByRequestId = new Map<number, { response: vscode.ProviderResult<vscode.InteractiveResponse | vscode.InteractiveResponseForProgress>; sessionId: number }>();
 
 	private readonly _onDidPerformUserAction = new Emitter<vscode.InteractiveSessionUserActionEvent>();
 	public readonly onDidPerformUserAction = this._onDidPerformUserAction.event;
@@ -45,7 +40,6 @@ export class ExtHostChat implements ExtHostChatShape {
 
 	constructor(
 		mainContext: IMainContext,
-		private readonly logService: ILogService
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChat);
 	}
@@ -75,13 +69,13 @@ export class ExtHostChat implements ExtHostChatShape {
 		this._proxy.$sendRequestToProvider(providerId, message);
 	}
 
-	async $prepareChat(handle: number, initialState: any, token: CancellationToken): Promise<IChatDto | undefined> {
+	async $prepareChat(handle: number, token: CancellationToken): Promise<IChatDto | undefined> {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {
 			return undefined;
 		}
 
-		const session = await entry.provider.prepareSession(initialState, token);
+		const session = await entry.provider.prepareSession(token);
 		if (!session) {
 			return undefined;
 		}
@@ -124,25 +118,6 @@ export class ExtHostChat implements ExtHostChatShape {
 		});
 	}
 
-	async $provideFollowups(handle: number, sessionId: number, token: CancellationToken): Promise<IChatFollowup[] | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const realSession = this._chatSessions.get(sessionId);
-		if (!realSession) {
-			return;
-		}
-
-		if (!entry.provider.provideFollowups) {
-			return undefined;
-		}
-
-		const rawFollowups = await entry.provider.provideFollowups(realSession, token);
-		return rawFollowups?.map(f => typeConvert.ChatFollowup.from(f));
-	}
-
 	async $provideSampleQuestions(handle: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
 		const entry = this._chatProvider.get(handle);
 		if (!entry) {
@@ -159,121 +134,6 @@ export class ExtHostChat implements ExtHostChatShape {
 		}
 
 		return rawFollowups?.map(f => typeConvert.ChatReplyFollowup.from(f));
-	}
-
-	$removeRequest(handle: number, sessionId: number, requestId: string): void {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return;
-		}
-
-		const realSession = this._chatSessions.get(sessionId);
-		if (!realSession) {
-			return;
-		}
-
-		if (!entry.provider.removeRequest) {
-			return;
-		}
-
-		entry.provider.removeRequest(realSession, requestId);
-	}
-
-	async $provideReply(handle: number, sessionId: number, request: IChatRequestDto, token: CancellationToken): Promise<IChatResponseDto | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const realSession = this._chatSessions.get(sessionId);
-		if (!realSession) {
-			return;
-		}
-
-		const requestObj: vscode.InteractiveRequest = {
-			session: realSession,
-			message: request.message,
-			variables: {}
-		};
-
-		if (request.variables) {
-			for (const key of Object.keys(request.variables)) {
-				requestObj.variables[key] = request.variables[key].map(typeConvert.ChatVariable.to);
-			}
-		}
-
-		const stopWatch = StopWatch.create(false);
-		let firstProgress: number | undefined;
-		const progressObj: vscode.Progress<vscode.InteractiveProgress> = {
-			report: (progress: vscode.InteractiveProgress) => {
-				if (token.isCancellationRequested) {
-					return;
-				}
-
-				if (typeof firstProgress === 'undefined') {
-					firstProgress = stopWatch.elapsed();
-				}
-
-				const convertedProgress = typeConvert.ChatResponseProgress.from(entry.extension, progress);
-				if ('placeholder' in progress && 'resolvedContent' in progress) {
-					const resolvedContent = Promise.all([this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress), progress.resolvedContent]);
-					raceCancellation(resolvedContent, token).then((res) => {
-						if (!res) {
-							return; /* Cancelled */
-						}
-						const [progressHandle, progressContent] = res;
-						this._proxy.$acceptResponseProgress(handle, sessionId, progressContent, progressHandle ?? undefined);
-					});
-				} else {
-					this._proxy.$acceptResponseProgress(handle, sessionId, convertedProgress);
-				}
-			}
-		};
-		let result: vscode.InteractiveResponseForProgress | undefined | null;
-		try {
-			result = await entry.provider.provideResponseWithProgress(requestObj, progressObj, token);
-			if (!result) {
-				result = { errorDetails: { message: localize('emptyResponse', "Provider returned null response") } };
-			}
-		} catch (err) {
-			result = { errorDetails: { message: localize('errorResponse', "Error from provider: {0}", err.message), responseIsIncomplete: true } };
-			this.logService.error(err);
-		}
-
-		try {
-			// Check that the session has not been released since the request started
-			if (realSession.saveState && this._chatSessions.has(sessionId)) {
-				const newState = realSession.saveState();
-				this._proxy.$acceptChatState(sessionId, newState);
-			}
-		} catch (err) {
-			this.logService.warn(err);
-		}
-
-		const timings = { firstProgress: firstProgress ?? 0, totalElapsed: stopWatch.elapsed() };
-		return { errorDetails: result.errorDetails, timings };
-	}
-
-	async $provideSlashCommands(handle: number, sessionId: number, token: CancellationToken): Promise<ISlashCommand[] | undefined> {
-		const entry = this._chatProvider.get(handle);
-		if (!entry) {
-			return undefined;
-		}
-
-		const realSession = this._chatSessions.get(sessionId);
-		if (!realSession) {
-			return undefined;
-		}
-
-		if (!entry.provider.provideSlashCommands) {
-			return undefined;
-		}
-
-		const slashCommands = await entry.provider.provideSlashCommands(realSession, token);
-		return slashCommands?.map(c => (<ISlashCommand>{
-			...c,
-			kind: typeConvert.CompletionItemKind.from(c.kind)
-		}));
 	}
 
 	$releaseSession(sessionId: number) {

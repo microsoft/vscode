@@ -490,6 +490,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly mainPart: IEditorPart;
 
 	/**
+	 * Provides access to all editor parts.
+	 */
+	readonly parts: ReadonlyArray<IEditorPart>;
+
+	/**
 	 * Get the editor part that contains the group with the provided identifier.
 	 */
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
@@ -501,9 +506,9 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	/**
 	 * Opens a new window with a full editor part instantiated
-	 * in there at the optional position on screen.
+	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {

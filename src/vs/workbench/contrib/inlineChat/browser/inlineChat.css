@@ -331,14 +331,23 @@
 
 /* gutter decoration */
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
 	display: block;
 	cursor: pointer;
-	opacity: 0.5;
 	transition: opacity .2s ease-in-out;
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat:hover {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
+	opacity: 0.5;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
+	opacity: 0;
+}
+
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
 

@@ -11,7 +11,7 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ChatAgentService, IChatAgent, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestParser } from 'vs/workbench/contrib/chat/common/chatRequestParser';
-import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { IChatVariablesService } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
@@ -48,9 +48,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('slash command', async () => {
-		const chatService = mockObject<IChatService>()({});
-		chatService.getSlashCommands.returns(Promise.resolve([{ command: 'fix' }]));
-		instantiationService.stub(IChatService, chatService as any);
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix this';
@@ -59,9 +59,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('invalid slash command', async () => {
-		const chatService = mockObject<IChatService>()({});
-		chatService.getSlashCommands.returns(Promise.resolve([{ command: 'fix' }]));
-		instantiationService.stub(IChatService, chatService as any);
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/explain this';
@@ -70,9 +70,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('multiple slash commands', async () => {
-		const chatService = mockObject<IChatService>()({});
-		chatService.getSlashCommands.returns(Promise.resolve([{ command: 'fix' }]));
-		instantiationService.stub(IChatService, chatService as any);
+		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix /fix';

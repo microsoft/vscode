@@ -10,6 +10,7 @@ import { IDisposable } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
 import { RefType, Status } from './api/git';
+import { emojify, ensureEmojis } from './emoji';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -79,9 +80,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
 
 		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, sortByAuthorDate: true }),
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, shortStats: true, sortByAuthorDate: true }),
 			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
+
+		await ensureEmojis();
 
 		const historyItems = commits.length === 0 ? [] : [summary];
 		historyItems.push(...commits.map(commit => {
@@ -91,10 +94,11 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 			return {
 				id: commit.hash,
 				parentIds: commit.parents,
-				label: subject,
+				label: emojify(subject),
 				description: commit.authorName,
-				icon: new ThemeIcon('account'),
-				timestamp: commit.authorDate?.getTime()
+				icon: new ThemeIcon('git-commit'),
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat
 			};
 		}));
 
@@ -192,8 +196,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
-		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
+		const statistics = await this.repository.diffBetweenShortStat(ref1, ref2);
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {

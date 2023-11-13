@@ -256,8 +256,7 @@ class WordHighlighter {
 	private readonly editor: IActiveCodeEditor;
 	private readonly providers: LanguageFeatureRegistry<DocumentHighlightProvider>;
 	private readonly multiDocumentProviders: LanguageFeatureRegistry<MultiDocumentHighlightProvider>;
-	private occurrencesHighlight: boolean;
-	private multiDocumentOccurrencesHighlight: boolean;
+	private occurrencesHighlight: string;
 	private readonly model: ITextModel;
 	private readonly decorations: IEditorDecorationsCollection;
 	private readonly toUnhook = new DisposableStore();
@@ -285,7 +284,6 @@ class WordHighlighter {
 		this._hasWordHighlights = ctxHasWordHighlights.bindTo(contextKeyService);
 		this._ignorePositionChangeEvent = false;
 		this.occurrencesHighlight = this.editor.getOption(EditorOption.occurrencesHighlight);
-		this.multiDocumentOccurrencesHighlight = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
 		this.model = this.editor.getModel();
 		this.toUnhook.add(editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
 			if (this._ignorePositionChangeEvent) {
@@ -293,7 +291,7 @@ class WordHighlighter {
 				return;
 			}
 
-			if (!this.occurrencesHighlight) {
+			if (this.occurrencesHighlight === 'off') {
 				// Early exit if nothing needs to be done!
 				// Leave some form of early exit check here if you wish to continue being a cursor position change listener ;)
 				return;
@@ -319,12 +317,6 @@ class WordHighlighter {
 				this.occurrencesHighlight = newValue;
 				this._stopAll();
 			}
-
-			const newMultiDocumentValue = this.editor.getOption(EditorOption.multiDocumentOccurrencesHighlight);
-			if (this.multiDocumentOccurrencesHighlight !== newMultiDocumentValue) {
-				this.multiDocumentOccurrencesHighlight = newMultiDocumentValue;
-				this._stopAll();
-			}
 		}));
 
 		this.decorations = this.editor.createDecorationsCollection();
@@ -346,14 +338,14 @@ class WordHighlighter {
 	}
 
 	public restore(): void {
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
 		this._run();
 	}
 
 	public stop(): void {
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			return;
 		}
 
@@ -513,7 +505,7 @@ class WordHighlighter {
 	private _onPositionChanged(e: ICursorPositionChangedEvent): void {
 
 		// disabled
-		if (!this.occurrencesHighlight) {
+		if (this.occurrencesHighlight === 'off') {
 			this._stopAll();
 			return;
 		}
@@ -586,7 +578,7 @@ class WordHighlighter {
 		}
 
 		// multi-doc OFF
-		if (!this.multiDocumentOccurrencesHighlight) {
+		if (this.occurrencesHighlight === 'singleFile') {
 			return [];
 		}
 
