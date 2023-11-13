@@ -32,7 +32,7 @@ import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/cont
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { AsyncProgress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -602,7 +602,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
+		const progress = new Progress<IInlineChatProgressItem>(data => {
 			this._log('received chunk', data, request);
 
 			if (requestCts.token.isCancellationRequested) {
@@ -671,7 +671,6 @@ export class InlineChatController implements IEditorContribution {
 				// we must wait for all edits that came in via progress to complete
 				await Event.toPromise(progressiveEditsQueue.onDrained);
 			}
-			await progress.drain();
 
 			if (!reply) {
 				response = new EmptyResponse();
