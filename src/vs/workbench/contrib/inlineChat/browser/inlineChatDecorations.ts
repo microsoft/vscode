@@ -33,7 +33,7 @@ const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparen
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
-	private _currentBreakpoints: IBreakpoint[] = [];
+	private _currentBreakpoints: readonly IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private readonly _localToDispose = new DisposableStore();
@@ -94,7 +94,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	}
 
 	private _updateCurrentBreakpoints(uri: URI) {
-		this._currentBreakpoints = [...this._debugService.getModel().getBreakpoints({ uri })];
+		this._currentBreakpoints = this._debugService.getModel().getBreakpoints({ uri });
 	}
 
 	private _onEnablementOrModelChanged(executeOnlyDisposal: boolean = false): void {
