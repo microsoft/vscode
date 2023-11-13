@@ -60,7 +60,7 @@ interface ITerminalDimensions {
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
-	protected _commands: ITerminalCommand[] = [];
+	protected _commands: TerminalCommand[] = [];
 	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
 	private _currentCommand: ICurrentPartialCommand = {};
@@ -72,7 +72,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
-	get commands(): readonly ITerminalCommand[] { return this._commands; }
+	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
@@ -357,7 +357,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			const timestamp = Date.now();
 			const executedMarker = this._currentCommand.commandExecutedMarker;
 			const endMarker = this._currentCommand.commandFinishedMarker;
-			const newCommand: ITerminalCommand = new TerminalCommand(this._terminal, {
+			const newCommand = new TerminalCommand(this._terminal, {
 				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
 				isTrusted: !!this._currentCommand.isTrusted,
 				promptStartMarker: this._currentCommand.promptStartMarker,
@@ -370,10 +370,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				cwd: this._cwd,
 				exitCode: this._exitCode,
 				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				markProperties: options?.markProperties,
-
-				aliases: undefined,
-				wasReplayed: false
+				markProperties: options?.markProperties
 			});
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
@@ -395,24 +392,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
-			return {
-				promptStartLine: e.promptStartMarker?.line,
-				startLine: e.marker?.line,
-				startX: undefined,
-				endLine: e.endMarker?.line,
-				executedLine: e.executedMarker?.line,
-				executedX: e.executedX,
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				cwd: e.cwd,
-				exitCode: e.exitCode,
-				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp,
-				markProperties: e.markProperties,
-				aliases: e.aliases
-			};
-		});
+		// Full commands
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => e.serialize(this.__isCommandStorageDisabled));
+
+		// Partial command
 		if (this._currentCommand.commandStartMarker) {
 			commands.push({
 				promptStartLine: this._currentCommand.promptStartMarker?.line,
@@ -430,6 +413,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 				markProperties: undefined
 			});
 		}
+
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
 			commands
@@ -442,43 +426,27 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {
-			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			// Check for invalid command
-			if (!marker) {
-				continue;
-			}
-			const promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			// Partial command
 			if (!e.endLine) {
-				this._currentCommand.commandStartMarker = marker;
-				this._currentCommand.commandStartX = e.startX;
-				if (promptStartMarker) {
-					this._currentCommand.promptStartMarker = promptStartMarker;
+				// Check for invalid command
+				const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+				if (!marker) {
+					continue;
 				}
+				this._currentCommand.commandStartMarker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+				this._currentCommand.commandStartX = e.startX;
+				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._cwd = e.cwd;
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
 			}
+
 			// Full command
-			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand: ITerminalCommand = new TerminalCommand(this._terminal, {
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				promptStartMarker,
-				marker,
-				startX: e.startX,
-				endMarker,
-				executedMarker,
-				executedX: e.executedX,
-				timestamp: e.timestamp,
-				cwd: e.cwd,
-				commandStartLineContent: e.commandStartLineContent,
-				exitCode: e.exitCode,
-				markProperties: e.markProperties,
-				aliases: undefined,
-				wasReplayed: true
-			});
+			const newCommand = TerminalCommand.deserialize(this._terminal, e, this.__isCommandStorageDisabled);
+			if (!newCommand) {
+				continue;
+			}
+
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);

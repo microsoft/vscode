@@ -14,18 +14,19 @@ export interface ITerminalCommandProperties {
 	command: string;
 	isTrusted: boolean;
 	timestamp: number;
-	promptStartMarker: IMarker | undefined;
 	marker: IXtermMarker | undefined;
-	endMarker: IXtermMarker | undefined;
-	executedMarker: IXtermMarker | undefined;
-	aliases: string[][] | undefined;
-	wasReplayed: boolean | undefined;
 	cwd: string | undefined;
 	exitCode: number | undefined;
 	commandStartLineContent: string | undefined;
 	markProperties: IMarkProperties | undefined;
 	executedX: number | undefined;
 	startX: number | undefined;
+
+	promptStartMarker?: IMarker | undefined;
+	endMarker?: IXtermMarker | undefined;
+	executedMarker?: IXtermMarker | undefined;
+	aliases?: string[][] | undefined;
+	wasReplayed?: boolean | undefined;
 }
 
 export class TerminalCommand implements ITerminalCommand {
@@ -52,9 +53,38 @@ export class TerminalCommand implements ITerminalCommand {
 	) {
 	}
 
-	// static deserialize(serialized: ISerializedTerminalCommand): ITerminalCommand {
-	// 	return new
-	// }
+	static deserialize(xterm: Terminal, serialized: ISerializedTerminalCommand & Required<Pick<ISerializedTerminalCommand, 'endLine'>>, isCommandStorageDisabled: boolean): TerminalCommand | undefined {
+		const buffer = xterm.buffer.normal;
+		const marker = serialized.startLine !== undefined ? xterm.registerMarker(serialized.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+
+		// Check for invalid command
+		if (!marker) {
+			return undefined;
+		}
+		const promptStartMarker = serialized.promptStartLine !== undefined ? xterm.registerMarker(serialized.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
+
+		// Valid full command
+		const endMarker = serialized.endLine !== undefined ? xterm.registerMarker(serialized.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
+		const executedMarker = serialized.executedLine !== undefined ? xterm.registerMarker(serialized.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
+		const newCommand = new TerminalCommand(xterm, {
+			command: isCommandStorageDisabled ? '' : serialized.command,
+			isTrusted: serialized.isTrusted,
+			promptStartMarker,
+			marker,
+			startX: serialized.startX,
+			endMarker,
+			executedMarker,
+			executedX: serialized.executedX,
+			timestamp: serialized.timestamp,
+			cwd: serialized.cwd,
+			commandStartLineContent: serialized.commandStartLineContent,
+			exitCode: serialized.exitCode,
+			markProperties: serialized.markProperties,
+			aliases: undefined,
+			wasReplayed: true
+		});
+		return newCommand;
+	}
 
 	serialize(isCommandStorageDisabled: boolean): ISerializedTerminalCommand {
 		return {
