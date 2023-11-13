@@ -9,6 +9,7 @@ import { ITerminalOutputMatcher, ITerminalOutputMatch } from 'vs/platform/termin
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IBufferLine, Terminal } from '@xterm/headless';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 export interface ITerminalCommandProperties {
 	command: string;
@@ -187,6 +188,88 @@ export class TerminalCommand implements ITerminalCommand {
 				this.executedMarker.line < this.endMarker.line
 			)
 		);
+	}
+}
+
+export class PartialTerminalCommand implements ICurrentPartialCommand {
+	previousCommandMarker?: IMarker;
+
+	promptStartMarker?: IMarker;
+
+	commandStartMarker?: IMarker;
+	commandStartX?: number;
+	commandStartLineContent?: string;
+
+	commandRightPromptStartX?: number;
+	commandRightPromptEndX?: number;
+
+	commandLines?: IMarker;
+
+	commandExecutedMarker?: IMarker;
+	commandExecutedX?: number;
+
+	commandFinishedMarker?: IMarker;
+
+	currentContinuationMarker?: IMarker;
+	continuations?: { marker: IMarker; end: number }[];
+
+	command?: string;
+
+	isTrusted?: boolean;
+	isInvalid?: boolean;
+
+	constructor(
+		private readonly _xterm: Terminal,
+	) {
+	}
+
+	serialize(cwd: string | undefined): ISerializedTerminalCommand | undefined {
+		if (!this.commandStartMarker) {
+			return undefined;
+		}
+
+		return {
+			promptStartLine: this.promptStartMarker?.line,
+			startLine: this.commandStartMarker.line,
+			startX: this.commandStartX,
+			endLine: undefined,
+			executedLine: undefined,
+			executedX: undefined,
+			command: '',
+			isTrusted: true,
+			cwd,
+			exitCode: undefined,
+			commandStartLineContent: undefined,
+			timestamp: 0,
+			markProperties: undefined
+		};
+	}
+
+	promoteToFullCommand(cwd: string | undefined, exitCode: number | undefined, ignoreCommandLine: boolean, markProperties: IMarkProperties | undefined): TerminalCommand | undefined {
+		// When the command finishes and executed never fires the placeholder selector should be used.
+		if (exitCode === undefined && this.command === undefined) {
+			this.command = '';
+		}
+
+		if ((this.command !== undefined && !this.command.startsWith('\\')) || ignoreCommandLine) {
+			return new TerminalCommand(this._xterm, {
+				command: ignoreCommandLine ? '' : (this.command || ''),
+				isTrusted: !!this.isTrusted,
+				promptStartMarker: this.promptStartMarker,
+				marker: this.commandStartMarker,
+				startX: this.commandStartX,
+				endMarker: this.commandFinishedMarker,
+				executedMarker: this.commandExecutedMarker,
+				executedX: this.commandExecutedX,
+				timestamp: Date.now(),
+				cwd,
+				exitCode,
+				commandStartLineContent: this.commandStartLineContent,
+				markProperties
+			});
+		}
+
+		return undefined;
 	}
 }
 

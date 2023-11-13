@@ -14,7 +14,7 @@ import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
 import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
-import { TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
+import { PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 export interface ICurrentPartialCommand {
 	previousCommandMarker?: IMarker;
@@ -61,9 +61,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	readonly type = TerminalCapability.CommandDetection;
 
 	protected _commands: TerminalCommand[] = [];
-	private _exitCode: number | undefined;
 	private _cwd: string | undefined;
-	private _currentCommand: ICurrentPartialCommand = {};
+	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
@@ -325,20 +324,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value?.preHandleCommandFinished?.();
 
-		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
-		let command = this._currentCommand.command;
-		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
-		this._exitCode = exitCode;
+		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
 		// in the output of `history`, this detects that case and sets the exit code to the the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
-		if (this._exitCode === undefined) {
+		if (exitCode === undefined) {
 			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
-			if (command && command.length > 0 && lastCommand?.command === command) {
-				this._exitCode = lastCommand.exitCode;
+			if (this._currentCommand.command && this._currentCommand.command.length > 0 && lastCommand?.command === this._currentCommand.command) {
+				exitCode = lastCommand.exitCode;
 			}
 		}
 
@@ -346,32 +342,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 
-		// When the command finishes and executed never fires the placeholder selector should be used.
-		if (this._exitCode === undefined && command === undefined) {
-			command = '';
-		}
-
 		this._ptyHeuristics.value?.postHandleCommandFinished?.();
 
-		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
-			const timestamp = Date.now();
-			const executedMarker = this._currentCommand.commandExecutedMarker;
-			const endMarker = this._currentCommand.commandFinishedMarker;
-			const newCommand = new TerminalCommand(this._terminal, {
-				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
-				isTrusted: !!this._currentCommand.isTrusted,
-				promptStartMarker: this._currentCommand.promptStartMarker,
-				marker: this._currentCommand.commandStartMarker,
-				startX: this._currentCommand.commandStartX,
-				endMarker,
-				executedMarker,
-				executedX: this._currentCommand.commandExecutedX,
-				timestamp,
-				cwd: this._cwd,
-				exitCode: this._exitCode,
-				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				markProperties: options?.markProperties
-			});
+		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
+		const newCommand = this._currentCommand.promoteToFullCommand(this._cwd, exitCode, this._handleCommandStartOptions?.ignoreCommandLine ?? false, options?.markProperties);
+
+		if (newCommand) {
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 
@@ -381,7 +357,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
-		this._currentCommand = {};
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
 	}
 
@@ -392,28 +368,11 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		// Full commands
 		const commands: ISerializedTerminalCommand[] = this.commands.map(e => e.serialize(this.__isCommandStorageDisabled));
-
-		// Partial command
-		if (this._currentCommand.commandStartMarker) {
-			commands.push({
-				promptStartLine: this._currentCommand.promptStartMarker?.line,
-				startLine: this._currentCommand.commandStartMarker.line,
-				startX: this._currentCommand.commandStartX,
-				endLine: undefined,
-				executedLine: undefined,
-				executedX: undefined,
-				command: '',
-				isTrusted: true,
-				cwd: this._cwd,
-				exitCode: undefined,
-				commandStartLineContent: undefined,
-				timestamp: 0,
-				markProperties: undefined
-			});
+		const partialCommand = this._currentCommand.serialize(this._cwd);
+		if (partialCommand) {
+			commands.push(partialCommand);
 		}
-
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
 			commands
