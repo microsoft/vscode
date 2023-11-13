@@ -36,6 +36,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _currentBreakpoints: readonly IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
+	private _hasInlineChatSession: boolean = false;
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
@@ -61,8 +62,18 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			}
 			this._onEnablementOrModelChanged();
 		}));
-		this._register(this._inlineChatSessionService.onWillStartSession((e) => (e === this._editor) && this._onEnablementOrModelChanged(true)));
-		this._register(this._inlineChatSessionService.onDidEndSession((e) => (e === this._editor) && this._onEnablementOrModelChanged()));
+		this._register(this._inlineChatSessionService.onWillStartSession((e) => {
+			if (e === this._editor) {
+				this._hasInlineChatSession = true;
+				this._onEnablementOrModelChanged(true);
+			}
+		}));
+		this._register(this._inlineChatSessionService.onDidEndSession((e) => {
+			if (e === this._editor) {
+				this._hasInlineChatSession = false;
+				this._onEnablementOrModelChanged();
+			}
+		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
@@ -100,7 +111,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(executeOnlyDisposal: boolean = false): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (executeOnlyDisposal || !this._editor.hasModel() || this._inlineChatSessionService.getSession(this._editor, this._editor.getModel().uri) || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (executeOnlyDisposal || !this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
