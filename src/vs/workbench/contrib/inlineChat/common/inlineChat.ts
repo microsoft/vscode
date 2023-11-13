@@ -48,6 +48,11 @@ export interface IInlineChatRequest {
 
 export type IInlineChatResponse = IInlineChatEditResponse | IInlineChatBulkEditResponse | IInlineChatMessageResponse;
 
+export interface InteractiveEditorReplyFollowup {
+	message: IMarkdownString;
+}
+
+
 export const enum InlineChatResponseType {
 	EditorEdit = 'editorEdit',
 	BulkEdit = 'bulkEdit',
@@ -109,6 +114,8 @@ export interface IInlineChatSessionProvider {
 	prepareInlineChatSession(model: ITextModel, range: ISelection, token: CancellationToken): ProviderResult<IInlineChatSession>;
 
 	provideResponse(item: IInlineChatSession, request: IInlineChatRequest, progress: IProgress<IInlineChatProgressItem>, token: CancellationToken): ProviderResult<IInlineChatResponse>;
+
+	provideFollowups?(session: IInlineChatSession, response: IInlineChatResponse, token: CancellationToken): ProviderResult<InteractiveEditorReplyFollowup[]>;
 
 	handleInlineChatResponseFeedback?(session: IInlineChatSession, response: IInlineChatResponse, kind: InlineChatResponseFeedbackKind): void;
 }
