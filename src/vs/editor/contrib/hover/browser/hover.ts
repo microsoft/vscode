@@ -406,7 +406,7 @@ class ShowOrFocusHoverAction extends EditorAction {
 									nls.localize('showOrFocusHover.focus.ifVisible', 'The hover is focused only if it is already visible.'),
 									nls.localize('showOrFocusHover.focus.immediately', 'The hover is immediately focused when it appears.'),
 								],
-								default: 'ifVisible',
+								default: ShowOrFocusHoverArgument.IfVisible,
 							}
 						},
 					}
