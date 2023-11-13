@@ -753,6 +753,7 @@ export class MenuBar extends Disposable {
 				}
 
 				if (this.focusedMenu) {
+					this.cleanupCustomMenu();
 					this.showCustomMenu(this.focusedMenu.index, this.openedViaKeyboard);
 				}
 				break;
