@@ -11,6 +11,7 @@ import * as path from 'path';
 import * as crypto from 'crypto';
 import { Readable } from 'stream';
 import * as os from 'os';
+import { retry } from './retry';
 
 export class Temp {
 	private _files: string[] = [];
@@ -85,7 +86,7 @@ class ProvisionService {
 		});
 
 		this.log(`Provisioning ${fileName} (releaseId: ${releaseId}, fileId: ${fileId})...`);
-		const res = await this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body });
+		const res = await retry(() => this.request<CreateProvisionedFilesResponse>('POST', '/api/v2/ProvisionedFiles/CreateProvisionedFiles', { body }));
 
 		if (!res.IsSuccess) {
 			throw new Error(`Failed to submit provisioning request: ${JSON.stringify(res.ErrorDetails)}`);
