@@ -51,20 +51,10 @@ export abstract class BaseWindow extends Disposable {
 	 */
 	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
 		const originalSetTimeout = targetWindow.setTimeout;
-		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', {
-			value: originalSetTimeout,
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
+		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', { get: () => originalSetTimeout });
 
 		const originalClearTimeout = targetWindow.clearTimeout;
-		Object.defineProperty(targetWindow, 'vscodeOriginalClearTimeout', {
-			value: originalClearTimeout,
-			writable: false,
-			enumerable: false,
-			configurable: false
-		});
+		Object.defineProperty(targetWindow, 'vscodeOriginalClearTimeout', { get: () => originalClearTimeout });
 
 		targetWindow.setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
 			if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
