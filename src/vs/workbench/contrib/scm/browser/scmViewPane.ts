@@ -2815,7 +2815,6 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
-		console.log('updateChildren');
 		this.asyncOperationSequencer.queue(async () => {
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
