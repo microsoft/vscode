@@ -66,9 +66,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		const onDidClose = this._register(new Emitter<void>());
 		this._register(addDisposableListener(this.window, 'unload', () => {
-			onDidClose.fire();
+			this._onDidClose.fire();
 		}));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
@@ -76,13 +75,12 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			e.preventDefault();
 		}));
 
-		const onDidLayout = this._register(new Emitter<Dimension>());
 		this._register(addDisposableListener(this.window, EventType.RESIZE, () => {
 			const dimension = getClientArea(this.window.document.body);
 			position(this.container, 0, 0, 0, 0, 'relative');
 			size(this.container, dimension.width, dimension.height);
 
-			onDidLayout.fire(dimension);
+			this._onDidLayout.fire(dimension);
 		}));
 
 		this._register(addDisposableListener(this.container, EventType.SCROLL, () => this.container.scrollTop = 0)); 						// Prevent container from scrolling (#55456)
