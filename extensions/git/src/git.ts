@@ -909,6 +909,19 @@ export function parseGitCommits(data: string): Commit[] {
 	return commits;
 }
 
+const diffShortStatRegex = /(\d+) files? changed(?:, (\d+) insertions\(\+\))?(?:, (\d+) deletions\(-\))?/;
+
+function parseGitDiffShortStat(data: string): { files: number; insertions: number; deletions: number } {
+	const matches = data.trim().match(diffShortStatRegex);
+
+	if (!matches) {
+		return { files: 0, insertions: 0, deletions: 0 };
+	}
+
+	const [, files, insertions = undefined, deletions = undefined] = matches;
+	return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
+}
+
 interface LsTreeElement {
 	mode: string;
 	type: string;
@@ -1324,15 +1337,7 @@ export class Repository {
 			return { files: 0, insertions: 0, deletions: 0 };
 		}
 
-		const regex = /(\d+) files? changed(?:, (\d+) insertions\(\+\))?(?:, (\d+) deletions\(-\))?/;
-		const matches = result.stdout.trim().match(regex);
-
-		if (!matches) {
-			return { files: 0, insertions: 0, deletions: 0 };
-		}
-
-		const [, files, insertions = undefined, deletions = undefined] = matches;
-		return { files: parseInt(files), insertions: parseInt(insertions ?? '0'), deletions: parseInt(deletions ?? '0') };
+		return parseGitDiffShortStat(result.stdout.trim());
 	}
 
 	private async diffFiles(cached: boolean, ref?: string): Promise<Change[]> {
