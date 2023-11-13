@@ -430,9 +430,6 @@ class ShowOrFocusHoverAction extends EditorAction {
 		if (!controller) {
 			return;
 		}
-		const position = editor.getPosition();
-		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
 		const focusArgument = args?.focus;
 		let focusOption = ShowOrFocusHoverArgument.IfVisible;
@@ -444,8 +441,12 @@ class ShowOrFocusHoverAction extends EditorAction {
 		}
 
 		const showContentHover = (focus: boolean) => {
+			const position = editor.getPosition();
+			const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
 			controller.showContentHover(range, HoverStartMode.Immediate, HoverStartSource.Keyboard, focus);
 		};
+
+		const accessibilitySupportEnabled = editor.getOption(EditorOption.accessibilitySupport) === AccessibilitySupport.Enabled;
 
 		if (controller.isHoverVisible) {
 			if (focusOption !== ShowOrFocusHoverArgument.Never) {
