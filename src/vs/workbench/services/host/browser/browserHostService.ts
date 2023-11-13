@@ -37,8 +37,7 @@ import { Schemas } from 'vs/base/common/network';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
 import { coalesce } from 'vs/base/common/arrays';
-import { isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
-import { mainWindow } from 'vs/base/browser/window';
+import { mainWindow, isAuxiliaryWindow } from 'vs/base/browser/window';
 
 /**
  * A workspace to open in the workbench can either be:

@@ -110,16 +110,6 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 }
 
-export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
-	if (obj === mainWindow) {
-		return false;
-	}
-
-	const candidate = obj as CodeWindow | undefined;
-
-	return typeof candidate?.vscodeWindowId === 'number';
-}
-
 export class BrowserAuxiliaryWindowService extends Disposable implements IAuxiliaryWindowService {
 
 	declare readonly _serviceBrand: undefined;
@@ -208,7 +198,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow?.window;
 	}
 
-	protected createContainer(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
+	protected async resolveWindowId(auxiliaryWindow: Window): Promise<number> {
+		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
+	}
+
+	protected createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
 		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
@@ -217,7 +211,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return this.applyHTML(auxiliaryWindow, disposables);
 	}
 
-	protected patchMethods(auxiliaryWindow: Window): void {
+	protected patchMethods(auxiliaryWindow: CodeWindow): void {
 
 		// Disallow `createElement` because it would create
 		// HTML Elements in the "wrong" context and break
@@ -227,11 +221,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		};
 	}
 
-	protected async resolveWindowId(auxiliaryWindow: Window): Promise<number> {
-		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
-	}
-
-	private applyMeta(auxiliaryWindow: Window): void {
+	private applyMeta(auxiliaryWindow: CodeWindow): void {
 		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
@@ -247,7 +237,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: Window, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore): void {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -313,7 +303,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyCSS');
 	}
 
-	private applyHTML(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes

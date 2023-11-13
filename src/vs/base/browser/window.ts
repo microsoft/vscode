@@ -26,3 +26,13 @@ export const mainWindow = window as CodeWindow;
  * or `DOM.getActiveWindow()` to obtain the correct window for the context you are in.
  */
 export const $window = mainWindow;
+
+export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
+	if (obj === mainWindow) {
+		return false;
+	}
+
+	const candidate = obj as CodeWindow | undefined;
+
+	return typeof candidate?.vscodeWindowId === 'number';
+}

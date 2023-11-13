@@ -812,12 +812,14 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			}
 
 			if (historyItem.statistics?.insertions) {
-				const insertionsDescription = localize('insertions', "insertions{0}", '(+)');
+				const insertionsDescription = historyItem.statistics.insertions === 1 ?
+					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
 				statsLabelTitle.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
 			}
 
 			if (historyItem.statistics?.deletions) {
-				const deletionsDescription = localize('deletions', "deletions{0}", '(-)');
+				const deletionsDescription = historyItem.statistics.deletions === 1 ?
+					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
 				statsLabelTitle.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
 			}
 
@@ -2421,11 +2423,12 @@ export class SCMViewPane extends ViewPane {
 		Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.providerCountBadge'), this.disposables)(updateProviderCountVisibility, this, this.disposables);
 		updateProviderCountVisibility();
 
-		this.createTree(this.treeContainer);
+		const viewState = this.loadTreeViewState();
+		this.createTree(this.treeContainer, viewState);
 
 		this.onDidChangeBodyVisibility(async visible => {
 			if (visible) {
-				await this.tree.setInput(this.scmViewService, this.loadTreeViewState());
+				await this.tree.setInput(this.scmViewService, viewState);
 
 				const onDidChangeConfiguration = (e?: IConfigurationChangeEvent) => {
 					if (!e || e.affectsConfiguration('scm.showActionButton') || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.experimental.showSyncInformation')) {
@@ -2467,7 +2470,7 @@ export class SCMViewPane extends ViewPane {
 		this.updateIndentStyles(this.themeService.getFileIconTheme());
 	}
 
-	private createTree(container: HTMLElement): void {
+	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
 		const overflowWidgetsDomNode = $('.scm-overflow-widgets-container.monaco-editor');
 
 		this.inputRenderer = this.instantiationService.createInstance(InputRenderer, this.layoutCache, overflowWidgetsDomNode, (input, height) => { this.tree.updateElementHeight(input, height); });
@@ -2510,7 +2513,15 @@ export class SCMViewPane extends ViewPane {
 				overrideStyles: {
 					listBackground: this.viewDescriptorService.getViewLocationById(this.id) === ViewContainerLocation.Panel ? PANEL_BACKGROUND : SIDE_BAR_BACKGROUND
 				},
-				collapseByDefault: (e: unknown) => isSCMHistoryItemGroupTreeElement(e) || isSCMHistoryItemTreeElement(e) || isSCMHistoryItemChangeTreeElement(e),
+				collapseByDefault: (e: unknown) => {
+					// Repository, Resource Group, Resource Folder (Tree), History Item Change Folder (Tree)
+					if (isSCMRepository(e) || isSCMResourceGroup(e) || isSCMResourceNode(e) || isSCMHistoryItemChangeNode(e)) {
+						return false;
+					}
+
+					// History Item Group, History Item, or History Item Change
+					return (viewState?.expanded ?? []).indexOf(getSCMResourceId(e as TreeElement)) === -1;
+				},
 				accessibilityProvider: this.instantiationService.createInstance(SCMAccessibilityProvider)
 			}) as WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
 
