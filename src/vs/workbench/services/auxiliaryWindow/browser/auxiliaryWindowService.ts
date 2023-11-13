@@ -7,7 +7,7 @@ import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -117,7 +117,7 @@ export function isAuxiliaryWindow(obj: Window): obj is CodeWindow {
 
 	const candidate = obj as CodeWindow | undefined;
 
-	return !!candidate && Object.hasOwn(candidate, 'vscodeWindowId');
+	return typeof candidate?.vscodeWindowId === 'number';
 }
 
 export class BrowserAuxiliaryWindowService extends Disposable implements IAuxiliaryWindowService {
@@ -148,8 +148,12 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			throw new Error(localize('unableToOpenWindowError', "Unable to open a new window."));
 		}
 
+		// Add a `vscodeWindowId` property to identify auxiliary windows
+		const resolvedWindowId = await this.resolveWindowId(targetWindow);
+		ensureCodeWindow(targetWindow, resolvedWindowId);
+
 		const containerDisposables = new DisposableStore();
-		const container = await this.createContainer(targetWindow, containerDisposables);
+		const container = this.createContainer(targetWindow, containerDisposables);
 
 		const auxiliaryWindow = new AuxiliaryWindow(targetWindow, container);
 
@@ -175,7 +179,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	private async openWindow(options?: { bounds?: Partial<IRectangle> }): Promise<CodeWindow | undefined> {
+	private async openWindow(options?: { bounds?: Partial<IRectangle> }): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
 
 		const bounds: IRectangle = {
@@ -201,11 +205,11 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 			})).result;
 		}
 
-		return auxiliaryWindow?.window as CodeWindow | undefined;
+		return auxiliaryWindow?.window;
 	}
 
-	protected async createContainer(auxiliaryWindow: CodeWindow, disposables: DisposableStore): Promise<HTMLElement> {
-		await this.patchMethods(auxiliaryWindow);
+	protected createContainer(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
+		this.patchMethods(auxiliaryWindow);
 
 		this.applyMeta(auxiliaryWindow);
 		this.applyCSS(auxiliaryWindow, disposables);
@@ -213,14 +217,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return this.applyHTML(auxiliaryWindow, disposables);
 	}
 
-	protected async patchMethods(auxiliaryWindow: CodeWindow): Promise<void> {
-		mark('code/auxiliaryWindow/willPatchMethods');
-
-		// Add a `vscodeWindowId` property to identify auxiliary windows
-		const resolvedWindowId = await this.resolveWindowId(auxiliaryWindow);
-		Object.defineProperty(auxiliaryWindow, 'vscodeWindowId', {
-			get: () => resolvedWindowId
-		});
+	protected patchMethods(auxiliaryWindow: Window): void {
 
 		// Disallow `createElement` because it would create
 		// HTML Elements in the "wrong" context and break
@@ -228,15 +225,13 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		auxiliaryWindow.document.createElement = function () {
 			throw new Error('Not allowed to create elements in child window JavaScript context. Always use the main window so that "xyz instanceof HTMLElement" continues to work.');
 		};
-
-		mark('code/auxiliaryWindow/didPatchMethods');
 	}
 
-	protected async resolveWindowId(auxiliaryWindow: CodeWindow): Promise<number> {
+	protected async resolveWindowId(auxiliaryWindow: Window): Promise<number> {
 		return BrowserAuxiliaryWindowService.WINDOW_IDS++;
 	}
 
-	private applyMeta(auxiliaryWindow: CodeWindow): void {
+	private applyMeta(auxiliaryWindow: Window): void {
 		const metaCharset = createMetaElement(auxiliaryWindow.document.head);
 		metaCharset.setAttribute('charset', 'utf-8');
 
@@ -252,7 +247,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		}
 	}
 
-	protected applyCSS(auxiliaryWindow: CodeWindow, disposables: DisposableStore): void {
+	protected applyCSS(auxiliaryWindow: Window, disposables: DisposableStore): void {
 		mark('code/auxiliaryWindow/willApplyCSS');
 
 		const mapOriginalToClone = new Map<Node /* original */, Node /* clone */>();
@@ -318,7 +313,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didApplyCSS');
 	}
 
-	private applyHTML(auxiliaryWindow: CodeWindow, disposables: DisposableStore): HTMLElement {
+	private applyHTML(auxiliaryWindow: Window, disposables: DisposableStore): HTMLElement {
 		mark('code/auxiliaryWindow/willApplyHTML');
 
 		// Create workbench container and apply classes

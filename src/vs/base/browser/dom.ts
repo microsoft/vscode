@@ -17,7 +17,7 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 
 export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
@@ -27,11 +27,7 @@ export interface IRegisteredCodeWindow {
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
-	if (typeof mainWindow.vscodeWindowId !== 'number') {
-		Object.defineProperty(mainWindow, 'vscodeWindowId', {
-			get: () => 1
-		});
-	}
+	ensureCodeWindow(mainWindow, 1);
 	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();

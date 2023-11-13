@@ -14,6 +14,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
+import { mark } from 'vs/base/common/performance';
 
 type NativeAuxiliaryWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -30,7 +31,7 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService, dialogService);
 	}
 
-	protected override createContainer(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore): Promise<HTMLElement> {
+	protected override createContainer(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore): HTMLElement {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
@@ -41,11 +42,15 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 	}
 
 	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
-		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/willResolveWindowId');
+		const windowId = auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/didResolveWindowId');
+
+		return windowId;
 	}
 
-	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
-		await super.patchMethods(auxiliaryWindow);
+	protected override patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): void {
+		super.patchMethods(auxiliaryWindow);
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.
