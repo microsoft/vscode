@@ -31,14 +31,16 @@ export class NotebookVariablesDelegate implements IListVirtualDelegate<IVariable
 	}
 
 	getTemplateId(element: IVariableTreeElement): string {
-		return 'variableElement';
+		return NotebookVariableRenderer.ID;
 	}
 }
 
 export class NotebookVariableRenderer implements ITreeRenderer<IVariableTreeElement, FuzzyScore, { container: HTMLElement }> {
 
+	static readonly ID = 'variableElement';
+
 	get templateId(): string {
-		return 'variableElement';
+		return NotebookVariableRenderer.ID;
 	}
 
 	renderTemplate(container: HTMLElement) {
