@@ -21,9 +21,17 @@ export const mainWindow = window as CodeWindow;
  */
 export const $window = mainWindow;
 
+//#region timeout handling in multi-window applications
+
 let timeoutsHandleCounter = 0;
 const mapTimeoutHandleToDisposable = new Map<number, Set<IDisposable>>();
 
+/**
+ * Override `setTimeout` and `clearTimeout` on the provided window to make
+ * sure timeouts are dispatched to all opened windows. Some browsers may decide
+ * to throttle timeouts in minimized windows, so with this we can ensure the
+ * timeout is scheduled without being throttled (unless all windows are minimized).
+ */
 export function patchMultiWindowAwareTimeout(targetWindow: Window): void {
 	const originalSetTimeout = targetWindow.setTimeout;
 	Object.defineProperty(targetWindow, 'originalSetTimeout', {
@@ -81,3 +89,5 @@ export function patchMultiWindowAwareTimeout(targetWindow: Window): void {
 		}
 	};
 }
+
+//#endregion
