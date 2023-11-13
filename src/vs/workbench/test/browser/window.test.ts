@@ -4,15 +4,27 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { patchMultiWindowAwareTimeout } from 'vs/base/browser/dom';
+import { IRegisteredCodeWindow } from 'vs/base/browser/dom';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { runWithFakedTimers } from 'vs/base/test/common/timeTravelScheduler';
 import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { BaseWindow } from 'vs/workbench/browser/window';
 
 suite('Window', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
+
+	class TestWindow extends BaseWindow {
+
+		constructor(window: CodeWindow, private readonly dom: { getWindowsCount: () => number; getWindows: () => Iterable<IRegisteredCodeWindow> }) {
+			super(window);
+		}
+
+		protected override patchMultiWindowAwareTimeout(targetWindow: Window): void {
+			super.patchMultiWindowAwareTimeout(targetWindow, this.dom);
+		}
+	}
 
 	test('patchMultiWindowAwareTimeout()', async function () {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
@@ -41,7 +53,7 @@ suite('Window', () => {
 					}
 				} as any;
 
-				patchMultiWindowAwareTimeout(res, dom);
+				new TestWindow(res, dom);
 
 				return res;
 			}

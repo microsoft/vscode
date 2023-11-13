@@ -5,7 +5,7 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { addDisposableListener, patchMultiWindowAwareTimeout, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
@@ -71,7 +71,6 @@ export class Workbench extends Layout {
 		mark('code/willStartWorkbench');
 
 		this.registerErrorHandler(logService);
-		patchMultiWindowAwareTimeout(mainWindow);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

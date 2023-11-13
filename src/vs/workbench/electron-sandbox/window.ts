@@ -26,7 +26,7 @@ import { IMenuService, MenuId, IMenu, MenuItemAction, MenuRegistry } from 'vs/pl
 import { ICommandAction } from 'vs/platform/action/common/action';
 import { createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { LifecyclePhase, ILifecycleService, WillShutdownEvent, ShutdownReason, BeforeShutdownErrorEvent, BeforeShutdownEvent } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IIntegrityService } from 'vs/workbench/services/integrity/common/integrity';
@@ -72,8 +72,9 @@ import { IUtilityProcessWorkerWorkbenchService } from 'vs/workbench/services/uti
 import { registerWindowDriver } from 'vs/workbench/services/driver/electron-sandbox/driver';
 import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { mainWindow } from 'vs/base/browser/window';
+import { BaseWindow } from 'vs/workbench/browser/window';
 
-export class NativeWindow extends Disposable {
+export class NativeWindow extends BaseWindow {
 
 	private touchBarMenu: IMenu | undefined;
 	private readonly touchBarDisposables = this._register(new DisposableStore());
@@ -127,7 +128,7 @@ export class NativeWindow extends Disposable {
 		@IUtilityProcessWorkerWorkbenchService private readonly utilityProcessWorkerWorkbenchService: IUtilityProcessWorkerWorkbenchService,
 		@IAuxiliaryWindowService private readonly auxiliaryWindowService: IAuxiliaryWindowService
 	) {
-		super();
+		super(mainWindow);
 
 		this.mainPartEditorService = editorService.createScoped('main', this._store);
 

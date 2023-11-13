@@ -30,14 +30,14 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService, dialogService);
 	}
 
-	protected override create(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore) {
+	protected override createContainer(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore): Promise<HTMLElement> {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
-		return super.create(auxiliaryWindow, disposables);
+		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
 	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {

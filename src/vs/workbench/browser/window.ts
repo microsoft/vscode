@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isSafari, setFullscreen } from 'vs/base/browser/browser';
-import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
+import { addDisposableListener, addDisposableThrottledListener, detectFullscreen, EventHelper, EventType, getWindows, getWindowsCount, windowOpenNoOpener, windowOpenPopup, windowOpenWithSuccess } from 'vs/base/browser/dom';
 import { DomEmitter } from 'vs/base/browser/event';
 import { HidDeviceData, requestHidDevice, requestSerialPort, requestUsbDevice, SerialPortData, UsbDeviceData } from 'vs/base/browser/deviceAccess';
 import { timeout } from 'vs/base/common/async';
 import { Event } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { isIOS, isMacintosh } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
@@ -27,9 +27,90 @@ import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 
-export class BrowserWindow extends Disposable {
+export abstract class BaseWindow extends Disposable {
+
+	private static TIMEOUT_HANDLE_COUNTER = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
+	private static readonly MAP_TIMEOUT_HANDLE_TO_DISPOSABLE = new Map<number, Set<IDisposable>>();
+
+	constructor(targetWindow: CodeWindow) {
+		super();
+
+		this.patchMultiWindowAwareTimeout(targetWindow);
+	}
+
+	//#region timeout handling in multi-window applications
+
+	/**
+	 * Override `setTimeout` and `clearTimeout` on the provided window to make
+	 * sure timeouts are dispatched to all opened windows. Some browsers may decide
+	 * to throttle timeouts in minimized windows, so with this we can ensure the
+	 * timeout is scheduled without being throttled (unless all windows are minimized).
+	 */
+	protected patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
+		const originalSetTimeout = targetWindow.setTimeout;
+		Object.defineProperty(targetWindow, 'originalSetTimeout', {
+			value: originalSetTimeout,
+			writable: false,
+			enumerable: false,
+			configurable: false
+		});
+
+		const originalClearTimeout = targetWindow.clearTimeout;
+		Object.defineProperty(targetWindow, 'originalClearTimeout', {
+			value: originalClearTimeout,
+			writable: false,
+			enumerable: false,
+			configurable: false
+		});
+
+		(targetWindow as any).setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
+			if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
+				return originalSetTimeout.apply(this, [handler, timeout, ...args]);
+			}
+
+			const timeoutDisposables = new Set<IDisposable>();
+			const timeoutsHandle = BaseWindow.TIMEOUT_HANDLE_COUNTER++;
+			BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.set(timeoutsHandle, timeoutDisposables);
+
+			const handlerFn = createSingleCallFunction(handler, () => {
+				dispose(timeoutDisposables);
+				BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.delete(timeoutsHandle);
+			});
+
+			for (const { window, disposables } of dom.getWindows()) {
+				const timeoutHandle = (window as any).originalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+
+				const timeoutDisposable = toDisposable(() => {
+					(window as any).originalClearTimeout(timeoutHandle);
+					timeoutDisposables.delete(timeoutDisposable);
+				});
+
+				disposables.add(timeoutDisposable);
+				timeoutDisposables.add(timeoutDisposable);
+			}
+
+			return timeoutsHandle;
+		};
+
+		(targetWindow as any).clearTimeout = function (this: unknown, handle: number | undefined): void {
+			const disposables = typeof handle === 'number' ? BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.get(handle) : undefined;
+			if (disposables) {
+				dispose(disposables);
+				BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.delete(handle!);
+			} else {
+				originalClearTimeout.apply(this, [handle]);
+			}
+		};
+	}
+
+	//#endregion
+
+}
+
+export class BrowserWindow extends BaseWindow {
 
 	constructor(
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -42,7 +123,7 @@ export class BrowserWindow extends Disposable {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IHostService private readonly hostService: IHostService
 	) {
-		super();
+		super(mainWindow);
 
 		this.registerListeners();
 		this.create();

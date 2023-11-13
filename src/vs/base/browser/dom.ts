@@ -12,15 +12,14 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import * as event from 'vs/base/common/event';
 import * as dompurify from 'vs/base/browser/dompurify/dompurify';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable, DisposableStore, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
 import { CodeWindow, mainWindow } from 'vs/base/browser/window';
-import { createSingleCallFunction } from 'vs/base/common/functional';
 
-interface IRegisteredCodeWindow {
+export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
 	readonly disposables: DisposableStore;
 }
@@ -2291,73 +2290,3 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 
 	return disposables;
 }
-
-//#region timeout handling in multi-window applications
-
-let timeoutsHandleCounter = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
-const mapTimeoutHandleToDisposable = new Map<number, Set<IDisposable>>();
-
-/**
- * Override `setTimeout` and `clearTimeout` on the provided window to make
- * sure timeouts are dispatched to all opened windows. Some browsers may decide
- * to throttle timeouts in minimized windows, so with this we can ensure the
- * timeout is scheduled without being throttled (unless all windows are minimized).
- */
-export function patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
-	const originalSetTimeout = targetWindow.setTimeout;
-	Object.defineProperty(targetWindow, 'originalSetTimeout', {
-		value: originalSetTimeout,
-		writable: false,
-		enumerable: false,
-		configurable: false
-	});
-
-	const originalClearTimeout = targetWindow.clearTimeout;
-	Object.defineProperty(targetWindow, 'originalClearTimeout', {
-		value: originalClearTimeout,
-		writable: false,
-		enumerable: false,
-		configurable: false
-	});
-
-	(targetWindow as any).setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
-		if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
-			return originalSetTimeout.apply(this, [handler, timeout, ...args]);
-		}
-
-		const timeoutDisposables = new Set<IDisposable>();
-		const timeoutsHandle = timeoutsHandleCounter++;
-		mapTimeoutHandleToDisposable.set(timeoutsHandle, timeoutDisposables);
-
-		const handlerFn = createSingleCallFunction(handler, () => {
-			dispose(timeoutDisposables);
-			mapTimeoutHandleToDisposable.delete(timeoutsHandle);
-		});
-
-		for (const { window, disposables } of dom.getWindows()) {
-			const timeoutHandle = (window as any).originalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
-
-			const timeoutDisposable = toDisposable(() => {
-				(window as any).originalClearTimeout(timeoutHandle);
-				timeoutDisposables.delete(timeoutDisposable);
-			});
-
-			disposables.add(timeoutDisposable);
-			timeoutDisposables.add(timeoutDisposable);
-		}
-
-		return timeoutsHandle;
-	};
-
-	(targetWindow as any).clearTimeout = function (this: unknown, handle: number | undefined): void {
-		const disposables = typeof handle === 'number' ? mapTimeoutHandleToDisposable.get(handle) : undefined;
-		if (disposables) {
-			dispose(disposables);
-			mapTimeoutHandleToDisposable.delete(handle!);
-		} else {
-			originalClearTimeout.apply(this, [handle]);
-		}
-	};
-}
-
-//#endregion
