@@ -2427,36 +2427,25 @@ export class SCMViewPane extends ViewPane {
 			if (visible) {
 				await this.tree.setInput(this.scmViewService, this.loadTreeViewState());
 
-				const updateActionButtonVisibility = () => {
-					this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
-					this.updateChildren();
-				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showActionButton'), this.visibilityDisposables)(updateActionButtonVisibility, this, this.visibilityDisposables);
-				updateActionButtonVisibility();
+				const onDidChangeConfiguration = (e?: IConfigurationChangeEvent) => {
+					if (!e || e.affectsConfiguration('scm.showActionButton') || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.experimental.showSyncInformation')) {
+						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
+						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+						this._showSyncInformation = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
 
-				const updateRepositoryVisibility = () => {
-					this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-					this.updateChildren();
-					this.updateActions();
+						this.updateChildren();
+						if (e?.affectsConfiguration('scm.alwaysShowRepositories')) {
+							this.updateActions();
+						}
+					}
 				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this, this.visibilityDisposables);
-				updateRepositoryVisibility();
-
-				const updateSyncInformationVisibility = () => {
-					const setting = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
-					this._showSyncInformation = { incoming: setting.incoming === true, outgoing: setting.outgoing === true };
-					this.updateChildren();
-				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.experimental.showSyncInformation'), this.visibilityDisposables)(updateSyncInformationVisibility, this, this.visibilityDisposables);
-				updateSyncInformationVisibility();
+				this.configurationService.onDidChangeConfiguration(onDidChangeConfiguration, this, this.visibilityDisposables);
+				onDidChangeConfiguration();
 
 				// Add visible repositories
+				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
 				this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
 				this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
-
-				// Select resource for active editor
-				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
-				this.onDidActiveEditorChange();
 
 				// Restore scroll position
 				if (typeof this.treeScrollTop === 'number') {
@@ -2826,6 +2815,7 @@ export class SCMViewPane extends ViewPane {
 	}
 
 	private updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
+		console.log('updateChildren');
 		this.asyncOperationSequencer.queue(async () => {
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
@@ -2948,10 +2938,12 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	async getChildren(inputOrElement: ISCMViewService | TreeElement): Promise<Iterable<TreeElement>> {
+		console.log('getChildren');
 		const repositoryCount = this.scmViewService.visibleRepositories.length;
 		const alwaysShowRepositories = this.alwaysShowRepositories();
 
 		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
+			console.log(this.scmViewService.visibleRepositories.length);
 			return this.scmViewService.visibleRepositories;
 		} else if ((isSCMViewService(inputOrElement) && repositoryCount === 1 && !alwaysShowRepositories) || isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
@@ -3001,6 +2993,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				}
 			}
 
+			console.log(children.length);
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			if (this.viewMode() === ViewMode.List) {
@@ -3031,6 +3024,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return this.getHistoryItemChanges(inputOrElement);
 		}
 
+		console.log('empty');
 		return [];
 	}
 
