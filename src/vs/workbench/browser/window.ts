@@ -51,7 +51,7 @@ export abstract class BaseWindow extends Disposable {
 	 */
 	private enableMultiWindowAwareTimeout(targetWindow: Window, dom = { getWindowsCount, getWindows }): void {
 		const originalSetTimeout = targetWindow.setTimeout;
-		Object.defineProperty(targetWindow, 'originalSetTimeout', {
+		Object.defineProperty(targetWindow, 'vscodeOriginalSetTimeout', {
 			value: originalSetTimeout,
 			writable: false,
 			enumerable: false,
@@ -59,7 +59,7 @@ export abstract class BaseWindow extends Disposable {
 		});
 
 		const originalClearTimeout = targetWindow.clearTimeout;
-		Object.defineProperty(targetWindow, 'originalClearTimeout', {
+		Object.defineProperty(targetWindow, 'vscodeOriginalClearTimeout', {
 			value: originalClearTimeout,
 			writable: false,
 			enumerable: false,
@@ -81,10 +81,10 @@ export abstract class BaseWindow extends Disposable {
 			});
 
 			for (const { window, disposables } of dom.getWindows()) {
-				const timeoutHandle = (window as any).originalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+				const timeoutHandle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
 
 				const timeoutDisposable = toDisposable(() => {
-					(window as any).originalClearTimeout(timeoutHandle);
+					(window as any).vscodeOriginalClearTimeout(timeoutHandle);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
 
