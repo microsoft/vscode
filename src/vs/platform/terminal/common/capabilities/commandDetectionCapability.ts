@@ -9,47 +9,12 @@ import { Emitter } from 'vs/base/common/event';
 import { Disposable, MandatoryMutableDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { CommandInvalidationReason, ICommandDetectionCapability, ICommandInvalidationRequest, IHandleCommandOptions, ISerializedCommandDetectionCapability, ISerializedTerminalCommand, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
-import { ITerminalOutputMatch, ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
+import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { IBuffer, IBufferLine, IDisposable, IMarker, Terminal } from '@xterm/headless';
-
-export interface ICurrentPartialCommand {
-	previousCommandMarker?: IMarker;
-
-	promptStartMarker?: IMarker;
-
-	commandStartMarker?: IMarker;
-	commandStartX?: number;
-	commandStartLineContent?: string;
-
-	commandRightPromptStartX?: number;
-	commandRightPromptEndX?: number;
-
-	commandLines?: IMarker;
-
-	commandExecutedMarker?: IMarker;
-	commandExecutedX?: number;
-
-	commandFinishedMarker?: IMarker;
-
-	currentContinuationMarker?: IMarker;
-	continuations?: { marker: IMarker; end: number }[];
-
-	command?: string;
-
-	/**
-	 * Whether the command line is trusted via a nonce.
-	 */
-	isTrusted?: boolean;
-
-	/**
-	 * Something invalidated the command before it finished, this will prevent the onCommandFinished
-	 * event from firing.
-	 */
-	isInvalid?: boolean;
-}
+import type { IBuffer, IDisposable, IMarker, Terminal } from '@xterm/headless';
+import { ICurrentPartialCommand, PartialTerminalCommand, TerminalCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 interface ITerminalDimensions {
 	cols: number;
@@ -59,10 +24,9 @@ interface ITerminalDimensions {
 export class CommandDetectionCapability extends Disposable implements ICommandDetectionCapability {
 	readonly type = TerminalCapability.CommandDetection;
 
-	protected _commands: ITerminalCommand[] = [];
-	private _exitCode: number | undefined;
+	protected _commands: TerminalCommand[] = [];
 	private _cwd: string | undefined;
-	private _currentCommand: ICurrentPartialCommand = {};
+	private _currentCommand: PartialTerminalCommand = new PartialTerminalCommand(this._terminal);
 	private _commandMarkers: IMarker[] = [];
 	private _dimensions: ITerminalDimensions;
 	private __isCommandStorageDisabled: boolean = false;
@@ -71,7 +35,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	private _ptyHeuristicsHooks: ICommandDetectionHeuristicsHooks;
 	private _ptyHeuristics: MandatoryMutableDisposable<IPtyHeuristics>;
 
-	get commands(): readonly ITerminalCommand[] { return this._commands; }
+	get commands(): readonly TerminalCommand[] { return this._commands; }
 	get executingCommand(): string | undefined { return this._currentCommand.command; }
 	// TODO: as is unsafe here and it duplicates behavor of executingCommand
 	get executingCommandObject(): ITerminalCommand | undefined {
@@ -324,20 +288,17 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	handleCommandFinished(exitCode: number | undefined, options?: IHandleCommandOptions): void {
 		this._ptyHeuristics.value?.preHandleCommandFinished?.();
 
-		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
-		let command = this._currentCommand.command;
-		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, this._currentCommand.commandFinishedMarker?.line, this._currentCommand.command, this._currentCommand);
-		this._exitCode = exitCode;
+		this._logService.debug('CommandDetectionCapability#handleCommandFinished', this._terminal.buffer.active.cursorX, options?.marker?.line, this._currentCommand.command, this._currentCommand);
 
 		// HACK: Handle a special case on some versions of bash where identical commands get merged
 		// in the output of `history`, this detects that case and sets the exit code to the the last
 		// command's exit code. This covered the majority of cases but will fail if the same command
 		// runs with a different exit code, that will need a more robust fix where we send the
 		// command ID and exit code over to the capability to adjust there.
-		if (this._exitCode === undefined) {
+		if (exitCode === undefined) {
 			const lastCommand = this.commands.length > 0 ? this.commands[this.commands.length - 1] : undefined;
-			if (command && command.length > 0 && lastCommand?.command === command) {
-				this._exitCode = lastCommand.exitCode;
+			if (this._currentCommand.command && this._currentCommand.command.length > 0 && lastCommand?.command === this._currentCommand.command) {
+				exitCode = lastCommand.exitCode;
 			}
 		}
 
@@ -345,36 +306,12 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			return;
 		}
 
-		// When the command finishes and executed never fires the placeholder selector should be used.
-		if (this._exitCode === undefined && command === undefined) {
-			command = '';
-		}
-
 		this._ptyHeuristics.value?.postHandleCommandFinished?.();
 
-		if ((command !== undefined && !command.startsWith('\\')) || this._handleCommandStartOptions?.ignoreCommandLine) {
-			const buffer = this._terminal.buffer.active;
-			const timestamp = Date.now();
-			const executedMarker = this._currentCommand.commandExecutedMarker;
-			const endMarker = this._currentCommand.commandFinishedMarker;
-			const newCommand: ITerminalCommand = {
-				command: this._handleCommandStartOptions?.ignoreCommandLine ? '' : (command || ''),
-				isTrusted: !!this._currentCommand.isTrusted,
-				promptStartMarker: this._currentCommand.promptStartMarker,
-				marker: this._currentCommand.commandStartMarker,
-				startX: this._currentCommand.commandStartX,
-				endMarker,
-				executedMarker,
-				executedX: this._currentCommand.commandExecutedX,
-				timestamp,
-				cwd: this._cwd,
-				exitCode: this._exitCode,
-				commandStartLineContent: this._currentCommand.commandStartLineContent,
-				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker?.line < endMarker!.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? this._currentCommand.commandStartMarker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
-				markProperties: options?.markProperties
-			};
+		this._currentCommand.commandFinishedMarker = options?.marker || this._terminal.registerMarker(0);
+		const newCommand = this._currentCommand.promoteToFullCommand(this._cwd, exitCode, this._handleCommandStartOptions?.ignoreCommandLine ?? false, options?.markProperties);
+
+		if (newCommand) {
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 
@@ -384,7 +321,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 			}
 		}
 		this._currentCommand.previousCommandMarker = this._currentCommand.commandStartMarker;
-		this._currentCommand = {};
+		this._currentCommand = new PartialTerminalCommand(this._terminal);
 		this._handleCommandStartOptions = undefined;
 	}
 
@@ -395,40 +332,10 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 	}
 
 	serialize(): ISerializedCommandDetectionCapability {
-		const commands: ISerializedTerminalCommand[] = this.commands.map(e => {
-			return {
-				promptStartLine: e.promptStartMarker?.line,
-				startLine: e.marker?.line,
-				startX: undefined,
-				endLine: e.endMarker?.line,
-				executedLine: e.executedMarker?.line,
-				executedX: e.executedX,
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				cwd: e.cwd,
-				exitCode: e.exitCode,
-				commandStartLineContent: e.commandStartLineContent,
-				timestamp: e.timestamp,
-				markProperties: e.markProperties,
-				aliases: e.aliases
-			};
-		});
-		if (this._currentCommand.commandStartMarker) {
-			commands.push({
-				promptStartLine: this._currentCommand.promptStartMarker?.line,
-				startLine: this._currentCommand.commandStartMarker.line,
-				startX: this._currentCommand.commandStartX,
-				endLine: undefined,
-				executedLine: undefined,
-				executedX: undefined,
-				command: '',
-				isTrusted: true,
-				cwd: this._cwd,
-				exitCode: undefined,
-				commandStartLineContent: undefined,
-				timestamp: 0,
-				markProperties: undefined
-			});
+		const commands: ISerializedTerminalCommand[] = this.commands.map(e => e.serialize(this.__isCommandStorageDisabled));
+		const partialCommand = this._currentCommand.serialize(this._cwd);
+		if (partialCommand) {
+			commands.push(partialCommand);
 		}
 		return {
 			isWindowsPty: this._ptyHeuristics.value instanceof WindowsPtyHeuristics,
@@ -442,45 +349,27 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 		}
 		const buffer = this._terminal.buffer.normal;
 		for (const e of serialized.commands) {
-			const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			// Check for invalid command
-			if (!marker) {
-				continue;
-			}
-			const promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 			// Partial command
 			if (!e.endLine) {
-				this._currentCommand.commandStartMarker = marker;
-				this._currentCommand.commandStartX = e.startX;
-				if (promptStartMarker) {
-					this._currentCommand.promptStartMarker = promptStartMarker;
+				// Check for invalid command
+				const marker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+				if (!marker) {
+					continue;
 				}
+				this._currentCommand.commandStartMarker = e.startLine !== undefined ? this._terminal.registerMarker(e.startLine - (buffer.baseY + buffer.cursorY)) : undefined;
+				this._currentCommand.commandStartX = e.startX;
+				this._currentCommand.promptStartMarker = e.promptStartLine !== undefined ? this._terminal.registerMarker(e.promptStartLine - (buffer.baseY + buffer.cursorY)) : undefined;
 				this._cwd = e.cwd;
 				this._onCommandStarted.fire({ marker } as ITerminalCommand);
 				continue;
 			}
+
 			// Full command
-			const endMarker = e.endLine !== undefined ? this._terminal.registerMarker(e.endLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const executedMarker = e.executedLine !== undefined ? this._terminal.registerMarker(e.executedLine - (buffer.baseY + buffer.cursorY)) : undefined;
-			const newCommand: ITerminalCommand = {
-				command: this.__isCommandStorageDisabled ? '' : e.command,
-				isTrusted: e.isTrusted,
-				promptStartMarker,
-				marker,
-				startX: e.startX,
-				endMarker,
-				executedMarker,
-				executedX: e.executedX,
-				timestamp: e.timestamp,
-				cwd: e.cwd,
-				commandStartLineContent: e.commandStartLineContent,
-				exitCode: e.exitCode,
-				hasOutput: () => !executedMarker?.isDisposed && !endMarker?.isDisposed && !!(executedMarker && endMarker && executedMarker.line < endMarker.line),
-				getOutput: () => getOutputForCommand(executedMarker, endMarker, buffer),
-				getOutputMatch: (outputMatcher: ITerminalOutputMatcher) => getOutputMatchForCommand(this._ptyHeuristics.value instanceof WindowsPtyHeuristics && (executedMarker?.line === endMarker?.line) ? marker : executedMarker, endMarker, buffer, this._terminal.cols, outputMatcher),
-				markProperties: e.markProperties,
-				wasReplayed: true
-			};
+			const newCommand = TerminalCommand.deserialize(this._terminal, e, this.__isCommandStorageDisabled);
+			if (!newCommand) {
+				continue;
+			}
+
 			this._commands.push(newCommand);
 			this._logService.debug('CommandDetectionCapability#onCommandFinished', newCommand);
 			this._onCommandFinished.fire(newCommand);
@@ -969,77 +858,6 @@ class WindowsPtyHeuristics extends Disposable {
 	}
 }
 
-function getOutputForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer): string | undefined {
-	if (!executedMarker || !endMarker) {
-		return undefined;
-	}
-	const startLine = executedMarker.line;
-	const endLine = endMarker.line;
-
-	if (startLine === endLine) {
-		return undefined;
-	}
-	let output = '';
-	let line: IBufferLine | undefined;
-	for (let i = startLine; i < endLine; i++) {
-		line = buffer.getLine(i);
-		if (!line) {
-			continue;
-		}
-		output += line.translateToString(!line.isWrapped) + (line.isWrapped ? '' : '\n');
-	}
-	return output === '' ? undefined : output;
-}
-
-function getOutputMatchForCommand(executedMarker: IMarker | undefined, endMarker: IMarker | undefined, buffer: IBuffer, cols: number, outputMatcher: ITerminalOutputMatcher): ITerminalOutputMatch | undefined {
-	if (!executedMarker || !endMarker) {
-		return undefined;
-	}
-	const endLine = endMarker.line;
-	if (endLine === -1) {
-		return undefined;
-	}
-	const startLine = Math.max(executedMarker.line, 0);
-	const matcher = outputMatcher.lineMatcher;
-	const linesToCheck = typeof matcher === 'string' ? 1 : outputMatcher.length || countNewLines(matcher);
-	const lines: string[] = [];
-	let match: RegExpMatchArray | null | undefined;
-	if (outputMatcher.anchor === 'bottom') {
-		for (let i = endLine - (outputMatcher.offset || 0); i >= startLine; i--) {
-			let wrappedLineStart = i;
-			const wrappedLineEnd = i;
-			while (wrappedLineStart >= startLine && buffer.getLine(wrappedLineStart)?.isWrapped) {
-				wrappedLineStart--;
-			}
-			i = wrappedLineStart;
-			lines.unshift(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (!match) {
-				match = lines[0].match(matcher);
-			}
-			if (lines.length >= linesToCheck) {
-				break;
-			}
-		}
-	} else {
-		for (let i = startLine + (outputMatcher.offset || 0); i < endLine; i++) {
-			const wrappedLineStart = i;
-			let wrappedLineEnd = i;
-			while (wrappedLineEnd + 1 < endLine && buffer.getLine(wrappedLineEnd + 1)?.isWrapped) {
-				wrappedLineEnd++;
-			}
-			i = wrappedLineEnd;
-			lines.push(getXtermLineContent(buffer, wrappedLineStart, wrappedLineEnd, cols));
-			if (!match) {
-				match = lines[lines.length - 1].match(matcher);
-			}
-			if (lines.length >= linesToCheck) {
-				break;
-			}
-		}
-	}
-	return match ? { regexMatch: match, outputLines: lines } : undefined;
-}
-
 export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, cols: number, outputMatcher?: ITerminalOutputMatcher): string[] | undefined {
 	if (!outputMatcher) {
 		return undefined;
@@ -1084,38 +902,6 @@ export function getLinesForCommand(buffer: IBuffer, command: ITerminalCommand, c
 	return lines;
 }
 
-export function getPromptRowCount(command: ITerminalCommand | ICurrentPartialCommand, buffer: IBuffer): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
-	if (!marker || !command.promptStartMarker) {
-		return 1;
-	}
-	let promptRowCount = 1;
-	let promptStartLine = command.promptStartMarker.line;
-	// Trim any leading whitespace-only lines to retain vertical space
-	while (promptStartLine < marker.line && (buffer.getLine(promptStartLine)?.translateToString(true) ?? '').length === 0) {
-		promptStartLine++;
-	}
-	promptRowCount = marker.line - promptStartLine + 1;
-	return promptRowCount;
-}
-
-export function getCommandRowCount(command: ITerminalCommand | ICurrentPartialCommand): number {
-	const marker = 'hasOutput' in command ? command.marker : command.commandStartMarker;
-	const executedMarker = 'hasOutput' in command ? command.executedMarker : command.commandExecutedMarker;
-	if (!marker || !executedMarker) {
-		return 1;
-	}
-	const commandExecutedLine = Math.max(executedMarker.line, marker.line);
-	let commandRowCount = commandExecutedLine - marker.line + 1;
-	// Trim the last line if the cursor X is in the left-most cell
-	const executedX = 'hasOutput' in command ? command.executedX : command.commandExecutedX;
-	if (executedX === 0) {
-		commandRowCount--;
-	}
-	return commandRowCount;
-
-}
-
 function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number, cols: number): string {
 	// Cap the maximum number of lines generated to prevent potential performance problems. This is
 	// more of a sanity check as the wrapped line should already be trimmed down at this point.
@@ -1131,18 +917,4 @@ function getXtermLineContent(buffer: IBuffer, lineStart: number, lineEnd: number
 		}
 	}
 	return content;
-}
-
-function countNewLines(regex: RegExp): number {
-	if (!regex.multiline) {
-		return 1;
-	}
-	const source = regex.source;
-	let count = 1;
-	let i = source.indexOf('\\n');
-	while (i !== -1) {
-		count++;
-		i = source.indexOf('\\n', i + 1);
-	}
-	return count;
 }
