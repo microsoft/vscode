@@ -339,8 +339,8 @@ export class NativeWindow extends BaseWindow {
 			}
 		}));
 
-		// Listen to visible editor changes (debounced)
-		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 50, undefined, undefined, undefined, this._store)(() => this.onDidChangeVisibleEditors()));
+		// Listen to visible editor changes (debounced in case a new editor opens immediately after)
+		this._register(Event.debounce(this.editorService.onDidVisibleEditorsChange, () => undefined, 0, undefined, undefined, undefined, this._store)(() => this.maybeCloseWindow()));
 
 		// Listen to editor closing (if we run with --wait)
 		const filesToWait = this.environmentService.filesToWait;
@@ -598,7 +598,11 @@ export class NativeWindow extends BaseWindow {
 		this.nativeHostService.setMinimumSize(minWidth, undefined);
 	}
 
-	private onDidChangeVisibleEditors(): void {
+	private maybeCloseWindow(): void {
+		const closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.environmentService.args.wait;
+		if (!closeWhenEmpty) {
+			return; // return early if configured to not close when empty
+		}
 
 		// Close empty editor groups based on setting and environment
 		for (const editorPart of this.editorGroupService.parts) {
@@ -606,12 +610,12 @@ export class NativeWindow extends BaseWindow {
 				continue; // not empty
 			}
 
-			let closeWhenEmpty = this.configurationService.getValue('window.closeWhenEmpty') || this.environmentService.args.wait;
-			if (editorPart === this.editorGroupService.mainPart && (this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY || this.environmentService.isExtensionDevelopment)) {
-				closeWhenEmpty = false; // disabled for main part when window is not empty or extension development
-			}
-			if (!closeWhenEmpty) {
-				continue; // not enabled to close when empty
+			if (editorPart === this.editorGroupService.mainPart && (
+				this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ||	// only for empty windows
+				this.environmentService.isExtensionDevelopment ||					// not when developing an extension
+				this.editorService.visibleEditors.length > 0						// not when there are still editors open in other windows
+			)) {
+				continue;
 			}
 
 			if (editorPart === this.editorGroupService.mainPart) {
