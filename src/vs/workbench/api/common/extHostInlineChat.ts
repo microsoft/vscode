@@ -28,8 +28,7 @@ class ProviderWrapper {
 
 	constructor(
 		readonly extension: Readonly<IRelaxedExtensionDescription>,
-		readonly provider: vscode.InteractiveEditorSessionProvider,
-		readonly metadata: vscode.InteractiveEditorSessionProviderMetadata
+		readonly provider: vscode.InteractiveEditorSessionProvider
 	) { }
 }
 
@@ -95,7 +94,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	}
 
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
-		const wrapper = new ProviderWrapper(extension, provider, metadata);
+		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
 		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', metadata.supportReportIssue ?? false);
 		return toDisposable(() => {
