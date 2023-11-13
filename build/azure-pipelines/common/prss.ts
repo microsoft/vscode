@@ -13,6 +13,16 @@ import { Readable } from 'stream';
 import * as os from 'os';
 import { retry } from './retry';
 
+function e(name: string): string {
+	const result = process.env[name];
+
+	if (typeof result !== 'string') {
+		throw new Error(`Missing env: ${name}`);
+	}
+
+	return result;
+}
+
 export class Temp {
 	private _files: string[] = [];
 
@@ -328,11 +338,18 @@ export async function releaseAndProvision(
 	version: string,
 	quality: string,
 	filePath: string
-) {
+): Promise<string> {
+	const fileName = `${quality}/${version}/${path.basename(filePath)}`;
+	const result = `${e('PRSS_CDN_URL')}/${fileName}`;
+
+	const res = await retry(() => fetch(result));
+	if (res.status === 200) {
+		log(`Already released and provisioned: ${result}`);
+		return result;
+	}
+
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
-
-	log('releaseAndProvision:', 'releaseTenantId', releaseTenantId, 'releaseClientId', releaseClientId, 'releaseAuthCertSubjectName', releaseAuthCertSubjectName, 'releaseRequestSigningCertSubjectName', releaseRequestSigningCertSubjectName, 'provisionTenantId', provisionTenantId);
 
 	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
@@ -341,5 +358,7 @@ export async function releaseAndProvision(
 	const accessToken = await credential.getToken(['https://microsoft.onmicrosoft.com/DS.Provisioning.WebApi/.default']);
 	const service = new ProvisionService(log, accessToken.token);
 
-	await service.provision(release.releaseId, release.fileId, `${quality}/${version}/${path.basename(filePath)}`);
+	await service.provision(release.releaseId, release.fileId, fileName);
+
+	return result;
 }

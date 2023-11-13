@@ -303,7 +303,7 @@ function hashStream(hashName: string, stream: Readable): Promise<string> {
 const azureSequencer = new Sequencer();
 const mooncakeSequencer = new Sequencer();
 
-export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ blobName: string; assetUrl: string; mooncakeUrl: string }> {
+export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ assetUrl: string; mooncakeUrl: string }> {
 	const fileName = path.basename(filePath);
 	const blobName = commit + '/' + fileName;
 
@@ -378,7 +378,7 @@ export async function uploadAssetLegacy(log: (...args: any[]) => void, quality: 
 	const blobPath = new URL(assetUrl).pathname;
 	const mooncakeUrl = `${e('MOONCAKE_CDN_URL')}${blobPath}`;
 
-	return { blobName, assetUrl, mooncakeUrl };
+	return { assetUrl, mooncakeUrl };
 }
 
 const cosmosSequencer = new Sequencer();
@@ -403,7 +403,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 	log('SHA1:', sha1hash);
 	log('SHA256:', sha256hash);
 
-	const [{ blobName, assetUrl, mooncakeUrl }] = await Promise.all([
+	const [{ assetUrl, mooncakeUrl }, prssUrl] = await Promise.all([
 		uploadAssetLegacy(log, quality, commit, filePath),
 		releaseAndProvision(
 			log,
@@ -426,7 +426,7 @@ export async function processArtifact(product: string, os: string, arch: string,
 		url: assetUrl,
 		hash: sha1hash,
 		mooncakeUrl,
-		prssUrl: `${e('PRSS_CDN_URL')}/${quality}/${blobName}`,
+		prssUrl,
 		sha256hash,
 		size,
 		supportsFastUpdate: true
