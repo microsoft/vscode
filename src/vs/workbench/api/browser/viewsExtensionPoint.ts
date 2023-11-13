@@ -72,6 +72,11 @@ export const viewsContainersContribution: IJSONSchema = {
 			type: 'array',
 			items: viewsContainerSchema
 		},
+		'auxiliarybar': {
+			description: localize('views.container.description', "Contribute views containers to Secondary Sidebar"),
+			type: 'array',
+			items: viewsContainerSchema
+		},
 		'panel': {
 			description: localize('views.container.panel', "Contribute views containers to Panel"),
 			type: 'array',
@@ -342,6 +347,7 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 	private addCustomViewContainers(extensionPoints: readonly IExtensionPointUser<ViewContainerExtensionPointType>[], existingViewContainers: ViewContainer[]): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		let activityBarOrder = CUSTOM_VIEWS_START_ORDER + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Sidebar).length;
+		let auxiliaryBarOrder = viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.AuxiliaryBar).length;
 		let panelOrder = 5 + viewContainersRegistry.all.filter(v => !!v.extensionId && viewContainersRegistry.getViewContainerLocation(v) === ViewContainerLocation.Panel).length + 1;
 		for (const { value, collector, description } of extensionPoints) {
 			Object.entries(value).forEach(([key, value]) => {
@@ -351,6 +357,13 @@ class ViewsExtensionHandler implements IWorkbenchContribution {
 				switch (key) {
 					case 'activitybar':
 						activityBarOrder = this.registerCustomViewContainers(value, description, activityBarOrder, existingViewContainers, ViewContainerLocation.Sidebar);
+						break;
+					case 'auxiliarybar':
+						if (!isProposedApiEnabled(description, 'contribViewsAuxPanel')) {
+							collector.warn(localize('ViewContainerAuxPanelRequiresProposedAPI', "View container(s) '{0}' requires 'enabledApiProposals: [\"contribViewsAuxPanel\"]' to be added to Secondary Sidebar.", value.map(d => d.id).join(', ')));
+							break;
+						}
+						auxiliaryBarOrder = this.registerCustomViewContainers(value, description, auxiliaryBarOrder, existingViewContainers, ViewContainerLocation.AuxiliaryBar);
 						break;
 					case 'panel':
 						panelOrder = this.registerCustomViewContainers(value, description, panelOrder, existingViewContainers, ViewContainerLocation.Panel);

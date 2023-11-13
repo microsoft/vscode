@@ -3,4 +3,4 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// empty placeholder declaration for the `remote`-property of the `views`-contribution
+// empty placeholder declaration for the `auxialiarybar`-property of the `viewsContainers`-contribution
