@@ -2937,12 +2937,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 	}
 
 	async getChildren(inputOrElement: ISCMViewService | TreeElement): Promise<Iterable<TreeElement>> {
-		console.log('getChildren');
 		const repositoryCount = this.scmViewService.visibleRepositories.length;
 		const alwaysShowRepositories = this.alwaysShowRepositories();
 
 		if (isSCMViewService(inputOrElement) && (repositoryCount > 1 || alwaysShowRepositories)) {
-			console.log(this.scmViewService.visibleRepositories.length);
 			return this.scmViewService.visibleRepositories;
 		} else if ((isSCMViewService(inputOrElement) && repositoryCount === 1 && !alwaysShowRepositories) || isSCMRepository(inputOrElement)) {
 			const children: TreeElement[] = [];
@@ -2992,7 +2990,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 				}
 			}
 
-			console.log(children.length);
 			return children;
 		} else if (isSCMResourceGroup(inputOrElement)) {
 			if (this.viewMode() === ViewMode.List) {
@@ -3023,7 +3020,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return this.getHistoryItemChanges(inputOrElement);
 		}
 
-		console.log('empty');
 		return [];
 	}
 
