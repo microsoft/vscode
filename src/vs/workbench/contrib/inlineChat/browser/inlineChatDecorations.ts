@@ -100,7 +100,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(executeOnlyDisposal: boolean = false): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (executeOnlyDisposal || !this._editor.hasModel() || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (executeOnlyDisposal || !this._editor.hasModel() || this._inlineChatSessionService.getSession(this._editor, this._editor.getModel().uri) || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
