@@ -473,22 +473,20 @@ async function unzip(packagePath: string, outputPath: string): Promise<string> {
 				if (/\/$/.test(entry.fileName)) {
 					zipfile!.readEntry();
 				} else {
-					zipfile!.openReadStream(entry, async (err, istream) => {
+					zipfile!.openReadStream(entry, (err, istream) => {
 						if (err) {
 							return reject(err);
 						}
 
-						try {
-							const filePath = path.join(outputPath, entry.fileName);
-							await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
-							const ostream = fs.createWriteStream(filePath);
-							await finished(istream!.pipe(ostream));
-							resolve(filePath);
-						} catch (err) {
-							reject(err);
-						} finally {
+						const filePath = path.join(outputPath, entry.fileName);
+						fs.mkdirSync(path.dirname(filePath), { recursive: true });
+						const ostream = fs.createWriteStream(filePath);
+						istream?.on('end', () => {
 							zipfile!.close();
-						}
+							resolve(filePath);
+						});
+						istream?.on('error', err => reject(err));
+						istream!.pipe(ostream);
 					});
 				}
 			});
