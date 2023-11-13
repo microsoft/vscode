@@ -66,7 +66,7 @@ export abstract class BaseWindow extends Disposable {
 			configurable: false
 		});
 
-		(targetWindow as any).setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
+		targetWindow.setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
 			if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
 				return originalSetTimeout.apply(this, [handler, timeout, ...args]);
 			}
@@ -95,7 +95,7 @@ export abstract class BaseWindow extends Disposable {
 			return timeoutsHandle;
 		};
 
-		(targetWindow as any).clearTimeout = function (this: unknown, handle: number | undefined): void {
+		targetWindow.clearTimeout = function (this: unknown, handle: number | undefined): void {
 			const disposables = typeof handle === 'number' ? BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.get(handle) : undefined;
 			if (disposables) {
 				dispose(disposables);
