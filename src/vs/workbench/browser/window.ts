@@ -32,8 +32,8 @@ import { createSingleCallFunction } from 'vs/base/common/functional';
 
 export abstract class BaseWindow extends Disposable {
 
-	private static TIMEOUT_HANDLE_COUNTER = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
-	private static readonly MAP_TIMEOUT_HANDLE_TO_DISPOSABLE = new Map<number, Set<IDisposable>>();
+	private static TIMEOUT_HANDLES = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
+	private static readonly TIMEOUT_DISPOSABLES = new Map<number, Set<IDisposable>>();
 
 	constructor(targetWindow: CodeWindow, dom = { getWindowsCount, getWindows } /* for testing */) {
 		super();
@@ -72,19 +72,19 @@ export abstract class BaseWindow extends Disposable {
 			}
 
 			const timeoutDisposables = new Set<IDisposable>();
-			const timeoutsHandle = BaseWindow.TIMEOUT_HANDLE_COUNTER++;
-			BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.set(timeoutsHandle, timeoutDisposables);
+			const timeoutHandle = BaseWindow.TIMEOUT_HANDLES++;
+			BaseWindow.TIMEOUT_DISPOSABLES.set(timeoutHandle, timeoutDisposables);
 
 			const handlerFn = createSingleCallFunction(handler, () => {
 				dispose(timeoutDisposables);
-				BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.delete(timeoutsHandle);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle);
 			});
 
 			for (const { window, disposables } of dom.getWindows()) {
-				const timeoutHandle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
+				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
 
 				const timeoutDisposable = toDisposable(() => {
-					(window as any).vscodeOriginalClearTimeout(timeoutHandle);
+					(window as any).vscodeOriginalClearTimeout(handle);
 					timeoutDisposables.delete(timeoutDisposable);
 				});
 
@@ -92,16 +92,16 @@ export abstract class BaseWindow extends Disposable {
 				timeoutDisposables.add(timeoutDisposable);
 			}
 
-			return timeoutsHandle;
+			return timeoutHandle;
 		};
 
-		targetWindow.clearTimeout = function (this: unknown, handle: number | undefined): void {
-			const disposables = typeof handle === 'number' ? BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.get(handle) : undefined;
-			if (disposables) {
-				dispose(disposables);
-				BaseWindow.MAP_TIMEOUT_HANDLE_TO_DISPOSABLE.delete(handle!);
+		targetWindow.clearTimeout = function (this: unknown, timeoutHandle: number | undefined): void {
+			const timeoutDisposables = typeof timeoutHandle === 'number' ? BaseWindow.TIMEOUT_DISPOSABLES.get(timeoutHandle) : undefined;
+			if (timeoutDisposables) {
+				dispose(timeoutDisposables);
+				BaseWindow.TIMEOUT_DISPOSABLES.delete(timeoutHandle!);
 			} else {
-				originalClearTimeout.apply(this, [handle]);
+				originalClearTimeout.apply(this, [timeoutHandle]);
 			}
 		};
 	}
