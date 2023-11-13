@@ -2660,11 +2660,11 @@ export class SCMViewPane extends ViewPane {
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren()));
-			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren()));
-			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren()));
+			repositoryDisposables.add(repository.provider.onDidChange(() => this.updateChildren(repository)));
+			repositoryDisposables.add(repository.input.onDidChangeActionButton(() => this.updateChildren(repository)));
+			repositoryDisposables.add(repository.input.onDidChangeVisibility(() => this.updateChildren(repository)));
 			repositoryDisposables.add(repository.provider.onDidChangeResourceGroups(() => {
-				this.updateChildren();
+				this.updateChildren(repository);
 				this.onDidActiveEditorChange();
 			}));
 
@@ -2681,9 +2681,9 @@ export class SCMViewPane extends ViewPane {
 					if (!resourceGroupDisposables.has(resourceGroup)) {
 						const disposableStore = new DisposableStore();
 
-						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren()));
+						disposableStore.add(resourceGroup.onDidChange(() => this.updateChildren(repository)));
 						disposableStore.add(resourceGroup.onDidChangeResources(() => {
-							this.updateChildren();
+							this.updateChildren(repository);
 							this.onDidActiveEditorChange();
 						}));
 						resourceGroupDisposables.set(resourceGroup, disposableStore);
@@ -2825,11 +2825,17 @@ export class SCMViewPane extends ViewPane {
 		this.storageService.store('scm.viewState2', JSON.stringify(this.tree.getViewState()), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private updateChildren(element?: ISCMRepository | ISCMResourceGroup, recursive?: boolean, rerender?: boolean) {
+	private updateChildren(element?: ISCMRepository) {
 		this.asyncOperationSequencer.queue(async () => {
 			const focusedInput = this.inputRenderer.getFocusedInput();
 
-			await this.tree.updateChildren(element, recursive, rerender);
+			if (element && (this.alwaysShowRepositories || this.scmViewService.visibleRepositories.length > 1)) {
+				// Refresh specific repository
+				await this.tree.updateChildren(element);
+			} else {
+				// Refresh the entire tree
+				await this.tree.updateChildren();
+			}
 
 			if (focusedInput) {
 				this.inputRenderer.getRenderedInputWidget(focusedInput)?.focus();
