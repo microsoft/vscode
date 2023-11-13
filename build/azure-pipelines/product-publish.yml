@@ -146,6 +146,8 @@ steps:
 
         if($didStageFail) {
           $failedStages += $stage
+          Write-Host "'$stage' failed!"
+          Write-Host $didStageFail
         } else {
           Write-Host "'$stage' did not fail."
         }
