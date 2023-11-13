@@ -1,0 +1,45 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-list .notebook-outline-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-list .notebook-outline-element > .element-icon.file-icon {
+	height: 100%;
+}
+
+.monaco-breadcrumbs > .notebook-outline-element > .element-icon.file-icon {
+	height: 18px;
+}
+.monaco-list .notebook-outline-element .monaco-highlighted-label {
+	color: var(--outline-element-color);
+}
+
+.monaco-breadcrumbs .notebook-outline-element .element-decoration,
+.monaco-list .notebook-outline-element > .element-decoration {
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	padding: 0 12px 0 5px;
+	margin-left: auto;
+	text-align: center;
+	color: var(--outline-element-color);
+}
+
+.monaco-list .notebook-outline-element > .element-decoration.bubble {
+	font-family: codicon;
+	font-size: 14px;
+	opacity: 0.4;
+	padding-right: 8px;
+}
+
+.monaco-breadcrumbs .notebook-outline-element .element-decoration {
+	/* Don't show markers inline with breadcrumbs */
+	display: none;
+}

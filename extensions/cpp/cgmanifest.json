@@ -1,0 +1,96 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-cpp-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-cpp-syntax",
+					"commitHash": "f1d127a8af2b184db570345f0bb179503c47fdf6"
+				}
+			},
+			"license": "MIT",
+			"licenseDetail": [
+				[
+					"MIT License",
+					"",
+					"Copyright (c) 2019 Jeff Hykin",
+					"",
+					"Permission is hereby granted, free of charge, to any person obtaining a copy",
+					"of this software and associated documentation files (the \"Software\"), to deal",
+					"in the Software without restriction, including without limitation the rights",
+					"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
+					"copies of the Software, and to permit persons to whom the Software is",
+					"furnished to do so, subject to the following conditions:",
+					"",
+					"The above copyright notice and this permission notice shall be included in all",
+					"copies or substantial portions of the Software.",
+					"",
+					"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
+					"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
+					"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
+					"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
+					"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
+					"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
+					"SOFTWARE."
+				]
+			],
+			"version": "1.17.4",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "jeff-hykin/better-c-syntax",
+					"repositoryUrl": "https://github.com/jeff-hykin/better-c-syntax",
+					"commitHash": "34712a6106a4ffb0a04d2fa836fd28ff6c5849a4"
+				}
+			},
+			"license": "MIT",
+			"version": "1.13.2",
+			"description": "The original JSON grammars were derived from https://github.com/atom/language-c which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "textmate/c.tmbundle",
+					"repositoryUrl": "https://github.com/textmate/c.tmbundle",
+					"commitHash": "60daf83b9d45329524f7847a75e9298b3aae5805"
+				}
+			},
+			"licenseDetail": [
+				"Copyright (c) textmate-c.tmbundle authors",
+				"",
+				"If not otherwise specified (see below), files in this repository fall under the following license:",
+				"",
+				"Permission to copy, use, modify, sell and distribute this",
+				"software is granted. This software is provided \"as is\" without",
+				"express or implied warranty, and with no claim as to its",
+				"suitability for any purpose.",
+				"",
+				"An exception is made for files in readable text which contain their own license information,",
+				"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
+				"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
+				"\"tidy\" is accompanied by \"tidy-license.txt\"."
+			],
+			"license": "TextMate Bundle License",
+			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "NVIDIA/cuda-cpp-grammar",
+					"repositoryUrl": "https://github.com/NVIDIA/cuda-cpp-grammar",
+					"commitHash": "81e88eaec5170aa8585736c63627c73e3589998c"
+				}
+			},
+			"license": "MIT",
+			"version": "0.0.0",
+			"description": "The file syntaxes/cuda-cpp.tmLanguage.json was derived from https://github.com/jeff-hykin/cpp-textmate-grammar, which was derived from https://github.com/atom/language-c, which was originally converted from the C TextMate bundle https://github.com/textmate/c.tmbundle."
+		}
+	],
+	"version": 1
+}

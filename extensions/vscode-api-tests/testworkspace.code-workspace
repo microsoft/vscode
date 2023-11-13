@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "testWorkspace"
+		},
+		{
+			"path": "testWorkspace2",
+			"name": "Test Workspace 2"
+		}
+	]
+}

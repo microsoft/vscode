@@ -1,0 +1,16 @@
+{
+	"Region Start": {
+		"prefix": "#region",
+		"body": [
+			"#region"
+		],
+		"description": "Folding Region Start"
+	},
+	"Region End": {
+		"prefix": "#endregion",
+		"body": [
+			"#endregion"
+		],
+		"description": "Folding Region End"
+	}
+}

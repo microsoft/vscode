@@ -1,0 +1,11 @@
+{
+	"compilerOptions": {
+		"target": "es2020",
+		"lib": [
+			"ES2020"
+		],
+		"module": "node16",
+		"checkJs": true,
+		"noEmit": true
+	}
+}

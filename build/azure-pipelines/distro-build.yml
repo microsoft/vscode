@@ -1,0 +1,15 @@
+pool:
+  vmImage: "ubuntu-latest"
+
+trigger:
+  branches:
+    include: ["main", "release/*"]
+pr: none
+
+steps:
+  - task: NodeTool@0
+    inputs:
+      versionSource: fromFile
+      versionFilePath: .nvmrc
+      nodejsMirror: https://github.com/joaomoreno/node-mirror/releases/download
+  - template: ./distro/download-distro.yml

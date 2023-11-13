@@ -1,0 +1,18 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./dist/",
+		"jsx": "react",
+		"esModuleInterop": true,
+		"lib": [
+			"es2018",
+			"DOM",
+			"DOM.Iterable"
+		]
+	},
+	"typeAcquisition": {
+		"include": [
+			"@types/vscode-webview"
+		]
+	}
+}

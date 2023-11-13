@@ -1,0 +1,20 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "CSS contributions to package.json",
+	"type": "object",
+	"properties": {
+		"contributes": {
+			"type": "object",
+			"properties": {
+				"css.customData": {
+					"type": "array",
+					"markdownDescription": "A list of relative file paths pointing to JSON files following the [custom data format](https://github.com/microsoft/vscode-css-languageservice/blob/master/docs/customData.md).\n\nVS Code loads custom data on startup to enhance its CSS support for the custom CSS properties, at directives, pseudo classes and pseudo elements you specify in the JSON files.\n\nThe file paths are relative to workspace and only workspace folder settings are considered.",
+					"items": {
+						"type": "string",
+						"description": "Relative path to a CSS custom data file"
+					}
+				}
+			}
+		}
+	}
+}

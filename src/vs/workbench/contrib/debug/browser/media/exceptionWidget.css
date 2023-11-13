@@ -1,0 +1,52 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .zone-widget.exception-widget-container {
+	overflow: hidden;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget {
+	padding: 6px 10px;
+	white-space: pre-wrap;
+	user-select: text;
+	-webkit-user-select: text;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title {
+	display: flex;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .label {
+	font-weight: bold;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .title .actions {
+	flex: 1;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .description,
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
+	font-family: var(--monaco-monospace-font);
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace {
+	margin-top: 0.5em;
+}
+
+.monaco-editor .zone-widget .zone-widget-container.exception-widget .stack-trace a {
+	text-decoration: underline;
+	cursor: pointer;
+}
+
+.monaco-workbench.mac .zone-widget .zone-widget-container.exception-widget {
+	font-size: 11px;
+}
+
+.monaco-workbench.windows .zone-widget .zone-widget-container.exception-widget,
+.monaco-workbench.linux .zone-widget .zone-widget-container.exception-widget {
+	font-size: 13px;
+}

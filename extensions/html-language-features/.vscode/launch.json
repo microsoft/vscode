@@ -1,0 +1,43 @@
+{
+	"version": "0.2.0",
+	"compounds": [
+		{
+			"name": "Debug Extension and Language Server",
+			"configurations": ["Launch Extension", "Attach Language Server"]
+		}
+	],
+	"configurations": [
+		{
+			"name": "Launch Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}"
+			],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/client/out/**/*.js"]
+		},
+		{
+			"name": "Launch Tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"runtimeExecutable": "${execPath}",
+			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
+			"stopOnEntry": false,
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"]
+		},
+		{
+			"name": "Attach Language Server",
+			"type": "node",
+			"request": "attach",
+			"port": 6045,
+			"protocol": "inspector",
+			"sourceMaps": true,
+			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
+			"restart": true
+		}
+	]
+}

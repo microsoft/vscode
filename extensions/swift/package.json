@@ -1,0 +1,46 @@
+{
+  "name": "swift",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+    "vscode": "*"
+  },
+  "scripts": {
+    "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/swift.tmbundle Syntaxes/Swift.tmLanguage ./syntaxes/swift.tmLanguage.json"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "swift",
+        "aliases": [
+          "Swift",
+          "swift"
+        ],
+        "extensions": [
+          ".swift"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "swift",
+        "scopeName": "source.swift",
+        "path": "./syntaxes/swift.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "swift",
+        "path": "./snippets/swift.code-snippets"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

@@ -1,0 +1,90 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/walles/git-commit-message-plus/blob/master/syntaxes/git-commit.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/walles/git-commit-message-plus/commit/35a079dea5a91b087021b40c01a6bb4eb0337a87",
+	"name": "Git Commit Message",
+	"scopeName": "text.git-commit",
+	"patterns": [
+		{
+			"comment": "diff presented at the end of the commit message when using commit -v.",
+			"name": "meta.embedded.diff.git-commit",
+			"contentName": "source.diff",
+			"begin": "(?=^diff\\ \\-\\-git)",
+			"end": "\\z",
+			"patterns": [
+				{
+					"include": "source.diff"
+				}
+			]
+		},
+		{
+			"comment": "User supplied message",
+			"name": "meta.scope.message.git-commit",
+			"begin": "^(?!#)",
+			"end": "^(?=#)",
+			"patterns": [
+				{
+					"comment": "Mark > 50 lines as deprecated, > 72 as illegal",
+					"name": "meta.scope.subject.git-commit",
+					"match": "\\G.{0,50}(.{0,22}(.*))$",
+					"captures": {
+						"1": {
+							"name": "invalid.deprecated.line-too-long.git-commit"
+						},
+						"2": {
+							"name": "invalid.illegal.line-too-long.git-commit"
+						}
+					}
+				}
+			]
+		},
+		{
+			"comment": "Git supplied metadata in a number of lines starting with #",
+			"name": "meta.scope.metadata.git-commit",
+			"begin": "^(?=#)",
+			"contentName": "comment.line.number-sign.git-commit",
+			"end": "^(?!#)",
+			"patterns": [
+				{
+					"match": "^#\\t((modified|renamed):.*)$",
+					"captures": {
+						"1": {
+							"name": "markup.changed.git-commit"
+						}
+					}
+				},
+				{
+					"match": "^#\\t(new file:.*)$",
+					"captures": {
+						"1": {
+							"name": "markup.inserted.git-commit"
+						}
+					}
+				},
+				{
+					"match": "^#\\t(deleted.*)$",
+					"captures": {
+						"1": {
+							"name": "markup.deleted.git-commit"
+						}
+					}
+				},
+				{
+					"comment": "Fallback for non-English git commit template",
+					"match": "^#\\t([^:]+): *(.*)$",
+					"captures": {
+						"1": {
+							"name": "keyword.other.file-type.git-commit"
+						},
+						"2": {
+							"name": "string.unquoted.filename.git-commit"
+						}
+					}
+				}
+			]
+		}
+	]
+}

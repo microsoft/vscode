@@ -1,0 +1,61 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.accessible-view {
+	position: absolute;
+	background-color: var(--vscode-editorWidget-background);
+	color: var(--vscode-editorWidget-foreground);
+	box-shadow: 0 2px 8px var(--vscode-widget-shadow);
+	border: 2px solid var(--vscode-focusBorder);
+	border-radius: 6px;
+	margin-top: -1px;
+	z-index: 2550;
+}
+
+.accessible-view-container .actions-container {
+	display: flex;
+	margin: 0 auto;
+	padding: 0;
+	width: 100%;
+	justify-content: flex-end;
+}
+
+.accessible-view-title-bar {
+	display: flex;
+	align-items: center;
+	border-top-left-radius: 5px;
+	border-top-right-radius: 5px;
+}
+
+.accessible-view-title {
+	padding: 3px 0px;
+	text-align: center;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	width: 100%;
+}
+
+.accessible-view-action-bar {
+	justify-content: flex-end;
+	margin-right: 4px;
+	flex: 1;
+}
+
+.accessible-view-action-bar > .actions-container {
+	justify-content: flex-end;
+}
+
+.accessible-view-title-bar .monaco-action-bar .action-label.codicon {
+	background-position: center;
+	background-repeat: no-repeat;
+	padding: 2px;
+}
+
+.accessible-view.hide {
+	position: fixed;
+	top: -2000px;
+	left:-2000px;
+	pointer-events: none;
+}

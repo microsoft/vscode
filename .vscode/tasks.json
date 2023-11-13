@@ -1,0 +1,291 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"type": "npm",
+			"script": "watch-clientd",
+			"label": "Core - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation...",
+					"endsPattern": "Finished compilation with"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "watch-extensionsd",
+			"label": "Ext - Build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never",
+				"group": "buildWatchers",
+				"close": false
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"label": "VS Code - Build",
+			"dependsOn": [
+				"Core - Build",
+				"Ext - Build"
+			],
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-clientd",
+			"label": "Kill Core - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-extensionsd",
+			"label": "Kill Ext - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never",
+				"group": "buildKillers",
+				"close": true
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Kill VS Code - Build",
+			"dependsOn": [
+				"Kill Core - Build",
+				"Kill Ext - Build"
+			],
+			"group": "build",
+			"problemMatcher": []
+		},
+		{
+			"label": "Restart VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"label": "Kill VS Code - Build, Yarn, VS Code - Build",
+			"dependsOn": [
+				"Kill VS Code - Build",
+				"npm: install",
+				"VS Code - Build"
+			],
+			"group": "build",
+			"dependsOrder": "sequence",
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "watch-webd",
+			"label": "Web Ext - Build",
+			"group": "build",
+			"isBackground": true,
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": {
+				"owner": "typescript",
+				"applyTo": "closedDocuments",
+				"fileLocation": [
+					"absolute"
+				],
+				"pattern": {
+					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
+					"file": 1,
+					"location": 2,
+					"message": 3
+				},
+				"background": {
+					"beginsPattern": "Starting compilation",
+					"endsPattern": "Finished compilation"
+				}
+			}
+		},
+		{
+			"type": "npm",
+			"script": "kill-watch-webd",
+			"label": "Kill Web Ext - Build",
+			"group": "build",
+			"presentation": {
+				"reveal": "never"
+			},
+			"problemMatcher": "$tsc"
+		},
+		{
+			"label": "Run tests",
+			"type": "shell",
+			"command": "./scripts/test.sh",
+			"windows": {
+				"command": ".\\scripts\\test.bat"
+			},
+			"group": "test",
+			"presentation": {
+				"echo": true,
+				"reveal": "always"
+			}
+		},
+		{
+			"label": "Run Dev",
+			"type": "shell",
+			"command": "./scripts/code.sh",
+			"windows": {
+				"command": ".\\scripts\\code.bat"
+			},
+			"problemMatcher": []
+		},
+		{
+			"type": "npm",
+			"script": "electron",
+			"label": "Download electron"
+		},
+		{
+			"type": "gulp",
+			"task": "hygiene",
+			"problemMatcher": []
+		},
+		{
+			"type": "shell",
+			"command": "./scripts/code-server.sh",
+			"windows": {
+				"command": ".\\scripts\\code-server.bat"
+			},
+			"args": ["--no-launch", "--connection-token", "dev-token", "--port", "8080"],
+			"label": "Run code server",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Web UI available at .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "shell",
+			"command": "./scripts/code-web.sh",
+			"windows": {
+				"command": ".\\scripts\\code-web.bat"
+			},
+			"args": ["--port", "8080", "--browser", "none"],
+			"label": "Run code web",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"beginsPattern": ".*node .*",
+					"endsPattern": "Listening on .*"
+				}
+			},
+			"presentation": {
+				"reveal": "never"
+			}
+		},
+		{
+			"type": "npm",
+			"script": "eslint",
+			"problemMatcher": {
+				"source": "eslint",
+				"base": "$eslint-stylish"
+			}
+		},
+		{
+			"type": "shell",
+			"command": "node build/lib/preLaunch.js",
+			"label": "Ensure Prelaunch Dependencies",
+			"presentation": {
+				"reveal": "silent",
+				"close": true
+			}
+		},
+		{
+			"type": "npm",
+			"script": "tsec-compile-check",
+			"problemMatcher": [
+				{
+					"base": "$tsc",
+					"applyTo": "allDocuments",
+					"owner": "tsec"
+				}
+			],
+			"group": "build",
+			"label": "npm: tsec-compile-check",
+			"detail": "node_modules/tsec/bin/tsec -p src/tsconfig.json --noEmit"
+		},
+		{
+			// Used for monaco editor playground launch config
+			"label": "Launch Http Server",
+			"type": "shell",
+			"command": "node_modules/.bin/ts-node -T ./scripts/playground-server",
+			"isBackground": true,
+			"problemMatcher": {
+				"pattern": {
+					"regexp": ""
+				},
+				"background": {
+					"activeOnStart": true,
+					"beginsPattern": "never match",
+					"endsPattern": ".*"
+				}
+			},
+			"dependsOn": [
+				"Core - Build"
+			]
+		}
+	]
+}

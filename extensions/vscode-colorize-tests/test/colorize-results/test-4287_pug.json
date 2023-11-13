@@ -1,0 +1,30 @@
+[
+	{
+		"c": ".ssdsd",
+		"t": "text.pug meta.selector.css entity.other.attribute-name.class.css.pug",
+		"r": {
+			"dark_plus": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_plus": "entity.other.attribute-name.class.css: #800000",
+			"dark_vs": "entity.other.attribute-name.class.css: #D7BA7D",
+			"light_vs": "entity.other.attribute-name.class.css: #800000",
+			"hc_black": "entity.other.attribute-name.class.css: #D7BA7D",
+			"dark_modern": "entity.other.attribute-name.class.css: #D7BA7D",
+			"hc_light": "entity.other.attribute-name.class.css: #0F4A85",
+			"light_modern": "entity.other.attribute-name.class.css: #800000"
+		}
+	},
+	{
+		"c": "    // asdsdas",
+		"t": "text.pug string.comment.buffered.block.pug",
+		"r": {
+			"dark_plus": "string: #CE9178",
+			"light_plus": "string.comment.buffered.block.pug: #0000FF",
+			"dark_vs": "string: #CE9178",
+			"light_vs": "string.comment.buffered.block.pug: #0000FF",
+			"hc_black": "string: #CE9178",
+			"dark_modern": "string: #CE9178",
+			"hc_light": "string.comment.buffered.block.pug: #0F4A85",
+			"light_modern": "string.comment.buffered.block.pug: #0000FF"
+		}
+	}
+]
