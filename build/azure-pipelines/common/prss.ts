@@ -331,16 +331,7 @@ export async function releaseAndProvision(
 	const tmp = new Temp();
 	process.on('exit', () => tmp.dispose());
 
-	log('releaseTenantId', releaseTenantId);
-	log('releaseClientId', releaseClientId);
-	log('releaseAuthCertSubjectName', releaseAuthCertSubjectName);
-	log('releaseRequestSigningCertSubjectName', releaseRequestSigningCertSubjectName);
-	log('provisionTenantId', provisionTenantId);
-	log('provisionAADUsername', provisionAADUsername);
-	log('provisionAADPassword', provisionAADPassword);
-	log('version', version);
-	log('quality', quality);
-	log('filePath', filePath);
+	log('releaseAndProvision:', 'releaseTenantId', releaseTenantId, 'releaseClientId', releaseClientId, 'releaseAuthCertSubjectName', releaseAuthCertSubjectName, 'releaseRequestSigningCertSubjectName', releaseRequestSigningCertSubjectName, 'provisionTenantId', provisionTenantId);
 
 	const esrpclient = new ESRPClient(log, tmp, releaseTenantId, releaseClientId, releaseAuthCertSubjectName, releaseRequestSigningCertSubjectName);
 	const release = await esrpclient.release(version, filePath);
