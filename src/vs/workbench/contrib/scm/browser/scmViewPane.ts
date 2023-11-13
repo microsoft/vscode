@@ -1686,13 +1686,13 @@ class HistoryItemViewChangesAction extends Action2 {
 		}
 
 		let [originalRef, modifiedRef] = historyItem.id.includes('..')
-			? historyItem.id.split('..') : [undefined, historyItem.id];
+			? historyItem.id.split('..').map(id => id.substring(0, 8)) : [undefined, historyItem.id.substring(0, 8)];
 
 		if (!originalRef) {
-			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0] : `${modifiedRef}^`;
+			originalRef = historyItem.parentIds.length > 0 ? historyItem.parentIds[0].substring(0, 8) : `${modifiedRef}^`;
 		}
 
-		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef.substring(0, 8), modifiedRef.substring(0, 8));
+		const title = localize('historyItemChangesTitle', "Changes ({0} ↔ {1})", originalRef, modifiedRef);
 		const args = historyItemChanges.map(change => [change.uri, change.originalUri, change.modifiedUri]);
 
 		return commandService.executeCommand('_workbench.changes', title, args);

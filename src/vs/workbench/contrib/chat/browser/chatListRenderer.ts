@@ -809,7 +809,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 				orderedDisposablesList.push(ref);
 				return ref.object.element;
-			}
+			},
+			asyncRenderCallback: () => this._onDidChangeItemHeight.fire({ element, height: templateData.rowContainer.offsetHeight })
 		});
 
 		if (isResponseVM(element)) {
