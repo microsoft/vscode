@@ -7,10 +7,6 @@
 	z-index: 3;
 }
 
-.monaco-editor .zone-widget-container {
-	background-color: var(--vscode-inlineChat-background);
-}
-
 .monaco-editor .zone-widget-container.inside-selection {
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
@@ -313,6 +309,12 @@
 }
 
 /* diff zone */
+
+.monaco-editor .inline-chat-diff-widget {
+	background-color: var(--vscode-inlineChat-background);
+	height: 100%;
+	width: 100%;
+}
 
 .monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor-background,
 .monaco-editor .inline-chat-diff-widget .monaco-diff-editor .monaco-editor .margin-view-overlays {
