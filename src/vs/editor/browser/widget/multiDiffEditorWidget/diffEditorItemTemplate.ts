@@ -125,7 +125,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.height = `${verticalRange.length}px`;
 		this._elements.root.style.width = `${width}px`;
 		this._elements.root.style.position = 'absolute';
-		this._editor.layout({ width, height: verticalRange.length });
+		this._editor.layout({ width, height: verticalRange.length - (this._elements.root.clientHeight - this._elements.editor.clientHeight) });
 		this._editor.getOriginalEditor().setScrollTop(editorScroll);
 	}
 }
