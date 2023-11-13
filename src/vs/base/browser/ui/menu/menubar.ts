@@ -87,7 +87,7 @@ export class MenuBar extends Disposable {
 	private numMenusShown: number = 0;
 	private overflowLayoutScheduled: IDisposable | undefined = undefined;
 
-	private menuDisposables = new DisposableStore();
+	private readonly menuDisposables = this._register(new DisposableStore());
 
 	constructor(private container: HTMLElement, private options: IMenuBarOptions, private menuStyle: IMenuStyles) {
 		super();
