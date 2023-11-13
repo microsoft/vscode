@@ -75,9 +75,7 @@ export function getMoveToAction(viewId: string, providerId: string, moveTo: Move
 					break;
 				}
 				case (MoveToNewLocation.Window): {
-					const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-					const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-					await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+					await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
 					break;
 				}
 				default: {
@@ -171,9 +169,7 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 				break;
 			}
 			case (MoveToNewLocation.Window): {
-				const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-				const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { providerId } });
-				auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+				await openInNewWindow(instantiationService, editorGroupService, { target: { providerId } });
 				break;
 			}
 			default: {
@@ -198,14 +194,18 @@ async function executeMoveToAction(accessor: ServicesAccessor, moveTo: MoveToNew
 			break;
 		}
 		case (MoveToNewLocation.Window): {
-			const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
-			const chatEditorInput = instantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), { target: { sessionId } });
-			await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
+			await openInNewWindow(instantiationService, editorGroupService, { target: { sessionId } });
 		}
 		default: {
 			throw new Error(`Unexpected move to location : ${moveTo}`);
 		}
 	}
+}
+
+async function openInNewWindow(intstantiationService: IInstantiationService, editorGroupService: IEditorGroupsService, options: IChatEditorOptions) {
+	const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart();
+	const chatEditorInput = intstantiationService.createInstance(ChatEditorInput, ChatEditorInput.getNewEditorUri(), options);
+	await auxiliaryEditorPart.activeGroup.openEditor(chatEditorInput, { pinned: true });
 }
 
 async function moveToSidebar(accessor: ServicesAccessor): Promise<void> {

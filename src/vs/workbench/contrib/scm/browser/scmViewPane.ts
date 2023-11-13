@@ -812,12 +812,14 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 			}
 
 			if (historyItem.statistics?.insertions) {
-				const insertionsDescription = localize('insertions', "insertions{0}", '(+)');
+				const insertionsDescription = historyItem.statistics.insertions === 1 ?
+					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
 				statsLabelTitle.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
 			}
 
 			if (historyItem.statistics?.deletions) {
-				const deletionsDescription = localize('deletions', "deletions{0}", '(-)');
+				const deletionsDescription = historyItem.statistics.deletions === 1 ?
+					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
 				statsLabelTitle.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
 			}
 
@@ -2427,36 +2429,25 @@ export class SCMViewPane extends ViewPane {
 			if (visible) {
 				await this.tree.setInput(this.scmViewService, this.loadTreeViewState());
 
-				const updateActionButtonVisibility = () => {
-					this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
-					this.updateChildren();
-				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.showActionButton'), this.visibilityDisposables)(updateActionButtonVisibility, this, this.visibilityDisposables);
-				updateActionButtonVisibility();
+				const onDidChangeConfiguration = (e?: IConfigurationChangeEvent) => {
+					if (!e || e.affectsConfiguration('scm.showActionButton') || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.experimental.showSyncInformation')) {
+						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
+						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
+						this._showSyncInformation = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
 
-				const updateRepositoryVisibility = () => {
-					this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-					this.updateChildren();
-					this.updateActions();
+						this.updateChildren();
+						if (e?.affectsConfiguration('scm.alwaysShowRepositories')) {
+							this.updateActions();
+						}
+					}
 				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.alwaysShowRepositories'), this.visibilityDisposables)(updateRepositoryVisibility, this, this.visibilityDisposables);
-				updateRepositoryVisibility();
-
-				const updateSyncInformationVisibility = () => {
-					const setting = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
-					this._showSyncInformation = { incoming: setting.incoming === true, outgoing: setting.outgoing === true };
-					this.updateChildren();
-				};
-				Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('scm.experimental.showSyncInformation'), this.visibilityDisposables)(updateSyncInformationVisibility, this, this.visibilityDisposables);
-				updateSyncInformationVisibility();
+				this.configurationService.onDidChangeConfiguration(onDidChangeConfiguration, this, this.visibilityDisposables);
+				onDidChangeConfiguration();
 
 				// Add visible repositories
+				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
 				this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.visibilityDisposables);
 				this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
-
-				// Select resource for active editor
-				this.editorService.onDidActiveEditorChange(this.onDidActiveEditorChange, this, this.visibilityDisposables);
-				this.onDidActiveEditorChange();
 
 				// Restore scroll position
 				if (typeof this.treeScrollTop === 'number') {
