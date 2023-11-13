@@ -40,6 +40,11 @@ export class MultiDiffEditor extends EditorPane {
 		this._multiDiffEditorWidget?.setModel(vm);
 	}
 
+	override async clearInput(): Promise<void> {
+		await super.clearInput();
+		this._multiDiffEditorWidget?.setModel(undefined);
+	}
+
 	layout(dimension: DOM.Dimension): void {
 		this._multiDiffEditorWidget?.layout(dimension);
 	}
