@@ -10,8 +10,16 @@ declare module 'vscode' {
 		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
 	}
 
+	export interface ChatAgentResult2Feedback {
+		/**
+		 * Whether the user wants to report an issue.
+		 */
+		readonly reportIssue?: boolean;
+	}
+
 	export interface ChatAgent2 {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
+		supportIssueReporting?: boolean;
 	}
 
 	/**

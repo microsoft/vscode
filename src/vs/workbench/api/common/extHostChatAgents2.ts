@@ -7,7 +7,6 @@ import { DeferredPromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Emitter } from 'vs/base/common/event';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
@@ -17,7 +16,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { Progress } from 'vs/platform/progress/common/progress';
 import { ExtHostChatAgentsShape2, IMainContext, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { ExtHostChatProvider } from 'vs/workbench/api/common/extHostChatProvider';
-import { ExtHostCommands } from 'vs/workbench/api/common/extHostCommands';
 import * as typeConvert from 'vs/workbench/api/common/extHostTypeConverters';
 import * as extHostTypes from 'vs/workbench/api/common/extHostTypes';
 import { IChatAgentCommand, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -38,30 +36,10 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 
 	constructor(
 		mainContext: IMainContext,
-		commands: ExtHostCommands,
 		private readonly _extHostChatProvider: ExtHostChatProvider,
 		private readonly _logService: ILogService,
 	) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
-
-		commands.registerArgumentProcessor({
-			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.ChatResponseContext) {
-					if (!arg.agentId || !arg.sessionId || !arg.requestId) {
-						return arg;
-					}
-
-					for (const [_, agent] of this._agents) {
-						if (agent.apiAgent.name === arg.agentId) {
-							const result = this._resultsBySessionAndRequestId.get(arg.sessionId)?.get(arg.requestId);
-							return result ?? arg;
-						}
-					}
-				}
-
-				return arg;
-			}
-		});
 	}
 
 	createChatAgent(extension: IExtensionDescription, name: string, handler: vscode.ChatAgentExtendedHandler): vscode.ChatAgent2 {
@@ -191,7 +169,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideFollowups(result, token);
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void {
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -210,7 +188,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(Object.freeze({ result, kind }));
+		agent.acceptFeedback(reportIssue ? Object.freeze({ result, kind, reportIssue }) : Object.freeze({ result, kind }));
 	}
 
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {
@@ -245,6 +223,7 @@ class ExtHostChatAgent {
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
+	private _supportIssueReporting: boolean | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -335,6 +314,7 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
+					supportIssueReporting: this._supportIssueReporting
 				});
 				updateScheduled = false;
 			});
@@ -429,6 +409,15 @@ class ExtHostChatAgent {
 			},
 			set sampleRequest(v) {
 				that._sampleRequest = v;
+				updateMetadataSoon();
+			},
+			get supportIssueReporting() {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				return that._supportIssueReporting;
+			},
+			set supportIssueReporting(v) {
+				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {

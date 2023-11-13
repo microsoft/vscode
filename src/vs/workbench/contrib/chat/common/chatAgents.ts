@@ -66,6 +66,7 @@ export interface IChatAgentMetadata {
 	iconDark?: URI;
 	themeIcon?: ThemeIcon;
 	sampleRequest?: string;
+	supportIssueReporting?: boolean;
 }
 
 export interface IChatAgentRequest {

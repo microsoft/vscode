@@ -27,7 +27,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ReplyResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -115,6 +115,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
+	private readonly _ctxSupportIssueReporting: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -147,6 +148,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
@@ -385,7 +387,6 @@ export class InlineChatController implements IEditorContribution {
 		this._sessionStore.add(this._activeSession.wholeRange.onDidChange(updateWholeRangeDecoration));
 		updateWholeRangeDecoration();
 
-		this._zone.value.widget.updateContext(this._activeSession);
 		this._zone.value.widget.updateSlashCommands(this._activeSession.session.slashCommands ?? []);
 		this._updatePlaceholder();
 		this._zone.value.widget.updateInfo(this._activeSession.session.message ?? localize('welcome.1', "AI-generated code may be incorrect"));
@@ -430,6 +431,9 @@ export class InlineChatController implements IEditorContribution {
 				this.finishExistingSession();
 			}
 		}));
+
+		// Update context key
+		this._ctxSupportIssueReporting.set(this._activeSession.provider.supportIssueReporting ?? false);
 
 		if (!this._activeSession.lastExchange) {
 			return State.WAIT_FOR_INPUT;
@@ -835,6 +839,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxUserDidEdit.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
+		this._ctxSupportIssueReporting.reset();
 
 		this._zone.value.hide();
 
@@ -963,10 +968,10 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	feedbackLast(helpful: boolean) {
+	feedbackLast(helpful: boolean, reportIssue?: boolean) {
 		if (this._activeSession?.lastExchange && this._activeSession.lastExchange.response instanceof ReplyResponse) {
 			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
-			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind, reportIssue);
 			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
 			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}

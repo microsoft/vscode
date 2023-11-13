@@ -170,6 +170,7 @@ export enum InteractiveSessionVoteDirection {
 export interface IChatVoteAction {
 	kind: 'vote';
 	direction: InteractiveSessionVoteDirection;
+	reportIssue?: boolean;
 }
 
 export enum InteractiveSessionCopyKind {

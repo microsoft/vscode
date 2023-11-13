@@ -6,7 +6,6 @@
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { toDisposable } from 'vs/base/common/lifecycle';
 import { URI, UriComponents } from 'vs/base/common/uri';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IInlineChatSession, IInlineChatRequest, InlineChatResponseFeedbackKind, InlineChatResponseType } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRelaxedExtensionDescription } from 'vs/platform/extensions/common/extensions';
@@ -93,37 +92,12 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			})],
 			ApiCommandResult.Void
 		));
-
-		extHostCommands.registerArgumentProcessor({
-			processArgument: (arg) => {
-				if (arg && arg.$mid === MarshalledId.InlineChatSessionContext) {
-					if (!arg.providerName || arg.sessionId === undefined || arg.responseId === undefined) {
-						return arg;
-					}
-
-					for (const [_, provider] of this._inputProvider) {
-						if (provider.metadata.label === arg.providerName) {
-							const sessionData = this._inputSessions.get(arg.sessionId);
-							const response = sessionData?.responses[arg.responseId];
-							if (response) {
-								return {
-									session: sessionData.session,
-									response: response
-								};
-							}
-						}
-					}
-				}
-
-				return arg;
-			}
-		});
 	}
 
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider, metadata);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function');
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', metadata.supportReportIssue ?? false);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -250,13 +224,13 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		};
 	}
 
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind, reportIssue?: boolean): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
 		if (entry && response) {
 			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
-			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
+			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind, reportIssue);
 		}
 	}
 

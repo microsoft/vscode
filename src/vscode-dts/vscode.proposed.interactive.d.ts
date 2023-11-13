@@ -72,6 +72,7 @@ declare module 'vscode' {
 
 	export interface InteractiveEditorSessionProviderMetadata {
 		label: string;
+		supportReportIssue?: boolean;
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
@@ -82,7 +83,7 @@ declare module 'vscode' {
 		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
+		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind, shouldReportIssue?: boolean): void;
 	}
 
 	export interface InteractiveSessionParticipantInformation {

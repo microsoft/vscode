@@ -5,7 +5,6 @@
 
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { URI } from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -389,15 +388,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	setVote(vote: InteractiveSessionVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
-	}
-
-	toJSON() {
-		return {
-			agentId: this.agent?.id,
-			sessionId: this.sessionId,
-			requestId: this.requestId,
-			$mid: MarshalledId.ChatResponseContext
-		};
 	}
 }
 

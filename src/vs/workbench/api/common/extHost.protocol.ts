@@ -1181,7 +1181,7 @@ export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void;
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
 	$releaseSession(sessionId: string): void;
 }
@@ -1196,7 +1196,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsIssueReporting: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -1206,7 +1206,7 @@ export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineC
 export interface ExtHostInlineChatShape {
 	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
 	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined>;
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind, reportIssue?: boolean): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
 

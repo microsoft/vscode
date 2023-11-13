@@ -44,7 +44,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
-import { ExpansionState, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { ExpansionState } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IMenuWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from 'vs/platform/actions/browser/buttonbar';
 import { SlashCommandContentWidget } from 'vs/workbench/contrib/chat/browser/chatSlashCommandContentWidget';
@@ -176,7 +176,6 @@ export class InlineChatWidget {
 	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
 	private readonly _ctxResponseFocused: IContextKey<boolean>;
 
-	private readonly _feedbackToolbar: MenuWorkbenchToolBar;
 	private readonly _progressBar: ProgressBar;
 
 	private readonly _previewDiffEditor: Lazy<EmbeddedDiffEditorWidget>;
@@ -366,9 +365,6 @@ export class InlineChatWidget {
 
 
 		const workbenchToolbarOptions = {
-			menuOptions: {
-				shouldForwardArgs: true
-			},
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: {
 				primaryGroup: () => true,
@@ -376,9 +372,9 @@ export class InlineChatWidget {
 			}
 		};
 
-		this._feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
-		this._store.add(this._feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
-		this._store.add(this._feedbackToolbar);
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
+		this._store.add(feedbackToolbar);
 
 		// preview editors
 		this._previewDiffEditor = new Lazy(() => this._store.add(_instantiationService.createInstance(EmbeddedDiffEditorWidget, this._elements.previewDiff, {
@@ -542,10 +538,6 @@ export class InlineChatWidget {
 
 	get responseContent(): string | undefined {
 		return this._elements.markdownMessage.textContent ?? undefined;
-	}
-
-	updateContext(session: Session) {
-		this._feedbackToolbar.context = session;
 	}
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
