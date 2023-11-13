@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { getWindowsCount, getWindows } from 'vs/base/browser/dom';
-import { createSingleCallFunction } from 'vs/base/common/functional';
-import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-
 export type CodeWindow = Window & typeof globalThis & {
 	readonly vscodeWindowId: number;
 };
@@ -20,74 +16,3 @@ export const mainWindow = window as CodeWindow;
  * or `DOM.getActiveWindow()` to obtain the correct window for the context you are in.
  */
 export const $window = mainWindow;
-
-//#region timeout handling in multi-window applications
-
-let timeoutsHandleCounter = 0;
-const mapTimeoutHandleToDisposable = new Map<number, Set<IDisposable>>();
-
-/**
- * Override `setTimeout` and `clearTimeout` on the provided window to make
- * sure timeouts are dispatched to all opened windows. Some browsers may decide
- * to throttle timeouts in minimized windows, so with this we can ensure the
- * timeout is scheduled without being throttled (unless all windows are minimized).
- */
-export function patchMultiWindowAwareTimeout(targetWindow: Window): void {
-	const originalSetTimeout = targetWindow.setTimeout;
-	Object.defineProperty(targetWindow, 'originalSetTimeout', {
-		value: originalSetTimeout,
-		writable: false,
-		enumerable: false,
-		configurable: false
-	});
-
-	const originalClearTimeout = targetWindow.clearTimeout;
-	Object.defineProperty(targetWindow, 'originalClearTimeout', {
-		value: originalClearTimeout,
-		writable: false,
-		enumerable: false,
-		configurable: false
-	});
-
-	(targetWindow as any).setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
-		if (getWindowsCount() === 1 || typeof handler === 'string') {
-			return originalSetTimeout.apply(this, [handler, timeout, ...args]);
-		}
-
-		const timeoutDisposables = new Set<IDisposable>();
-		const timeoutsHandle = timeoutsHandleCounter++;
-		mapTimeoutHandleToDisposable.set(timeoutsHandle, timeoutDisposables);
-
-		const handlerFn = createSingleCallFunction(handler, () => {
-			dispose(timeoutDisposables);
-			mapTimeoutHandleToDisposable.delete(timeoutsHandle);
-		});
-
-		for (const { window, disposables } of getWindows()) {
-			const timeoutHandle = (window as any).originalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
-
-			const timeoutDisposable = toDisposable(() => {
-				(window as any).originalClearTimeout(timeoutHandle);
-			});
-
-			disposables.add(timeoutDisposable);
-			timeoutDisposables.add(timeoutDisposable);
-		}
-
-		return timeoutsHandle;
-	};
-
-	(targetWindow as any).clearTimeout = function (this: unknown, handle: number | undefined): void {
-		if (getWindowsCount() === 1 || typeof handle !== 'number') {
-			return originalClearTimeout.apply(this, [handle]);
-		}
-
-		const disposables = mapTimeoutHandleToDisposable.get(handle);
-		if (disposables) {
-			dispose(disposables);
-			mapTimeoutHandleToDisposable.delete(handle);
-		}
-	};
-}
-
-//#endregion

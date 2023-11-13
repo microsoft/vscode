@@ -5,7 +5,7 @@
 
 import 'vs/workbench/browser/style';
 import { localize } from 'vs/nls';
-import { addDisposableListener, runWhenWindowIdle } from 'vs/base/browser/dom';
+import { addDisposableListener, patchMultiWindowAwareTimeout, runWhenWindowIdle } from 'vs/base/browser/dom';
 import { Event, Emitter, setGlobalLeakWarningThreshold } from 'vs/base/common/event';
 import { RunOnceScheduler, timeout } from 'vs/base/common/async';
 import { isFirefox, isSafari, isChrome, PixelRatio } from 'vs/base/browser/browser';
@@ -41,7 +41,7 @@ import { InstantiationService } from 'vs/platform/instantiation/common/instantia
 import { Layout } from 'vs/workbench/browser/layout';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { mainWindow, patchMultiWindowAwareTimeout } from 'vs/base/browser/window';
+import { mainWindow } from 'vs/base/browser/window';
 
 export interface IWorkbenchOptions {
 
