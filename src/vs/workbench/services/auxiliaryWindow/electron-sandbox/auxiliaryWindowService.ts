@@ -31,6 +31,14 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService, dialogService);
 	}
 
+	protected override async resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		mark('code/auxiliaryWindow/willResolveWindowId');
+		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/didResolveWindowId');
+
+		return windowId;
+	}
+
 	protected override createContainer(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore): HTMLElement {
 
 		// Zoom level
@@ -39,14 +47,6 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
 		return super.createContainer(auxiliaryWindow, disposables);
-	}
-
-	protected override async resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
-		mark('code/auxiliaryWindow/willResolveWindowId');
-		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
-		mark('code/auxiliaryWindow/didResolveWindowId');
-
-		return windowId;
 	}
 
 	protected override patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): void {

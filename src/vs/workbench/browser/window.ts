@@ -27,7 +27,7 @@ import { BrowserLifecycleService } from 'vs/workbench/services/lifecycle/browser
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 import { registerWindowDriver } from 'vs/workbench/services/driver/browser/driver';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, isAuxiliaryWindow, mainWindow } from 'vs/base/browser/window';
 import { createSingleCallFunction } from 'vs/base/common/functional';
 
 export abstract class BaseWindow extends Disposable {
@@ -71,6 +71,10 @@ export abstract class BaseWindow extends Disposable {
 			});
 
 			for (const { window, disposables } of dom.getWindows()) {
+				if (isAuxiliaryWindow(window) && window.document.visibilityState === 'hidden') {
+					continue; // skip over hidden windows (but never over main window)
+				}
+
 				const handle = (window as any).vscodeOriginalSetTimeout.apply(this, [handlerFn, timeout, ...args]);
 
 				const timeoutDisposable = toDisposable(() => {
