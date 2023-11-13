@@ -70,6 +70,24 @@ suite('Window', () => {
 			setTimeoutCalls.length = 0;
 			clearTimeoutCalls.length = 0;
 
+			await new Promise<void>((resolve, reject) => {
+				window1.setTimeout(() => {
+					if (!called) {
+						called = true;
+						resolve();
+					} else {
+						reject(new Error('timeout called twice'));
+					}
+				}, 0);
+			});
+
+			assert.strictEqual(called, true);
+			assert.deepStrictEqual(setTimeoutCalls, [1]);
+			assert.deepStrictEqual(clearTimeoutCalls, []);
+			called = false;
+			setTimeoutCalls.length = 0;
+			clearTimeoutCalls.length = 0;
+
 			// Window Count: 3
 
 			let window2 = createWindow(2);

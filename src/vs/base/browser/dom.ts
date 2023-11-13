@@ -2294,7 +2294,7 @@ export function trackAttributes(from: Element, to: Element, filter?: string[]): 
 
 //#region timeout handling in multi-window applications
 
-let timeoutsHandleCounter = 0;
+let timeoutsHandleCounter = Number.MIN_SAFE_INTEGER; // try to not compete with the IDs of native `setTimeout`
 const mapTimeoutHandleToDisposable = new Map<number, Set<IDisposable>>();
 
 /**
@@ -2321,7 +2321,7 @@ export function patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWi
 	});
 
 	(targetWindow as any).setTimeout = function (this: unknown, handler: TimerHandler, timeout = 0, ...args: unknown[]): number {
-		if (dom.getWindowsCount() === 1 || typeof handler === 'string') {
+		if (dom.getWindowsCount() === 1 || typeof handler === 'string' || timeout === 0 /* immediates are never throttled */) {
 			return originalSetTimeout.apply(this, [handler, timeout, ...args]);
 		}
 
@@ -2339,6 +2339,7 @@ export function patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWi
 
 			const timeoutDisposable = toDisposable(() => {
 				(window as any).originalClearTimeout(timeoutHandle);
+				timeoutDisposables.delete(timeoutDisposable);
 			});
 
 			disposables.add(timeoutDisposable);
@@ -2349,14 +2350,12 @@ export function patchMultiWindowAwareTimeout(targetWindow: Window, dom = { getWi
 	};
 
 	(targetWindow as any).clearTimeout = function (this: unknown, handle: number | undefined): void {
-		if (dom.getWindowsCount() === 1 || typeof handle !== 'number') {
-			return originalClearTimeout.apply(this, [handle]);
-		}
-
-		const disposables = mapTimeoutHandleToDisposable.get(handle);
+		const disposables = typeof handle === 'number' ? mapTimeoutHandleToDisposable.get(handle) : undefined;
 		if (disposables) {
 			dispose(disposables);
-			mapTimeoutHandleToDisposable.delete(handle);
+			mapTimeoutHandleToDisposable.delete(handle!);
+		} else {
+			originalClearTimeout.apply(this, [handle]);
 		}
 	};
 }
