@@ -7,8 +7,8 @@
 	z-index: 3;
 }
 
-.monaco-editor .zone-widget-container.inside-selection {
-	background-color: var(--vscode-inlineChat-regionHighlight);
+.monaco-editor .zone-widget-container {
+	background-color: var(--vscode-inlineChat-background);
 }
 
 .monaco-editor .inline-chat {
