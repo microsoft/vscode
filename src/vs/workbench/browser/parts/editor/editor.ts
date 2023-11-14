@@ -35,6 +35,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizing: 'fit',
 	tabSizingFixedMinWidth: 50,
 	tabSizingFixedMaxWidth: 160,
+	tabTitleDisplayType: 'title',
 	pinnedTabSizing: 'normal',
 	pinnedTabsOnSeparateRow: false,
 	tabHeight: 'default',
@@ -139,6 +140,7 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
 
 		'tabSizingFixedMinWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMinWidth']),
 		'tabSizingFixedMaxWidth': new NumberVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabSizingFixedMaxWidth']),
+		'tabTitleDisplayType': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabTitleDisplayType'], ['title', 'name', 'title+name', 'name+title']),
 
 		'showTabs': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['showTabs'], ['multiple', 'single', 'none']),
 		'tabActionLocation': new EnumVerifier(DEFAULT_EDITOR_PART_OPTIONS['tabActionLocation'], ['left', 'right']),

@@ -194,6 +194,17 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'minimum': 38,
 				'markdownDescription': localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'workbench.editor.tabSizingFixedMaxWidth' }, "Controls the maximum width of tabs when `#workbench.editor.tabSizing#` size is set to `fixed`.")
 			},
+			'workbench.editor.tabTitleDisplayType': {
+				'type': 'string',
+				'enum': ['title', 'name', 'name+title', 'title+name'],
+				'enumDescriptions': [
+					localize('workbench.editor.tabTitleDisplayType.title', "Display tab title."),
+					localize('workbench.editor.tabTitleDisplayType.name', "Display tab name."),
+					localize('workbench.editor.tabTitleDisplayType.titleAndName', "Display tab title and name."),
+					localize('workbench.editor.tabTitleDisplayType.nameAndTitle', "Display tab name and title.")
+				],
+				'default': 'title'
+			},
 			'window.density.editorTabHeight': {
 				'type': 'string',
 				'enum': ['default', 'compact'],

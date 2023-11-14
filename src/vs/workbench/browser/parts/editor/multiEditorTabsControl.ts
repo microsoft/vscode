@@ -1443,7 +1443,14 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			tabContainer.setAttribute('aria-description', '');
 		}
 
-		const title = tabLabel.title || '';
+		let title = tabLabel.title || '';
+		if (options.tabTitleDisplayType === 'name') {
+			title = tabLabel.name || '';
+		} else if (options.tabTitleDisplayType === 'name+title') {
+			title = (tabLabel.name ? `${tabLabel.name}\r\n` : '') + (tabLabel.title || '');
+		} else if (options.tabTitleDisplayType === 'title+name') {
+			title = (tabLabel.title ? `${tabLabel.title}\r\n` : '') + (tabLabel.name || '');
+		}
 		tabContainer.title = title;
 
 		// Label

@@ -1144,6 +1144,7 @@ interface IEditorPartConfiguration {
 	tabSizing?: 'fit' | 'shrink' | 'fixed';
 	tabSizingFixedMinWidth?: number;
 	tabSizingFixedMaxWidth?: number;
+	tabTitleDisplayType?: 'title' | 'name' | 'title+name' | 'name+title';
 	pinnedTabSizing?: 'normal' | 'compact' | 'shrink';
 	pinnedTabsOnSeparateRow?: boolean;
 	tabHeight?: 'default' | 'compact';
