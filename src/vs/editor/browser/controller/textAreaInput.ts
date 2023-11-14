@@ -637,7 +637,7 @@ export class TextAreaInput extends Disposable {
 
 	public writeNativeTextAreaContent(reason: string): void {
 		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
-			// Do not write on async focus gain / render unless a screen reader is being used #192278
+			// Do not write to the text on render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
 			return;
 		}
