@@ -452,7 +452,7 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
 	await retry(async () => {
-		const res = await fetch(artifact.resource.downloadUrl, azdoOptions);
+		const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 5 * 60 * 1000 });
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
