@@ -2188,6 +2188,13 @@ export class Repository {
 			if (HEAD.name) {
 				// Branch
 				HEAD = await this.getBranch(HEAD.name);
+
+				// Upstream commit
+				if (HEAD && HEAD.upstream) {
+					const ref = `refs/remotes/${HEAD.upstream.remote}/${HEAD.upstream.name}`;
+					const commit = await this.revParse(ref);
+					HEAD = { ...HEAD, upstream: { ...HEAD.upstream, commit } };
+				}
 			} else if (HEAD.commit) {
 				// Tag || Commit
 				const tags = await this.getRefs({ pattern: 'refs/tags' });
@@ -2591,6 +2598,13 @@ export class Repository {
 	}
 
 	async revParse(ref: string): Promise<string | undefined> {
+		try {
+			const result = await fs.readFile(path.join(this.dotGit.path, ref), 'utf8');
+			return result.trim();
+		} catch (err) {
+			this.logger.warn(err.message);
+		}
+
 		try {
 			const result = await this.exec(['rev-parse', ref]);
 			if (result.stderr) {

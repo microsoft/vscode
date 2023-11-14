@@ -9,7 +9,7 @@ import { Repository, Resource } from './repository';
 import { IDisposable } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
-import { RefType, Status } from './api/git';
+import { Branch, RefType, Status } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
@@ -30,6 +30,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this._onDidChangeActionButton.fire();
 	}
 
+	private _HEAD: Branch | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
@@ -55,6 +56,19 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	private async onDidRunGitStatus(): Promise<void> {
 		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
+
+		// Check if HEAD has changed
+		const HEAD = this.repository.HEAD;
+
+		if (this._HEAD?.name === HEAD.name &&
+			this._HEAD?.commit === HEAD.commit &&
+			this._HEAD?.upstream?.name === HEAD.upstream?.name &&
+			this._HEAD?.upstream?.remote === HEAD.upstream?.remote &&
+			this._HEAD?.commit === HEAD.commit) {
+			return;
+		}
+
+		this._HEAD = this.repository.HEAD;
 
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name}`,
