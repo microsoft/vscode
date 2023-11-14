@@ -9,6 +9,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ICommand, ICursorStateComputerData, IEditOperationBuilder } from 'vs/editor/common/editorCommon';
+import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { ITextModel } from 'vs/editor/common/model';
 
 export class TrimTrailingWhitespaceCommand implements ICommand {
@@ -93,6 +94,14 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 			fromColumn = lastNonWhitespaceIndex + 2;
 		} else {
 			// There is no trailing whitespace
+			continue;
+		}
+
+		const lineTokens = model.tokenization.getLineTokens(lineNumber);
+		const fromColumnType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(fromColumn));
+
+		if (fromColumnType === StandardTokenType.String || fromColumnType === StandardTokenType.RegEx) {
+			// Never trim trailing whitespace from strings and regexes, as they're likely intentional
 			continue;
 		}
 
