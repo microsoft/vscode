@@ -8,11 +8,11 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { Range, IRange } from 'vs/editor/common/core/range';
-import { ProviderResult, Location } from 'vs/editor/common/languages';
+import { IRange, Range } from 'vs/editor/common/core/range';
+import { Location, ProviderResult } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ChatModel, IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
