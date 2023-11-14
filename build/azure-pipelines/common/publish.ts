@@ -463,25 +463,33 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 }
 
 async function unzip(packagePath: string, outputPath: string): Promise<string> {
+	const name = path.basename(packagePath);
+
 	return new Promise((resolve, reject) => {
+		console.log(`[yauzl] [${name}] Opening archive...`);
 		yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
 			if (err) {
 				return reject(err);
 			}
 
+			console.log(`[yauzl] [${name}] Opened archive`);
 			zipfile!.on('entry', entry => {
 				if (/\/$/.test(entry.fileName)) {
+					console.log(`[yauzl] [${name}] Skipping entry: ${entry.fileName}`);
 					zipfile!.readEntry();
 				} else {
+					console.log(`[yauzl] [${name}] Reading entry: ${entry.fileName}...`);
 					zipfile!.openReadStream(entry, (err, istream) => {
 						if (err) {
 							return reject(err);
 						}
 
+						console.log(`[yauzl] [${name}] Got stream for entry: ${entry.fileName}...`);
 						const filePath = path.join(outputPath, entry.fileName);
 						fs.mkdirSync(path.dirname(filePath), { recursive: true });
 						const ostream = fs.createWriteStream(filePath);
 						istream?.on('end', () => {
+							console.log(`[yauzl] [${name}] Done reading stream for entry: ${entry.fileName}...`);
 							zipfile!.close();
 							resolve(filePath);
 						});
@@ -791,11 +799,13 @@ async function main() {
 				let artifactPath: string;
 
 				try {
-					console.log(`Downloading and extracting ${artifact.name} (${artifact.resource.downloadUrl})...`);
+					console.log(`Downloading ${artifact.name} (${artifact.resource.downloadUrl})...`);
 					const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
 					await downloadArtifact(artifact, artifactZipPath);
+					console.log(`Extracting ${artifact.name}...`);
 					artifactPath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
 					const artifactSize = fs.statSync(artifactPath).size;
+					console.log(`Extracted ${artifact.name}: ${artifactSize}...`);
 
 					if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
 						throw new Error(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
