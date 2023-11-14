@@ -12,6 +12,7 @@ import { MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEdi
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
 import { DiffEditorItemTemplate } from 'vs/editor/browser/widget/multiDiffEditorWidget/diffEditorItemTemplate';
+import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
@@ -24,11 +25,13 @@ export class MultiDiffEditorWidget extends Disposable {
 			this._element,
 			this._dimension,
 			this._model,
+			this._workbenchUIElementFactory,
 		));
 	});
 
 	constructor(
 		private readonly _element: HTMLElement,
+		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
