@@ -528,7 +528,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	private _deserialize(obj: IExportableChatData): ChatRequestModel[] {
 		const requests = obj.requests;
 		if (!Array.isArray(requests)) {
-			this.logService.error(`Ignoring malformed session data: ${obj}`);
+			this.logService.error(`Ignoring malformed session data: ${JSON.stringify(obj)}`);
 			return [];
 		}
 
