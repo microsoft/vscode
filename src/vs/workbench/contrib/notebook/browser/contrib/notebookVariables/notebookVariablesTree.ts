@@ -3,39 +3,34 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as dom from 'vs/base/browser/dom';
 import { IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { IListAccessibilityProvider } from 'vs/base/browser/ui/list/listWidget';
-import { IAsyncDataSource, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
+import { IObjectTreeElement, ITreeNode, ITreeRenderer } from 'vs/base/browser/ui/tree/tree';
 import { FuzzyScore } from 'vs/base/common/filters';
 import { localize } from 'vs/nls';
-import { WorkbenchAsyncDataTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchObjectTree } from 'vs/platform/list/browser/listService';
 
-export abstract class VariablesSession {
-	abstract getVariables(): Promise<IVariableTreeElement[]>;
-}
-
-export interface IVariableTreeElement {
+export interface INotebookVariableElement {
 	readonly id: string;
 	readonly label: string;
 	readonly value: string;
-	readonly hasChildren: boolean;
-	getChildren(): Promise<IVariableTreeElement[]>;
 }
 
-export class NotebookVariablesTree extends WorkbenchAsyncDataTree<VariablesSession, IVariableTreeElement, FuzzyScore> { }
+export class NotebookVariablesTree extends WorkbenchObjectTree<INotebookVariableElement> { }
 
-export class NotebookVariablesDelegate implements IListVirtualDelegate<IVariableTreeElement> {
+export class NotebookVariablesDelegate implements IListVirtualDelegate<INotebookVariableElement> {
 
-	getHeight(element: IVariableTreeElement): number {
+	getHeight(element: INotebookVariableElement): number {
 		return 22;
 	}
 
-	getTemplateId(element: IVariableTreeElement): string {
+	getTemplateId(element: INotebookVariableElement): string {
 		return NotebookVariableRenderer.ID;
 	}
 }
 
-export class NotebookVariableRenderer implements ITreeRenderer<IVariableTreeElement, FuzzyScore, { container: HTMLElement }> {
+export class NotebookVariableRenderer implements ITreeRenderer<INotebookVariableElement, FuzzyScore, { wrapper: HTMLElement }> {
 
 	static readonly ID = 'variableElement';
 
@@ -44,11 +39,12 @@ export class NotebookVariableRenderer implements ITreeRenderer<IVariableTreeElem
 	}
 
 	renderTemplate(container: HTMLElement) {
-		return { container };
+		const wrapper = dom.append(container, dom.$('.variable'));
+		return { wrapper };
 	}
 
-	renderElement(element: ITreeNode<IVariableTreeElement, FuzzyScore>, index: number, templateData: { container: HTMLElement }, height: number | undefined): void {
-		templateData.container.innerText = element.element.label;
+	renderElement(element: ITreeNode<INotebookVariableElement, FuzzyScore>, index: number, templateData: { wrapper: HTMLElement }, height: number | undefined): void {
+		templateData.wrapper.innerText = `${element.element.label} - ${element.element.value}`;
 	}
 
 	disposeTemplate(): void {
@@ -56,67 +52,132 @@ export class NotebookVariableRenderer implements ITreeRenderer<IVariableTreeElem
 	}
 }
 
-export class NotebookVariablesDataSource implements IAsyncDataSource<VariablesSession, IVariableTreeElement> {
-
-	hasChildren(element: VariablesSession | IVariableTreeElement): boolean {
-		if (element instanceof VariablesSession) {
-			return true;
-		}
-		return element.hasChildren;
-	}
-
-	getChildren(element: VariablesSession | IVariableTreeElement): Promise<IVariableTreeElement[]> {
-		if (element instanceof VariablesSession) {
-			return element.getVariables();
-		}
-
-		return element.getChildren();
-	}
-}
-
-export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<IVariableTreeElement> {
+export class NotebookVariableAccessibilityProvider implements IListAccessibilityProvider<INotebookVariableElement> {
 
 	getWidgetAriaLabel(): string {
 		return localize('debugConsole', "Notebook Variables");
 	}
 
-	getAriaLabel(element: IVariableTreeElement): string {
+	getAriaLabel(element: INotebookVariableElement): string {
 		return localize('notebookVariableAriaLabel', "Variable {0}, value {1}", element.label, element.value);
 	}
 }
 
-export class MockVariables extends VariablesSession {
-	override getVariables(): Promise<IVariableTreeElement[]> {
-		return Promise.resolve([
-			{
+export function mockVariables(notebook: string, kernel: string): IObjectTreeElement<INotebookVariableElement>[] {
+	return [
+		{
+			element: {
 				id: '1',
-				label: 'Variable 1',
-				value: 'Value 1',
-				hasChildren: true,
-				getChildren: async () => [
-					{
+				label: 'Notebook',
+				value: notebook,
+			},
+			children: [
+				{
+					element: {
 						id: '1.1',
-						label: 'Child Variable 1',
-						value: 'Child Value 1',
-						hasChildren: false,
-						getChildren: async () => []
-					},
-					{
+						label: 'Kernel',
+						value: kernel,
+					}
+				},
+				{
+					element: {
 						id: '1.2',
 						label: 'Child Variable 2',
 						value: 'Child Value 2',
-						hasChildren: false,
-						getChildren: async () => []
 					}
-				]
-			},
-			{
+				}
+			],
+			collapsed: true
+		},
+		{
+			element: {
 				id: '2',
 				label: 'Variable 2',
 				value: 'Value 2',
-				hasChildren: false,
-				getChildren: async () => []
+			},
+			children: [
+				{
+					element: {
+						id: '2.1',
+						label: 'Child Variable 1',
+						value: 'Child Value 1',
+					}
+				},
+				{
+					element: {
+						id: '2.2',
+						label: 'Child Variable 2',
+						value: 'Child Value 2',
+					}
+				}
+			],
+			collapsed: true
+		},
+		{
+			element: {
+				id: '3',
+				label: 'Variable 3',
+				value: 'Value 3',
 			}
-		]);
-	}
+		},
+		{
+			element: {
+				id: '4',
+				label: 'Variable 4',
+				value: 'Value 4',
+			},
+			children: [
+				{
+					element: {
+						id: '4.1',
+						label: 'Child Variable 1',
+						value: 'Child Value 1',
+					}
+				},
+				{
+					element: {
+						id: '4.2',
+						label: 'Child Variable 2',
+						value: 'Child Value 2',
+					}
+				}
+			],
+			collapsed: true
+		},
+		{
+			element: {
+				id: '5',
+				label: 'Variable 5',
+				value: 'Value 5',
+			}
+		},
+		{
+			element: {
+				id: '6',
+				label: 'Variable 6',
+				value: 'Value 6',
+			}
+		},
+		{
+			element: {
+				id: '7',
+				label: 'Variable 7',
+				value: 'Value 7',
+			}
+		},
+		{
+			element: {
+				id: '8',
+				label: 'Variable 8',
+				value: 'Value 8',
+			}
+		},
+		{
+			element: {
+				id: '9',
+				label: 'Variable 9',
+				value: 'Value 9',
+			}
+		}
+	];
 }
