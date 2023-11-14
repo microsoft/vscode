@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 
 export interface ICommentThreadChangedEvent extends CommentThreadChangedEvent<IRange> {
 	owner: string;
+	ownerLabel: string;
 }
 
 export class CommentNode {
@@ -41,6 +42,7 @@ export class CommentNode {
 export class ResourceWithCommentThreads {
 	id: string;
 	owner: string;
+	ownerLabel: string | undefined;
 	commentThreads: CommentNode[]; // The top level comments on the file. Replys are nested under each node.
 	resource: URI;
 
@@ -66,28 +68,35 @@ export class ResourceWithCommentThreads {
 
 export class CommentsModel {
 	resourceCommentThreads: ResourceWithCommentThreads[];
-	commentThreadsMap: Map<string, ResourceWithCommentThreads[]>;
+	commentThreadsMap: Map<string, { resourceWithCommentThreads: ResourceWithCommentThreads[]; ownerLabel?: string }>;
 
 	constructor() {
 		this.resourceCommentThreads = [];
-		this.commentThreadsMap = new Map<string, ResourceWithCommentThreads[]>();
+		this.commentThreadsMap = new Map<string, { resourceWithCommentThreads: ResourceWithCommentThreads[]; ownerLabel: string }>();
 	}
 
 	private updateResourceCommentThreads() {
-		this.resourceCommentThreads = [...this.commentThreadsMap.values()].flat();
+		const includeLabel = this.commentThreadsMap.size > 1;
+		this.resourceCommentThreads = [...this.commentThreadsMap.values()].map(value => {
+			return value.resourceWithCommentThreads.map(resource => {
+				resource.ownerLabel = includeLabel ? value.ownerLabel : undefined;
+				return resource;
+			}).flat();
+		}).flat();
 		this.resourceCommentThreads.sort((a, b) => {
 			return a.resource.toString() > b.resource.toString() ? 1 : -1;
 		});
 	}
 
-	public setCommentThreads(owner: string, commentThreads: CommentThread[]): void {
-		this.commentThreadsMap.set(owner, this.groupByResource(owner, commentThreads));
+	public setCommentThreads(owner: string, ownerLabel: string, commentThreads: CommentThread[]): void {
+		this.commentThreadsMap.set(owner, { ownerLabel, resourceWithCommentThreads: this.groupByResource(owner, commentThreads) });
 		this.updateResourceCommentThreads();
 	}
 
 	public deleteCommentsByOwner(owner?: string): void {
 		if (owner) {
-			this.commentThreadsMap.set(owner, []);
+			const existingOwner = this.commentThreadsMap.get(owner);
+			this.commentThreadsMap.set(owner, { ownerLabel: existingOwner?.ownerLabel, resourceWithCommentThreads: [] });
 		} else {
 			this.commentThreadsMap.clear();
 		}
@@ -95,9 +104,9 @@ export class CommentsModel {
 	}
 
 	public updateCommentThreads(event: ICommentThreadChangedEvent): boolean {
-		const { owner, removed, changed, added } = event;
+		const { owner, ownerLabel, removed, changed, added } = event;
 
-		const threadsForOwner = this.commentThreadsMap.get(owner) || [];
+		const threadsForOwner = this.commentThreadsMap.get(owner)?.resourceWithCommentThreads || [];
 
 		removed.forEach(thread => {
 			// Find resource that has the comment thread
@@ -145,7 +154,7 @@ export class CommentsModel {
 			}
 		});
 
-		this.commentThreadsMap.set(owner, threadsForOwner);
+		this.commentThreadsMap.set(owner, { ownerLabel, resourceWithCommentThreads: threadsForOwner });
 		this.updateResourceCommentThreads();
 
 		return removed.length > 0 || changed.length > 0 || added.length > 0;

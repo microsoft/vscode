@@ -151,7 +151,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		this._register(dom.addDisposableListener(mainWindow, dom.EventType.RESIZE, () => this.setCoordinates()));
 
 		this._register(dom.addDisposableGenericMouseUpListener(this.dragArea, (event: MouseEvent) => {
-			const mouseClickEvent = new StandardMouseEvent(event);
+			const mouseClickEvent = new StandardMouseEvent(dom.getWindow(this.dragArea), event);
 			if (mouseClickEvent.detail === 2) {
 				// double click on debug bar centers it again #8250
 				const widgetWidth = this.$el.clientWidth;
@@ -164,7 +164,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 			this.dragArea.classList.add('dragged');
 
 			const mouseMoveListener = dom.addDisposableGenericMouseMoveListener(mainWindow, (e: MouseEvent) => {
-				const mouseMoveEvent = new StandardMouseEvent(e);
+				const mouseMoveEvent = new StandardMouseEvent(mainWindow, e);
 				// Prevent default to stop editor selecting text #8524
 				mouseMoveEvent.preventDefault();
 				// Reduce x by width of drag handle to reduce jarring #16604

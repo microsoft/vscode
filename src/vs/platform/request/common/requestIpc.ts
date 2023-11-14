@@ -34,6 +34,7 @@ export class RequestChannel implements IServerChannel {
 					return <RequestResponse>[{ statusCode: res.statusCode, headers: res.headers }, buffer];
 				});
 			case 'resolveProxy': return this.service.resolveProxy(args[0]);
+			case 'loadCertificates': return this.service.loadCertificates();
 		}
 		throw new Error('Invalid call');
 	}
@@ -54,4 +55,7 @@ export class RequestChannelClient implements IRequestService {
 		return this.channel.call<string | undefined>('resolveProxy', [url]);
 	}
 
+	async loadCertificates(): Promise<string[]> {
+		return this.channel.call<string[]>('loadCertificates');
+	}
 }

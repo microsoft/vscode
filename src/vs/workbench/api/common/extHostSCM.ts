@@ -26,10 +26,23 @@ import { MarkdownString } from 'vs/workbench/api/common/extHostTypeConverters';
 import { checkProposedApiEnabled, isProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 import { ExtHostDocuments } from 'vs/workbench/api/common/extHostDocuments';
 import { Schemas } from 'vs/base/common/network';
+import { isLinux } from 'vs/base/common/platform';
 
 type ProviderHandle = number;
 type GroupHandle = number;
 type ResourceStateHandle = number;
+
+function isUri(thing: any): thing is vscode.Uri {
+	return thing instanceof URI;
+}
+
+function uriEquals(a: vscode.Uri, b: vscode.Uri): boolean {
+	if (a.scheme === Schemas.file && b.scheme === Schemas.file && isLinux) {
+		return a.toString() === b.toString();
+	}
+
+	return a.toString().toLowerCase() === b.toString().toLowerCase();
+}
 
 function getIconResource(decorations?: vscode.SourceControlResourceThemableDecorations): UriComponents | ThemeIcon | undefined {
 	if (!decorations) {
@@ -163,6 +176,10 @@ function compareCommands(a: vscode.Command, b: vscode.Command): number {
 		const bArg = b.arguments[i];
 
 		if (aArg === bArg) {
+			continue;
+		}
+
+		if (isUri(aArg) && isUri(bArg) && uriEquals(aArg, bArg)) {
 			continue;
 		}
 

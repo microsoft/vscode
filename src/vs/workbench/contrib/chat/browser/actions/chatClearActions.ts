@@ -89,7 +89,7 @@ const getClearChatActionDescriptorForViewTitle = (viewId: string, providerId: st
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
-		order: 0
+		order: -1
 	},
 	precondition: CONTEXT_PROVIDER_EXISTS,
 	category: CHAT_CATEGORY,

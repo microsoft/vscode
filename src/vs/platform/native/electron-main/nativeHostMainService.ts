@@ -33,7 +33,7 @@ import { IProductService } from 'vs/platform/product/common/productService';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
 import { IThemeMainService } from 'vs/platform/theme/electron-main/themeMainService';
 import { ICodeWindow } from 'vs/platform/window/electron-main/window';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 import { getFocusedOrLastActiveWindow, IWindowsMainService, OpenContext } from 'vs/platform/windows/electron-main/windows';
 import { isWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { IWorkspacesManagementMainService } from 'vs/platform/workspaces/electron-main/workspacesManagementMainService';
@@ -43,6 +43,7 @@ import { WindowProfiler } from 'vs/platform/profiling/electron-main/windowProfil
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IAuxiliaryWindowsMainService, isAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindows';
 import { IAuxiliaryWindow } from 'vs/platform/auxiliaryWindow/electron-main/auxiliaryWindow';
+import { loadSystemCertificates } from '@vscode/proxy-agent';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
@@ -206,6 +207,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	async handleTitleDoubleClick(windowId: number | undefined): Promise<void> {
 		const window = this.codeWindowById(windowId);
 		window?.handleTitleDoubleClick();
+	}
+
+	async getCursorScreenPoint(firstArg: number | undefined): Promise<IPoint> {
+		return screen.getCursorScreenPoint();
 	}
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {
@@ -754,6 +759,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		const session = window?.win?.webContents?.session;
 
 		return session?.resolveProxy(url);
+	}
+
+	async loadCertificates(_windowId: number | undefined): Promise<string[]> {
+		return loadSystemCertificates({ log: this.logService });
 	}
 
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {

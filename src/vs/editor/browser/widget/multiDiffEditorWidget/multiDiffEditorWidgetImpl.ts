@@ -123,7 +123,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		const viewPortHeight = this._elements.root.clientHeight;
 		const contentViewPort = OffsetRange.ofStartAndLength(scrollTop, viewPortHeight);
 
-		const width = this._elements.content.clientWidth;
+		const width = this._sizeObserver.width.read(reader);
 
 		for (const v of this._viewItems.read(reader)) {
 			const itemContentHeight = v.contentHeight.read(reader);

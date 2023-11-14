@@ -11,8 +11,8 @@ import { localize } from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
-export function openContextMenu(event: MouseEvent, clipboardService: IClipboardService, contextMenuService: IContextMenuService): void {
-	const standardEvent = new StandardMouseEvent(event);
+export function openContextMenu(targetWindow: Window, event: MouseEvent, clipboardService: IClipboardService, contextMenuService: IContextMenuService): void {
+	const standardEvent = new StandardMouseEvent(targetWindow, event);
 
 	// Actions from workbench/browser/actions/textInputActions
 	const actions: IAction[] = [];

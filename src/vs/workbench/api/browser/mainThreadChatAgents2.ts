@@ -75,7 +75,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				}
 			},
 			provideFollowups: async (sessionId, token): Promise<IChatFollowup[]> => {
-				if (!this._agents.get(handle)?.hasSlashCommands) {
+				if (!this._agents.get(handle)?.hasFollowups) {
 					return [];
 				}
 
@@ -88,7 +88,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				return this._proxy.$provideSlashCommands(handle, token);
 			}
 		});
-		this._agents.set(handle, { name, dispose: d.dispose, hasSlashCommands: metadata.hasSlashCommands });
+		this._agents.set(handle, {
+			name,
+			dispose: d.dispose,
+			hasSlashCommands: metadata.hasSlashCommands,
+			hasFollowups: metadata.hasFollowups
+		});
 	}
 
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void {
@@ -97,6 +102,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			throw new Error(`No agent with handle ${handle} registered`);
 		}
 		data.hasSlashCommands = metadataUpdate.hasSlashCommands;
+		data.hasFollowups = metadataUpdate.hasFollowups;
 		this._chatAgentService.updateAgent(data.name, revive(metadataUpdate));
 	}
 

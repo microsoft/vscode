@@ -1392,10 +1392,10 @@
     bindings "^1.5.0"
     node-addon-api "^6.0.0"
 
-"@vscode/proxy-agent@^0.17.5":
-  version "0.17.5"
-  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.17.5.tgz#a59f6087a39795425b2601c9ee95bcb0338154e6"
-  integrity sha512-plKfR1i9ce09aro1/yvK3Ckiu84Cj5ViuLqJ/7VRT6E9w5xP2YUPcgrCy+u7FGorKZmJb+wQ1L6f/cdJ7axulw==
+"@vscode/proxy-agent@^0.18.0":
+  version "0.18.0"
+  resolved "https://registry.yarnpkg.com/@vscode/proxy-agent/-/proxy-agent-0.18.0.tgz#08c1adc4707844788738e87814a425c1f553d695"
+  integrity sha512-lOBA4Ns6PqJtX6LCUpKiwxkx3uhPoOdChtSSvO0hujON1sPBdSjyAwECoEWlUAk8FTJ3040ClPoLsDn9gUw2lw==
   dependencies:
     "@tootallnate/once" "^3.0.0"
     agent-base "^7.0.1"
@@ -3558,10 +3558,10 @@ electron-to-chromium@^1.4.202:
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.4.207.tgz#9c3310ebace2952903d05dcaba8abe3a4ed44c01"
   integrity sha512-piH7MJDJp4rJCduWbVvmUd59AUne1AFBJ8JaRQvk0KzNTSUnZrVXHCZc+eg+CGE4OujkcLJznhGKD6tuAshj5Q==
 
-electron@25.9.2:
-  version "25.9.2"
-  resolved "https://registry.yarnpkg.com/electron/-/electron-25.9.2.tgz#12be98fbcff485c94ff99df21e0727797a45364a"
-  integrity sha512-hVBN5rsrL99BKNHvzMeYy2PkAmewuIobu4U3o3EzVz4MDoLmMfW4yTH5GZ4RbJrpokoEky5IzGtRR/ggPzL6Fw==
+electron@25.9.4:
+  version "25.9.4"
+  resolved "https://registry.yarnpkg.com/electron/-/electron-25.9.4.tgz#1935b6fbfd8ad920719a4136d867021496703884"
+  integrity sha512-5pDU8a7o7ZIPTZHAqjflGMq764Favdsc271KXrAT3oWvFTHs5Ve9+IOt5EUVPrwvC2qRWKpCIEM47WzwkTlENQ==
   dependencies:
     "@electron/get" "^2.0.0"
     "@types/node" "^18.11.18"

@@ -461,7 +461,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		},
 		timestamp: Date.now(),
 		hasOutput: () => !!output
-	};
+	} as ITerminalCommand;
 }
 
 type TestAction = Pick<IAction, 'id' | 'label' | 'tooltip' | 'enabled'> & { command?: string; uri?: URI };

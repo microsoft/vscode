@@ -92,6 +92,11 @@ declare module 'vscode' {
 		readonly description: string;
 
 		/**
+		 * When the user clicks this slash command in `/help`, this text will be submitted to this slash command
+		 */
+		readonly sampleRequest?: string;
+
+		/**
 		 * Whether executing the command puts the
 		 * chat into a persistent mode, where the
 		 * slash command is prepended to the chat input.
@@ -203,6 +208,11 @@ declare module 'vscode' {
 		 * This provider will be called once after each request to retrieve suggested followup questions.
 		 */
 		followupProvider?: FollowupProvider;
+
+		/**
+		 * When the user clicks this agent in `/help`, this text will be submitted to this slash command
+		 */
+		sampleRequest?: string;
 
 		/**
 		 * An event that fires whenever feedback for a result is received, e.g. when a user up- or down-votes

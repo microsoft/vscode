@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EventHelper, addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
+import { EventHelper, addDisposableListener, getActiveDocument, getWindow } from 'vs/base/browser/dom';
 import { IWorkbenchContribution, IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -78,12 +78,12 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		// Context menu support in input/textarea
 		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
-			const listener = addDisposableListener(container, 'contextmenu', e => this.onContextMenu(e));
+			const listener = addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e));
 			this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => listener.dispose()));
 		}, this.layoutService.container));
 	}
 
-	private onContextMenu(e: MouseEvent): void {
+	private onContextMenu(targetWindow: Window, e: MouseEvent): void {
 		if (e.defaultPrevented) {
 			return; // make sure to not show these actions by accident if component indicated to prevent
 		}
@@ -95,7 +95,7 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 
 		EventHelper.stop(e, true);
 
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(targetWindow, e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,
