@@ -669,9 +669,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private renderContentReferencesIfNeeded(element: ChatTreeItem, templateData: IChatListItemTemplate, disposables: DisposableStore): void {
 		dom.clearNode(templateData.referencesListContainer);
-		if (isResponseVM(element) && this._usedReferencesEnabled && element.response.contentReferences.length) {
+		if (isResponseVM(element) && this._usedReferencesEnabled && element.contentReferences.length) {
 			dom.show(templateData.referencesListContainer);
-			const contentReferencesListResult = this.renderContentReferencesListData(element.response.contentReferences, element, templateData);
+			const contentReferencesListResult = this.renderContentReferencesListData(element.contentReferences, element, templateData);
 			templateData.referencesListContainer.appendChild(contentReferencesListResult.element);
 			disposables.add(contentReferencesListResult);
 		} else {

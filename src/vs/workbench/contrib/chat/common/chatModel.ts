@@ -27,12 +27,10 @@ export interface IChatRequestModel {
 	readonly response: IChatResponseModel | undefined;
 }
 
-export type IChatProgressResponseContent = Exclude<IChatProgress, IChatAgentDetection>;
+export type IChatProgressResponseContent = Exclude<IChatProgress, IChatAgentDetection | IChatUsedContext | IChatContentReference>;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
-	readonly usedContext: IChatUsedContext | undefined;
-	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	asString(): string;
 }
 
@@ -45,6 +43,8 @@ export interface IChatResponseModel {
 	readonly avatarIconUri?: URI;
 	readonly session: IChatModel;
 	readonly agent?: IChatAgentData;
+	readonly usedContext: IChatUsedContext | undefined;
+	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
@@ -93,16 +93,6 @@ export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
 		return this._onDidChangeValue.event;
-	}
-
-	private _contentReferences: IChatContentReference[] = [];
-	public get contentReferences(): IChatContentReference[] {
-		return this._contentReferences;
-	}
-
-	private _usedContext: IChatUsedContext | undefined;
-	public get usedContext(): IChatUsedContext | undefined {
-		return this._usedContext;
 	}
 
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
@@ -180,11 +170,6 @@ export class Response implements IResponse {
 		} else if (isCompleteInteractiveProgressTreeData(progress)) {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
-		} else if ('documents' in progress) {
-			this._usedContext = progress;
-		} else if ('reference' in progress) {
-			this._contentReferences.push(progress);
-			this._onDidChangeValue.fire();
 		} else if ('inlineReference' in progress) {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
@@ -280,6 +265,17 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._slashCommand;
 	}
 
+	private _usedContext: IChatUsedContext | undefined;
+	public get usedContext(): IChatUsedContext | undefined {
+		return this._usedContext;
+	}
+
+	private readonly _contentReferences: IChatContentReference[] = [];
+	public get contentReferences(): ReadonlyArray<IChatContentReference> {
+		return this._contentReferences;
+	}
+
+
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
 		public readonly session: ChatModel,
@@ -301,6 +297,15 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	updateContent(responsePart: IChatProgressResponseContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
+	}
+
+	updateReferences(reference: IChatUsedContext | IChatContentReference) {
+		if (reference.kind === 'usedContext') {
+			this._usedContext = reference;
+		} else if (reference.kind === 'reference') {
+			this._contentReferences.push(reference);
+			this._onDidChange.fire();
+		}
 	}
 
 	setAgent(agent: IChatAgentData, slashCommand?: IChatAgentCommand) {
@@ -549,11 +554,11 @@ export class ChatModel extends Disposable implements IChatModel {
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
-						request.response.updateContent(raw.usedContext);
+						request.response.updateReferences(raw.usedContext);
 					}
 
 					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.updateContent(r));
+						raw.contentReferences.forEach(r => request.response!.updateReferences(r));
 					}
 				}
 				return request;
@@ -649,10 +654,10 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'content') {
 			request.response.updateContent(progress, quiet);
-		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
+		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress) || 'inlineReference' in progress) {
 			request.response.updateContent(progress, quiet);
-		} else if ('documents' in progress || 'reference' in progress || 'inlineReference' in progress) {
-			request.response.updateContent(progress);
+		} else if ('documents' in progress || 'reference' in progress) {
+			request.response.updateReferences(progress);
 		} else if ('agentName' in progress) {
 			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
@@ -735,8 +740,8 @@ export class ChatModel extends Disposable implements IChatModel {
 					vote: r.response?.vote,
 					agent: r.response?.agent ? { id: r.response.agent.id, metadata: r.response.agent.metadata } : undefined, // May actually be the full IChatAgent instance, just take the data props
 					slashCommand: r.response?.slashCommand,
-					usedContext: r.response?.response.usedContext,
-					contentReferences: r.response?.response.contentReferences
+					usedContext: r.response?.usedContext,
+					contentReferences: r.response?.contentReferences
 				};
 			}),
 			providerId: this.providerId,
