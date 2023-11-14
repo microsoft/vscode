@@ -3049,37 +3049,22 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		// History item group base
-		const historyItemGroupBase = await historyProvider.resolveHistoryItemGroupBase(currentHistoryItemGroup.id);
-		if (!historyItemGroupBase) {
-			return [];
-		}
-
-		// Common ancestor, ahead, behind
-		const ancestor = await historyProvider.resolveHistoryItemGroupCommonAncestor(currentHistoryItemGroup.id, historyItemGroupBase.id);
-
 		const children: SCMHistoryItemGroupTreeElement[] = [];
+		const historyItemGroupDetails = await historyProvider.resolveHistoryItemGroup(currentHistoryItemGroup);
+
 		// Incoming
-		if (historyItemGroupBase && this.showSyncInformation().incoming) {
+		if (this.showSyncInformation().incoming && historyItemGroupDetails?.incoming) {
 			children.push({
-				id: historyItemGroupBase.id,
-				label: `$(cloud-download) ${historyItemGroupBase.label}`,
-				// description: localize('incoming', "Incoming Changes"),
-				ancestor: ancestor?.id,
-				count: ancestor?.behind ?? 0,
+				...historyItemGroupDetails.incoming,
 				repository: element,
 				type: 'historyItemGroup'
 			});
 		}
 
 		// Outgoing
-		if (this.showSyncInformation().outgoing) {
+		if (this.showSyncInformation().outgoing && historyItemGroupDetails?.outgoing) {
 			children.push({
-				id: currentHistoryItemGroup.id,
-				label: `$(cloud-upload) ${currentHistoryItemGroup.label}`,
-				// description: localize('outgoing', "Outgoing Changes"),
-				ancestor: ancestor?.id,
-				count: ancestor?.ahead ?? 0,
+				...historyItemGroupDetails.outgoing,
 				repository: element,
 				type: 'historyItemGroup'
 			});
