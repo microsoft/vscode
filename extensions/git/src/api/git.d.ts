@@ -233,7 +233,7 @@ export interface Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;

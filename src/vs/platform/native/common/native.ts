@@ -12,7 +12,7 @@ import { INativeOpenDialogOptions } from 'vs/platform/dialogs/common/dialogs';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IV8Profile } from 'vs/platform/profiling/common/profiling';
 import { IPartsSplash } from 'vs/platform/theme/common/themeService';
-import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
+import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from 'vs/platform/window/common/window';
 
 export interface ICPUProperties {
 	model: string;
@@ -78,6 +78,8 @@ export interface ICommonNativeHostService {
 	toggleFullScreen(options?: INativeOptions): Promise<void>;
 
 	handleTitleDoubleClick(): Promise<void>;
+
+	getCursorScreenPoint(): Promise<IPoint>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;

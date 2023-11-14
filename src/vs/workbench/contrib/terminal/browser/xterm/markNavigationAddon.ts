@@ -12,7 +12,6 @@ import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getWindow } from 'vs/base/browser/dom';
-import { getCommandRowCount, getPromptRowCount } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 
 enum Boundary {
 	Top,
@@ -235,8 +234,8 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 
-		const promptRowCount = getPromptRowCount(command, this._terminal.buffer.active);
-		const commandRowCount = getCommandRowCount(command);
+		const promptRowCount = command.getPromptRowCount();
+		const commandRowCount = command.getCommandRowCount();
 		this._scrollToMarker(
 			command.marker.line - (promptRowCount - 1),
 			position,

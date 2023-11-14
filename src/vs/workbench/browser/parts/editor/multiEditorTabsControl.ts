@@ -56,6 +56,7 @@ import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor
 import { StickyEditorGroupModel, UnstickyEditorGroupModel } from 'vs/workbench/common/editor/filteredEditorGroupModel';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 interface IEditorInputLabel {
 	readonly editor: EditorInput;
@@ -150,9 +151,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITreeViewsDnDService private readonly treeViewsDragAndDropService: ITreeViewsDnDService,
 		@IEditorResolverService editorResolverService: IEditorResolverService,
-		@ILifecycleService private readonly lifecycleService: ILifecycleService
+		@ILifecycleService private readonly lifecycleService: ILifecycleService,
+		@IHostService hostService: IHostService
 	) {
-		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, editorGroupService);
+		super(parent, editorPartsView, groupsView, groupView, tabsModel, contextMenuService, instantiationService, contextKeyService, keybindingService, notificationService, quickInputService, themeService, editorResolverService, editorGroupService, hostService);
 
 		// Resolve the correct path library for the OS we are on
 		// If we are connected to remote, this accounts for the
@@ -1121,9 +1123,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-					bounds: { x: e.screenX, y: e.screenY }
-				});
+				const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, tab);
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {

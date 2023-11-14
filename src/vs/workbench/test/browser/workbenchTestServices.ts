@@ -18,7 +18,7 @@ import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -1495,6 +1495,7 @@ export class TestHostService implements IHostService {
 
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
+	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
@@ -1532,7 +1533,7 @@ export class TestEditorInput extends EditorInput {
 		return this._typeId;
 	}
 
-	override resolve(): Promise<IEditorModel | null> {
+	override resolve(): Promise<IDisposable | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -1683,7 +1684,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		}
 	}
 
-	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	override resolve(): Promise<IDisposable | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	override matches(other: EditorInput | IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
