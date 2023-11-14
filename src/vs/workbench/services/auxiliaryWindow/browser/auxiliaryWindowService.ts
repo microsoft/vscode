@@ -44,7 +44,7 @@ export interface IAuxiliaryWindowService {
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
-	readonly onDidClose: Event<void>;
+	readonly onWillClose: Event<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -57,8 +57,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -70,8 +70,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, 'unload', () => {
-			this._onDidClose.fire();
+		this._register(addDisposableListener(this.window, 'beforeunload', () => {
+			this._onWillClose.fire();
 		}));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
