@@ -2066,7 +2066,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	revealInView(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealType.Default);
+		return this._list.revealCell(cell, CellRevealType.Default);
 	}
 
 	revealInViewAtTop(cell: ICellViewModel) {
@@ -2347,7 +2347,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 						const firstSelectionPosition = selectionsStartPosition[0];
 						await this.revealRangeInViewAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
 					} else {
-						this.revealInView(cell);
+						await this.revealInView(cell);
 					}
 				}
 
@@ -2385,11 +2385,11 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
-					this.revealInView(cell);
+					await this.revealInView(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.firstLine) {
 					this.revealFirstLineIfOutsideViewport(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
-					this.revealInView(cell);
+					await this.revealInView(cell);
 				} else {
 					this.revealInCenterIfOutsideViewport(cell);
 				}
