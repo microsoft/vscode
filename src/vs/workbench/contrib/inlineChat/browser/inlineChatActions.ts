@@ -434,11 +434,11 @@ export class FeebackUnhelpfulCommand extends AbstractInlineChatAction {
 	}
 }
 
-export class ReportIssueForUnhelpfulCommand extends AbstractInlineChatAction {
+export class ReportIssueForBugCommand extends AbstractInlineChatAction {
 	constructor() {
 		super({
-			id: 'inlineChat.reportIssueUnhelpful',
-			title: localize('feedback.reportIssueUnhelpful', 'Report Issue'),
+			id: 'inlineChat.reportIssueForBug',
+			title: localize('feedback.reportIssueForBug', 'Report Issue'),
 			icon: Codicon.report,
 			precondition: CTX_INLINE_CHAT_VISIBLE,
 			menu: {
