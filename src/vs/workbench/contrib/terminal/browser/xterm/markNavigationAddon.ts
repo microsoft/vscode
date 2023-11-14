@@ -284,11 +284,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						if (!renderedElement) {
 							renderedElement = element;
 							element.classList.add('terminal-scroll-highlight-output');
-							if (command.exitCode === 0) {
-								element.classList.add('success');
-							} else if (command.exitCode !== undefined) {
-								element.classList.add('error');
-							}
+							// if (command.exitCode === 0) {
+							// 	element.classList.add('success');
+							// } else if (command.exitCode !== undefined) {
+							// 	element.classList.add('error');
+							// }
+							element.style.opacity = '0.5';
 						}
 						if (this._terminal?.element) {
 							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
