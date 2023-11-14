@@ -9,7 +9,7 @@ import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/
 import { ILayoutService } from 'vs/platform/layout/browser/layoutService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen } from 'vs/platform/window/common/window';
+import { IWindowSettings, IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, isFileToOpen, IOpenEmptyWindowOptions, IPathData, IFileToOpen, IWorkspaceToOpen, IFolderToOpen, IPoint } from 'vs/platform/window/common/window';
 import { isResourceEditorInput, pathsToEditors } from 'vs/workbench/common/editor';
 import { whenEditorClosed } from 'vs/workbench/browser/editor';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -539,6 +539,10 @@ export class BrowserHostService extends Disposable implements IHostService {
 
 	async moveTop(targetWindow: Window): Promise<void> {
 		// There seems to be no API to bring a window to front in browsers
+	}
+
+	async getCursorScreenPoint(): Promise<IPoint | undefined> {
+		return undefined;
 	}
 
 	//#endregion

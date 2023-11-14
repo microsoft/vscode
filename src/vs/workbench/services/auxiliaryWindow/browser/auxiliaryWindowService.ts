@@ -26,6 +26,10 @@ export interface IAuxiliaryWindowOpenEvent {
 	readonly disposables: DisposableStore;
 }
 
+export interface IAuxiliaryWindowOpenOptions {
+	readonly bounds?: Partial<IRectangle>;
+}
+
 export interface IAuxiliaryWindowService {
 
 	readonly _serviceBrand: undefined;
@@ -34,7 +38,7 @@ export interface IAuxiliaryWindowService {
 
 	hasWindow(windowId: number): boolean;
 
-	open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow>;
+	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
@@ -130,7 +134,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		super();
 	}
 
-	async open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow> {
+	async open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow> {
 		mark('code/auxiliaryWindow/willOpen');
 
 		const targetWindow = await this.openWindow(options);
@@ -169,14 +173,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	private async openWindow(options?: { bounds?: Partial<IRectangle> }): Promise<Window | undefined> {
+	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
 
+		const width = options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width;
+		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
+
 		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
-			y: options?.bounds?.y ?? activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
-			width: options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
-			height: options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
+			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
+			width,
+			height
 		};
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
