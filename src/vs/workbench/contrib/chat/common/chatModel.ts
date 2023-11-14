@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentDetection, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -27,11 +27,23 @@ export interface IChatRequestModel {
 	readonly response: IChatResponseModel | undefined;
 }
 
-export type IChatProgressResponseContent = Exclude<IChatProgress, IChatAgentDetection>;
+export type ResponsePart =
+	| string
+	| IMarkdownString
+	| { treeData: IChatResponseProgressFileTreeData }
+	| {
+		placeholder: string;
+		resolvedContent?: Promise<
+			string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }
+		>;
+	}
+	| IUsedContext
+	| IChatContentReference
+	| IChatContentInlineReference;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
-	readonly usedContext: IChatUsedContext | undefined;
+	readonly usedContext: IUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	asString(): string;
 }
@@ -100,8 +112,8 @@ export class Response implements IResponse {
 		return this._contentReferences;
 	}
 
-	private _usedContext: IChatUsedContext | undefined;
-	public get usedContext(): IChatUsedContext | undefined {
+	private _usedContext: IUsedContext | undefined;
+	public get usedContext(): IUsedContext | undefined {
 		return this._usedContext;
 	}
 
@@ -135,36 +147,36 @@ export class Response implements IResponse {
 		return this._responseRepr;
 	}
 
-	updateContent(progress: IChatProgressResponseContent, quiet?: boolean): void {
-		if (progress.kind === 'content') {
+	updateContent(responsePart: ResponsePart, quiet?: boolean): void {
+		if (typeof responsePart === 'string' || isMarkdownString(responsePart)) {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
 			if (lastResponsePart && ('inlineReference' in lastResponsePart || lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart))) {
 				// The last part is resolving or a tree data item, start a new part
-				this._responseParts.push({ string: typeof progress.content === 'string' ? new MarkdownString(progress.content) : progress.content });
+				this._responseParts.push({ string: typeof responsePart === 'string' ? new MarkdownString(responsePart) : responsePart });
 			} else if (lastResponsePart) {
 				// Combine this part with the last, non-resolving string part
-				if (isMarkdownString(progress.content)) {
+				if (isMarkdownString(responsePart)) {
 					// Merge all enabled commands
 					const lastPartEnabledCommands = typeof lastResponsePart.string.isTrusted === 'object' ? lastResponsePart.string.isTrusted.enabledCommands : [];
-					const thisPartEnabledCommands = typeof progress.content.isTrusted === 'object' ? progress.content.isTrusted.enabledCommands : [];
+					const thisPartEnabledCommands = typeof responsePart.isTrusted === 'object' ? responsePart.isTrusted.enabledCommands : [];
 					const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + progress.content.value, { isTrusted: { enabledCommands } }) };
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart.value, { isTrusted: { enabledCommands } }) };
 				} else {
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + progress, lastResponsePart.string) };
+					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + responsePart, lastResponsePart.string) };
 				}
 			} else {
-				this._responseParts.push({ string: isMarkdownString(progress.content) ? progress.content : new MarkdownString(progress.content) });
+				this._responseParts.push({ string: isMarkdownString(responsePart) ? responsePart : new MarkdownString(responsePart) });
 			}
 
 			this._updateRepr(quiet);
-		} else if ('placeholder' in progress) {
+		} else if ('placeholder' in responsePart) {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(progress.placeholder), isPlaceholder: true }) - 1;
+			const responsePosition = this._responseParts.push({ string: new MarkdownString(responsePart.placeholder), isPlaceholder: true }) - 1;
 			this._updateRepr(quiet);
 
-			progress.resolvedContent?.then((content) => {
+			responsePart.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
 					this._responseParts[responsePosition] = { string: new MarkdownString(content), isPlaceholder: true };
@@ -177,17 +189,19 @@ export class Response implements IResponse {
 					this._updateRepr(quiet);
 				}
 			});
-		} else if (isCompleteInteractiveProgressTreeData(progress)) {
-			this._responseParts.push(progress);
+		} else if (isCompleteInteractiveProgressTreeData(responsePart)) {
+			this._responseParts.push(responsePart);
 			this._updateRepr(quiet);
-		} else if ('documents' in progress) {
-			this._usedContext = progress;
-		} else if ('reference' in progress) {
-			this._contentReferences.push(progress);
+		} else if ('documents' in responsePart) {
+			this._usedContext = responsePart;
+		} else if ('reference' in responsePart) {
+			this._contentReferences.push(responsePart);
 			this._onDidChangeValue.fire();
-		} else if ('inlineReference' in progress) {
-			this._responseParts.push(progress);
+		} else if ('inlineReference' in responsePart) {
+			this._responseParts.push(responsePart);
 			this._updateRepr(quiet);
+		} else if ('agentName' in responsePart) {
+
 		}
 	}
 
@@ -299,7 +313,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: IChatProgressResponseContent, quiet?: boolean) {
+	updateContent(responsePart: ResponsePart, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -367,7 +381,7 @@ export interface ISerializableChatRequestData {
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
 	/** For backward compat: should be optional */
-	usedContext?: IChatUsedContext;
+	usedContext?: IUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 }
 
@@ -647,8 +661,8 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'content') {
-			request.response.updateContent(progress, quiet);
+		if ('content' in progress) {
+			request.response.updateContent(progress.content, quiet);
 		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress)) {
 			request.response.updateContent(progress, quiet);
 		} else if ('documents' in progress || 'reference' in progress || 'inlineReference' in progress) {

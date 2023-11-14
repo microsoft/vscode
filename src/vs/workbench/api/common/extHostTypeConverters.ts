@@ -2293,27 +2293,26 @@ export namespace InteractiveEditorResponseFeedbackKind {
 }
 
 export namespace ChatResponseProgress {
-	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatResponseProgressDto {
 		if ('placeholder' in progress && 'resolvedContent' in progress) {
-			return { placeholder: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
+			return { placeholder: progress.placeholder };
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.markdownContent), kind: 'content' };
+			return { content: MarkdownString.from(progress.markdownContent) };
 		} else if ('content' in progress) {
 			if (typeof progress.content === 'string') {
-				return { content: progress.content, kind: 'content' };
+				return progress;
 			}
 
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.content), kind: 'content' };
+			return { content: MarkdownString.from(progress.content) };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
 					uri: d.uri,
 					version: d.version,
 					ranges: d.ranges.map(r => Range.from(r))
-				})),
-				kind: 'usedContext'
+				}))
 			};
 		} else if ('reference' in progress) {
 			return {
@@ -2321,8 +2320,7 @@ export namespace ChatResponseProgress {
 					{
 						uri: progress.reference.uri,
 						range: Range.from(progress.reference.range)
-					} : progress.reference,
-				kind: 'reference'
+					} : progress.reference
 			};
 		} else if ('inlineReference' in progress) {
 			return {
@@ -2331,14 +2329,13 @@ export namespace ChatResponseProgress {
 						uri: progress.inlineReference.uri,
 						range: Range.from(progress.inlineReference.range)
 					} : progress.inlineReference,
-				name: progress.title,
-				kind: 'inlineReference'
+				title: progress.title,
 			};
 		} else if ('agentName' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
+			return progress;
 		} else {
-			return { treeData: progress.treeData, kind: 'treeData' };
+			return progress;
 		}
 	}
 }

@@ -103,8 +103,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 								return; /* Cancelled */
 							}
 							const [progressHandle, progressContent] = res;
-							const convertedContent = typeConvert.ChatResponseProgress.from(agent.extension, progressContent);
-							this._proxy.$handleProgressChunk(requestId, convertedContent, progressHandle ?? undefined);
+							this._proxy.$handleProgressChunk(requestId, progressContent, progressHandle ?? undefined);
 						});
 					} else {
 						this._proxy.$handleProgressChunk(requestId, convertedProgress);
