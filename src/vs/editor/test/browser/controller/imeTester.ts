@@ -148,7 +148,7 @@ function doCreateTest(description: string, inputStr: string, expectedStr: string
 	const updatePosition = (off: number, len: number) => {
 		cursorOffset = off;
 		cursorLength = len;
-		handler.writeScreenReaderContent('selection changed');
+		handler.writeNativeTextAreaContent('selection changed');
 		handler.focusTextArea();
 	};
 

@@ -219,17 +219,14 @@ export class TextAreaInput extends Disposable {
 	) {
 		super();
 		this._asyncTriggerCut = this._register(new RunOnceScheduler(() => this._onCut.fire(), 0));
-		if (this._accessibilityService.isScreenReaderOptimized()) {
-			this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
-		}
 		this._textAreaState = TextAreaState.EMPTY;
 		this._selectionChangeListener = null;
 		if (this._accessibilityService.isScreenReaderOptimized()) {
-			this.writeScreenReaderContent('ctor');
+			this.writeNativeTextAreaContent('ctor');
 		}
-		this._register(this._accessibilityService.onDidChangeScreenReaderOptimized(() => {
+		this._register(Event.runAndSubscribe(this._accessibilityService.onDidChangeScreenReaderOptimized, () => {
 			if (this._accessibilityService.isScreenReaderOptimized() && !this._asyncFocusGainWriteScreenReaderContent.value) {
-				this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0));
+				this._asyncFocusGainWriteScreenReaderContent.value = this._register(new RunOnceScheduler(() => this.writeNativeTextAreaContent('asyncFocusGain'), 0));
 			} else {
 				this._asyncFocusGainWriteScreenReaderContent.clear();
 			}
@@ -449,8 +446,7 @@ export class TextAreaInput extends Disposable {
 				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
 				// Safari will always move the selection at offset 0 in the textarea
 				if (!this._asyncFocusGainWriteScreenReaderContent.value) {
-					this._asyncFocusGainWriteScreenReaderContent.value = new RunOnceScheduler(() => this.writeScreenReaderContent('asyncFocusGain'), 0);
-					this._asyncFocusGainWriteScreenReaderContent.value.schedule();
+					this._asyncFocusGainWriteScreenReaderContent.value = new RunOnceScheduler(() => this.writeNativeTextAreaContent('asyncFocusGain'), 0);
 				}
 				this._asyncFocusGainWriteScreenReaderContent.value.schedule();
 			}
@@ -465,7 +461,7 @@ export class TextAreaInput extends Disposable {
 				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('blurWithoutCompositionEnd');
+				this.writeNativeTextAreaContent('blurWithoutCompositionEnd');
 
 				// Fire artificial composition end
 				this._onCompositionEnd.fire();
@@ -481,7 +477,7 @@ export class TextAreaInput extends Disposable {
 				this._currentComposition = null;
 
 				// Clear the textarea to avoid an unwanted cursor type
-				this.writeScreenReaderContent('tapWithoutCompositionEnd');
+				this.writeNativeTextAreaContent('tapWithoutCompositionEnd');
 
 				// Fire artificial composition end
 				this._onCompositionEnd.fire();
@@ -620,7 +616,7 @@ export class TextAreaInput extends Disposable {
 		}
 
 		if (this._hasFocus) {
-			this.writeScreenReaderContent('focusgain');
+			this.writeNativeTextAreaContent('focusgain');
 		}
 
 		if (this._hasFocus) {
@@ -639,13 +635,13 @@ export class TextAreaInput extends Disposable {
 		this._textAreaState = textAreaState;
 	}
 
-	public writeScreenReaderContent(reason: string): void {
-		if (((reason === 'asyncFocusGain' || reason === 'render') && !this._accessibilityService.isScreenReaderOptimized()) || this._currentComposition) {
+	public writeNativeTextAreaContent(reason: string): void {
+		if ((!this._accessibilityService.isScreenReaderOptimized() && reason === 'render') || this._currentComposition) {
 			// Do not write on async focus gain / render unless a screen reader is being used #192278
 			// Do not write to the text area when doing composition
 			return;
 		}
-		this._logService.trace(`writeScreenReaderContent(${reason})`);
+		this._logService.trace(`writeTextAreaState(reason: ${reason})`);
 		this._setAndWriteTextAreaState(reason, this._host.getScreenReaderContent());
 	}
 

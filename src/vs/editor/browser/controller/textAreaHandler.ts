@@ -480,7 +480,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	public writeScreenReaderContent(reason: string): void {
-		this._textAreaInput.writeScreenReaderContent(reason);
+		this._textAreaInput.writeNativeTextAreaContent(reason);
 	}
 
 	public override dispose(): void {
@@ -631,7 +631,7 @@ export class TextAreaHandler extends ViewPart {
 		}
 
 		if (e.hasChanged(EditorOption.accessibilitySupport)) {
-			this._textAreaInput.writeScreenReaderContent('strategy changed');
+			this._textAreaInput.writeNativeTextAreaContent('strategy changed');
 		}
 
 		return true;
@@ -641,7 +641,7 @@ export class TextAreaHandler extends ViewPart {
 		this._modelSelections = e.modelSelections.slice(0);
 		// We must update the <textarea> synchronously, otherwise long press IME on macos breaks.
 		// See https://github.com/microsoft/vscode/issues/165821
-		this._textAreaInput.writeScreenReaderContent('selection changed');
+		this._textAreaInput.writeNativeTextAreaContent('selection changed');
 		return true;
 	}
 	public override onDecorationsChanged(e: viewEvents.ViewDecorationsChangedEvent): boolean {
@@ -728,7 +728,7 @@ export class TextAreaHandler extends ViewPart {
 	}
 
 	public render(ctx: RestrictedRenderingContext): void {
-		this._textAreaInput.writeScreenReaderContent('render');
+		this._textAreaInput.writeNativeTextAreaContent('render');
 		this._render();
 	}
 
