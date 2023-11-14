@@ -5,7 +5,7 @@
 
 import { $, Dimension, addDisposableListener, append, getTotalWidth, h } from 'vs/base/browser/dom';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { Queue } from 'vs/base/common/async';
+import { Queue, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
@@ -41,7 +41,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
-import { IInlineChatSessionService, ReplyResponse, Session } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
+import { IInlineChatSessionService, ReplyResponse, Session, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { _inputEditorOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -242,6 +242,10 @@ class CellChatWidget extends Disposable {
 		}
 	}
 
+	getInput() {
+		return this._inputEditor.getValue();
+	}
+
 	updateProgress(show: boolean) {
 		if (show) {
 			this._progressBar.infinite();
@@ -258,6 +262,42 @@ class CellChatWidget extends Disposable {
 	}
 }
 
+class EditStrategy {
+	private _editCount: number = 0;
+
+	async makeProgressiveChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			editor.pushUndoStop();
+		}
+
+		const durationInSec = opts.duration / 1000;
+		for (const edit of edits) {
+			const wordCount = countWords(edit.text ?? '');
+			const speed = wordCount / durationInSec;
+			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
+		}
+	}
+
+	async makeChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[]): Promise<void> {
+		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
+			let last: Position | null = null;
+			for (const edit of undoEdits) {
+				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+				// this._inlineDiffDecorations.collectEditOperation(edit);
+			}
+			return last && [Selection.fromPositions(last)];
+		};
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			editor.pushUndoStop();
+		}
+		editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
+	}
+}
+
 class NotebookCellChatController extends Disposable {
 	private static _cellChatControllers = new WeakMap<ICellViewModel, NotebookCellChatController>();
 
@@ -268,6 +308,7 @@ class NotebookCellChatController extends Disposable {
 	private _activeSession?: Session;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private _isVisible: boolean = false;
+	private _strategy: EditStrategy = new EditStrategy();
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
@@ -313,6 +354,8 @@ class NotebookCellChatController extends Disposable {
 
 	async acceptInput() {
 		assertType(this._activeSession);
+		this._activeSession.addInput(new SessionPrompt(this._getInput()));
+
 		assertType(this._activeSession.lastInput);
 
 		const value = this._activeSession.lastInput.value;
@@ -323,10 +366,6 @@ class NotebookCellChatController extends Disposable {
 
 		const editor = editors[1];
 
-		if (!this._activeSession) {
-			return;
-		}
-
 		this._ctxHasActiveRequest.set(true);
 		this._chatPart.getWidget().updateProgress(true);
 
@@ -336,7 +375,7 @@ class NotebookCellChatController extends Disposable {
 			attempt: 0,
 			selection: { selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 1 },
 			wholeRange: { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 },
-			live: false
+			live: true
 		};
 
 		const requestCts = new CancellationTokenSource();
@@ -346,7 +385,7 @@ class NotebookCellChatController extends Disposable {
 		const progressiveEditsAvgDuration = new MovingAverage();
 		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
 		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
-			console.log('received chunk', data, request);
+			// console.log('received chunk', data, request);
 
 			if (requestCts.token.isCancellationRequested) {
 				return;
@@ -373,7 +412,7 @@ class NotebookCellChatController extends Disposable {
 		});
 
 		const task = this._activeSession.provider.provideResponse(this._activeSession.session, request, progress, requestCts.token);
-		const reply = await task;
+		const reply = await raceCancellationError(Promise.resolve(task), requestCts.token);
 
 		if (progressiveEditsQueue.size > 0) {
 			// we must wait for all edits that came in via progress to complete
@@ -410,11 +449,15 @@ class NotebookCellChatController extends Disposable {
 		this._chatPart.getWidget().hide();
 	}
 
+	private _getInput() {
+		return this._chatPart.getWidget().getInput();
+	}
+
 	private async _createSession(editor: IActiveCodeEditor) {
 		const createSessionCts = new CancellationTokenSource();
 		const session = await this._inlineChatSessionService.createSession(
 			editor,
-			{ editMode: EditMode.Live },
+			{ editMode: EditMode.LivePreview },
 			createSessionCts.token
 		);
 
@@ -441,46 +484,14 @@ class NotebookCellChatController extends Disposable {
 			// this._ignoreModelContentChanged = true;
 			this._activeSession.wholeRange.trackEdits(editOperations);
 			if (opts) {
-				await this.makeProgressiveChanges(editor, editOperations, opts);
+				await this._strategy.makeProgressiveChanges(editor, editOperations, opts);
 			} else {
-				await this.makeChanges(editor, editOperations);
+				await this._strategy.makeChanges(editor, editOperations);
 			}
 			// this._ctxDidEdit.set(this._activeSession.hasChangedText);
 		} finally {
 			// this._ignoreModelContentChanged = false;
 		}
-	}
-
-	async makeProgressiveChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		// push undo stop before first edit
-		// if (++this._editCount === 1) {
-		// 	this._editor.pushUndoStop();
-		// }
-
-		const durationInSec = opts.duration / 1000;
-		for (const edit of edits) {
-			const wordCount = countWords(edit.text ?? '');
-			const speed = wordCount / durationInSec;
-			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
-		}
-	}
-
-	async makeChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[]): Promise<void> {
-		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
-			let last: Position | null = null;
-			for (const edit of undoEdits) {
-				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-				// this._inlineDiffDecorations.collectEditOperation(edit);
-			}
-			return last && [Selection.fromPositions(last)];
-		};
-
-		// push undo stop before first edit
-		// if (++this._editCount === 1) {
-		// 	this._editor.pushUndoStop();
-		// }
-		editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
 	}
 }
 
