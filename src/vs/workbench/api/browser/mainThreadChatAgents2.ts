@@ -7,9 +7,11 @@ import { DeferredPromise } from 'vs/base/common/async';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { Disposable, DisposableMap } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
-import { ExtHostChatAgentsShape2, ExtHostContext, IChatProgressDto, IExtensionChatAgentMetadata, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
+import { UriComponents } from 'vs/base/common/uri';
+import { ExtHostChatAgentsShape2, ExtHostContext, IChatResponseProgressDto, IChatResponseProgressFileTreeData, IExtensionChatAgentMetadata, ILocationDto, MainContext, MainThreadChatAgentsShape2 } from 'vs/workbench/api/common/extHost.protocol';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { IChatFollowup, IChatProgress, IChatService, IChatTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { isCompleteInteractiveProgressTreeData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatFollowup, IChatProgress, IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IExtHostContext, extHostNamedCustomer } from 'vs/workbench/services/extensions/common/extHostCustomers';
 
 type AgentData = {
@@ -27,7 +29,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	private readonly _proxy: ExtHostChatAgentsShape2;
 
 	private _responsePartHandlePool = 0;
-	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | IChatTreeData>>();
+	private readonly _activeResponsePartPromises = new Map<string, DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>>();
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -104,11 +106,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._chatAgentService.updateAgent(data.name, revive(metadataUpdate));
 	}
 
-	async $handleProgressChunk(requestId: string, progress: IChatProgressDto, responsePartHandle?: number): Promise<number | void> {
-		if (progress.kind === 'asyncContent') {
+	async $handleProgressChunk(requestId: string, progress: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void> {
+		if ('placeholder' in progress) {
 			const handle = ++this._responsePartHandlePool;
 			const responsePartId = `${requestId}_${handle}`;
-			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | IChatTreeData>();
+			const deferredContentPromise = new DeferredPromise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }>();
 			this._activeResponsePartPromises.set(responsePartId, deferredContentPromise);
 			this._pendingProgress.get(requestId)?.({ ...progress, resolvedContent: deferredContentPromise.p });
 			return handle;
@@ -116,11 +118,11 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			// Complete an existing deferred promise with resolved content
 			const responsePartId = `${requestId}_${responsePartHandle}`;
 			const deferredContentPromise = this._activeResponsePartPromises.get(responsePartId);
-			if (deferredContentPromise && progress.kind === 'treeData') {
-				const withRevivedUris = revive<IChatTreeData>(progress);
+			if (deferredContentPromise && isCompleteInteractiveProgressTreeData(progress)) {
+				const withRevivedUris = revive<{ treeData: IChatResponseProgressFileTreeData }>(progress);
 				deferredContentPromise.complete(withRevivedUris);
 				this._activeResponsePartPromises.delete(responsePartId);
-			} else if (deferredContentPromise && progress.kind === 'content') {
+			} else if (deferredContentPromise && 'content' in progress) {
 				deferredContentPromise.complete(progress.content);
 				this._activeResponsePartPromises.delete(responsePartId);
 			}
@@ -128,11 +130,22 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		}
 
 		// No need to support standalone tree data that's not attached to a placeholder in API
-		if (progress.kind === 'treeData') {
+		if (isCompleteInteractiveProgressTreeData(progress)) {
 			return;
 		}
 
-		const revivedProgress = revive(progress);
-		this._pendingProgress.get(requestId)?.(revivedProgress as IChatProgress);
+		// TS won't let us change the type of `progress`
+		let revivedProgress: IChatProgress;
+		if ('documents' in progress) {
+			revivedProgress = { documents: revive(progress.documents) };
+		} else if ('reference' in progress) {
+			revivedProgress = revive<{ reference: UriComponents | ILocationDto }>(progress);
+		} else if ('inlineReference' in progress) {
+			revivedProgress = revive<{ inlineReference: UriComponents | ILocationDto; name?: string }>(progress);
+		} else {
+			revivedProgress = progress;
+		}
+
+		this._pendingProgress.get(requestId)?.(revivedProgress);
 	}
 }
