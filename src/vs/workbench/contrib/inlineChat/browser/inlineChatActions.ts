@@ -29,21 +29,15 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { AccessibilityHelpAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
-const START_INLINE_CHAT_SESSION = 'inlineChat.start';
-const START_INLINE_CHAT_ICON = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChatIcon', 'Icon which spawns the inline chat from the editor title.'));
-
-CommandsRegistry.registerCommandAlias('interactiveEditor.start', START_INLINE_CHAT_SESSION);
+CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
-
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: START_INLINE_CHAT_SESSION, icon: START_INLINE_CHAT_ICON, title: localize('startInlineChat.label', "Start Inline Chat ") }, order: 1, group: 'navigation', when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable) });
 
 export class StartSessionAction extends EditorAction2 {
 
 	constructor() {
 		super({
-			id: START_INLINE_CHAT_SESSION,
+			id: 'inlineChat.start',
 			title: { value: LOCALIZED_START_INLINE_CHAT_STRING, original: 'Start Inline Chat' },
 			category: AbstractInlineChatAction.category,
 			f1: true,
@@ -52,7 +46,13 @@ export class StartSessionAction extends EditorAction2 {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyCode.KeyI,
 				secondary: [KeyChord(KeyMod.CtrlCmd | KeyCode.KeyK, KeyCode.KeyI)],
-			}
+			},
+			menu: [{
+				id: MenuId.EditorTitle,
+				when: ContextKeyExpr.and(CTX_INLINE_CHAT_HAS_PROVIDER, EditorContextKeys.writable),
+				group: 'navigation',
+				order: 0,
+			}],
 		});
 	}
 
