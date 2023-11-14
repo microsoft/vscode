@@ -47,7 +47,7 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 				for (const [handle, agent] of this._agents) {
 					if (agent.name === e.agentId) {
 						if (e.action.kind === 'vote') {
-							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction, e.action.reportIssue);
+							this._proxy.$acceptFeedback(handle, e.sessionId, e.requestId, e.action.direction);
 						} else {
 							this._proxy.$acceptAction(handle, e.sessionId, e.requestId, e);
 						}

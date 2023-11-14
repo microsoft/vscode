@@ -60,8 +60,8 @@ export class MainThreadInlineChat implements MainThreadInlineChatShape {
 					this._progresses.delete(request.requestId);
 				}
 			},
-			handleInlineChatResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind, reportIssue) => {
-				this._proxy.$handleFeedback(handle, session.id, response.id, kind, reportIssue);
+			handleInlineChatResponseFeedback: !supportsFeedback ? undefined : async (session, response, kind) => {
+				this._proxy.$handleFeedback(handle, session.id, response.id, kind);
 			}
 		});
 

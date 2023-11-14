@@ -62,7 +62,8 @@ declare module 'vscode' {
 		Unhelpful = 0,
 		Helpful = 1,
 		Undone = 2,
-		Accepted = 3
+		Accepted = 3,
+		Bug = 4
 	}
 
 	export interface TextDocumentContext {
@@ -83,7 +84,7 @@ declare module 'vscode' {
 		provideInteractiveEditorResponse(session: S, request: InteractiveEditorRequest, progress: Progress<InteractiveEditorProgressItem>, token: CancellationToken): ProviderResult<R>;
 
 		// eslint-disable-next-line local/vscode-dts-provider-naming
-		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind, shouldReportIssue?: boolean): void;
+		handleInteractiveEditorResponseFeedback?(session: S, response: R, kind: InteractiveEditorResponseFeedbackKind): void;
 	}
 
 	export interface InteractiveSessionParticipantInformation {

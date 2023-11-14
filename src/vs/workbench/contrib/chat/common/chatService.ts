@@ -211,7 +211,11 @@ export interface IChatFollowupAction {
 	followup: IChatReplyFollowup;
 }
 
-export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction;
+export interface IChatBugReportAction {
+	kind: 'bug';
+}
+
+export type ChatUserAction = IChatVoteAction | IChatCopyAction | IChatInsertAction | IChatTerminalAction | IChatCommandAction | IChatFollowupAction | IChatBugReportAction;
 
 export interface IChatUserActionEvent {
 	action: ChatUserAction;

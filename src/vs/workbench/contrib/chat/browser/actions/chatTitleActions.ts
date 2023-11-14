@@ -141,12 +141,9 @@ export function registerChatTitleActions() {
 				sessionId: item.sessionId,
 				requestId: item.requestId,
 				action: {
-					kind: 'vote',
-					direction: InteractiveSessionVoteDirection.Down,
-					reportIssue: true
+					kind: 'bug'
 				}
 			});
-			item.setVote(InteractiveSessionVoteDirection.Down);
 		}
 	});
 

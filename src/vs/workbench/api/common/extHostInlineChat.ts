@@ -223,13 +223,13 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		};
 	}
 
-	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind, reportIssue?: boolean): void {
+	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);
 		const sessionData = this._inputSessions.get(sessionId);
 		const response = sessionData?.responses[responseId];
 		if (entry && response) {
 			const apiKind = typeConvert.InteractiveEditorResponseFeedbackKind.to(kind);
-			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind, reportIssue);
+			entry.provider.handleInteractiveEditorResponseFeedback?.(sessionData.session, response, apiKind);
 		}
 	}
 

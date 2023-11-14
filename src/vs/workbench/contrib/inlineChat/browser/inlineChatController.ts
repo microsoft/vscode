@@ -968,11 +968,19 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	feedbackLast(helpful: boolean, reportIssue?: boolean) {
+	feedbackLast(kind: InlineChatResponseFeedbackKind) {
 		if (this._activeSession?.lastExchange && this._activeSession.lastExchange.response instanceof ReplyResponse) {
-			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
-			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind, reportIssue);
-			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
+			switch (kind) {
+				case InlineChatResponseFeedbackKind.Helpful:
+					this._ctxLastFeedbackKind.set('helpful');
+					break;
+				case InlineChatResponseFeedbackKind.Unhelpful:
+					this._ctxLastFeedbackKind.set('unhelpful');
+					break;
+				default:
+					break;
+			}
 			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
