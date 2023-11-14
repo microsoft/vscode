@@ -14,7 +14,7 @@ import { TextDiffEditorModel } from 'vs/workbench/common/editor/textDiffEditorMo
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { shorten } from 'vs/base/common/labels';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, isResolvedEditorModel } from 'vs/platform/editor/common/editor';
 
 interface IDiffEditorInputLabels {
 	name: string;
@@ -200,7 +200,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 		}
 
 		// Otherwise return normal diff model
-		return new DiffEditorModel(originalEditorModel ?? undefined, modifiedEditorModel ?? undefined);
+		return new DiffEditorModel(isResolvedEditorModel(originalEditorModel) ? originalEditorModel : undefined, isResolvedEditorModel(modifiedEditorModel) ? modifiedEditorModel : undefined);
 	}
 
 	override toUntyped(options?: { preserveViewState: GroupIdentifier }): (IResourceDiffEditorInput & IResourceSideBySideEditorInput) | undefined {

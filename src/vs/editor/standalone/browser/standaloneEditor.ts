@@ -102,7 +102,7 @@ export function createDiffEditor(domElement: HTMLElement, options?: IStandaloneD
 
 export function createMultiFileDiffEditor(domElement: HTMLElement, override?: IEditorOverrideServices) {
 	const instantiationService = StandaloneServices.initialize(override || {});
-	return new MultiDiffEditorWidget(domElement, instantiationService);
+	return new MultiDiffEditorWidget(domElement, {}, instantiationService);
 }
 
 /**

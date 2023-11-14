@@ -461,7 +461,7 @@ export class HideEditorTabsAction extends Action2 {
 				original: 'Hide Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'none').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}
@@ -487,7 +487,7 @@ export class ShowMultipleEditorTabsAction extends Action2 {
 				original: 'Show Multiple Editor Tabs'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'multiple').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}
@@ -513,7 +513,7 @@ export class ShowSingleEditorTabAction extends Action2 {
 				original: 'Show Single Editor Tab'
 			},
 			category: Categories.View,
-			precondition: ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single').negate(),
+			precondition: ContextKeyExpr.and(ContextKeyExpr.equals('config.workbench.editor.showTabs', 'single').negate(), InEditorZenModeContext.negate()),
 			f1: true
 		});
 	}

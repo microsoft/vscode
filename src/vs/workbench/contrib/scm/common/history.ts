@@ -6,7 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+
+export interface ISCMHistoryProviderMenus {
+	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+}
 
 export interface ISCMHistoryProvider {
 
@@ -49,6 +54,12 @@ export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
 	readonly type: 'historyItemGroup';
 }
 
+export interface ISCMHistoryItemStatistics {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface ISCMHistoryItem {
 	readonly id: string;
 	readonly parentIds: string[];
@@ -56,6 +67,7 @@ export interface ISCMHistoryItem {
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: ISCMHistoryItemStatistics;
 }
 
 export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {

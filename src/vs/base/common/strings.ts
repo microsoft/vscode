@@ -167,23 +167,6 @@ export function stripWildcards(pattern: string): string {
 	return pattern.replace(/\*/g, '');
 }
 
-/**
- * Finds the index of the nth occurrence of a character within a string.
- * @param text The text to search.
- * @param char The character to search for.
- * @param n The number of chars to find
- */
-export function findNthOccurrenceIndex(text: string, char: string, n: number): number {
-	let index = -1;
-	for (let i = 0; i < n; i++) {
-		index = text.indexOf(char, index + 1);
-		if (index === -1) {
-			break;
-		}
-	}
-	return index;
-}
-
 export interface RegExpOptions {
 	matchCase?: boolean;
 	wholeWord?: boolean;

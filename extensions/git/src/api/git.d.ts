@@ -44,6 +44,12 @@ export interface Branch extends Ref {
 	readonly behind?: number;
 }
 
+export interface CommitShortStat {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
+}
+
 export interface Commit {
 	readonly hash: string;
 	readonly message: string;
@@ -52,6 +58,7 @@ export interface Commit {
 	readonly authorName?: string;
 	readonly authorEmail?: string;
 	readonly commitDate?: Date;
+	readonly shortStat?: CommitShortStat;
 }
 
 export interface Submodule {
@@ -134,6 +141,7 @@ export interface LogOptions {
 	readonly range?: string;
 	readonly reverse?: boolean;
 	readonly sortByAuthorDate?: boolean;
+	readonly shortStats?: boolean;
 }
 
 export interface CommitOptions {
@@ -225,7 +233,7 @@ export interface Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;

@@ -26,8 +26,6 @@ import { Categories } from 'vs/platform/action/common/actionCommonCategories';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isMacintosh } from 'vs/base/common/platform';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { IOpenedAuxiliaryWindow, IOpenedMainWindow, isOpenedAuxiliaryWindow } from 'vs/platform/window/common/window';
 
@@ -378,52 +376,3 @@ export const ToggleWindowTabsBarHandler: ICommandHandler = function (accessor: S
 
 	return accessor.get(INativeHostService).toggleWindowTabsBar();
 };
-
-export class ExperimentalSplitWindowAction extends Action2 {
-
-	constructor() {
-		super({
-			id: 'workbench.action.experimentalSplitWindowAction',
-			title: {
-				value: localize('splitWindow', "Split Window (Experimental)"),
-				mnemonicTitle: localize({ key: 'miSplitWindow', comment: ['&& denotes a mnemonic'] }, "&&Split Window (Experimental)"),
-				original: 'Split Window (Experimental)'
-			},
-			category: Categories.View,
-			f1: true
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const editorService = accessor.get(IEditorService);
-		const editorGroupService = accessor.get(IEditorGroupsService);
-		const nativeHostService = accessor.get(INativeHostService);
-
-		const activeWindow = getActiveWindow();
-
-		// First position the active window which may involve
-		// leaving fullscreen mode and then split it.
-		await nativeHostService.positionWindow({
-			x: 0,
-			y: 0,
-			width: activeWindow.screen.availWidth / 2,
-			height: activeWindow.screen.availHeight
-		}, { targetWindowId: activeWindow.vscodeWindowId });
-
-		// Then create a new window next to the active window
-		const auxiliaryEditorPart = await editorGroupService.createAuxiliaryEditorPart({
-			position: {
-				x: activeWindow.screen.availWidth / 2,
-				y: 0,
-				width: activeWindow.screen.availWidth / 2,
-				height: activeWindow.screen.availHeight
-			}
-		});
-
-		// Finally copy over the active editor if any
-		const activeEditorPane = editorService.activeEditorPane;
-		if (activeEditorPane) {
-			activeEditorPane.group.copyEditor(activeEditorPane.input, auxiliaryEditorPart.activeGroup);
-		}
-	}
-}

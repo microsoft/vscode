@@ -80,7 +80,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
 
 		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, sortByAuthorDate: true }),
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, shortStats: true, sortByAuthorDate: true }),
 			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
 
@@ -97,7 +97,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				label: emojify(subject),
 				description: commit.authorName,
 				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime()
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat
 			};
 		}));
 
@@ -174,7 +175,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const ancestor = await this.repository.getMergeBase(refId1, refId2);
-		if (ancestor === '') {
+		if (!ancestor) {
 			return undefined;
 		}
 
@@ -195,8 +196,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 	}
 
 	private async getSummaryHistoryItem(ref1: string, ref2: string): Promise<SourceControlHistoryItem> {
-		const diffShortStat = await this.repository.diffBetweenShortStat(ref1, ref2);
-		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), description: diffShortStat };
+		const statistics = await this.repository.diffBetweenShortStat(ref1, ref2);
+		return { id: `${ref1}..${ref2}`, parentIds: [], icon: new ThemeIcon('files'), label: l10n.t('All Changes'), statistics };
 	}
 
 	dispose(): void {

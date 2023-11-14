@@ -24,9 +24,12 @@ export const WindowMinimumSize = {
 	HEIGHT: 270
 };
 
-export interface IRectangle {
+export interface IPoint {
 	readonly x: number;
 	readonly y: number;
+}
+
+export interface IRectangle extends IPoint {
 	readonly width: number;
 	readonly height: number;
 }
