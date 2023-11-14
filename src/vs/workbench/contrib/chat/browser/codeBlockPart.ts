@@ -102,6 +102,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 		const editorElement = dom.append(this.element, $('.interactive-result-editor'));
 		this.editor = this._register(scopedInstantiationService.createInstance(CodeEditorWidget, editorElement, {
 			...getSimpleEditorOptions(this.configurationService),
+			fixedOverflowWidgets: false,
 			readOnly: true,
 			lineNumbers: 'off',
 			selectOnLineNumbers: true,
