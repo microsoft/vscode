@@ -412,11 +412,11 @@ class ExtHostChatAgent {
 				updateMetadataSoon();
 			},
 			get supportIssueReporting() {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
 				return that._supportIssueReporting;
 			},
 			set supportIssueReporting(v) {
-				checkProposedApiEnabled(that.extension, 'defaultChatAgent');
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
 				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
