@@ -175,7 +175,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 
 	async resolveHistoryItemGroupCommonAncestor(refId1: string, refId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined> {
 		const ancestor = await this.repository.getMergeBase(refId1, refId2);
-		if (ancestor === '') {
+		if (!ancestor) {
 			return undefined;
 		}
 
