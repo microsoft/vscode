@@ -118,7 +118,7 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			renderValidationDecorations: 'on',
 			...this.getEditorOptionsFromConfig()
 		}, {
-			isSimpleWidget: false,
+			isSimpleWidget: true,
 			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
 				MenuPreventer.ID,
 				SelectionClipboardContributionID,
