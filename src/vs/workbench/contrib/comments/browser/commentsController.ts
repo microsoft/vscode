@@ -458,40 +458,43 @@ export class CommentController implements IEditorContribution {
 
 		this.onModelChanged();
 		this.codeEditorService.registerDecorationType('comment-controller', COMMENTEDITOR_DECORATION_KEY, {});
-		this.commentService.registerContinueOnCommentProvider({
-			provideContinueOnComments: () => {
-				const pendingComments: languages.PendingCommentThread[] = [];
-				if (this._commentWidgets) {
-					for (const zone of this._commentWidgets) {
-						const zonePendingComments = zone.getPendingComments();
-						const pendingNewComment = zonePendingComments.newComment;
-						if (!pendingNewComment) {
-							continue;
-						}
-						let lastCommentBody;
-						if (zone.commentThread.comments && zone.commentThread.comments.length) {
-							const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
-							if (typeof lastComment.body === 'string') {
-								lastCommentBody = lastComment.body;
-							} else {
-								lastCommentBody = lastComment.body.value;
+		this.globalToDispose.add(
+			this.commentService.registerContinueOnCommentProvider({
+				provideContinueOnComments: () => {
+					const pendingComments: languages.PendingCommentThread[] = [];
+					if (this._commentWidgets) {
+						for (const zone of this._commentWidgets) {
+							const zonePendingComments = zone.getPendingComments();
+							const pendingNewComment = zonePendingComments.newComment;
+							if (!pendingNewComment) {
+								continue;
+							}
+							let lastCommentBody;
+							if (zone.commentThread.comments && zone.commentThread.comments.length) {
+								const lastComment = zone.commentThread.comments[zone.commentThread.comments.length - 1];
+								if (typeof lastComment.body === 'string') {
+									lastCommentBody = lastComment.body;
+								} else {
+									lastCommentBody = lastComment.body.value;
+								}
+							}
+
+							if (pendingNewComment !== lastCommentBody) {
+								pendingComments.push({
+									owner: zone.owner,
+									uri: zone.editor.getModel()!.uri,
+									range: zone.commentThread.range,
+									body: pendingNewComment,
+									isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
+								});
 							}
 						}
-
-						if (pendingNewComment !== lastCommentBody) {
-							pendingComments.push({
-								owner: zone.owner,
-								uri: zone.editor.getModel()!.uri,
-								range: zone.commentThread.range,
-								body: pendingNewComment,
-								isReply: (zone.commentThread.comments !== undefined) && (zone.commentThread.comments.length > 0)
-							});
-						}
 					}
+					return pendingComments;
 				}
-				return pendingComments;
-			}
-		});
+			})
+		);
+
 	}
 
 	private registerEditorListeners() {
