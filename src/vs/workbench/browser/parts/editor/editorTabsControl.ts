@@ -40,8 +40,9 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAuxiliaryEditorPart, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -132,7 +133,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -316,9 +318,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: { x: e.screenX, y: e.screenY }
-		});
+		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, element);
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -326,6 +326,28 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		targetGroup.focus();
+	}
+
+	protected async createAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart> {
+		let offsetX = 0;
+		let offsetY = 30; // take title bar height into account (approximation)
+
+		if (offsetElement) {
+			offsetX += offsetElement.offsetWidth / 2;
+			offsetY += offsetElement.offsetHeight / 2;
+		}
+
+		let cursorLocation = await this.hostService.getCursorScreenPoint();
+		if (!cursorLocation) {
+			cursorLocation = { x: e.screenX, y: e.screenY };
+		}
+
+		return this.editorGroupService.createAuxiliaryEditorPart({
+			bounds: {
+				x: cursorLocation.x - offsetX,
+				y: cursorLocation.y - offsetY
+			}
+		});
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {

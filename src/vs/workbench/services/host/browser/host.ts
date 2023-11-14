@@ -5,7 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IOpenWindowOptions, IOpenEmptyWindowOptions, IPoint } from 'vs/platform/window/common/window';
 
 export const IHostService = createDecorator<IHostService>('hostService');
 
@@ -85,6 +85,11 @@ export interface IHostService {
 	 * Bring a window to the front and restore it if needed.
 	 */
 	moveTop(targetWindow: Window): Promise<void>;
+
+	/**
+	 * Get the location of the mouse cursor or `undefined` if unavailable.
+	 */
+	getCursorScreenPoint(): Promise<IPoint | undefined>;
 
 	//#endregion
 

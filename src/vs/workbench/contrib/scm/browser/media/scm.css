@@ -221,6 +221,11 @@
 	font-size: 10px;
 }
 
+.scm-view .monaco-list-row.focused .separator-container .label-name,
+.scm-view .monaco-list-row.selected .separator-container .label-name {
+	color: var(--vscode-foreground);
+}
+
 .scm-view .monaco-list-row .separator-container .separator {
 	display: flex;
 	flex-grow: 1;

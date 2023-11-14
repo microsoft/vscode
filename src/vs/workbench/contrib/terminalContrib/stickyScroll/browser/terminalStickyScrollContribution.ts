@@ -45,7 +45,7 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 		super();
 
 		this._register(Event.runAndSubscribe(this._configurationService.onDidChangeConfiguration, e => {
-			if (!e || e.affectsConfiguration(TerminalSettingId.EnableStickyScroll)) {
+			if (!e || e.affectsConfiguration(TerminalSettingId.StickyScrollEnabled)) {
 				this._refreshState();
 			}
 		}));
@@ -109,6 +109,6 @@ export class TerminalStickyScrollContribution extends Disposable implements ITer
 
 	private _shouldBeEnabled(): boolean {
 		const capability = this._instance.capabilities.get(TerminalCapability.CommandDetection);
-		return !!(this._configurationService.getValue(TerminalSettingId.EnableStickyScroll) && capability && this._xterm?.raw?.element);
+		return !!(this._configurationService.getValue(TerminalSettingId.StickyScrollEnabled) && capability && this._xterm?.raw?.element);
 	}
 }

@@ -14,6 +14,7 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { getActiveWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
+import { mark } from 'vs/base/common/performance';
 
 type NativeAuxiliaryWindow = CodeWindow & {
 	readonly vscode: ISandboxGlobals;
@@ -30,22 +31,26 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 		super(layoutService, dialogService);
 	}
 
-	protected override create(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore) {
+	protected override async resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
+		mark('code/auxiliaryWindow/willResolveWindowId');
+		const windowId = await auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
+		mark('code/auxiliaryWindow/didResolveWindowId');
+
+		return windowId;
+	}
+
+	protected override createContainer(auxiliaryWindow: NativeAuxiliaryWindow, disposables: DisposableStore): HTMLElement {
 
 		// Zoom level
 		const windowConfig = this.configurationService.getValue<IWindowsConfiguration>();
 		const windowZoomLevel = typeof windowConfig.window?.zoomLevel === 'number' ? windowConfig.window.zoomLevel : 0;
 		auxiliaryWindow.vscode.webFrame.setZoomLevel(windowZoomLevel);
 
-		return super.create(auxiliaryWindow, disposables);
+		return super.createContainer(auxiliaryWindow, disposables);
 	}
 
-	protected override resolveWindowId(auxiliaryWindow: NativeAuxiliaryWindow): Promise<number> {
-		return auxiliaryWindow.vscode.ipcRenderer.invoke('vscode:registerAuxiliaryWindow', this.nativeHostService.windowId);
-	}
-
-	protected override async patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): Promise<void> {
-		await super.patchMethods(auxiliaryWindow);
+	protected override patchMethods(auxiliaryWindow: NativeAuxiliaryWindow): void {
+		super.patchMethods(auxiliaryWindow);
 
 		// Enable `window.focus()` to work in Electron by
 		// asking the main process to focus the window.

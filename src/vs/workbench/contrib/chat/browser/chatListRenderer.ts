@@ -254,7 +254,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return template;
 	}
 
-	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate, height?: number): void {
+	renderElement(node: ITreeNode<ChatTreeItem, FuzzyScore>, index: number, templateData: IChatListItemTemplate): void {
 		const { element } = node;
 		const kind = isRequestVM(element) ? 'request' :
 			isResponseVM(element) ? 'response' :
@@ -320,7 +320,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				convertParsedRequestToMarkdown(element.message);
 			this.basicRenderElement([new MarkdownString(markdown)], element, index, templateData);
 		} else {
-			this.renderWelcomeMessage(element, templateData, height);
+			this.renderWelcomeMessage(element, templateData);
 		}
 	}
 
@@ -460,7 +460,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate, height?: number) {
+	private renderWelcomeMessage(element: IChatWelcomeMessageViewModel, templateData: IChatListItemTemplate) {
 		dom.clearNode(templateData.value);
 		dom.clearNode(templateData.referencesListContainer);
 
@@ -479,9 +479,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
-		// When going from welcome content to actual chat list items, rowContainer.offsetHeight is initially 0,
-		// but the height that we get from `renderElement` is accurate, so use that
-		const newHeight = templateData.rowContainer.offsetHeight === 0 && height ? height : templateData.rowContainer.offsetHeight;
+		const newHeight = templateData.rowContainer.offsetHeight;
 		const fireEvent = !element.currentRenderedHeight || element.currentRenderedHeight !== newHeight;
 		element.currentRenderedHeight = newHeight;
 		if (fireEvent) {

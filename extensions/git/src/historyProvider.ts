@@ -80,7 +80,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		const historyItemGroupIdRef = await this.repository.revParse(historyItemGroupId) ?? '';
 
 		const [commits, summary] = await Promise.all([
-			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, sortByAuthorDate: true }),
+			this.repository.log({ range: `${optionsRef}..${historyItemGroupIdRef}`, shortStats: true, sortByAuthorDate: true }),
 			this.getSummaryHistoryItem(optionsRef, historyItemGroupIdRef)
 		]);
 
@@ -97,7 +97,8 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 				label: emojify(subject),
 				description: commit.authorName,
 				icon: new ThemeIcon('git-commit'),
-				timestamp: commit.authorDate?.getTime()
+				timestamp: commit.authorDate?.getTime(),
+				statistics: commit.shortStat
 			};
 		}));
 
