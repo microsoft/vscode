@@ -108,12 +108,12 @@ export function registerChatTitleActions() {
 		}
 	});
 
-	registerAction2(class ReportIssueForUnhelpfulAction extends Action2 {
+	registerAction2(class ReportIssueForBugAction extends Action2 {
 		constructor() {
 			super({
-				id: 'workbench.action.chat.reportIssueForUnhelpful',
+				id: 'workbench.action.chat.reportIssueForBug',
 				title: {
-					value: localize('interactive.reportIssueForUnhelpful.label', "Report Issue"),
+					value: localize('interactive.reportIssueForBug.label', "Report Issue"),
 					original: 'Report Issue'
 				},
 				f1: false,
