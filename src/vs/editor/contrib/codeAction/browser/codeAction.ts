@@ -152,8 +152,11 @@ export async function getCodeActions(
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
 
-		const splicedAllActions = allActions.filter((action) => !action.action.isAI).slice(0, 50);
-		allActions = splicedAllActions.concat(allActions.filter((action) => action.action.isAI));
+		if (allActions.length > 50) {
+			console.warn(`Code Actions Provided exceeded the maximum: ${allActions.length} actions initially provided.`);
+			const splicedAllActions = allActions.filter((action) => !action.action.isAI).slice(0, 50);
+			allActions = splicedAllActions.concat(allActions.filter((action) => action.action.isAI));
+		}
 
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	} finally {
