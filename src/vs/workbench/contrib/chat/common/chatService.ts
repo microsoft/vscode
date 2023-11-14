@@ -8,11 +8,11 @@ import { Event } from 'vs/base/common/event';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
-import { IRange, Range } from 'vs/editor/common/core/range';
-import { Location, ProviderResult } from 'vs/editor/common/languages';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { ProviderResult, Location } from 'vs/editor/common/languages';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IChatAgentCommand, IChatAgentData } from 'vs/workbench/contrib/chat/common/chatAgents';
-import { ChatModel, IChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
+import { IChatModel, ChatModel, ISerializableChatData } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
 
@@ -69,12 +69,11 @@ export function isIDocumentContext(obj: unknown): obj is IDocumentContext {
 	);
 }
 
-export interface IChatUsedContext {
+export type IUsedContext = {
 	documents: IDocumentContext[];
-	kind: 'usedContext';
-}
+};
 
-export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
+export function isIUsedContext(obj: unknown): obj is IUsedContext {
 	return (
 		!!obj &&
 		typeof obj === 'object' &&
@@ -86,42 +85,23 @@ export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 
 export interface IChatContentReference {
 	reference: URI | Location;
-	kind: 'reference';
 }
 
 export interface IChatContentInlineReference {
 	inlineReference: URI | Location;
 	name?: string;
-	kind: 'inlineReference';
 }
 
 export interface IChatAgentDetection {
 	agentName: string;
 	command?: IChatAgentCommand;
-	kind: 'agentDetection';
-}
-
-export interface IChatContent {
-	content: string | IMarkdownString;
-	kind: 'content';
-}
-
-export interface IChatTreeData {
-	treeData: IChatResponseProgressFileTreeData;
-	kind: 'treeData';
-}
-
-export interface IChatAsyncContent {
-	placeholder: string;
-	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
-	kind: 'asyncContent';
 }
 
 export type IChatProgress =
-	| IChatContent
-	| IChatTreeData
-	| IChatAsyncContent
-	| IChatUsedContext
+	| { content: string | IMarkdownString }
+	| { treeData: IChatResponseProgressFileTreeData }
+	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
+	| IUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatAgentDetection;

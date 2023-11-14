@@ -54,8 +54,7 @@
         metadata: {  }
       },
       slashCommand: undefined,
-      usedContext: {
-        documents: [
+      usedContext: { documents: [
           {
             uri: {
               scheme: "file",
@@ -76,9 +75,7 @@
               }
             ]
           }
-        ],
-        kind: "usedContext"
-      },
+        ] },
       contentReferences: [  ]
     }
   ],
