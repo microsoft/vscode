@@ -2288,6 +2288,8 @@ export namespace InteractiveEditorResponseFeedbackKind {
 				return types.InteractiveEditorResponseFeedbackKind.Undone;
 			case InlineChatResponseFeedbackKind.Accepted:
 				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+			case InlineChatResponseFeedbackKind.Bug:
+				return types.InteractiveEditorResponseFeedbackKind.Bug;
 		}
 	}
 }

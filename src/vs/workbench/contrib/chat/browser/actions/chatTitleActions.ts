@@ -15,7 +15,7 @@ import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegis
 import { ResourceNotebookCellEdit } from 'vs/workbench/contrib/bulkEdit/browser/bulkCellEdits';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
-import { CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
+import { CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_IN_CHAT_INPUT, CONTEXT_IN_CHAT_SESSION, CONTEXT_REQUEST, CONTEXT_RESPONSE, CONTEXT_RESPONSE_FILTERED, CONTEXT_RESPONSE_VOTE } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatService, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { INotebookEditor } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
@@ -105,6 +105,45 @@ export function registerChatTitleActions() {
 				}
 			});
 			item.setVote(InteractiveSessionVoteDirection.Down);
+		}
+	});
+
+	registerAction2(class ReportIssueForBugAction extends Action2 {
+		constructor() {
+			super({
+				id: 'workbench.action.chat.reportIssueForBug',
+				title: {
+					value: localize('interactive.reportIssueForBug.label', "Report Issue"),
+					original: 'Report Issue'
+				},
+				f1: false,
+				category: CHAT_CATEGORY,
+				icon: Codicon.report,
+				menu: {
+					id: MenuId.ChatMessageTitle,
+					group: 'navigation',
+					order: 3,
+					when: ContextKeyExpr.and(CONTEXT_CHAT_RESPONSE_SUPPORT_ISSUE_REPORTING, CONTEXT_RESPONSE)
+				}
+			});
+		}
+
+		run(accessor: ServicesAccessor, ...args: any[]) {
+			const item = args[0];
+			if (!isResponseVM(item)) {
+				return;
+			}
+
+			const chatService = accessor.get(IChatService);
+			chatService.notifyUserAction({
+				providerId: item.providerId,
+				agentId: item.agent?.id,
+				sessionId: item.sessionId,
+				requestId: item.requestId,
+				action: {
+					kind: 'bug'
+				}
+			});
 		}
 	});
 

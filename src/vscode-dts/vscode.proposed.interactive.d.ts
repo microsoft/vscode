@@ -62,7 +62,8 @@ declare module 'vscode' {
 		Unhelpful = 0,
 		Helpful = 1,
 		Undone = 2,
-		Accepted = 3
+		Accepted = 3,
+		Bug = 4
 	}
 
 	export interface TextDocumentContext {
@@ -72,6 +73,7 @@ declare module 'vscode' {
 
 	export interface InteractiveEditorSessionProviderMetadata {
 		label: string;
+		supportReportIssue?: boolean;
 	}
 
 	export interface InteractiveEditorSessionProvider<S extends InteractiveEditorSession = InteractiveEditorSession, R extends InteractiveEditorResponse | InteractiveEditorMessageResponse = InteractiveEditorResponse | InteractiveEditorMessageResponse> {
