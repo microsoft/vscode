@@ -72,7 +72,7 @@ declare module 'vscode' {
 	}
 
 	export interface InteractiveEditorSessionProviderMetadata {
-		label: string;
+		label?: string;
 		supportReportIssue?: boolean;
 	}
 

@@ -93,10 +93,10 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 		));
 	}
 
-	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
+	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, label: string, metadata: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata.label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', metadata.supportReportIssue ?? false);
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, label, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', metadata.supportReportIssue ?? false);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
