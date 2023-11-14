@@ -3970,7 +3970,7 @@ export interface IInlineSuggestOptions {
 	*/
 	mode?: 'prefix' | 'subword' | 'subwordSmart';
 
-	showToolbar?: 'always' | 'onHover';
+	showToolbar?: 'always' | 'onHover' | 'never';
 
 	suppressSuggestions?: boolean;
 
@@ -4009,10 +4009,11 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 				'editor.inlineSuggest.showToolbar': {
 					type: 'string',
 					default: defaults.showToolbar,
-					enum: ['always', 'onHover'],
+					enum: ['always', 'onHover', 'never'],
 					enumDescriptions: [
 						nls.localize('inlineSuggest.showToolbar.always', "Show the inline suggestion toolbar whenever an inline suggestion is shown."),
 						nls.localize('inlineSuggest.showToolbar.onHover', "Show the inline suggestion toolbar when hovering over an inline suggestion."),
+						nls.localize('inlineSuggest.showToolbar.never', "Never show the inline suggestion toolbar."),
 					],
 					description: nls.localize('inlineSuggest.showToolbar', "Controls when to show the inline suggestion toolbar."),
 				},
@@ -4033,7 +4034,7 @@ class InlineEditorSuggest extends BaseEditorOption<EditorOption.inlineSuggest, I
 		return {
 			enabled: boolean(input.enabled, this.defaultValue.enabled),
 			mode: stringSet(input.mode, this.defaultValue.mode, ['prefix', 'subword', 'subwordSmart']),
-			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover']),
+			showToolbar: stringSet(input.showToolbar, this.defaultValue.showToolbar, ['always', 'onHover', 'never']),
 			suppressSuggestions: boolean(input.suppressSuggestions, this.defaultValue.suppressSuggestions),
 			keepOnBlur: boolean(input.keepOnBlur, this.defaultValue.keepOnBlur),
 		};
