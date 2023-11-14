@@ -243,8 +243,8 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			const defaultAgent = chatAgentService.getDefaultAgent();
 			const agents = chatAgentService.getAgents();
 			if (defaultAgent?.metadata.helpTextPrefix) {
-				progress.report({ content: defaultAgent.metadata.helpTextPrefix });
-				progress.report({ content: '\n\n' });
+				progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'content' });
+				progress.report({ content: '\n\n', kind: 'content' });
 			}
 
 			const agentText = (await Promise.all(agents
@@ -263,10 +263,10 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 					return agentLine + '\n' + commandText;
 				}))).join('\n');
-			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }) });
+			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'content' });
 			if (defaultAgent?.metadata.helpTextPostfix) {
-				progress.report({ content: '\n\n' });
-				progress.report({ content: defaultAgent.metadata.helpTextPostfix });
+				progress.report({ content: '\n\n', kind: 'content' });
+				progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'content' });
 			}
 		}));
 	}
