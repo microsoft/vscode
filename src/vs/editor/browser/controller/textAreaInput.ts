@@ -442,7 +442,7 @@ export class TextAreaInput extends Disposable {
 
 			this._setHasFocus(true);
 
-			if (this._accessibilityService.isScreenReaderOptimized() && this._browser.isSafari && !hadFocus && this._hasFocus) {
+			if (this._browser.isSafari && !hadFocus && this._hasFocus) {
 				// When "tabbing into" the textarea, immediately after dispatching the 'focus' event,
 				// Safari will always move the selection at offset 0 in the textarea
 				if (!this._asyncFocusGainWriteScreenReaderContent.value) {
