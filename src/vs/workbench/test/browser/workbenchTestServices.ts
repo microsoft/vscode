@@ -1495,6 +1495,7 @@ export class TestHostService implements IHostService {
 
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
+	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
