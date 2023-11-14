@@ -46,9 +46,11 @@ import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from
 import { _inputEditorOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
+import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
+import { NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
@@ -113,6 +115,8 @@ export class CellChatPart extends CellContentPart {
 	}
 
 	override dispose() {
+		this._controller?.dispose();
+		this._controller = undefined;
 		super.dispose();
 	}
 }
@@ -325,6 +329,10 @@ class NotebookCellChatController extends Disposable {
 	}
 
 	public override dispose(): void {
+		if (this._isVisible) {
+			// detach the chat widget
+			this._chatPart.getWidget().hide();
+		}
 		this._ctxHasActiveRequest.reset();
 		NotebookCellChatController._cellChatControllers.delete(this._cell);
 		super.dispose();
@@ -612,5 +620,55 @@ registerAction2(class extends NotebookCellAction {
 		}
 
 		ctrl.dismiss();
+	}
+});
+
+registerAction2(class extends NotebookCellAction {
+	constructor() {
+		super(
+			{
+				id: 'notebook.cell.insertCodeCellWithChat',
+				title: {
+					value: '$(sparkle) ' + localize('notebookActions.menu.insertCodeCellWithChat', "Generate"),
+					original: '$(sparkle) Generate',
+				},
+				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
+				menu: [
+					{
+						id: MenuId.NotebookCellBetween,
+						group: 'inline',
+						order: -1,
+						when: ContextKeyExpr.and(
+							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+							CTX_INLINE_CHAT_HAS_PROVIDER,
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+						)
+					},
+					{
+						id: MenuId.NotebookCellListTop,
+						group: 'inline',
+						order: -1,
+						when: ContextKeyExpr.and(
+							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
+							CTX_INLINE_CHAT_HAS_PROVIDER,
+							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
+						)
+					},
+				]
+			});
+	}
+
+	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
+		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
+
+		if (!newCell) {
+			return;
+		}
+		await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		const ctrl = NotebookCellChatController.get(newCell);
+		if (!ctrl) {
+			return;
+		}
+		ctrl.startSession();
 	}
 });
