@@ -3,306 +3,50 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, Dimension, addDisposableListener, append, getTotalWidth, h } from 'vs/base/browser/dom';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Queue, raceCancellationError } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Lazy } from 'vs/base/common/lazy';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
-import { URI } from 'vs/base/common/uri';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
-import { CodeEditorWidget, ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextEdit } from 'vs/editor/common/languages';
-import { ICursorStateComputer, ITextModel } from 'vs/editor/common/model';
+import { ICursorStateComputer } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-import { IModelService } from 'vs/editor/common/services/model';
-import { SnippetController2 } from 'vs/editor/contrib/snippet/browser/snippetController2';
-import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { localize } from 'vs/nls';
-import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
 import { IInlineChatSessionService, ReplyResponse, Session, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
-import { _inputEditorOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
 import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { CELL_TITLE_CELL_GROUP_ID, INotebookCellActionContext, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
-import { CellFocusMode, ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
+import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CellChatWidget, MENU_NOTEBOOK_CELL_CHAT_WIDGET } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatWidget';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
-const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
 const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
-export const MENU_NOTEBOOK_CELL_CHAT_WIDGET = MenuId.for('notebookCellChatWidget');
 
-export class CellChatPart extends CellContentPart {
-	private readonly _elements = h(
-		'div.cell-chat-container@root',
-		[
-			h('div.body', [
-				h('div.content@content', [
-					h('div.input@input', [
-						h('div.editor-placeholder@placeholder'),
-						h('div.editor-container@editor'),
-					]),
-					h('div.toolbar@editorToolbar'),
-				]),
-			]),
-			h('div.progress@progress'),
-			h('div.status@status')
-		]
-	);
-
-	private _controller: NotebookCellChatController | undefined;
-
-	get activeCell() {
-		return this.currentCell;
-	}
-
-	private _widget: Lazy<CellChatWidget>;
-
-	constructor(
-		private readonly _notebookEditor: INotebookEditorDelegate,
-		partContainer: HTMLElement,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-	) {
-		super();
-
-		this._widget = new Lazy(() => this._instantiationService.createInstance(CellChatWidget, this._notebookEditor, partContainer));
-	}
-
-	getWidget() {
-		return this._widget.value;
-	}
-
-	override didRenderCell(element: ICellViewModel): void {
-		this._controller?.dispose();
-		this._controller = this._instantiationService.createInstance(NotebookCellChatController, this._notebookEditor, this, element);
-
-		super.didRenderCell(element);
-	}
-
-	override unrenderCell(element: ICellViewModel): void {
-		this._controller?.dispose();
-		this._controller = undefined;
-		super.unrenderCell(element);
-	}
-
-	override updateInternalLayoutNow(element: ICellViewModel): void {
-		this._elements.root.style.width = `${element.layoutInfo.editorWidth}px`;
-		this._controller?.layout();
-	}
-
-	override dispose() {
-		this._controller?.dispose();
-		this._controller = undefined;
-		super.dispose();
-	}
+interface ICellChatPart {
+	activeCell: ICellViewModel | undefined;
+	getWidget(): CellChatWidget;
 }
 
-class CellChatWidget extends Disposable {
-	private static _modelPool: number = 1;
-
-	private readonly _elements = h(
-		'div.cell-chat-container@root',
-		[
-			h('div.body', [
-				h('div.content@content', [
-					h('div.input@input', [
-						h('div.editor-placeholder@placeholder'),
-						h('div.editor-container@editor'),
-					]),
-					h('div.toolbar@editorToolbar'),
-				]),
-			]),
-			h('div.progress@progress'),
-			h('div.status@status')
-		]
-	);
-	private readonly _progressBar: ProgressBar;
-	private readonly _toolbar: MenuWorkbenchToolBar;
-
-	private readonly _inputEditor: IActiveCodeEditor;
-	private readonly _inputModel: ITextModel;
-	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
-
-	private _activeCell: ICellViewModel | undefined;
-
-	set placeholder(value: string) {
-		this._elements.placeholder.innerText = value;
-	}
-
-
-	constructor(
-		private readonly _notebookEditor: INotebookEditorDelegate,
-		_partContainer: HTMLElement,
-		@IModelService private readonly _modelService: IModelService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService
-	) {
-		super();
-		append(_partContainer, this._elements.root);
-		this._elements.input.style.height = '24px';
-
-		const codeEditorWidgetOptions: ICodeEditorWidgetOptions = {
-			isSimpleWidget: true,
-			contributions: EditorExtensionsRegistry.getSomeEditorContributions([
-				SnippetController2.ID,
-				SuggestController.ID
-			])
-		};
-
-		this._inputEditor = <IActiveCodeEditor>this._instantiationService.createInstance(CodeEditorWidget, this._elements.editor, {
-			..._inputEditorOptions,
-			ariaLabel: localize('cell-chat-aria-label', "Cell Chat Input"),
-		}, codeEditorWidgetOptions);
-		this._register(this._inputEditor);
-		const uri = URI.from({ scheme: 'vscode', authority: 'inline-chat', path: `/notebook-cell-chat/model${CellChatWidget._modelPool++}.txt` });
-		this._inputModel = this._register(this._modelService.getModel(uri) ?? this._modelService.createModel('', null, uri));
-		this._inputEditor.setModel(this._inputModel);
-
-		// placeholder
-		this._elements.placeholder.style.fontSize = `${this._inputEditor.getOption(EditorOption.fontSize)}px`;
-		this._elements.placeholder.style.lineHeight = `${this._inputEditor.getOption(EditorOption.lineHeight)}px`;
-		this._register(addDisposableListener(this._elements.placeholder, 'click', () => this._inputEditor.focus()));
-
-		const togglePlaceholder = () => {
-			const hasText = this._inputModel.getValueLength() > 0;
-			this._elements.placeholder.classList.toggle('hidden', hasText);
-		};
-		this._store.add(this._inputModel.onDidChangeContent(togglePlaceholder));
-		togglePlaceholder();
-
-		// toolbar
-		this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, MENU_NOTEBOOK_CELL_CHAT_WIDGET, {
-			telemetrySource: 'interactiveEditorWidget-toolbar',
-			toolbarOptions: { primaryGroup: 'main' }
-		}));
-
-		// Create chat response div
-		const copilotGeneratedCodeSpan = $('span.copilot-generated-code', {}, 'Copilot generated code may be incorrect');
-		this._elements.status.appendChild(copilotGeneratedCodeSpan);
-
-		this._register(this._inputEditor.onDidFocusEditorWidget(() => {
-			if (this._activeCell) {
-				this._activeCell.focusMode = CellFocusMode.ChatInput;
-			}
-		}));
-
-		this._ctxInputEditorFocused = CTX_NOTEBOOK_CELL_CHAT_FOCUSED.bindTo(this._contextKeyService);
-		this._register(this._inputEditor.onDidFocusEditorWidget(() => {
-			this._ctxInputEditorFocused.set(true);
-		}));
-		this._register(this._inputEditor.onDidBlurEditorWidget(() => {
-			this._ctxInputEditorFocused.set(false);
-		}));
-
-		this._progressBar = new ProgressBar(this._elements.progress);
-		this._register(this._progressBar);
-	}
-
-	show(element: ICellViewModel) {
-		this._elements.root.style.display = 'block';
-
-		this._activeCell = element;
-
-		this._toolbar.context = <INotebookCellActionContext>{
-			ui: true,
-			cell: element,
-			notebookEditor: this._notebookEditor,
-			$mid: MarshalledId.NotebookCellActionContext
-		};
-
-		this.layout();
-		this._inputEditor.focus();
-		this._activeCell.chatHeight = 62;
-	}
-
-	hide() {
-		this._elements.root.style.display = 'none';
-		if (this._activeCell) {
-			this._activeCell.chatHeight = 0;
-		}
-	}
-
-	getInput() {
-		return this._inputEditor.getValue();
-	}
-
-	updateProgress(show: boolean) {
-		if (show) {
-			this._progressBar.infinite();
-		} else {
-			this._progressBar.stop();
-		}
-	}
-
-	layout() {
-		if (this._activeCell) {
-			const innerEditorWidth = this._activeCell.layoutInfo.editorWidth - (getTotalWidth(this._elements.editorToolbar) + 8 /* L/R-padding */);
-			this._inputEditor.layout(new Dimension(innerEditorWidth, this._inputEditor.getContentHeight()));
-		}
-	}
-}
-
-class EditStrategy {
-	private _editCount: number = 0;
-
-	async makeProgressiveChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			editor.pushUndoStop();
-		}
-
-		const durationInSec = opts.duration / 1000;
-		for (const edit of edits) {
-			const wordCount = countWords(edit.text ?? '');
-			const speed = wordCount / durationInSec;
-			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
-			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
-		}
-	}
-
-	async makeChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[]): Promise<void> {
-		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
-			let last: Position | null = null;
-			for (const edit of undoEdits) {
-				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
-				// this._inlineDiffDecorations.collectEditOperation(edit);
-			}
-			return last && [Selection.fromPositions(last)];
-		};
-
-		// push undo stop before first edit
-		if (++this._editCount === 1) {
-			editor.pushUndoStop();
-		}
-		editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
-	}
-}
-
-class NotebookCellChatController extends Disposable {
+export class NotebookCellChatController extends Disposable {
 	private static _cellChatControllers = new WeakMap<ICellViewModel, NotebookCellChatController>();
 
 	static get(cell: ICellViewModel): NotebookCellChatController | undefined {
@@ -316,7 +60,7 @@ class NotebookCellChatController extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
-		private readonly _chatPart: CellChatPart,
+		private readonly _chatPart: ICellChatPart,
 		private readonly _cell: ICellViewModel,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
@@ -500,6 +244,42 @@ class NotebookCellChatController extends Disposable {
 		} finally {
 			// this._ignoreModelContentChanged = false;
 		}
+	}
+}
+
+class EditStrategy {
+	private _editCount: number = 0;
+
+	async makeProgressiveChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[], opts: ProgressingEditsOptions): Promise<void> {
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			editor.pushUndoStop();
+		}
+
+		const durationInSec = opts.duration / 1000;
+		for (const edit of edits) {
+			const wordCount = countWords(edit.text ?? '');
+			const speed = wordCount / durationInSec;
+			// console.log({ durationInSec, wordCount, speed: wordCount / durationInSec });
+			await performAsyncTextEdit(editor.getModel(), asProgressiveEdit(edit, speed, opts.token));
+		}
+	}
+
+	async makeChanges(editor: IActiveCodeEditor, edits: ISingleEditOperation[]): Promise<void> {
+		const cursorStateComputerAndInlineDiffCollection: ICursorStateComputer = (undoEdits) => {
+			let last: Position | null = null;
+			for (const edit of undoEdits) {
+				last = !last || last.isBefore(edit.range.getEndPosition()) ? edit.range.getEndPosition() : last;
+				// this._inlineDiffDecorations.collectEditOperation(edit);
+			}
+			return last && [Selection.fromPositions(last)];
+		};
+
+		// push undo stop before first edit
+		if (++this._editCount === 1) {
+			editor.pushUndoStop();
+		}
+		editor.executeEdits('inline-chat-live', edits, cursorStateComputerAndInlineDiffCollection);
 	}
 }
 

@@ -25,7 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
-import { CellChatPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellChatWidget';
+import { CellChatPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatPart';
 import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
