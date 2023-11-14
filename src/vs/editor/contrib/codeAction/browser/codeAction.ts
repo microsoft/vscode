@@ -146,11 +146,15 @@ export async function getCodeActions(
 
 	try {
 		const actions = await Promise.all(promises);
-		const allActions = actions.map(x => x.actions).flat();
+		let allActions = actions.map(x => x.actions).flat();
 		const allDocumentation = [
 			...coalesce(actions.map(x => x.documentation)),
 			...getAdditionalDocumentationForShowingActions(registry, model, trigger, allActions)
 		];
+
+		const splicedAllActions = allActions.filter((action) => !action.action.isAI).slice(0, 50);
+		allActions = splicedAllActions.concat(allActions.filter((action) => action.action.isAI));
+
 		return new ManagedCodeActionSet(allActions, allDocumentation, disposables);
 	} finally {
 		listener.dispose();
