@@ -318,7 +318,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e);
+		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, element);
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
