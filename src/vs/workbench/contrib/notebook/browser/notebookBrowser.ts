@@ -171,6 +171,7 @@ export enum CellLayoutState {
 
 export interface CodeCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorHeight: number;
 	readonly editorWidth: number;
 	readonly estimatedHasHorizontalScrolling: boolean;
@@ -189,6 +190,7 @@ export interface CodeCellLayoutInfo {
 
 export interface CodeCellLayoutChangeEvent {
 	readonly source?: string;
+	readonly chatHeight?: boolean;
 	readonly editorHeight?: boolean;
 	readonly commentHeight?: boolean;
 	readonly outputHeight?: boolean;
@@ -200,6 +202,7 @@ export interface CodeCellLayoutChangeEvent {
 
 export interface MarkupCellLayoutInfo {
 	readonly fontInfo: FontInfo | null;
+	readonly chatHeight: number;
 	readonly editorWidth: number;
 	readonly editorHeight: number;
 	readonly statusBarHeight: number;
@@ -249,6 +252,7 @@ export interface ICellViewModel extends IGenericCellViewModel {
 	readonly mime: string;
 	cellKind: CellKind;
 	lineNumbers: 'on' | 'off' | 'inherit';
+	chatHeight: number;
 	focusMode: CellFocusMode;
 	outputIsHovered: boolean;
 	getText(): string;
@@ -798,7 +802,8 @@ export enum CellEditState {
 export enum CellFocusMode {
 	Container,
 	Editor,
-	Output
+	Output,
+	ChatInput
 }
 
 export enum CursorAtBoundary {

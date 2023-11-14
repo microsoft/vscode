@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebook';
+import 'vs/css!./media/notebookCellChat';
 import 'vs/css!./media/notebookCellEditorHint';
 import 'vs/css!./media/notebookCellInsertToolbar';
 import 'vs/css!./media/notebookCellStatusBar';

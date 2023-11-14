@@ -25,6 +25,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellPartsCollection } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
+import { CellChatPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellChatWidget';
 import { CellComments } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellComments';
 import { CellContextKeyPart } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellContextKeys';
 import { CellDecorations } from 'vs/workbench/contrib/notebook/browser/view/cellParts/cellDecorations';
@@ -141,6 +142,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 
 		const codeInnerContent = DOM.append(container, $('.cell.code'));
 		const editorPart = DOM.append(codeInnerContent, $('.cell-editor-part'));
+		const cellChatPart = DOM.append(editorPart, $('.cell-chat-part'));
 		const cellInputCollapsedContainer = DOM.append(codeInnerContent, $('.input-collapse-container'));
 		cellInputCollapsedContainer.style.display = 'none';
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
@@ -163,6 +165,7 @@ export class MarkupCellRenderer extends AbstractCellRenderer implements IListRen
 		const focusIndicatorBottom = new FastDomNode(DOM.append(container, $('.cell-focus-indicator.cell-focus-indicator-bottom')));
 
 		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
+			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, undefined)),
 			templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom)),
 			templateDisposables.add(new FoldedCellHint(this.notebookEditor, DOM.append(container, $('.notebook-folded-hint')))),
@@ -264,6 +267,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
+		const cellChatPart = DOM.append(editorPart, $('.cell-chat-part'));
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
 
@@ -308,6 +312,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const focusIndicatorPart = templateDisposables.add(new CellFocusIndicator(this.notebookEditor, titleToolbar, focusIndicatorTop, focusIndicatorLeft, focusIndicatorRight, focusIndicatorBottom));
 		const cellParts = new CellPartsCollection(DOM.getWindow(rootContainer), [
 			focusIndicatorPart,
+			templateDisposables.add(scopedInstaService.createInstance(CellChatPart, this.notebookEditor, cellChatPart)),
 			templateDisposables.add(scopedInstaService.createInstance(CellEditorStatusBar, this.notebookEditor, container, editorPart, editor)),
 			templateDisposables.add(scopedInstaService.createInstance(CellProgressBar, editorPart, cellInputCollapsedContainer)),
 			templateDisposables.add(scopedInstaService.createInstance(RunToolbar, this.notebookEditor, contextKeyService, container, runButtonContainer)),
