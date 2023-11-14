@@ -137,6 +137,10 @@ export async function getExperimentalExtensionToggleData(extensionGalleryService
 				const [extension] = await extensionGalleryService.getExtensions([{ id: extensionId, preRelease: !isStable }], CancellationToken.None);
 				if (extension) {
 					recommendedExtensionsGalleryInfo[key] = extension;
+				} else {
+					// same as network connection fail. we do not want a blank settings page: https://github.com/microsoft/vscode/issues/195722
+					// so instead of returning partial data we return undefined here
+					return undefined;
 				}
 			} catch (e) {
 				// Network connection fail. Return nothing rather than partial data.
