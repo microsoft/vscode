@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from 'vs/base/common/arrays';
-import { Disposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IMarkTracker } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import type { Terminal, IMarker, ITerminalAddon, IDecoration } from '@xterm/xterm';
@@ -212,7 +212,7 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			this._terminal.scrollToLine(line);
 		}
 		if (!hideDecoration) {
-			this.registerTemporaryDecoration(start, end);
+			this.registerTemporaryDecoration(start, end, true);
 		}
 	}
 
@@ -243,7 +243,63 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		);
 	}
 
-	registerTemporaryDecoration(marker: IMarker | number, endMarker?: IMarker | number): void {
+	private _highlightedCommand?: ITerminalCommand;
+	private _outputHighlights = this._register(new MutableDisposable<DisposableStore>());
+
+	highlight(command: ITerminalCommand | undefined): void {
+		if (!this._terminal) {
+			return;
+		}
+		if (!command) {
+			this._resetNavigationDecorations();
+			return;
+		}
+		if (this._highlightedCommand === command) {
+			return;
+		}
+		const promptRowCount = command.getPromptRowCount();
+		const commandRowCount = command.getCommandRowCount();
+		if (command.marker) {
+			this._highlightedCommand = command;
+			this.registerTemporaryDecoration(command.marker.line - (promptRowCount - 1), command.marker.line + (commandRowCount - 1), false);
+
+			// Highlight output
+			const store = this._outputHighlights.value = new DisposableStore();
+			if (!command.executedMarker || !command.endMarker) {
+				return;
+			}
+			const startLine = toLineIndex(command.executedMarker);
+			const decorationCount = toLineIndex(command.endMarker) - startLine;
+			console.trace('highlight', startLine, decorationCount, command);
+			for (let i = 0; i < decorationCount; i++) {
+				const decoration = this._terminal.registerDecoration({
+					marker: this._createMarkerForOffset(command.executedMarker, i),
+					width: this._terminal.cols
+				});
+				if (decoration) {
+					store.add(decoration);
+					let renderedElement: HTMLElement | undefined;
+
+					store.add(decoration.onRender(element => {
+						if (!renderedElement) {
+							renderedElement = element;
+							element.classList.add('terminal-scroll-highlight-output');
+							if (command.exitCode === 0) {
+								element.classList.add('success');
+							} else if (command.exitCode !== undefined) {
+								element.classList.add('error');
+							}
+						}
+						if (this._terminal?.element) {
+							element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
+						}
+					}));
+				}
+			}
+		}
+	}
+
+	registerTemporaryDecoration(marker: IMarker | number, endMarker: IMarker | number | undefined, showOutline: boolean): void {
 		if (!this._terminal) {
 			return;
 		}
@@ -267,7 +323,10 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 				decoration.onRender(element => {
 					if (!renderedElement) {
 						renderedElement = element;
-						element.classList.add('terminal-scroll-highlight', 'terminal-scroll-highlight-outline');
+						element.classList.add('terminal-scroll-highlight');
+						if (showOutline) {
+							element.classList.add('terminal-scroll-highlight-outline');
+						}
 						if (i === 0) {
 							element.classList.add('top');
 						}
@@ -281,13 +340,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 						element.style.marginLeft = `-${getWindow(this._terminal.element).getComputedStyle(this._terminal.element).paddingLeft}`;
 					}
 				});
+				// TODO: This is not efficient for a large decorationCount
 				decoration.onDispose(() => { this._navigationDecorations = this._navigationDecorations?.filter(d => d !== decoration); });
 				// Number picked to align with symbol highlight in the editor
-				timeout(350).then(() => {
-					if (renderedElement) {
-						renderedElement.classList.remove('terminal-scroll-highlight-outline');
-					}
-				});
+				if (showOutline) {
+					timeout(350).then(() => {
+						if (renderedElement) {
+							renderedElement.classList.remove('terminal-scroll-highlight-outline');
+						}
+					});
+				}
 			}
 		}
 	}

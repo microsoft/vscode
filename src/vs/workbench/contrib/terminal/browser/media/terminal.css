@@ -479,6 +479,18 @@
 	pointer-events: none;
 }
 
+.terminal-scroll-highlight-output {
+	left: 0;
+	border-left: 5px solid #ffffff;
+	border-color: var(--vscode-terminalCommandDecoration-defaultBackground);
+}
+.terminal-scroll-highlight-output.success {
+	border-color: var(--vscode-terminalCommandDecoration-successBackground);
+}
+.terminal-scroll-highlight-output.error {
+	border-color: var(--vscode-terminalCommandDecoration-errorBackground);
+}
+
 .terminal-scroll-highlight-outline {
 	border-left: 1px solid #ffffff;
 	border-right: 1px solid #ffffff;

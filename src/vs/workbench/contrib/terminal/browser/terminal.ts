@@ -111,7 +111,8 @@ export interface IMarkTracker {
 
 	scrollToLine(line: number, position: ScrollPosition): void;
 	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
-	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
+	registerTemporaryDecoration(marker: IMarker, endMarker: IMarker | undefined, showOutline: boolean): void;
+	highlight(command: ITerminalCommand | undefined): void;
 }
 
 export interface ITerminalGroup {
