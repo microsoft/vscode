@@ -13,7 +13,7 @@ import { URI } from 'vs/base/common/uri';
  * This would make monaco-editor consumption much more difficult though.
  */
 export interface IWorkbenchUIElementFactory {
-	createResourceLabel(element: HTMLElement): IResourceLabel;
+	createResourceLabel?(element: HTMLElement): IResourceLabel;
 }
 
 export interface IResourceLabel extends IDisposable {
