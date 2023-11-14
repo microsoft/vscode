@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatAgentDetection, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -1174,7 +1174,7 @@ export interface MainThreadChatAgentsShape2 extends IDisposable {
 	$registerAgent(handle: number, name: string, metadata: IExtensionChatAgentMetadata): void;
 	$updateAgent(handle: number, metadataUpdate: IExtensionChatAgentMetadata): void;
 	$unregisterAgent(handle: number): void;
-	$handleProgressChunk(requestId: string, chunk: IChatResponseProgressDto, responsePartHandle?: number): Promise<number | void>;
+	$handleProgressChunk(requestId: string, chunk: IChatProgressDto, responsePartHandle?: number): Promise<number | void>;
 }
 
 export interface ExtHostChatAgentsShape2 {
@@ -1250,14 +1250,11 @@ export type IDocumentContextDto = {
 	ranges: IRange[];
 };
 
-export type IChatResponseProgressDto =
-	| { content: string | IMarkdownString }
-	| { placeholder: string }
-	| { treeData: IChatResponseProgressFileTreeData }
-	| { documents: IDocumentContextDto[] }
-	| { reference: UriComponents | ILocationDto }
-	| { inlineReference: UriComponents | ILocationDto; title?: string }
-	| IChatAgentDetection;
+export type IChatAsyncContentDto = Dto<Omit<IChatAsyncContent, 'resolvedContent'>>;
+
+export type IChatProgressDto =
+	| Dto<Exclude<IChatProgress, IChatAsyncContent>>
+	| IChatAsyncContentDto;
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
