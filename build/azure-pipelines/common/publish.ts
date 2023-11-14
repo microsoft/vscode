@@ -863,6 +863,14 @@ async function main() {
 }
 
 if (require.main === module) {
+	process.on('beforeExit', (code) => {
+		console.log('Process beforeExit event with code: ', code);
+	});
+
+	process.on('exit', (code) => {
+		console.log(`About to exit with code: ${code}`);
+	});
+
 	const [] = process.argv.slice(2);
 
 	main().then(() => {
