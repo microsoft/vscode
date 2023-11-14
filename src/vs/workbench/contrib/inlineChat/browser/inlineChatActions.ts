@@ -33,7 +33,7 @@ import { registerIcon } from 'vs/platform/theme/common/iconRegistry';
 
 CommandsRegistry.registerCommandAlias('interactiveEditor.start', 'inlineChat.start');
 export const LOCALIZED_START_INLINE_CHAT_STRING = localize('run', 'Start Inline Chat');
-const START_INLINE_CHAT = registerIcon('inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
+const START_INLINE_CHAT = registerIcon('start-inline-chat', Codicon.sparkle, localize('startInlineChat', 'Icon which spawns the inline chat from the editor toolbar.'));
 
 export class StartSessionAction extends EditorAction2 {
 
