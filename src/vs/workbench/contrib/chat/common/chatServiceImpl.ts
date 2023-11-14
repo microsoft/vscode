@@ -656,12 +656,12 @@ export class ChatService extends Disposable implements IChatService {
 		const parsedRequest = await this.instantiationService.createInstance(ChatRequestParser).parseChatRequest(sessionId, message);
 		const request = model.addRequest(parsedRequest);
 		if (typeof response.message === 'string') {
-			model.acceptResponseProgress(request, { content: response.message });
+			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
 		} else {
 			for (const part of response.message) {
-				const progress = 'inlineReference' in part ? part :
-					isMarkdownString(part) ? { content: part.value } :
-						{ treeData: part };
+				const progress: IChatProgress = 'inlineReference' in part ? part :
+					isMarkdownString(part) ? { content: part.value, kind: 'content' } :
+						{ treeData: part, kind: 'treeData' };
 				model.acceptResponseProgress(request, progress, true);
 			}
 		}

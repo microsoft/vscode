@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -37,13 +37,13 @@ export type ResponsePart =
 			string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }
 		>;
 	}
-	| IUsedContext
+	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference;
 
 export interface IResponse {
 	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
-	readonly usedContext: IUsedContext | undefined;
+	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
 	asString(): string;
 }
@@ -112,8 +112,8 @@ export class Response implements IResponse {
 		return this._contentReferences;
 	}
 
-	private _usedContext: IUsedContext | undefined;
-	public get usedContext(): IUsedContext | undefined {
+	private _usedContext: IChatUsedContext | undefined;
+	public get usedContext(): IChatUsedContext | undefined {
 		return this._usedContext;
 	}
 
@@ -381,7 +381,7 @@ export interface ISerializableChatRequestData {
 	isCanceled: boolean | undefined;
 	vote: InteractiveSessionVoteDirection | undefined;
 	/** For backward compat: should be optional */
-	usedContext?: IUsedContext;
+	usedContext?: IChatUsedContext;
 	contentReferences?: ReadonlyArray<IChatContentReference>;
 }
 

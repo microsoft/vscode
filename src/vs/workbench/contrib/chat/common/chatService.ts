@@ -69,11 +69,12 @@ export function isIDocumentContext(obj: unknown): obj is IDocumentContext {
 	);
 }
 
-export type IUsedContext = {
+export interface IChatUsedContext {
 	documents: IDocumentContext[];
-};
+	kind: 'usedContext';
+}
 
-export function isIUsedContext(obj: unknown): obj is IUsedContext {
+export function isIUsedContext(obj: unknown): obj is IChatUsedContext {
 	return (
 		!!obj &&
 		typeof obj === 'object' &&
@@ -85,23 +86,42 @@ export function isIUsedContext(obj: unknown): obj is IUsedContext {
 
 export interface IChatContentReference {
 	reference: URI | Location;
+	kind: 'reference';
 }
 
 export interface IChatContentInlineReference {
 	inlineReference: URI | Location;
 	name?: string;
+	kind: 'inlineReference';
 }
 
 export interface IChatAgentDetection {
 	agentName: string;
 	command?: IChatAgentCommand;
+	kind: 'agentDetection';
+}
+
+export interface IChatContent {
+	content: string | IMarkdownString;
+	kind: 'content';
+}
+
+export interface IChatTreeData {
+	treeData: IChatResponseProgressFileTreeData;
+	kind: 'treeData';
+}
+
+export interface IChatAsyncContent {
+	placeholder: string;
+	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
+	kind: 'asyncContent';
 }
 
 export type IChatProgress =
-	| { content: string | IMarkdownString }
-	| { treeData: IChatResponseProgressFileTreeData }
-	| { placeholder: string; resolvedContent: Promise<string | IMarkdownString | { treeData: IChatResponseProgressFileTreeData }> }
-	| IUsedContext
+	| IChatContent
+	| IChatTreeData
+	| IChatAsyncContent
+	| IChatUsedContext
 	| IChatContentReference
 	| IChatContentInlineReference
 	| IChatAgentDetection;
