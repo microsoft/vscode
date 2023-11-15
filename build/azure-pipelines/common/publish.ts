@@ -796,14 +796,19 @@ async function main() {
 	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
-		console.log('Checking for stages & artifacts...');
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
-		const stagesMissing = [...stages].filter(s => !stagesCompleted.has(s));
+		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
 
-		if (stagesMissing.length > 0) {
-			console.log('Stages missing:', stagesMissing.join(', '));
+		if (stagesInProgress.length > 0) {
+			console.log('Stages in progress:', stagesInProgress.join(', '));
+		}
+
+		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
+
+		if (artifactsInProgress.length > 0) {
+			console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
 		}
 
 		if (stagesCompleted.size === stages.size && artifacts.length === done.size + processing.size) {
@@ -830,6 +835,12 @@ async function main() {
 	}
 
 	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
+
+	const artifactsInProgress = operations.filter(o => processing.has(o.name));
+
+	if (artifactsInProgress.length > 0) {
+		console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
+	}
 
 	const results = await Promise.allSettled(operations.map(o => o.operation));
 
