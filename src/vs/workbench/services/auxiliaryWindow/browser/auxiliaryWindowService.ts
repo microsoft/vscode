@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
-import { IRectangle } from 'vs/platform/window/common/window';
+import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
@@ -180,10 +180,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
 
 		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
-			width,
-			height
+			x: Math.max(options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2), 0),
+			y: Math.max(options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2), 0),
+			width: Math.max(width, WindowMinimumSize.WIDTH),
+			height: Math.max(height, WindowMinimumSize.HEIGHT)
 		};
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
