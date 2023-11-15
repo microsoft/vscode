@@ -2486,6 +2486,7 @@ export class SCMViewPane extends ViewPane {
 		this.disposables.add(actionRunner);
 
 		this.treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showSyncInformation);
+		this.disposables.add(this.treeDataSource);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -2673,10 +2674,7 @@ export class SCMViewPane extends ViewPane {
 			}));
 
 			if (repository.provider.historyProvider) {
-				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-					this.treeDataSource.deleteCacheEntry(repository);
-					this.updateChildren(repository);
-				}));
+				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.updateChildren(repository)));
 			}
 
 			const resourceGroupDisposables = repositoryDisposables.add(new DisposableMap<ISCMResourceGroup, IDisposable>());
@@ -2710,7 +2708,6 @@ export class SCMViewPane extends ViewPane {
 
 		// Removed repositories
 		for (const repository of removed) {
-			this.treeDataSource.deleteCacheEntry(repository);
 			this.items.deleteAndDispose(repository);
 		}
 
@@ -2929,6 +2926,8 @@ export class SCMViewPane extends ViewPane {
 class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement> {
 
 	private readonly historyProviderCache = new Map<ISCMRepository, ISCMHistoryProviderCacheEntry>();
+	private readonly repositoryDisposables = new DisposableMap<ISCMRepository, IDisposable>();
+	private readonly disposables = new DisposableStore();
 
 	constructor(
 		private readonly viewMode: () => ViewMode,
@@ -2937,7 +2936,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		private readonly showSyncInformation: () => { incoming: boolean; outgoing: boolean },
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
-	) { }
+	) {
+		this.scmViewService.onDidChangeVisibleRepositories(this.onDidChangeVisibleRepositories, this, this.disposables);
+		this.onDidChangeVisibleRepositories({ added: this.scmViewService.visibleRepositories, removed: Iterable.empty() });
+	}
 
 	hasChildren(inputOrElement: ISCMViewService | TreeElement): boolean {
 		if (isSCMViewService(inputOrElement)) {
@@ -3057,7 +3059,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 
 		const children: SCMHistoryItemGroupTreeElement[] = [];
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
+		const historyProviderCacheEntry = this.historyProviderCache.get(element)!;
 		let historyItemGroupDetails = historyProviderCacheEntry?.historyItemGroupDetails;
 
 		if (!historyItemGroupDetails) {
@@ -3097,7 +3099,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
+		const historyProviderCacheEntry = this.historyProviderCache.get(repository)!;
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
 		let historyItems = historyProviderCacheEntry.historyItems.get(element.id);
 
@@ -3124,7 +3126,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
+		const historyProviderCacheEntry = this.historyProviderCache.get(repository)!;
 		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
 		let historyItemChanges = historyItemChangesMap.get(element.id);
 
@@ -3163,13 +3165,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		return children;
 	}
 
-	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
-		return this.historyProviderCache.get(repository) ?? {
-			historyItems: new Map<string, ISCMHistoryItem[]>(),
-			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
-		};
-	}
-
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
 		if (isSCMResourceNode(element)) {
 			if (element.parent === element.context.resourceTree.root) {
@@ -3201,8 +3196,33 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 	}
 
-	deleteCacheEntry(repository: ISCMRepository): void {
-		this.historyProviderCache.delete(repository);
+	private onDidChangeVisibleRepositories({ added, removed }: ISCMViewVisibleRepositoryChangeEvent): void {
+		// Added repositories
+		for (const repository of added) {
+			const repositoryDisposables = new DisposableStore();
+
+			this.historyProviderCache.set(repository, {
+				historyItems: new Map<string, ISCMHistoryItem[]>(),
+				historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
+			});
+
+			if (repository.provider.historyProvider) {
+				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.historyProviderCache.delete(repository)));
+			}
+
+			this.repositoryDisposables.set(repository, repositoryDisposables);
+		}
+
+		// Removed repositories
+		for (const repository of removed) {
+			this.repositoryDisposables.deleteAndDispose(repository);
+			this.historyProviderCache.delete(repository);
+		}
+	}
+
+	dispose(): void {
+		this.repositoryDisposables.dispose();
+		this.disposables.dispose();
 	}
 }
 
