@@ -697,6 +697,7 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	return { assetUrl, mooncakeUrl };
 }
 
+const downloadSequencer = new Sequencer();
 const cosmosSequencer = new Sequencer();
 
 async function processArtifact(artifact: Artifact): Promise<void> {
@@ -713,7 +714,7 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 		log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
 
 		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-		await downloadArtifact(artifact, artifactZipPath);
+		await downloadSequencer.queue(() => downloadArtifact(artifact, artifactZipPath));
 
 		log(`Extracting (attempt ${attempt}) ...`);
 		const filePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
