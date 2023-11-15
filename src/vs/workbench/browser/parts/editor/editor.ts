@@ -174,15 +174,10 @@ function validateEditorPartOptions(options: IEditorPartOptions): IEditorPartOpti
  */
 export interface IEditorPartsView {
 
-	/**
-	 * An array of all editor groups across all editor parts.
-	 */
-	readonly groups: IEditorGroupView[];
+	readonly mainPart: IEditorGroupsView;
 
-	/**
-	 * Get the group based on an identifier across all opened
-	 * editor parts.
-	 */
+	readonly activeGroup: IEditorGroupView;
+	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
 }
 

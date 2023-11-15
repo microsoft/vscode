@@ -208,7 +208,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const content = this._serializeAddon.serialize({
 			range: {
 				start: stickyScrollLineStart + rowOffset,
-				end: stickyScrollLineStart + rowOffset + stickyScrollLineCount - 1
+				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
 		});
 

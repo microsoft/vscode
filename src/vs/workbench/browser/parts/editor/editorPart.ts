@@ -152,7 +152,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
-		private readonly editorPartsView: IEditorPartsView,
+		protected readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
 		public readonly isAuxiliary: boolean,
@@ -1413,7 +1413,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		// Close aux window when last group removed
 		const groupView = this.assertGroupView(group);
 		if (this.count === 1 && this.activeGroup === groupView) {
-			this.close();
+			this.doClose(false /* do not merge any groups to main part */);
 		}
 
 		// Otherwise delegate to parent implementation
@@ -1426,8 +1426,15 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		return; // TODO support auxiliary editor state
 	}
 
-	async close(): Promise<void> {
-		// TODO this needs full support for closing all editors, handling vetos and showing dialogs
+	close(): void {
+		this.doClose(true /* merge all groups to main part */);
+	}
+
+	private doClose(mergeGroupsToMainPart: boolean): void {
+		if (mergeGroupsToMainPart) {
+			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
+		}
+
 		this._onDidClose.fire();
 	}
 }
