@@ -259,8 +259,8 @@ export class Workbench extends Layout {
 		}));
 
 		// Dialogs showing/hiding
-		this._register(dialogService.onWillShowDialog(() => this.container.classList.add('modal-dialog-visible')));
-		this._register(dialogService.onDidShowDialog(() => this.container.classList.remove('modal-dialog-visible')));
+		this._register(dialogService.onWillShowDialog(() => this.mainContainer.classList.add('modal-dialog-visible')));
+		this._register(dialogService.onDidShowDialog(() => this.mainContainer.classList.remove('modal-dialog-visible')));
 	}
 
 	private fontAliasing: 'default' | 'antialiased' | 'none' | 'auto' | undefined;
@@ -282,11 +282,11 @@ export class Workbench extends Layout {
 
 		// Remove all
 		const fontAliasingValues: (typeof aliasing)[] = ['antialiased', 'none', 'auto'];
-		this.container.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
+		this.mainContainer.classList.remove(...fontAliasingValues.map(value => `monaco-font-aliasing-${value}`));
 
 		// Add specific
 		if (fontAliasingValues.some(option => option === aliasing)) {
-			this.container.classList.add(`monaco-font-aliasing-${aliasing}`);
+			this.mainContainer.classList.add(`monaco-font-aliasing-${aliasing}`);
 		}
 	}
 
@@ -316,7 +316,7 @@ export class Workbench extends Layout {
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
 
 		// ARIA
-		setARIAContainer(this.container);
+		setARIAContainer(this.mainContainer);
 
 		// State specific classes
 		const platformClass = isWindows ? 'windows' : isLinux ? 'linux' : 'mac';
@@ -329,7 +329,7 @@ export class Workbench extends Layout {
 			...(this.options?.extraClasses ? this.options.extraClasses : [])
 		]);
 
-		this.container.classList.add(...workbenchClasses);
+		this.mainContainer.classList.add(...workbenchClasses);
 		mainWindow.document.body.classList.add(platformClass); // used by our fonts
 
 		if (isWeb) {
@@ -364,7 +364,7 @@ export class Workbench extends Layout {
 		this.createNotificationsHandlers(instantiationService, notificationService);
 
 		// Add Workbench to DOM
-		this.parent.appendChild(this.container);
+		this.parent.appendChild(this.mainContainer);
 	}
 
 	private createPart(id: string, role: string, classes: string[]): HTMLElement {
@@ -382,8 +382,8 @@ export class Workbench extends Layout {
 	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
 
 		// Instantiate Notification components
-		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.container, notificationService.model));
-		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.container, notificationService.model));
+		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
+		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
 		this._register(instantiationService.createInstance(NotificationsAlerts, notificationService.model));
 		const notificationsStatus = instantiationService.createInstance(NotificationsStatus, notificationService.model);
 		this._register(instantiationService.createInstance(NotificationsTelemetry));

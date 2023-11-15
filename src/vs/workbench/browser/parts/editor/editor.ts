@@ -179,8 +179,6 @@ export interface IEditorPartsView {
 	readonly activeGroup: IEditorGroupView;
 	readonly groups: IEditorGroupView[];
 	getGroup(identifier: GroupIdentifier): IEditorGroupView | undefined;
-
-	mergeGroup(group: IEditorGroupView, target: IEditorGroupView, options?: IMergeGroupOptions): IEditorGroupView;
 }
 
 /**
