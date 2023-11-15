@@ -789,12 +789,21 @@ async function main() {
 	const publishPromises: Promise<void>[] = [];
 
 	while (true) {
-		for (const artifact of await retry(() => getPipelineArtifacts())) {
+		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
+		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
+
+		console.log('Stages missing:', [...stages].filter(s => !stagesCompleted.has(s)).join(', '));
+
+		if (stagesCompleted.size === stages.size && artifacts.length === done.size + processing.size) {
+			break;
+		}
+
+		for (const artifact of artifacts) {
 			if (done.has(artifact.name) || processing.has(artifact.name)) {
 				continue;
 			}
 
-			console.log(`New artifact: ${artifact.name}`);
+			console.log(`Found new artifact: ${artifact.name}`);
 			processing.add(artifact.name);
 
 			publishPromises.push(
@@ -805,20 +814,11 @@ async function main() {
 			);
 		}
 
-		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
-		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
-
-		if (stagesCompleted.size === stages.size && artifacts.length === done.size) {
-			break;
-		}
-
-		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}. Missing: ${Array.from(stages).filter(s => !stagesCompleted.has(s)).join(', ')}}`);
-		console.log(`Artifacts processed: ${done.size}/${artifacts.length}. Missing: ${artifacts.filter(a => !done.has(a.name)).map(a => a.name).join(', ')}}`);
-
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
-	console.log(`Waiting for all artifacts to be published...`);
+	console.log(`Waiting for all ${processing.size}/${done.size + processing.size} artifacts to be published...`);
+
 	const results = await Promise.allSettled(publishPromises);
 	const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
 
