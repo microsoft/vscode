@@ -84,10 +84,6 @@ export class ChatRequestModel implements IChatRequestModel {
 	}
 }
 
-export interface IPlaceholderMarkdownString extends IMarkdownString {
-	isPlaceholder: boolean;
-}
-
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -99,7 +95,7 @@ export class Response implements IResponse {
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
 	private _responseRepr!: string;
 
-	get value(): (IChatProgressResponseContent)[] {
+	get value(): IChatProgressResponseContent[] {
 		return this._responseParts;
 	}
 
