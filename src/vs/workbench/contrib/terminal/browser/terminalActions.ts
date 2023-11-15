@@ -16,7 +16,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { EndOfLinePreference } from 'vs/editor/common/model';
 import { localize } from 'vs/nls';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from 'vs/platform/accessibility/common/accessibility';
-import { Action2, registerAction2, IAction2Options } from 'vs/platform/actions/common/actions';
+import { Action2, registerAction2, IAction2Options, MenuId } from 'vs/platform/actions/common/actions';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -434,8 +434,26 @@ export function registerTerminalActions() {
 	});
 
 	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommand,
+		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command'), original: 'Copy Last Command' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command.command) {
+				return;
+			}
+			await clipboardService.writeText(command.command);
+		}
+	});
+
+	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommand', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
+		title: { value: localize('workbench.action.terminal.copyLastCommandOutput', 'Copy Last Command Output'), original: 'Copy Last Command Output' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
@@ -453,6 +471,28 @@ export function registerTerminalActions() {
 			}
 		}
 	});
+
+	registerActiveInstanceAction({
+		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
+		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and Output'), original: 'Copy Last Command and Output' },
+		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
+		run: async (instance, c, accessor) => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commands = instance.capabilities.get(TerminalCapability.CommandDetection)?.commands;
+			if (!commands || commands.length === 0) {
+				return;
+			}
+			const command = commands[commands.length - 1];
+			if (!command?.hasOutput()) {
+				return;
+			}
+			const output = command.getOutput();
+			if (isString(output)) {
+				await clipboardService.writeText(`${command.command !== '' ? command.command + '\n' : ''}${output}`);
+			}
+		}
+	});
+
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.GoToRecentDirectory,
@@ -1487,6 +1527,24 @@ export function registerTerminalActions() {
 			weight: KeybindingWeight.WorkbenchContrib + 1
 		},
 		run: (activeInstance) => activeInstance.hideSuggestWidget()
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.ToggleStickyScroll,
+		title: { value: localize('workbench.action.terminal.toggleStickyScroll', "Toggle Sticky Scroll"), original: 'Toggle Sticky Scroll' },
+		toggled: {
+			condition: ContextKeyExpr.equals('config.terminal.integrated.stickyScroll.enabled', true),
+			title: localize('stickyScroll', "Sticky Scroll"),
+			mnemonicTitle: localize({ key: 'miStickyScroll', comment: ['&& denotes a mnemonic'] }, "&&Sticky Scroll"),
+		},
+		run: (c, accessor) => {
+			const configurationService = accessor.get(IConfigurationService);
+			const newValue = !configurationService.getValue(TerminalSettingId.StickyScrollEnabled);
+			return configurationService.updateValue(TerminalSettingId.StickyScrollEnabled, newValue);
+		},
+		menu: [
+			{ id: MenuId.TerminalStickyScrollContext }
+		]
 	});
 
 	// Some commands depend on platform features

@@ -140,6 +140,7 @@
     "@vscode/test-cli": "^0.0.3",
     "@vscode/test-electron": "^2.3.5",
     "@vscode/test-web": "^0.0.42",
+    "@vscode/v8-heap-parser": "^0.1.0",
     "@vscode/vscode-perf": "^0.0.14",
     "ansi-colors": "^3.2.3",
     "asar": "^3.0.3",

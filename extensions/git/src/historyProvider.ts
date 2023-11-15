@@ -6,11 +6,12 @@
 
 import { Disposable, Event, EventEmitter, FileDecoration, FileDecorationProvider, SourceControlActionButton, SourceControlHistoryItem, SourceControlHistoryItemChange, SourceControlHistoryItemGroup, SourceControlHistoryOptions, SourceControlHistoryProvider, ThemeIcon, Uri, window, l10n } from 'vscode';
 import { Repository, Resource } from './repository';
-import { IDisposable } from './util';
+import { IDisposable, filterEvent } from './util';
 import { toGitUri } from './uri';
 import { SyncActionButton } from './actionButton';
-import { RefType, Status } from './api/git';
+import { Branch, RefType, Status } from './api/git';
 import { emojify, ensureEmojis } from './emoji';
+import { Operation } from './operation';
 
 export class GitHistoryProvider implements SourceControlHistoryProvider, FileDecorationProvider, IDisposable {
 
@@ -30,6 +31,7 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this._onDidChangeActionButton.fire();
 	}
 
+	private _HEAD: Branch | undefined;
 	private _currentHistoryItemGroup: SourceControlHistoryItemGroup | undefined;
 
 	get currentHistoryItemGroup(): SourceControlHistoryItemGroup | undefined { return this._currentHistoryItemGroup; }
@@ -47,14 +49,29 @@ export class GitHistoryProvider implements SourceControlHistoryProvider, FileDec
 		this.actionButton = actionButton.button;
 		this.disposables.push(actionButton);
 
-		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
 		this.disposables.push(actionButton.onDidChange(() => this.actionButton = actionButton.button));
+
+		this.disposables.push(repository.onDidRunGitStatus(this.onDidRunGitStatus, this));
+		this.disposables.push(filterEvent(repository.onDidRunOperation, e => e.operation === Operation.Refresh)(() => this._onDidChangeCurrentHistoryItemGroup.fire()));
 
 		this.disposables.push(window.registerFileDecorationProvider(this));
 	}
 
 	private async onDidRunGitStatus(): Promise<void> {
 		if (!this.repository.HEAD?.name || !this.repository.HEAD?.commit) { return; }
+
+		// Check if HEAD has changed
+		const HEAD = this.repository.HEAD;
+
+		if (this._HEAD?.name === HEAD.name &&
+			this._HEAD?.commit === HEAD.commit &&
+			this._HEAD?.upstream?.name === HEAD.upstream?.name &&
+			this._HEAD?.upstream?.remote === HEAD.upstream?.remote &&
+			this._HEAD?.commit === HEAD.commit) {
+			return;
+		}
+
+		this._HEAD = this.repository.HEAD;
 
 		this.currentHistoryItemGroup = {
 			id: `refs/heads/${this.repository.HEAD.name}`,

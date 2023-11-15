@@ -36,6 +36,7 @@ export interface Ref {
 export interface UpstreamRef {
 	readonly remote: string;
 	readonly name: string;
+	readonly commit?: string;
 }
 
 export interface Branch extends Ref {

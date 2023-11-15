@@ -1142,6 +1142,11 @@ export class Repository implements Disposable {
 		await this.run(Operation.Status);
 	}
 
+	@throttle
+	async refresh(): Promise<void> {
+		await this.run(Operation.Refresh);
+	}
+
 	diff(cached?: boolean): Promise<string> {
 		return this.run(Operation.Diff, () => this.repository.diff(cached));
 	}
