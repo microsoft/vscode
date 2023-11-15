@@ -100,7 +100,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
-import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
+import { foreground, listActiveSelectionForeground, registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -132,12 +132,18 @@ registerColor('scm.historyItemDeletionsForeground', {
 }, localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
 
 registerColor('scm.historyItemStatisticsBorder', {
-	dark: transparent('foreground', 0.1),
-	light: transparent('foreground', 0.1),
-	hcDark: transparent('foreground', 0.1),
-	hcLight: transparent('foreground', 0.1)
+	dark: transparent(foreground, 0.2),
+	light: transparent(foreground, 0.2),
+	hcDark: transparent(foreground, 0.2),
+	hcLight: transparent(foreground, 0.2)
 }, localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
 
+registerColor('scm.historyItemSelectedStatisticsBorder', {
+	dark: transparent(listActiveSelectionForeground, 0.2),
+	light: transparent(listActiveSelectionForeground, 0.2),
+	hcDark: transparent(listActiveSelectionForeground, 0.2),
+	hcLight: transparent(listActiveSelectionForeground, 0.2)
+}, localize('scm.historyItemSelectedStatisticsBorder', "History item selected statistics border color."));
 
 interface ISCMLayout {
 	height: number | undefined;

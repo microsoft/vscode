@@ -164,6 +164,11 @@
 	border: 1px solid var(--vscode-scm-historyItemStatisticsBorder);
 }
 
+.scm-view .monaco-list-row.focused .history-item .stats-container,
+.scm-view .monaco-list-row.selected .history-item .stats-container {
+	border: 1px solid var(--vscode-scm-historyItemSelectedStatisticsBorder);
+}
+
 .scm-view .monaco-list-row .history-item .stats-container > .files-label,
 .scm-view .monaco-list-row .history-item .stats-container > .insertions-label,
 .scm-view .monaco-list-row .history-item .stats-container > .deletions-label {
