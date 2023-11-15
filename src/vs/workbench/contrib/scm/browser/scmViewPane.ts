@@ -100,6 +100,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { stripIcons } from 'vs/base/common/iconLabels';
 import { IconLabel } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { registerColor, transparent } from 'vs/platform/theme/common/colorRegistry';
 
 // type SCMResourceTreeNode = IResourceNode<ISCMResource, ISCMResourceGroup>;
 // type SCMHistoryItemChangeResourceTreeNode = IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement>;
@@ -115,6 +116,28 @@ type TreeElement =
 	SCMHistoryItemChangeTreeElement |
 	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
 	SCMViewSeparatorElement;
+
+registerColor('scm.historyItemAdditionsForeground', {
+	dark: 'gitDecoration.addedResourceForeground',
+	light: 'gitDecoration.addedResourceForeground',
+	hcDark: 'gitDecoration.addedResourceForeground',
+	hcLight: 'gitDecoration.addedResourceForeground'
+}, localize('scm.historyItemAdditionsForeground', "History item additions foreground color."));
+
+registerColor('scm.historyItemDeletionsForeground', {
+	dark: 'gitDecoration.deletedResourceForeground',
+	light: 'gitDecoration.deletedResourceForeground',
+	hcDark: 'gitDecoration.deletedResourceForeground',
+	hcLight: 'gitDecoration.deletedResourceForeground'
+}, localize('scm.historyItemDeletionsForeground', "History item deletions foreground color."));
+
+registerColor('scm.historyItemStatisticsBorder', {
+	dark: transparent('foreground', 0.1),
+	light: transparent('foreground', 0.1),
+	hcDark: transparent('foreground', 0.1),
+	hcLight: transparent('foreground', 0.1)
+}, localize('scm.historyItemStatisticsBorder', "History item statistics border color."));
+
 
 interface ISCMLayout {
 	height: number | undefined;
@@ -735,7 +758,9 @@ interface HistoryItemTemplate {
 	readonly iconContainer: HTMLElement;
 	readonly label: IconLabel;
 	readonly statsContainer: HTMLElement;
-	readonly statsLabel: IconLabel;
+	readonly filesLabel: HTMLElement;
+	readonly insertionsLabel: HTMLElement;
+	readonly deletionsLabel: HTMLElement;
 	readonly actionBar: ActionBar;
 	readonly elementDisposables: DisposableStore;
 	readonly disposables: IDisposable;
@@ -765,9 +790,11 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 		disposables.add(actionBar);
 
 		const statsContainer = append(element, $('.stats-container'));
-		const statsLabel = new IconLabel(statsContainer, { supportIcons: true });
+		const filesLabel = append(statsContainer, $('.files-label'));
+		const insertionsLabel = append(statsContainer, $('.insertions-label'));
+		const deletionsLabel = append(statsContainer, $('.deletions-label'));
 
-		return { iconContainer, label: iconLabel, actionBar, statsContainer, statsLabel, elementDisposables: new DisposableStore(), disposables };
+		return { iconContainer, label: iconLabel, actionBar, statsContainer, filesLabel, insertionsLabel, deletionsLabel, elementDisposables: new DisposableStore(), disposables };
 	}
 
 	renderElement(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
@@ -798,32 +825,35 @@ class HistoryItemRenderer implements ICompressibleTreeRenderer<SCMHistoryItemTre
 	private renderStatistics(node: ITreeNode<SCMHistoryItemTreeElement, void>, index: number, templateData: HistoryItemTemplate, height: number | undefined): void {
 		const historyItem = node.element;
 
-		if (historyItem.statistics?.files || historyItem.statistics?.insertions || historyItem.statistics?.deletions) {
-			const statsLabelTitle: string[] = [];
-
-			const filesLabel = historyItem.statistics?.files ? `${historyItem.statistics.files}$(files)` : '';
-			const insertionsLabel = historyItem.statistics?.insertions ? ` ${historyItem.statistics.insertions}$(diff-added)` : '';
-			const deletionsLabel = historyItem.statistics?.deletions ? ` ${historyItem.statistics.deletions}$(diff-removed)` : '';
+		if (historyItem.statistics) {
+			const statsAriaLabel: string[] = [];
 
 			if (historyItem.statistics?.files) {
 				const filesDescription = historyItem.statistics.files === 1 ?
 					localize('fileChanged', "file changed") : localize('filesChanged', "files changed");
-				statsLabelTitle.push(`${historyItem.statistics.files} ${filesDescription}`);
+				statsAriaLabel.push(`${historyItem.statistics.files} ${filesDescription}`);
 			}
 
 			if (historyItem.statistics?.insertions) {
 				const insertionsDescription = historyItem.statistics.insertions === 1 ?
 					localize('insertion', "insertion{0}", '(+)') : localize('insertions', "insertions{0}", '(+)');
-				statsLabelTitle.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
+				statsAriaLabel.push(`${historyItem.statistics.insertions} ${insertionsDescription}`);
 			}
 
 			if (historyItem.statistics?.deletions) {
 				const deletionsDescription = historyItem.statistics.deletions === 1 ?
 					localize('deletion', "deletion{0}", '(-)') : localize('deletions', "deletions{0}", '(-)');
-				statsLabelTitle.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
+				statsAriaLabel.push(`${historyItem.statistics.deletions} ${deletionsDescription}`);
 			}
 
-			templateData.statsLabel.setLabel(`${filesLabel}${insertionsLabel}${deletionsLabel}`, undefined, { title: statsLabelTitle.join(', ') });
+			const statsTitle = statsAriaLabel.join(', ');
+			templateData.statsContainer.title = statsTitle;
+			templateData.statsContainer.setAttribute('aria-label', statsTitle);
+
+			templateData.filesLabel.textContent = historyItem.statistics.files > 0 ? historyItem.statistics.files.toString() : '';
+			templateData.insertionsLabel.textContent = historyItem.statistics.insertions > 0 ? `+${historyItem.statistics.insertions}` : '';
+			templateData.deletionsLabel.textContent = historyItem.statistics.deletions > 0 ? `-${historyItem.statistics.deletions}` : '';
+
 			templateData.statsContainer.style.display = '';
 		} else {
 			templateData.statsContainer.style.display = 'none';
