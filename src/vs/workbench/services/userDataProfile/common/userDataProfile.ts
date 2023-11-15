@@ -80,6 +80,7 @@ export function toUserDataProfileUri(path: string, productService: IProductServi
 
 export interface IProfileImportOptions extends IUserDataProfileOptions {
 	readonly name?: string;
+	readonly icon?: string;
 	readonly mode?: 'preview' | 'apply' | 'both';
 }
 

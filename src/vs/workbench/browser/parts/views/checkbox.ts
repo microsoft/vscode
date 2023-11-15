@@ -62,6 +62,7 @@ export class TreeItemCheckbox extends Disposable {
 			this.setHover(node.checkbox);
 			this.setAccessibilityInformation(node.checkbox);
 			this.toggle.domNode.classList.add(TreeItemCheckbox.checkboxClass);
+			this.toggle.domNode.tabIndex = 1;
 			DOM.append(this.checkboxContainer, this.toggle.domNode);
 			this.registerListener(node);
 		}

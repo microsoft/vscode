@@ -34,14 +34,13 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 		case 'win32':
 			switch (product) {
 				case 'client': {
-					const asset = arch === 'ia32' ? 'win32' : `win32-${arch}`;
 					switch (type) {
 						case 'archive':
-							return `${asset}-archive`;
+							return `win32-${arch}-archive`;
 						case 'setup':
-							return asset;
+							return `win32-${arch}`;
 						case 'user-setup':
-							return `${asset}-user`;
+							return `win32-${arch}-user`;
 						default:
 							throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
@@ -50,12 +49,12 @@ function getPlatform(product: string, os: string, arch: string, type: string): s
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32' : `server-win32-${arch}`;
+					return `server-win32-${arch}`;
 				case 'web':
 					if (arch === 'arm64') {
 						throw new Error(`Unrecognized: ${product} ${os} ${arch} ${type}`);
 					}
-					return arch === 'ia32' ? 'server-win32-web' : `server-win32-${arch}-web`;
+					return `server-win32-${arch}-web`;
 				case 'cli':
 					return `cli-win32-${arch}`;
 				default:
@@ -197,15 +196,19 @@ async function main(): Promise<void> {
 
 	const uploadPromises: Promise<void>[] = [];
 
-	if (await blobClient.exists()) {
-		uploadPromises.push(Promise.reject(new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`)));
-	} else {
-		uploadPromises.push(retry(async (attempt) => {
-			console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
-			await blobClient.uploadFile(filePath, blobOptions);
-			console.log('Blob successfully uploaded to Azure storage.');
-		}));
-	}
+	uploadPromises.push((async () => {
+		console.log(`Checking for blob in Azure...`);
+
+		if (await retry(() => blobClient.exists())) {
+			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
+		} else {
+			await retry(async (attempt) => {
+				console.log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
+				await blobClient.uploadFile(filePath, blobOptions);
+				console.log('Blob successfully uploaded to Azure storage.');
+			});
+		}
+	})());
 
 	const shouldUploadToMooncake = /true/i.test(process.env['VSCODE_PUBLISH_TO_MOONCAKE'] ?? 'true');
 
@@ -215,15 +218,19 @@ async function main(): Promise<void> {
 		const mooncakeContainerClient = mooncakeBlobServiceClient.getContainerClient(quality);
 		const mooncakeBlobClient = mooncakeContainerClient.getBlockBlobClient(blobName);
 
-		if (await mooncakeBlobClient.exists()) {
-			uploadPromises.push(Promise.reject(new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`)));
-		} else {
-			uploadPromises.push(retry(async (attempt) => {
-				console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
-				await mooncakeBlobClient.uploadFile(filePath, blobOptions);
-				console.log('Blob successfully uploaded to Mooncake Azure storage.');
-			}));
-		}
+		uploadPromises.push((async () => {
+			console.log(`Checking for blob in Mooncake Azure...`);
+
+			if (await retry(() => mooncakeBlobClient.exists())) {
+				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
+			} else {
+				await retry(async (attempt) => {
+					console.log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
+					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
+					console.log('Blob successfully uploaded to Mooncake Azure storage.');
+				});
+			}
+		})());
 	}
 
 	const promiseResults = await Promise.allSettled(uploadPromises);

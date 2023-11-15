@@ -15,6 +15,7 @@ import { Schemas } from 'vs/base/common/network';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorResolverService } from 'vs/workbench/services/editor/common/editorResolverService';
 import { DEFAULT_EDITOR_ASSOCIATION } from 'vs/workbench/common/editor';
+import { isLinux } from 'vs/base/common/platform';
 
 //#region < --- Workbench --- >
 
@@ -33,6 +34,7 @@ export const VirtualWorkspaceContext = new RawContextKey<string>('virtualWorkspa
 export const TemporaryWorkspaceContext = new RawContextKey<boolean>('temporaryWorkspace', false, localize('temporaryWorkspace', "The scheme of the current workspace is from a temporary file system."));
 
 export const IsFullscreenContext = new RawContextKey<boolean>('isFullscreen', false, localize('isFullscreen', "Whether the window is in fullscreen mode"));
+export const IsAuxiliaryWindowFocusedContext = new RawContextKey<boolean>('isAuxiliaryWindowFocusedContext', false, localize('isAuxiliaryWindowFocusedContext', "Whether an auxiliary window is focused"));
 
 export const HasWebFileSystemAccess = new RawContextKey<boolean>('hasWebFileSystemAccess', false, true); // Support for FileSystemAccess web APIs (https://wicg.github.io/file-system-access)
 
@@ -70,6 +72,11 @@ export const ActiveEditorGroupLockedContext = new RawContextKey<boolean>('active
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false, localize('multipleEditorGroups', "Whether there are multiple editor groups opened"));
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 
+// Editor Part Context Keys
+export const EditorPartMultipleEditorGroupsContext = new RawContextKey<boolean>('editorPartMultipleEditorGroups', false, localize('editorPartMultipleEditorGroups', "Whether there are multiple editor groups opened in an editor part"));
+export const EditorPartSingleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.toNegated();
+export const EditorPartMaximizedEditorGroupContext = new RawContextKey<boolean>('editorPartMaximizedEditorGroup', false, localize('editorPartEditorGroupMaximized', "Editor Part has a maximized group"));
+
 // Editor Layout Context Keys
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false, localize('editorIsOpen', "Whether an editor is open"));
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false, localize('inZenMode', "Whether Zen mode is enabled"));
@@ -77,6 +84,7 @@ export const IsCenteredLayoutContext = new RawContextKey<boolean>('isCenteredLay
 export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false, localize('splitEditorsVertically', "Whether editors split vertically"));
 export const EditorAreaVisibleContext = new RawContextKey<boolean>('editorAreaVisible', true, localize('editorAreaVisible', "Whether the editor area is visible"));
 export const EditorTabsVisibleContext = new RawContextKey<boolean>('editorTabsVisible', true, localize('editorTabsVisible', "Whether editor tabs are visible"));
+export const EditorPinnedAndUnpinnedTabsContext = new RawContextKey<boolean>('editorPinnedAndUnpinnedTabsVisible', false, true);
 
 //#endregion
 
@@ -93,6 +101,13 @@ export const ActiveViewletContext = new RawContextKey<string>('activeViewlet', '
 //#region < --- Status Bar --- >
 
 export const StatusBarFocused = new RawContextKey<boolean>('statusBarFocused', false, localize('statusBarFocused', "Whether the status bar has keyboard focus"));
+
+//#endregion
+
+//#region < --- Title Bar --- >
+
+export const TitleBarStyleContext = new RawContextKey<string>('titleBarStyle', isLinux ? 'native' : 'custom', localize('titleBarStyle', "Style of the window title bar"));
+export const TitleBarVisibleContext = new RawContextKey<boolean>('titleBarVisible', false, localize('titleBarVisible', "Whether the title bar is visible"));
 
 //#endregion
 
@@ -138,7 +153,6 @@ export const PanelMaximizedContext = new RawContextKey<boolean>('panelMaximized'
 
 export const FocusedViewContext = new RawContextKey<string>('focusedView', '', localize('focusedView', "The identifier of the view that has keyboard focus"));
 export function getVisbileViewContextKey(viewId: string): string { return `view.${viewId}.visible`; }
-export function getEnabledViewContainerContextKey(viewContainerId: string): string { return `viewContainer.${viewContainerId}.enabled`; }
 
 //#endregion
 

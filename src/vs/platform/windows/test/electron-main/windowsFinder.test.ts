@@ -17,6 +17,7 @@ import { findWindowOnFile } from 'vs/platform/windows/electron-main/windowsFinde
 import { toWorkspaceFolders } from 'vs/platform/workspaces/common/workspaces';
 import { IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { FileAccess } from 'vs/base/common/network';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('WindowsFinder', () => {
 
@@ -61,7 +62,6 @@ suite('WindowsFinder', () => {
 			send(channel: string, ...args: any[]): void { throw new Error('Method not implemented.'); }
 			sendWhenReady(channel: string, token: CancellationToken, ...args: any[]): void { throw new Error('Method not implemented.'); }
 			toggleFullScreen(): void { throw new Error('Method not implemented.'); }
-			isMinimized(): boolean { throw new Error('Method not implemented.'); }
 			setRepresentedFilename(name: string): void { throw new Error('Method not implemented.'); }
 			getRepresentedFilename(): string | undefined { throw new Error('Method not implemented.'); }
 			setDocumentEdited(edited: boolean): void { throw new Error('Method not implemented.'); }
@@ -107,4 +107,6 @@ suite('WindowsFinder', () => {
 		const window: ICodeWindow = createTestCodeWindow({ lastFocusTime: 1, openedWorkspace: testWorkspace });
 		assert.strictEqual(await findWindowOnFile([window], URI.file(join(fixturesFolder, 'vscode_workspace_2_folder', 'nested_vscode_folder', 'subfolder', 'file.txt')), localWorkspaceResolver), window);
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

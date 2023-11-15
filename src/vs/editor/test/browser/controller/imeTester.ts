@@ -11,6 +11,7 @@ import { EndOfLinePreference } from 'vs/editor/common/model';
 import * as dom from 'vs/base/browser/dom';
 import * as browser from 'vs/base/browser/browser';
 import * as platform from 'vs/base/common/platform';
+import { mainWindow } from 'vs/base/browser/window';
 
 // To run this test, open imeTester.html
 
@@ -198,5 +199,5 @@ const TESTS = [
 ];
 
 TESTS.forEach((t) => {
-	document.body.appendChild(doCreateTest(t.description, t.in, t.out));
+	mainWindow.document.body.appendChild(doCreateTest(t.description, t.in, t.out));
 });

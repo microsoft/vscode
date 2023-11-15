@@ -746,6 +746,7 @@ export interface CodeAction {
 	diagnostics?: IMarkerData[];
 	kind?: string;
 	isPreferred?: boolean;
+	isAI?: boolean;
 	disabled?: string;
 }
 
@@ -962,6 +963,17 @@ export interface DocumentHighlightProvider {
 	 * all exit-points of a function.
 	 */
 	provideDocumentHighlights(model: model.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
+}
+
+export interface MultiDocumentHighlightProvider {
+	/**
+	 * Provide a Map of URI --> document highlights, like all occurrences of a variable or
+	 * all exit-points of a function.
+	 *
+	 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
+	 * with shared symbols.
+	 */
+	provideMultiDocumentHighlights(primaryModel: model.ITextModel, position: Position, otherModels: model.ITextModel[], token: CancellationToken): ProviderResult<Map<URI, DocumentHighlight[]>>;
 }
 
 /**
@@ -1280,10 +1292,6 @@ export interface FormattingOptions {
 	 * Prefer spaces over tabs.
 	 */
 	insertSpaces: boolean;
-	/**
-	 * The list of multiple ranges to format at once, if the provider supports it.
-	 */
-	ranges?: Range[];
 }
 /**
  * The document formatting provider interface defines the contract between extensions and
@@ -1648,6 +1656,7 @@ export interface CommentThreadTemplate {
 export interface CommentInfo {
 	extensionId?: string;
 	threads: CommentThread[];
+	pendingCommentThreads?: PendingCommentThread[];
 	commentingRanges: CommentingRanges;
 }
 
@@ -1789,10 +1798,23 @@ export interface Comment {
 	readonly timestamp?: string;
 }
 
+export interface PendingCommentThread {
+	body: string;
+	range: IRange | undefined;
+	uri: URI;
+	owner: string;
+	isReply: boolean;
+}
+
 /**
  * @internal
  */
 export interface CommentThreadChangedEvent<T> {
+	/**
+	 * Pending comment threads.
+	 */
+	readonly pending: PendingCommentThread[];
+
 	/**
 	 * Added comment threads.
 	 */
@@ -2032,4 +2054,35 @@ export interface DocumentOnDropEditProvider {
 	readonly dropMimeTypes?: readonly string[];
 
 	provideDocumentOnDropEdits(model: model.ITextModel, position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): ProviderResult<DocumentOnDropEdit>;
+}
+
+export interface DocumentContextItem {
+	readonly uri: URI;
+	readonly version: number;
+	readonly ranges: IRange[];
+}
+
+export interface MappedEditsContext {
+	/** The outer array is sorted by priority - from highest to lowest. The inner arrays contain elements of the same priority. */
+	documents: DocumentContextItem[][];
+}
+
+export interface MappedEditsProvider {
+
+	/**
+	 * Provider maps code blocks from the chat into a workspace edit.
+	 *
+	 * @param document The document to provide mapped edits for.
+	 * @param codeBlocks Code blocks that come from an LLM's reply.
+	 * 						"Insert at cursor" in the panel chat only sends one edit that the user clicks on, but inline chat can send multiple blocks and let the lang server decide what to do with them.
+	 * @param context The context for providing mapped edits.
+	 * @param token A cancellation token.
+	 * @returns A provider result of text edits.
+	 */
+	provideMappedEdits(
+		document: model.ITextModel,
+		codeBlocks: string[],
+		context: MappedEditsContext,
+		token: CancellationToken
+	): Promise<WorkspaceEdit | null>;
 }

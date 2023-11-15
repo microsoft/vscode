@@ -6,7 +6,6 @@
 import * as nativeWatchdog from 'native-watchdog';
 import * as net from 'net';
 import * as minimist from 'minimist';
-import * as dns from 'dns';
 import * as performance from 'vs/base/common/performance';
 import type { MessagePortMain } from 'vs/base/parts/sandbox/node/electronTypes';
 import { isCancellationError, isSigPipeError, onUnexpectedError } from 'vs/base/common/errors';
@@ -45,15 +44,6 @@ interface ParsedExtHostArgs {
 			i--;
 		}
 	}
-})();
-
-// TODO(deepak1556): Remove this once
-// https://github.com/electron/electron/pull/39376
-// is available. The following API call is needed to get our
-// remote integration tests to pass.
-(function configureDnsResultOrder() {
-	// Refs https://github.com/microsoft/vscode/issues/189805
-	dns.setDefaultResultOrder('ipv4first');
 })();
 
 const args = minimist(process.argv.slice(2), {

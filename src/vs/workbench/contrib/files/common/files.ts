@@ -10,14 +10,14 @@ import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IFilesConfiguration as PlatformIFilesConfiguration, FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
-import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, MutableDisposable } from 'vs/base/common/lifecycle';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/model';
 import { ILanguageService, ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { InputFocusedContextKey } from 'vs/platform/contextkey/common/contextkeys';
 import { IEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { once } from 'vs/base/common/functional';
+import { Event } from 'vs/base/common/event';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { localize } from 'vs/nls';
@@ -171,6 +171,7 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 	private static textFileToResource(resource: URI): URI {
 		const { scheme, query } = JSON.parse(resource.query);
+
 		return resource.with({ scheme, query });
 	}
 
@@ -188,14 +189,16 @@ export class TextFileContentProvider extends Disposable implements ITextModelCon
 
 		// Make sure to keep contents up to date when it changes
 		if (!this.fileWatcherDisposable.value) {
-			this.fileWatcherDisposable.value = this.fileService.onDidFilesChange(changes => {
+			const disposables = new DisposableStore();
+			this.fileWatcherDisposable.value = disposables;
+			disposables.add(this.fileService.onDidFilesChange(changes => {
 				if (changes.contains(savedFileResource, FileChangeType.UPDATED)) {
 					this.resolveEditorModel(resource, false /* do not create if missing */); // update model when resource changes
 				}
-			});
+			}));
 
 			if (codeEditorModel) {
-				once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear());
+				disposables.add(Event.once(codeEditorModel.onWillDispose)(() => this.fileWatcherDisposable.clear()));
 			}
 		}
 

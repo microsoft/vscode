@@ -15,9 +15,9 @@ import { RequestStore } from 'vs/platform/terminal/common/requestStore';
 import { IProcessDataEvent, IProcessReadyEvent, IPtyService, IRawTerminalInstanceLayoutInfo, IReconnectConstants, IShellLaunchConfig, ITerminalInstanceLayoutInfoById, ITerminalLaunchError, ITerminalsLayoutInfo, ITerminalTabLayoutInfoById, TerminalIcon, IProcessProperty, TitleEventSource, ProcessPropertyType, IProcessPropertyMap, IFixedTerminalDimensions, IPersistentTerminalProcessLaunchConfig, ICrossVersionSerializedTerminalState, ISerializedTerminalState, ITerminalProcessOptions, IPtyHostLatencyMeasurement } from 'vs/platform/terminal/common/terminal';
 import { TerminalDataBufferer } from 'vs/platform/terminal/common/terminalDataBuffering';
 import { escapeNonWindowsPath } from 'vs/platform/terminal/common/terminalEnvironment';
-import { Terminal as XtermTerminal } from 'xterm-headless';
-import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from 'xterm-addon-serialize';
-import type { Unicode11Addon as XtermUnicode11Addon } from 'xterm-addon-unicode11';
+import { Terminal as XtermTerminal } from '@xterm/headless';
+import type { ISerializeOptions, SerializeAddon as XtermSerializeAddon } from '@xterm/addon-serialize';
+import type { Unicode11Addon as XtermUnicode11Addon } from '@xterm/addon-unicode11';
 import { IGetTerminalLayoutInfoArgs, IProcessDetails, ISetTerminalLayoutInfoArgs, ITerminalTabLayoutInfoDto } from 'vs/platform/terminal/common/terminalProcess';
 import { getWindowsBuildNumber } from 'vs/platform/terminal/node/terminalEnvironment';
 import { TerminalProcess } from 'vs/platform/terminal/node/terminalProcess';
@@ -161,9 +161,9 @@ export class PtyService extends Disposable implements IPtyService {
 				resolve(stdout);
 			});
 		});
-		const processesForPort = stdout.split('\n');
+		const processesForPort = stdout.split(/\r?\n/).filter(s => !!s.trim());
 		if (processesForPort.length >= 1) {
-			const capturePid = /\s+(\d+)\s+/;
+			const capturePid = /\s+(\d+)(?:\s+|$)/;
 			const processId = processesForPort[0].match(capturePid)?.[1];
 			if (processId) {
 				try {
@@ -1065,14 +1065,14 @@ class XtermSerializer implements ITerminalSerializer {
 
 	async _getUnicode11Constructor(): Promise<typeof Unicode11Addon> {
 		if (!Unicode11Addon) {
-			Unicode11Addon = (await import('xterm-addon-unicode11')).Unicode11Addon;
+			Unicode11Addon = (await import('@xterm/addon-unicode11')).Unicode11Addon;
 		}
 		return Unicode11Addon;
 	}
 
 	async _getSerializeConstructor(): Promise<typeof SerializeAddon> {
 		if (!SerializeAddon) {
-			SerializeAddon = (await import('xterm-addon-serialize')).SerializeAddon;
+			SerializeAddon = (await import('@xterm/addon-serialize')).SerializeAddon;
 		}
 		return SerializeAddon;
 	}

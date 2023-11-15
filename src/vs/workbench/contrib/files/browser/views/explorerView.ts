@@ -177,7 +177,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private horizontalScrolling: boolean | undefined;
 
 	private dragHandler!: DelayedDragHandler;
-	private autoReveal: boolean | 'force' | 'focusNoScroll' = false;
+	private _autoReveal: boolean | 'force' | 'focusNoScroll' = false;
 	private decorationsProvider: ExplorerDecorationsProvider | undefined;
 	private readonly delegate: IExplorerViewContainerDelegate | undefined;
 
@@ -225,6 +225,14 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 
 		this.explorerService.registerView(this);
+	}
+
+	get autoReveal() {
+		return this._autoReveal;
+	}
+
+	set autoReveal(autoReveal: boolean | 'force' | 'focusNoScroll') {
+		this._autoReveal = autoReveal;
 	}
 
 	get name(): string {
@@ -313,19 +321,29 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				this.selectActiveFile(true);
 			}
 		}));
+
+		// Support for paste of files into explorer
+		this._register(DOM.addDisposableListener(DOM.getWindow(this.container), DOM.EventType.PASTE, async event => {
+			if (!this.hasFocus() || this.readonlyContext.get()) {
+				return;
+			}
+
+			await this.commandService.executeCommand('filesExplorer.paste', event.clipboardData?.files);
+		}));
 	}
 
 	override focus(): void {
+		super.focus();
 		this.tree.domFocus();
 
 		const focused = this.tree.getFocus();
-		if (focused.length === 1 && this.autoReveal) {
+		if (focused.length === 1 && this._autoReveal) {
 			this.tree.reveal(focused[0], 0.5);
 		}
 	}
 
 	hasFocus(): boolean {
-		return DOM.isAncestor(document.activeElement, this.container);
+		return DOM.isAncestorOfActiveElement(this.container);
 	}
 
 	getContext(respectMultiSelection: boolean): ExplorerItem[] {
@@ -372,8 +390,8 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 	}
 
-	private selectActiveFile(reveal = this.autoReveal): void {
-		if (this.autoReveal) {
+	private async selectActiveFile(reveal = this._autoReveal): Promise<void> {
+		if (this._autoReveal) {
 			const activeFile = EditorResourceAccessor.getCanonicalUri(this.editorService.activeEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 			if (activeFile) {
@@ -383,7 +401,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 					// No action needed, active file is already focused and selected
 					return;
 				}
-				this.explorerService.select(activeFile, reveal);
+				return this.explorerService.select(activeFile, reveal);
 			}
 		}
 	}
@@ -450,7 +468,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 				}
 				return false;
 			},
-			additionalScrollHeight: ExplorerDelegate.ITEM_HEIGHT,
+			paddingBottom: ExplorerDelegate.ITEM_HEIGHT,
 			overrideStyles: {
 				listBackground: SIDE_BAR_BACKGROUND
 			}
@@ -477,7 +495,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 			}
 			// Do not react if the user is expanding selection via keyboard.
 			// Check if the item was previously also selected, if yes the user is simply expanding / collapsing current selection #66589.
-			const shiftDown = e.browserEvent instanceof KeyboardEvent && e.browserEvent.shiftKey;
+			const shiftDown = DOM.isKeyboardEvent(e.browserEvent) && e.browserEvent.shiftKey;
 			if (!shiftDown) {
 				if (element.isDirectory || this.explorerService.isEditable(undefined)) {
 					// Do not react if user is clicking on explorer items while some are being edited #70276
@@ -535,7 +553,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	private onConfigurationUpdated(event: IConfigurationChangeEvent | undefined): void {
 		if (!event || event.affectsConfiguration('explorer.autoReveal')) {
 			const configuration = this.configurationService.getValue<IFilesConfiguration>();
-			this.autoReveal = configuration?.explorer?.autoReveal;
+			this._autoReveal = configuration?.explorer?.autoReveal;
 		}
 
 		// Push down config updates to components of viewer
@@ -574,12 +592,12 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		let anchor = e.anchor;
 
 		// Adjust for compressed folders (except when mouse is used)
-		if (DOM.isHTMLElement(anchor)) {
+		if (anchor instanceof HTMLElement) {
 			if (stat) {
 				const controller = this.renderer.getCompressedNavigationController(stat);
 
 				if (controller) {
-					if (e.browserEvent instanceof KeyboardEvent || isCompressedFolderName(e.browserEvent.target)) {
+					if (DOM.isKeyboardEvent(e.browserEvent) || isCompressedFolderName(e.browserEvent.target)) {
 						anchor = controller.labels[controller.index];
 					} else {
 						controller.last();
@@ -749,7 +767,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 	}
 
-	public async selectResource(resource: URI | undefined, reveal = this.autoReveal, retry = 0): Promise<void> {
+	public async selectResource(resource: URI | undefined, reveal = this._autoReveal, retry = 0): Promise<void> {
 		// do no retry more than once to prevent infinite loops in cases of inconsistent model
 		if (retry === 2) {
 			return;
@@ -757,6 +775,11 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 
 		if (!resource || !this.isBodyVisible()) {
 			return;
+		}
+
+		// If something is refreshing the explorer, we must await it or else a selection race condition can occur
+		if (this.setTreeInputPromise) {
+			await this.setTreeInputPromise;
 		}
 
 		// Expand all stats in the parent chain.

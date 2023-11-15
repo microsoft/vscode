@@ -79,7 +79,8 @@
         ],
         "extensions": [
           ".gitignore_global",
-          ".gitignore"
+          ".gitignore",
+          ".git-blame-ignore-revs"
         ],
         "configuration": "./languages/ignore.language-configuration.json"
       }

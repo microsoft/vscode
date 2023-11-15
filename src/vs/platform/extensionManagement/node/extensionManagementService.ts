@@ -152,12 +152,13 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 				throw new Error(nls.localize('incompatible', "Unable to install extension '{0}' as it is not compatible with VS Code '{1}'.", extensionId, this.productService.version));
 			}
 
-			const result = await this.installExtensions([{ manifest, extension: location, options }]);
-			if (result[0]?.local) {
-				return result[0]?.local;
+			const results = await this.installExtensions([{ manifest, extension: location, options }]);
+			const result = results.find(({ identifier }) => areSameExtensions(identifier, { id: extensionId }));
+			if (result?.local) {
+				return result.local;
 			}
-			if (result[0]?.error) {
-				throw result[0].error;
+			if (result?.error) {
+				throw result.error;
 			}
 			throw toExtensionManagementError(new Error(`Unknown error while installing extension ${extensionId}`));
 		} finally {
@@ -193,9 +194,15 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 			metadata.preRelease = true;
 		}
 		// unset if false
-		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
-		metadata.isBuiltin = metadata.isBuiltin || undefined;
-		metadata.pinned = metadata.pinned || undefined;
+		if (metadata.isMachineScoped === false) {
+			metadata.isMachineScoped = undefined;
+		}
+		if (metadata.isBuiltin === false) {
+			metadata.isBuiltin = undefined;
+		}
+		if (metadata.pinned === false) {
+			metadata.pinned = undefined;
+		}
 		local = await this.extensionsScanner.updateMetadata(local, metadata, profileLocation);
 		this.manifestCache.invalidate(profileLocation);
 		this._onDidUpdateExtensionMetadata.fire(local);
@@ -316,7 +323,10 @@ export class ExtensionManagementService extends AbstractExtensionManagementServi
 
 	private async onDidChangeExtensionsFromAnotherSource({ added, removed }: DidChangeProfileExtensionsEvent): Promise<void> {
 		if (removed) {
-			for (const identifier of removed.extensions) {
+			const removedExtensions = added && this.uriIdentityService.extUri.isEqual(removed.profileLocation, added.profileLocation)
+				? removed.extensions.filter(e => added.extensions.every(identifier => !areSameExtensions(identifier, e)))
+				: removed.extensions;
+			for (const identifier of removedExtensions) {
 				this.logService.info('Extensions removed from another source', identifier.id, removed.profileLocation.toString());
 				this._onDidUninstallExtension.fire({ identifier, profileLocation: removed.profileLocation });
 			}
@@ -782,7 +792,7 @@ abstract class InstallExtensionTask extends AbstractExtensionTask<ILocalExtensio
 	constructor(
 		readonly identifier: IExtensionIdentifier,
 		readonly source: URI | IGalleryExtension,
-		protected readonly options: InstallExtensionTaskOptions,
+		readonly options: InstallExtensionTaskOptions,
 		protected readonly extensionsScanner: ExtensionsScanner,
 		protected readonly uriIdentityService: IUriIdentityService,
 		protected readonly userDataProfilesService: IUserDataProfilesService,

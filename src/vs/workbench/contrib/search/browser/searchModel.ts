@@ -36,12 +36,14 @@ import { CellFindMatchWithIndex, CellWebviewFindMatch, ICellViewModel } from 'vs
 import { NotebookEditorWidget } from 'vs/workbench/contrib/notebook/browser/notebookEditorWidget';
 import { INotebookEditorService } from 'vs/workbench/contrib/notebook/browser/services/notebookEditorService';
 import { NotebookCellsChangeType } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { INotebookSearchService } from 'vs/workbench/contrib/search/browser/notebookSearch';
 import { IReplaceService } from 'vs/workbench/contrib/search/browser/replace';
-import { CellSearchModel, ICellMatch, contentMatchesToTextSearchMatches, isIFileMatchWithCells, rawCellPrefix, webviewMatchesToTextSearchMatches } from 'vs/workbench/contrib/search/browser/searchNotebookHelpers';
+import { contentMatchesToTextSearchMatches, webviewMatchesToTextSearchMatches, INotebookCellMatchWithModel, isINotebookFileMatchWithModel, isINotebookCellMatchWithModel, getIDFromINotebookCellMatch } from 'vs/workbench/contrib/search/browser/notebookSearch/searchNotebookHelpers';
+import { INotebookSearchService } from 'vs/workbench/contrib/search/common/notebookSearch';
+import { rawCellPrefix, INotebookCellMatchNoModel, isINotebookFileMatchNoModel } from 'vs/workbench/contrib/search/common/searchNotebookHelpers';
 import { ReplacePattern } from 'vs/workbench/services/search/common/replace';
 import { IFileMatch, IPatternInfo, ISearchComplete, ISearchConfigurationProperties, ISearchProgressItem, ISearchRange, ISearchService, ITextQuery, ITextSearchContext, ITextSearchMatch, ITextSearchPreviewOptions, ITextSearchResult, ITextSearchStats, OneLineRange, resultIsMatch, SearchCompletionExitCode, SearchSortOrder } from 'vs/workbench/services/search/common/search';
-import { addContextToEditorMatches, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { getTextSearchMatchWithModelContext, editorMatchesToTextSearchResults } from 'vs/workbench/services/search/common/searchHelpers';
+import { CellSearchModel } from 'vs/workbench/contrib/search/common/cellSearchModel';
 
 export class Match {
 
@@ -187,13 +189,17 @@ export class CellMatch {
 
 	constructor(
 		private readonly _parent: FileMatch,
-		private _cell: ICellViewModel | CellSearchModel,
+		private _cell: ICellViewModel | undefined,
 		private readonly _cellIndex: number,
 	) {
 
 		this._contentMatches = new Map<string, MatchInNotebook>();
 		this._webviewMatches = new Map<string, MatchInNotebook>();
 		this._context = new Map<number, string>();
+	}
+
+	public hasCellViewModel() {
+		return !(this._cell instanceof CellSearchModel);
 	}
 
 	get context(): Map<number, string> {
@@ -236,12 +242,12 @@ export class CellMatch {
 	}
 
 	public addContext(textSearchMatches: ITextSearchMatch[]) {
-		if (this.cell instanceof CellSearchModel) {
+		if (!this.cell) {
 			// todo: get closed notebook results in search editor
 			return;
 		}
 		this.cell.resolveTextModel().then((textModel) => {
-			const textResultsWithContext = addContextToEditorMatches(textSearchMatches, textModel, this.parent.parent().query!);
+			const textResultsWithContext = getTextSearchMatchWithModelContext(textSearchMatches, textModel, this.parent.parent().query!);
 			const contexts = textResultsWithContext.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext));
 			contexts.map(context => ({ ...context, lineNumber: context.lineNumber + 1 }))
 				.forEach((context) => { this._context.set(context.lineNumber, context.text); });
@@ -266,14 +272,14 @@ export class CellMatch {
 	}
 
 	get id(): string {
-		return this._cell.id;
+		return this._cell?.id ?? `${rawCellPrefix}${this.cellIndex}`;
 	}
 
 	get cellIndex(): number {
 		return this._cellIndex;
 	}
 
-	get cell(): ICellViewModel | CellSearchModel {
+	get cell(): ICellViewModel | undefined {
 		return this._cell;
 	}
 
@@ -302,6 +308,10 @@ export class MatchInNotebook extends Match {
 
 	public isWebviewMatch() {
 		return this._webviewIndex !== undefined;
+	}
+
+	public isReadonly() {
+		return (!this._cellParent.hasCellViewModel()) || this.isWebviewMatch();
 	}
 
 	get cellIndex() {
@@ -437,19 +447,19 @@ export class FileMatch extends Disposable implements IFileMatch {
 		return this._cellMatches.get(cellID);
 	}
 
-	addCellMatch(rawCell: ICellMatch) {
-		const cellMatch = new CellMatch(this, rawCell.cell, rawCell.index);
+	addCellMatch(rawCell: INotebookCellMatchNoModel | INotebookCellMatchWithModel) {
+		const cellMatch = new CellMatch(this, isINotebookCellMatchWithModel(rawCell) ? rawCell.cell : undefined, rawCell.index);
 		this._cellMatches.set(cellMatch.id, cellMatch);
-		this.addWebviewMatchesToCell(rawCell.cell.id, rawCell.webviewResults);
-		this.addContentMatchesToCell(rawCell.cell.id, rawCell.contentResults);
+		this.addWebviewMatchesToCell(cellMatch.id, rawCell.webviewResults);
+		this.addContentMatchesToCell(cellMatch.id, rawCell.contentResults);
 	}
 
 	get closestRoot(): FolderMatchWorkspaceRoot | null {
 		return this._closestRoot;
 	}
 
-	hasWebviewMatches(): boolean {
-		return this.matches().some(m => m instanceof MatchInNotebook && m.isWebviewMatch());
+	hasReadonlyMatches(): boolean {
+		return this.matches().some(m => m instanceof MatchInNotebook && m.isReadonly());
 	}
 
 	createMatches(): void {
@@ -472,7 +482,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					});
 			}
 
-			if (isIFileMatchWithCells(this.rawMatch)) {
+			if (isINotebookFileMatchWithModel(this.rawMatch) || isINotebookFileMatchNoModel(this.rawMatch)) {
 				this.rawMatch.cellResults?.forEach(cell => this.addCellMatch(cell));
 				this.setNotebookFindMatchDecorationsUsingCellMatches(this.cellMatches());
 				this._onChange.fire({ forceUpdateModel: true });
@@ -559,10 +569,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 			});
 		});
 
-		this.addContext(
-			addContextToEditorMatches(textSearchResults, model, this.parent().parent().query!)
-				.filter((result => !resultIsMatch(result)) as ((a: any) => a is ITextSearchContext))
-				.map(context => ({ ...context, lineNumber: context.lineNumber + 1 })));
+		this.addContext(getTextSearchMatchWithModelContext(textSearchResults, model, this.parent().parent().query!));
 
 		this._onChange.fire({ forceUpdateModel: modelChange });
 		this.updateHighlights();
@@ -727,7 +734,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	hasOnlyReadOnlyMatches(): boolean {
-		return this.matches().every(match => (match instanceof MatchInNotebook && match.isWebviewMatch()));
+		return this.matches().every(match => (match instanceof MatchInNotebook && match.isReadonly()));
 	}
 
 	// #region strictly notebook methods
@@ -810,6 +817,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 					existingCell = existingRawCell;
 				}
 			}
+			existingCell?.clearAllMatches();
 			const cell = existingCell ?? new CellMatch(this, match.cell, match.index);
 			cell.addContentMatches(contentMatchesToTextSearchMatches(match.contentMatches, match.cell));
 			cell.addWebviewMatches(webviewMatchesToTextSearchMatches(match.webviewMatches));
@@ -880,7 +888,7 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private async highlightCurrentFindMatchDecoration(match: MatchInNotebook): Promise<number | null> {
-		if (!this._findMatchDecorationModel || match.cell instanceof CellSearchModel) {
+		if (!this._findMatchDecorationModel || !match.cell) {
 			// match cell should never be a CellSearchModel if the notebook is open
 			return null;
 		}
@@ -892,14 +900,14 @@ export class FileMatch extends Disposable implements IFileMatch {
 	}
 
 	private revealCellRange(match: MatchInNotebook, outputOffset: number | null) {
-		if (!this._notebookEditorWidget || match.cell instanceof CellSearchModel) {
+		if (!this._notebookEditorWidget || !match.cell) {
 			// match cell should never be a CellSearchModel if the notebook is open
 			return;
 		}
 		if (match.webviewIndex !== undefined) {
 			const index = this._notebookEditorWidget.getCellIndex(match.cell);
 			if (index !== undefined) {
-				this._notebookEditorWidget.revealCellOffsetInCenterAsync(match.cell, outputOffset ?? 0);
+				this._notebookEditorWidget.revealCellOffsetInCenter(match.cell, outputOffset ?? 0);
 			}
 		} else {
 			match.cell.updateEditState(match.cell.getEditState(), 'focusNotebookCell');
@@ -940,7 +948,7 @@ export class FolderMatch extends Disposable {
 		protected _index: number,
 		protected _query: ITextQuery,
 		private _parent: SearchResult | FolderMatch,
-		private _searchModel: SearchModel,
+		private _searchResult: SearchResult,
 		private _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
@@ -957,7 +965,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	get searchModel(): SearchModel {
-		return this._searchModel;
+		return this._searchResult.searchModel;
 	}
 
 	get showHighlights(): boolean {
@@ -1033,7 +1041,7 @@ export class FolderMatch extends Disposable {
 	}
 
 	public createIntermediateFolderMatch(resource: URI, id: string, index: number, query: ITextQuery, baseWorkspaceFolder: FolderMatchWorkspaceRoot): FolderMatchWithResource {
-		const folderMatch = this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchModel, baseWorkspaceFolder);
+		const folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWithResource, resource, id, index, query, this, this._searchResult, baseWorkspaceFolder));
 		this.configureIntermediateMatch(folderMatch);
 		this.doAddFolder(folderMatch);
 		return folderMatch;
@@ -1041,7 +1049,7 @@ export class FolderMatch extends Disposable {
 
 	public configureIntermediateMatch(folderMatch: FolderMatchWithResource) {
 		const disposable = folderMatch.onChange((event) => this.onFolderChange(folderMatch, event));
-		folderMatch.onDispose(() => disposable.dispose());
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
 	}
 
 	clear(clearingAll = false): void {
@@ -1142,18 +1150,21 @@ export class FolderMatch extends Disposable {
 		raw.forEach(rawFileMatch => {
 			const existingFileMatch = this.getDownstreamFileMatch(rawFileMatch.resource);
 			if (existingFileMatch) {
-				rawFileMatch
-					.results!
-					.filter(resultIsMatch)
-					.forEach(m => {
-						textSearchResultToMatches(m, existingFileMatch)
-							.forEach(m => existingFileMatch.add(m));
-					});
+
+				if (rawFileMatch.results) {
+					rawFileMatch
+						.results
+						.filter(resultIsMatch)
+						.forEach(m => {
+							textSearchResultToMatches(m, existingFileMatch)
+								.forEach(m => existingFileMatch.add(m));
+						});
+				}
 
 				// add cell matches
-				if (isIFileMatchWithCells(rawFileMatch)) {
+				if (isINotebookFileMatchWithModel(rawFileMatch) || isINotebookFileMatchNoModel(rawFileMatch)) {
 					rawFileMatch.cellResults?.forEach(rawCellMatch => {
-						const existingCellMatch = existingFileMatch.getCellMatch(rawCellMatch.cell.id);
+						const existingCellMatch = existingFileMatch.getCellMatch(getIDFromINotebookCellMatch(rawCellMatch));
 						if (existingCellMatch) {
 							existingCellMatch.addContentMatches(rawCellMatch.contentResults);
 							existingCellMatch.addWebviewMatches(rawCellMatch.webviewResults);
@@ -1165,7 +1176,9 @@ export class FolderMatch extends Disposable {
 
 				updated.push(existingFileMatch);
 
-				existingFileMatch.addContext(rawFileMatch.results);
+				if (rawFileMatch.results && rawFileMatch.results.length > 0) {
+					existingFileMatch.addContext(rawFileMatch.results);
+				}
 			} else {
 				if (this instanceof FolderMatchWorkspaceRoot || this instanceof FolderMatchNoRoot) {
 					const fileMatch = this.createAndConfigureFileMatch(rawFileMatch, searchInstanceID);
@@ -1266,7 +1279,7 @@ export class FolderMatch extends Disposable {
 		const removed = [];
 		for (const match of fileMatches as FileMatch[]) {
 			if (this._fileMatches.get(match.resource)) {
-				if (keepReadonly && match.hasWebviewMatches()) {
+				if (keepReadonly && match.hasReadonlyMatches()) {
 					continue;
 				}
 				this._fileMatches.delete(match.resource);
@@ -1313,13 +1326,13 @@ export class FolderMatchWithResource extends FolderMatch {
 
 	protected _normalizedResource: Lazy<URI>;
 
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel, _closestRoot: FolderMatchWorkspaceRoot | null,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchResult: SearchResult, _closestRoot: FolderMatchWorkspaceRoot | null,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, _closestRoot, replaceService, instantiationService, labelService, uriIdentityService);
+		super(_resource, _id, _index, _query, _parent, _searchResult, _closestRoot, replaceService, instantiationService, labelService, uriIdentityService);
 		this._normalizedResource = new Lazy(() => this.uriIdentityService.extUri.removeTrailingPathSeparator(this.uriIdentityService.extUri.normalizePath(
 			this.resource)));
 	}
@@ -1337,13 +1350,13 @@ export class FolderMatchWithResource extends FolderMatch {
  * FolderMatchWorkspaceRoot => folder for workspace root
  */
 export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
-	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult, _searchModel: SearchModel,
+	constructor(_resource: URI, _id: string, _index: number, _query: ITextQuery, _parent: SearchResult,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService
 	) {
-		super(_resource, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
+		super(_resource, _id, _index, _query, _parent, _parent, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	private normalizedUriParent(uri: URI): URI {
@@ -1368,7 +1381,7 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
 			);
 		parent.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => parent.onFileChange(fileMatch, didRemove));
-		fileMatch.onDispose(() => disposable.dispose());
+		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 
@@ -1409,28 +1422,28 @@ export class FolderMatchWorkspaceRoot extends FolderMatchWithResource {
  * FolderMatch => required resource (normal folder node)
  */
 export class FolderMatchNoRoot extends FolderMatch {
-	constructor(_id: string, _index: number, _query: ITextQuery, _parent: SearchResult | FolderMatch, _searchModel: SearchModel,
+	constructor(_id: string, _index: number, _query: ITextQuery, _parent: SearchResult,
 		@IReplaceService replaceService: IReplaceService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILabelService labelService: ILabelService,
 		@IUriIdentityService uriIdentityService: IUriIdentityService,
 
 	) {
-		super(null, _id, _index, _query, _parent, _searchModel, null, replaceService, instantiationService, labelService, uriIdentityService);
+		super(null, _id, _index, _query, _parent, _parent, null, replaceService, instantiationService, labelService, uriIdentityService);
 	}
 
 	createAndConfigureFileMatch(rawFileMatch: IFileMatch, searchInstanceID: string): FileMatch {
-		const fileMatch = this.instantiationService.createInstance(
+		const fileMatch = this._register(this.instantiationService.createInstance(
 			FileMatch,
 			this._query.contentPattern,
 			this._query.previewOptions,
 			this._query.maxResults,
 			this, rawFileMatch,
 			null,
-			searchInstanceID);
+			searchInstanceID));
 		this.doAddFile(fileMatch);
 		const disposable = fileMatch.onChange(({ didRemove }) => this.onFileChange(fileMatch, didRemove));
-		fileMatch.onDispose(() => disposable.dispose());
+		this._register(fileMatch.onDispose(() => disposable.dispose()));
 		return fileMatch;
 	}
 }
@@ -1570,7 +1583,7 @@ function createParentList(element: RenderableMatch): RenderableMatch[] {
 export class SearchResult extends Disposable {
 
 	private _onChange = this._register(new PauseableEmitter<IChangeEvent>({
-		merge: this.mergeEvents
+		merge: mergeSearchResultEvents
 	}));
 	readonly onChange: Event<IChangeEvent> = this._onChange.event;
 	private _folderMatches: FolderMatchWorkspaceRoot[] = [];
@@ -1579,13 +1592,13 @@ export class SearchResult extends Disposable {
 	private _showHighlights: boolean = false;
 	private _query: ITextQuery | null = null;
 	private _rangeHighlightDecorations: RangeHighlightDecorations;
-	private disposePastResults: () => void = () => { };
+	private disposePastResults: () => Promise<void> = () => Promise.resolve();
 	private _isDirty = false;
 	private _onWillChangeModelListener: IDisposable | undefined;
 	private _onDidChangeModelListener: IDisposable | undefined;
 
 	constructor(
-		private _searchModel: SearchModel,
+		public searchModel: SearchModel,
 		@IReplaceService private readonly replaceService: IReplaceService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -1663,10 +1676,11 @@ export class SearchResult extends Disposable {
 	set query(query: ITextQuery | null) {
 		// When updating the query we could change the roots, so keep a reference to them to clean up when we trigger `disposePastResults`
 		const oldFolderMatches = this.folderMatches();
-		new Promise<void>(resolve => this.disposePastResults = resolve)
-			.then(() => oldFolderMatches.forEach(match => match.clear()))
-			.then(() => oldFolderMatches.forEach(match => match.dispose()))
-			.then(() => this._isDirty = false);
+		this.disposePastResults = async () => {
+			oldFolderMatches.forEach(match => match.clear());
+			oldFolderMatches.forEach(match => match.dispose());
+			this._isDirty = false;
+		};
 
 		this._rangeHighlightDecorations.removeHighlightRange();
 		this._folderMatchesMap = TernarySearchTree.forUris<FolderMatchWithResource>(key => this.uriIdentityService.extUri.ignorePathCasing(key));
@@ -1683,27 +1697,6 @@ export class SearchResult extends Disposable {
 		this._otherFilesMatch = <FolderMatchNoRoot>this._createBaseFolderMatch(null, 'otherFiles', this._folderMatches.length + 1, query);
 
 		this._query = query;
-	}
-
-	private mergeEvents(events: IChangeEvent[]): IChangeEvent {
-		const retEvent: IChangeEvent = {
-			elements: [],
-			added: false,
-			removed: false,
-		};
-		events.forEach((e) => {
-			if (e.added) {
-				retEvent.added = true;
-			}
-
-			if (e.removed) {
-				retEvent.removed = true;
-			}
-
-			retEvent.elements = retEvent.elements.concat(e.elements);
-		});
-
-		return retEvent;
 	}
 
 	private onDidAddNotebookEditorWidget(widget: NotebookEditorWidget): void {
@@ -1744,20 +1737,17 @@ export class SearchResult extends Disposable {
 	}
 
 	private _createBaseFolderMatch(resource: URI | null, id: string, index: number, query: ITextQuery): FolderMatch {
-		let folderMatch;
+		let folderMatch: FolderMatch;
 		if (resource) {
-			folderMatch = this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this, this._searchModel);
+			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchWorkspaceRoot, resource, id, index, query, this));
 		} else {
-			folderMatch = this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this, this._searchModel);
+			folderMatch = this._register(this.instantiationService.createInstance(FolderMatchNoRoot, id, index, query, this));
 		}
 		const disposable = folderMatch.onChange((event) => this._onChange.fire(event));
-		folderMatch.onDispose(() => disposable.dispose());
+		this._register(folderMatch.onDispose(() => disposable.dispose()));
 		return folderMatch;
 	}
 
-	get searchModel(): SearchModel {
-		return this._searchModel;
-	}
 
 	add(allRaw: IFileMatch[], searchInstanceID: string, silent: boolean = false): void {
 		// Split up raw into a list per folder so we can do a batch add per folder.
@@ -1935,13 +1925,13 @@ export class SearchResult extends Disposable {
 		this._rangeHighlightDecorations.removeHighlightRange();
 	}
 
-	override dispose(): void {
+	override async dispose(): Promise<void> {
 		this._onWillChangeModelListener?.dispose();
 		this._onDidChangeModelListener?.dispose();
-		this.disposePastResults();
-		this.disposeMatches();
 		this._rangeHighlightDecorations.dispose();
+		this.disposeMatches();
 		super.dispose();
+		await this.disposePastResults();
 	}
 }
 
@@ -1959,8 +1949,14 @@ export class SearchModel extends Disposable {
 	private readonly _onReplaceTermChanged: Emitter<void> = this._register(new Emitter<void>());
 	readonly onReplaceTermChanged: Event<void> = this._onReplaceTermChanged.event;
 
+	private readonly _onSearchResultChanged = this._register(new PauseableEmitter<IChangeEvent>({
+		merge: mergeSearchResultEvents
+	}));
+	readonly onSearchResultChanged: Event<IChangeEvent> = this._onSearchResultChanged.event;
+
 	private currentCancelTokenSource: CancellationTokenSource | null = null;
 	private searchCancelledForNewSearch: boolean = false;
+	private _searchResultChangedListener: IDisposable;
 
 	constructor(
 		@ISearchService private readonly searchService: ISearchService,
@@ -1972,6 +1968,7 @@ export class SearchModel extends Disposable {
 	) {
 		super();
 		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
 	}
 
 	isReplaceActive(): boolean {
@@ -2010,34 +2007,72 @@ export class SearchModel extends Disposable {
 		return this._searchResult;
 	}
 
-	private async doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
-		const searchStart = Date.now();
-		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource();
-		const onProgressCall = (p: ISearchProgressItem) => {
-			progressEmitter.fire();
-			this.onSearchProgress(p, searchInstanceID);
+	set searchResult(searchResult: SearchResult) {
+		this._searchResult.dispose();
+		this._searchResultChangedListener.dispose();
 
+		this._searchResult = searchResult;
+		this._searchResult.searchModel = this;
+		this._searchResultChangedListener = this._register(this._searchResult.onChange((e) => this._onSearchResultChanged.fire(e)));
+	}
+
+
+	private doSearch(query: ITextQuery, progressEmitter: Emitter<void>, searchQuery: ITextQuery, searchInstanceID: string, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
+		asyncResults: Promise<ISearchComplete>;
+		syncResults: IFileMatch<URI>[];
+	} {
+		const asyncGenerateOnProgress = async (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p, searchInstanceID, false);
 			onProgress?.(p);
 		};
-		const notebookResult = await this.notebookSearchService.notebookSearch(query, this.currentCancelTokenSource.token, searchInstanceID, onProgressCall);
-		const currentResult = await this.searchService.textSearch(
+
+		const syncGenerateOnProgress = (p: ISearchProgressItem) => {
+			progressEmitter.fire();
+			this.onSearchProgress(p, searchInstanceID, true);
+			onProgress?.(p);
+		};
+		const tokenSource = this.currentCancelTokenSource = new CancellationTokenSource(callerToken);
+
+		const notebookResult = this.notebookSearchService.notebookSearch(query, tokenSource.token, searchInstanceID, asyncGenerateOnProgress);
+		const textResult = this.searchService.textSearchSplitSyncAsync(
 			searchQuery,
-			this.currentCancelTokenSource.token, onProgressCall,
-			notebookResult?.scannedFiles
+			this.currentCancelTokenSource.token, asyncGenerateOnProgress,
+			notebookResult.openFilesToScan,
+			notebookResult.allScannedFiles,
 		);
-		tokenSource.dispose();
-		const searchLength = Date.now() - searchStart;
-		this.logService.trace(`whole search time | ${searchLength}ms`);
+
+		const syncResults = textResult.syncResults.results;
+		syncResults.forEach(p => { if (p) { syncGenerateOnProgress(p); } });
+
+		const getAsyncResults = async (): Promise<ISearchComplete> => {
+			const searchStart = Date.now();
+
+			// resolve async parts of search
+			const allClosedEditorResults = await textResult.asyncResults;
+			const resolvedNotebookResults = await notebookResult.completeData;
+			tokenSource.dispose();
+			const searchLength = Date.now() - searchStart;
+			const resolvedResult = <ISearchComplete>{
+				results: [...allClosedEditorResults.results, ...resolvedNotebookResults.results],
+				messages: [...allClosedEditorResults.messages, ...resolvedNotebookResults.messages],
+				limitHit: allClosedEditorResults.limitHit || resolvedNotebookResults.limitHit,
+				exit: allClosedEditorResults.exit,
+				stats: allClosedEditorResults.stats,
+			};
+			this.logService.trace(`whole search time | ${searchLength}ms`);
+			return resolvedResult;
+		};
 		return {
-			results: currentResult.results.concat(notebookResult.completeData.results),
-			messages: currentResult.messages.concat(notebookResult.completeData.messages),
-			limitHit: currentResult.limitHit || notebookResult.completeData.limitHit,
-			exit: currentResult.exit,
-			stats: currentResult.stats,
+			asyncResults: getAsyncResults(),
+			syncResults
 		};
 	}
 
-	async search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void): Promise<ISearchComplete> {
+	search(query: ITextQuery, onProgress?: (result: ISearchProgressItem) => void, callerToken?: CancellationToken): {
+		asyncResults: Promise<ISearchComplete>;
+		syncResults: IFileMatch<URI>[];
+	} {
 		this.cancelSearch(true);
 
 		this._searchQuery = query;
@@ -2048,32 +2083,56 @@ export class SearchModel extends Disposable {
 
 		this._searchResult.query = this._searchQuery;
 
-		const progressEmitter = new Emitter<void>();
+		const progressEmitter = this._register(new Emitter<void>());
 		this._replacePattern = new ReplacePattern(this.replaceString, this._searchQuery.contentPattern);
 
 		// In search on type case, delay the streaming of results just a bit, so that we don't flash the only "local results" fast path
 		this._startStreamDelay = new Promise(resolve => setTimeout(resolve, this.searchConfig.searchOnType ? 150 : 0));
 
-		const currentRequest = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress);
+		const req = this.doSearch(query, progressEmitter, this._searchQuery, searchInstanceID, onProgress, callerToken);
+		const asyncResults = req.asyncResults;
+		const syncResults = req.syncResults;
+
+		if (onProgress) {
+			syncResults.forEach(p => {
+				if (p) {
+					onProgress(p);
+				}
+			});
+		}
 
 		const start = Date.now();
+		let event: IDisposable | undefined;
 
-		Promise.race([currentRequest, Event.toPromise(progressEmitter.event)]).finally(() => {
+		const progressEmitterPromise = new Promise(resolve => {
+			event = Event.once(progressEmitter.event)(resolve);
+			return event;
+		});
+
+		Promise.race([asyncResults, progressEmitterPromise]).finally(() => {
 			/* __GDPR__
 				"searchResultsFirstRender" : {
 					"owner": "roblourens",
 					"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true }
 				}
 			*/
+			event?.dispose();
 			this.telemetryService.publicLog('searchResultsFirstRender', { duration: Date.now() - start });
 		});
 
-		currentRequest.then(
-			value => this.onSearchCompleted(value, Date.now() - start, searchInstanceID),
-			e => this.onSearchError(e, Date.now() - start));
-
 		try {
-			return await currentRequest;
+			return {
+				asyncResults: asyncResults.then(
+					value => {
+						this.onSearchCompleted(value, Date.now() - start, searchInstanceID);
+						return value;
+					},
+					e => {
+						this.onSearchError(e, Date.now() - start);
+						throw e;
+					}),
+				syncResults
+			};
 		} finally {
 			/* __GDPR__
 				"searchResultsFinished" : {
@@ -2139,14 +2198,23 @@ export class SearchModel extends Disposable {
 		}
 	}
 
-	private async onSearchProgress(p: ISearchProgressItem, searchInstanceID: string) {
+	private onSearchProgress(p: ISearchProgressItem, searchInstanceID: string, sync = true) {
 		if ((<IFileMatch>p).resource) {
 			this._resultQueue.push(<IFileMatch>p);
-			await this._startStreamDelay;
-			if (this._resultQueue.length) {
-				this._searchResult.add(this._resultQueue, searchInstanceID, true);
-				this._resultQueue.length = 0;
+			if (sync) {
+				if (this._resultQueue.length) {
+					this._searchResult.add(this._resultQueue, searchInstanceID, true);
+					this._resultQueue.length = 0;
+				}
+			} else {
+				this._startStreamDelay.then(() => {
+					if (this._resultQueue.length) {
+						this._searchResult.add(this._resultQueue, searchInstanceID, true);
+						this._resultQueue.length = 0;
+					}
+				});
 			}
+
 		}
 	}
 
@@ -2168,13 +2236,18 @@ export class SearchModel extends Disposable {
 		this.searchResult.dispose();
 		super.dispose();
 	}
+
+	transferSearchResult(other: SearchModel): void {
+		other.searchResult = this._searchResult;
+		this._searchResult = this.instantiationService.createInstance(SearchResult, this);
+	}
 }
 
 export type FileMatchOrMatch = FileMatch | Match;
 
 export type RenderableMatch = FolderMatch | FolderMatchWithResource | FileMatch | Match;
 
-export class SearchWorkbenchService implements ISearchWorkbenchService {
+export class SearchViewModelWorkbenchService implements ISearchViewModelWorkbenchService {
 
 	declare readonly _serviceBrand: undefined;
 	private _searchModel: SearchModel | null = null;
@@ -2190,9 +2263,9 @@ export class SearchWorkbenchService implements ISearchWorkbenchService {
 	}
 }
 
-export const ISearchWorkbenchService = createDecorator<ISearchWorkbenchService>('searchWorkbenchService');
+export const ISearchViewModelWorkbenchService = createDecorator<ISearchViewModelWorkbenchService>('searchViewModelWorkbenchService');
 
-export interface ISearchWorkbenchService {
+export interface ISearchViewModelWorkbenchService {
 	readonly _serviceBrand: undefined;
 
 	readonly searchModel: SearchModel;
@@ -2268,9 +2341,9 @@ export class RangeHighlightDecorations implements IDisposable {
 	dispose() {
 		if (this._model) {
 			this.removeHighlightRange();
-			this._modelDisposables.dispose();
 			this._model = null;
 		}
+		this._modelDisposables.dispose();
 	}
 
 	private static readonly _RANGE_HIGHLIGHT_DECORATION = ModelDecorationOptions.register({
@@ -2343,3 +2416,25 @@ function getFileMatches(matches: (FileMatch | FolderMatchWithResource)[]): FileM
 	return fileMatches.concat(folderMatches.map(e => e.allDownstreamFileMatches()).flat());
 }
 
+
+
+function mergeSearchResultEvents(events: IChangeEvent[]): IChangeEvent {
+	const retEvent: IChangeEvent = {
+		elements: [],
+		added: false,
+		removed: false,
+	};
+	events.forEach((e) => {
+		if (e.added) {
+			retEvent.added = true;
+		}
+
+		if (e.removed) {
+			retEvent.removed = true;
+		}
+
+		retEvent.elements = retEvent.elements.concat(e.elements);
+	});
+
+	return retEvent;
+}

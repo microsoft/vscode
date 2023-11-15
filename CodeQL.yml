@@ -21,6 +21,7 @@ path_classifiers:
     - "out-build"
     - "out-vscode"
     - "**/out/**"
+    - ".build/distro/cli-patches/index.js"
 
   # The default behavior is to tag library code as `library`. Results are hidden
   # for library code. You can tag further files as being library code by adding them

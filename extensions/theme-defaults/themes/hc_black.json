@@ -4,8 +4,8 @@
 	"colors": {
 		"editor.background": "#000000",
 		"editor.foreground": "#FFFFFF",
-		"editorIndentGuide.background": "#FFFFFF",
-		"editorIndentGuide.activeBackground": "#FFFFFF",
+		"editorIndentGuide.background1": "#FFFFFF",
+		"editorIndentGuide.activeBackground1": "#FFFFFF",
 		"sideBarTitle.foreground": "#FFFFFF",
 		"selection.background": "#008000",
 		"editor.selectionBackground": "#FFFFFF",
@@ -19,7 +19,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#FFFFFF"
@@ -85,7 +86,10 @@
 			}
 		},
 		{
-			"scope": "entity.name.tag.css",
+			"scope": [
+				"entity.name.tag.css",
+				"entity.name.tag.less"
+			],
 			"settings": {
 				"foreground": "#d7ba7d"
 			}
@@ -99,10 +103,11 @@
 		{
 			"scope": [
 				"entity.other.attribute-name.class.css",
-				"entity.other.attribute-name.class.mixin.css",
+				"source.css entity.other.attribute-name.class",
 				"entity.other.attribute-name.id.css",
 				"entity.other.attribute-name.parent-selector.css",
-				"entity.other.attribute-name.pseudo-class.css",
+				"entity.other.attribute-name.parent.less",
+				"source.css entity.other.attribute-name.pseudo-class",
 				"entity.other.attribute-name.pseudo-element.css",
 				"source.css.less entity.other.attribute-name.id",
 				"entity.other.attribute-name.scss"
@@ -267,7 +272,7 @@
 				"support.type.property-name",
 				"variable.css",
 				"variable.scss",
-				"variable.other.less",
+				"source.css.less variable.other",
 				"source.coffee.embedded"
 			],
 			"settings": {
@@ -405,6 +410,7 @@
 				"source.cpp keyword.operator.new",
 				"source.cpp keyword.operator.delete",
 				"keyword.other.using",
+				"keyword.other.directive.using",
 				"keyword.other.operator"
 			],
 			"settings": {

@@ -39,7 +39,13 @@ export function createAndFillInContextMenuActions(menu: IMenu, options: IMenuAct
 	fillInActions(groups, target, useAlternativeActions, primaryGroup ? actionGroup => actionGroup === primaryGroup : actionGroup => actionGroup === 'navigation');
 }
 
-export function createAndFillInActionBarActions(menu: IMenu, options: IMenuActionOptions | undefined, target: IAction[] | { primary: IAction[]; secondary: IAction[] }, primaryGroup?: string | ((actionGroup: string) => boolean), shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean, useSeparatorsInPrimaryActions?: boolean): void {
+export function createAndFillInActionBarActions(
+	menu: IMenu,
+	options: IMenuActionOptions | undefined,
+	target: IAction[] | { primary: IAction[]; secondary: IAction[] },
+	primaryGroup?: string | ((actionGroup: string) => boolean),
+	shouldInlineSubmenu?: (action: SubmenuAction, group: string, groupSize: number) => boolean,
+	useSeparatorsInPrimaryActions?: boolean): void {
 	const groups = menu.getActions(options);
 	const isPrimaryAction = typeof primaryGroup === 'string' ? (actionGroup: string) => actionGroup === primaryGroup : primaryGroup;
 
@@ -102,7 +108,7 @@ function fillInActions(
 		// inlining submenus with length 0 or 1 is easy,
 		// larger submenus need to be checked with the overall limit
 		const submenuActions = action.actions;
-		if (submenuActions.length <= 1 && shouldInlineSubmenu(action, group, target.length)) {
+		if (shouldInlineSubmenu(action, group, target.length)) {
 			target.splice(index, 1, ...submenuActions);
 		}
 	}

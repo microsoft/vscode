@@ -20,6 +20,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 export const terminalTabFocusModeContextKey = new RawContextKey<boolean>('terminalTabFocusMode', false, true);
 
 export const enum TerminalSettingPrefix {
+	AutomationProfile = 'terminal.integrated.automationProfile.',
 	DefaultProfile = 'terminal.integrated.defaultProfile.',
 	Profiles = 'terminal.integrated.profiles.'
 }
@@ -114,6 +115,11 @@ export const enum TerminalSettingId {
 	EnableImages = 'terminal.integrated.enableImages',
 	SmoothScrolling = 'terminal.integrated.smoothScrolling',
 	IgnoreBracketedPasteMode = 'terminal.integrated.ignoreBracketedPasteMode',
+	FocusAfterRun = 'terminal.integrated.focusAfterRun',
+	AccessibleViewPreserveCursorPosition = 'terminal.integrated.accessibleViewPreserveCursorPosition',
+	AccessibleViewFocusOnCommandExecution = 'terminal.integrated.accessibleViewFocusOnCommandExecution',
+	StickyScrollEnabled = 'terminal.integrated.stickyScroll.enabled',
+	StickyScrollMaxLineCount = 'terminal.integrated.stickyScroll.maxLineCount',
 
 	// Debug settings that are hidden from user
 
@@ -613,6 +619,7 @@ export interface ICreateContributedTerminalProfileOptions {
 	icon?: URI | string | { light: URI; dark: URI };
 	color?: string;
 	location?: TerminalLocation | { viewColumn: number; preserveState?: boolean } | { splitActiveTerminal: boolean };
+	cwd?: string | URI;
 }
 
 export enum TerminalLocation {
@@ -966,6 +973,7 @@ export interface ITerminalCommandSelector {
 	outputMatcher?: ITerminalOutputMatcher;
 	exitStatus: boolean;
 	commandExitResult: 'success' | 'error';
+	kind?: 'fix' | 'explain';
 }
 
 export interface ITerminalBackend {

@@ -237,7 +237,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
 
 	@memoize
-	get disableKeytar(): boolean { return !!this.args['disable-keytar']; }
+	get useInMemorySecretStorage(): boolean { return !!this.args['use-inmemory-secretstorage']; }
 
 	@memoize
 	get policyFile(): URI | undefined {

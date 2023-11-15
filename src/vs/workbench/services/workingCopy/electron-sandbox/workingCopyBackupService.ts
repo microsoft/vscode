@@ -34,7 +34,7 @@ export class NativeWorkingCopyBackupService extends WorkingCopyBackupService {
 		// Lifecycle: ensure to prolong the shutdown for as long
 		// as pending backup operations have not finished yet.
 		// Otherwise, we risk writing partial backups to disk.
-		this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), { id: 'join.workingCopyBackups', label: localize('join.workingCopyBackups', "Backup working copies") }));
+		this._register(this.lifecycleService.onWillShutdown(event => event.join(this.joinBackups(), { id: 'join.workingCopyBackups', label: localize('join.workingCopyBackups', "Backup working copies") })));
 	}
 }
 

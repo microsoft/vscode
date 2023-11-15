@@ -15,12 +15,11 @@ import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { CommandDetectionCapability } from 'vs/platform/terminal/common/capabilities/commandDetectionCapability';
 import { TerminalCapabilityStore } from 'vs/platform/terminal/common/capabilities/terminalCapabilityStore';
-import { ITerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { gitSimilar, freePort, FreePortOutputRegex, gitCreatePr, GitCreatePrOutputRegex, GitPushOutputRegex, gitPushSetUpstream, GitSimilarOutputRegex, gitTwoDashes, GitTwoDashesRegex, pwshUnixCommandNotFoundError, PwshUnixCommandNotFoundErrorOutputRegex, pwshGeneralError, PwshGeneralErrorOutputRegex } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/terminalQuickFixBuiltinActions';
 import { TerminalQuickFixAddon, getQuickFixesForCommand } from 'vs/workbench/contrib/terminalContrib/quickFix/browser/quickFixAddon';
 import { URI } from 'vs/base/common/uri';
-import type { Terminal } from 'xterm';
-import { Emitter } from 'vs/base/common/event';
+import type { Terminal } from '@xterm/xterm';
+import { Event } from 'vs/base/common/event';
 import { LabelService } from 'vs/workbench/services/label/common/labelService';
 import { ILabelService } from 'vs/platform/label/common/label';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
@@ -31,50 +30,48 @@ import { ITerminalQuickFixService } from 'vs/workbench/contrib/terminalContrib/q
 import { ITerminalOutputMatcher } from 'vs/platform/terminal/common/terminal';
 import { importAMDNodeModule } from 'vs/amdX';
 import { TestCommandService } from 'vs/editor/test/browser/editorTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('QuickFixAddon', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let quickFixAddon: TerminalQuickFixAddon;
-	let terminalInstance: Pick<ITerminalInstance, 'freePortKillProcess'>;
 	let commandDetection: CommandDetectionCapability;
 	let commandService: TestCommandService;
 	let openerService: OpenerService;
 	let labelService: LabelService;
 	let terminal: Terminal;
 	let instantiationService: TestInstantiationService;
+
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
-		terminal = new TerminalCtor({
+		instantiationService = store.add(new TestInstantiationService());
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
+		terminal = store.add(new TerminalCtor({
 			allowProposedApi: true,
 			cols: 80,
 			rows: 30
-		});
-		instantiationService.stub(IStorageService, new TestStorageService());
+		}));
+		instantiationService.stub(IStorageService, store.add(new TestStorageService()));
 		instantiationService.stub(ITerminalQuickFixService, {
-			onDidRegisterProvider: new Emitter().event,
-			onDidUnregisterProvider: new Emitter().event,
-			onDidRegisterCommandSelector: new Emitter().event,
+			onDidRegisterProvider: Event.None,
+			onDidUnregisterProvider: Event.None,
+			onDidRegisterCommandSelector: Event.None,
 			extensionQuickFixes: Promise.resolve([])
 		} as Partial<ITerminalQuickFixService>);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(ILabelService, {} as Partial<ILabelService>);
-		const capabilities = new TerminalCapabilityStore();
+		const capabilities = store.add(new TerminalCapabilityStore());
 		instantiationService.stub(ILogService, new NullLogService());
-		commandDetection = instantiationService.createInstance(CommandDetectionCapability, terminal);
+		commandDetection = store.add(instantiationService.createInstance(CommandDetectionCapability, terminal));
 		capabilities.add(TerminalCapability.CommandDetection, commandDetection);
-		instantiationService.stub(IContextMenuService, instantiationService.createInstance(ContextMenuService));
+		instantiationService.stub(IContextMenuService, store.add(instantiationService.createInstance(ContextMenuService)));
 		instantiationService.stub(IOpenerService, {} as Partial<IOpenerService>);
 		commandService = new TestCommandService(instantiationService);
-		terminalInstance = {
-			async freePortKillProcess(port: string): Promise<void> { }
-		} as Pick<ITerminalInstance, 'freePortKillProcess'>;
 
 		quickFixAddon = instantiationService.createInstance(TerminalQuickFixAddon, [], capabilities);
 		terminal.loadAddon(quickFixAddon);
 	});
-	teardown(() => {
-		instantiationService.dispose();
-	});
+
 	suite('registerCommandFinishedListener & getMatchActions', () => {
 		suite('gitSimilarCommand', () => {
 			const expectedMap = new Map();
@@ -212,7 +209,7 @@ suite('QuickFixAddon', () => {
 					enabled: true
 				}];
 				setup(() => {
-					const command = freePort(terminalInstance);
+					const command = freePort(() => Promise.resolve());
 					expectedMap.set(command.commandLineMatcher.toString(), [command]);
 					quickFixAddon.registerCommandFinishedListener(command);
 				});
@@ -447,6 +444,8 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		cwd: '',
 		commandStartLineContent: '',
 		markProperties: {},
+		executedX: undefined,
+		startX: undefined,
 		command,
 		isTrusted: true,
 		exitCode,
@@ -462,7 +461,7 @@ function createCommand(command: string, output: string, outputMatcher?: RegExp |
 		},
 		timestamp: Date.now(),
 		hasOutput: () => !!output
-	};
+	} as ITerminalCommand;
 }
 
 type TestAction = Pick<IAction, 'id' | 'label' | 'tooltip' | 'enabled'> & { command?: string; uri?: URI };

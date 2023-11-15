@@ -3,9 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { disposableWindowInterval } from 'vs/base/browser/dom';
+import { mainWindow } from 'vs/base/browser/window';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Disposable, MutableDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { randomPort } from 'vs/base/common/ports';
 import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -92,10 +94,10 @@ export class ExtensionHostProfileService extends Disposable implements IExtensio
 			};
 
 			const timeStarted = Date.now();
-			const handle = setInterval(() => {
+			const handle = disposableWindowInterval(mainWindow, () => {
 				this.profilingStatusBarIndicator?.update({ ...indicator, text: nls.localize('profilingExtensionHostTime', "Profiling Extension Host ({0} sec)", Math.round((new Date().getTime() - timeStarted) / 1000)), });
 			}, 1000);
-			this.profilingStatusBarIndicatorLabelUpdater.value = toDisposable(() => clearInterval(handle));
+			this.profilingStatusBarIndicatorLabelUpdater.value = handle;
 
 			if (!this.profilingStatusBarIndicator) {
 				this.profilingStatusBarIndicator = this._statusbarService.addEntry(indicator, 'status.profiler', StatusbarAlignment.RIGHT);

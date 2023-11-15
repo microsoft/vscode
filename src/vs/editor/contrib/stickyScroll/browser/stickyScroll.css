@@ -33,6 +33,12 @@
 	background-color: inherit;
 }
 
+.monaco-editor .sticky-line-number .codicon-folding-expanded,
+.monaco-editor .sticky-line-number .codicon-folding-collapsed {
+	float: right;
+	transition: var(--vscode-editorStickyScroll-foldingOpacityTransition);
+}
+
 .monaco-editor .sticky-line-content {
 	width: var(--vscode-editorStickyScroll-scrollableWidth);
 	background-color: inherit;
@@ -40,7 +46,7 @@
 }
 
 .monaco-editor .sticky-line-number-inner {
-	display: block;
+	display: inline-block;
 	text-align: right;
 }
 

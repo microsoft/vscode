@@ -151,9 +151,15 @@ export class WebExtensionManagementService extends AbstractExtensionManagementSe
 
 	async updateMetadata(local: ILocalExtension, metadata: Partial<Metadata>, profileLocation?: URI): Promise<ILocalExtension> {
 		// unset if false
-		metadata.isMachineScoped = metadata.isMachineScoped || undefined;
-		metadata.isBuiltin = metadata.isBuiltin || undefined;
-		metadata.pinned = metadata.pinned || undefined;
+		if (metadata.isMachineScoped === false) {
+			metadata.isMachineScoped = undefined;
+		}
+		if (metadata.isBuiltin === false) {
+			metadata.isBuiltin = undefined;
+		}
+		if (metadata.pinned === false) {
+			metadata.pinned = undefined;
+		}
 		const updatedExtension = await this.webExtensionsScannerService.updateMetadata(local, metadata, profileLocation ?? this.userDataProfileService.currentProfile.extensionsResource);
 		const updatedLocalExtension = toLocalExtension(updatedExtension);
 		this._onDidUpdateExtensionMetadata.fire(updatedLocalExtension);
@@ -251,7 +257,7 @@ class InstallExtensionTask extends AbstractExtensionTask<ILocalExtension> implem
 	constructor(
 		manifest: IExtensionManifest,
 		private readonly extension: URI | IGalleryExtension,
-		private readonly options: InstallExtensionTaskOptions,
+		readonly options: InstallExtensionTaskOptions,
 		private readonly webExtensionsScannerService: IWebExtensionsScannerService,
 		private readonly userDataProfilesService: IUserDataProfilesService,
 	) {

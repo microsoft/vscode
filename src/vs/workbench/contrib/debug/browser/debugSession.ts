@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { mainWindow } from 'vs/base/browser/window';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { distinct } from 'vs/base/common/arrays';
 import { Queue, RunOnceScheduler } from 'vs/base/common/async';
@@ -10,7 +11,7 @@ import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cance
 import { canceled } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
-import { DisposableStore, dispose, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, MutableDisposable, dispose } from 'vs/base/common/lifecycle';
 import { mixin } from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
 import * as resources from 'vs/base/common/resources';
@@ -29,7 +30,7 @@ import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity'
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ViewContainerLocation } from 'vs/workbench/common/views';
 import { RawDebugSession } from 'vs/workbench/contrib/debug/browser/rawDebugSession';
-import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugger, IDebugService, IDebugSession, IDebugSessionOptions, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
+import { AdapterEndEvent, IBreakpoint, IConfig, IDataBreakpoint, IDebugConfiguration, IDebugService, IDebugSession, IDebugSessionOptions, IDebugger, IExceptionBreakpoint, IExceptionInfo, IFunctionBreakpoint, IInstructionBreakpoint, IMemoryRegion, IRawModelUpdate, IRawStoppedDetails, IReplElement, IStackFrame, IThread, LoadedSourceEvent, State, VIEWLET_ID } from 'vs/workbench/contrib/debug/common/debug';
 import { DebugCompoundRoot } from 'vs/workbench/contrib/debug/common/debugCompoundRoot';
 import { DebugModel, ExpressionContainer, MemoryRegion, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { Source } from 'vs/workbench/contrib/debug/common/debugSource';
@@ -52,7 +53,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 	private threads = new Map<number, Thread>();
 	private threadIds: number[] = [];
 	private cancellationMap = new Map<number, CancellationTokenSource[]>();
-	private rawListeners = new DisposableStore();
+	private readonly rawListeners = new DisposableStore();
 	private fetchThreadsScheduler: RunOnceScheduler | undefined;
 	private passFocusScheduler: RunOnceScheduler;
 	private lastContinuedThreadId: number | undefined;
@@ -103,11 +104,14 @@ export class DebugSession implements IDebugSession, IDisposable {
 			this.repl = (this.parentSession as DebugSession).repl;
 		}
 
-		const toDispose = this.rawListeners.add(new DisposableStore());
+		const toDispose = new DisposableStore();
 		const replListener = toDispose.add(new MutableDisposable());
 		replListener.value = this.repl.onDidChangeElements(() => this._onDidChangeREPLElements.fire());
 		if (lifecycleService) {
-			toDispose.add(lifecycleService.onWillShutdown(() => this.shutdown()));
+			toDispose.add(lifecycleService.onWillShutdown(() => {
+				this.shutdown();
+				dispose(toDispose);
+			}));
 		}
 
 		const compoundRoot = this._options.compoundRoot;
@@ -536,7 +540,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		if (this.raw.readyForBreakpoints) {
-			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints });
+			const response = await this.raw.setInstructionBreakpoints({ breakpoints: instructionBreakpoints.map(ib => ib.toJSON()) });
 			if (response && response.body) {
 				const data = new Map<string, DebugProtocol.Breakpoint>();
 				for (let i = 0; i < instructionBreakpoints.length; i++) {
@@ -948,7 +952,12 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}
 
 		this.rawListeners.add(this.raw.onDidInitialize(async () => {
-			aria.status(localize('debuggingStarted', "Debugging started."));
+			aria.status(
+				this.configuration.noDebug
+					? localize('debuggingStartedNoDebug', "Started running without debugging.")
+					: localize('debuggingStarted', "Debugging started.")
+			);
+
 			const sendConfigurationDone = async () => {
 				if (this.raw && this.raw.capabilities.supportsConfigurationDoneRequest) {
 					try {
@@ -972,81 +981,96 @@ export class DebugSession implements IDebugSession, IDisposable {
 			}
 		}));
 
-		const statusQueue = new Queue<void>();
+
+		const statusQueue = this.rawListeners.add(new ThreadStatusScheduler());
 		this.rawListeners.add(this.raw.onDidStop(async event => {
-			statusQueue.queue(async () => {
-				this.passFocusScheduler.cancel();
-				this.stoppedDetails.push(event.body);
-				await this.fetchThreads(event.body);
-				// If the focus for the current session is on a non-existent thread, clear the focus.
-				const focusedThread = this.debugService.getViewModel().focusedThread;
-				const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
-				if (focusedThreadDoesNotExist) {
-					this.debugService.focusStackFrame(undefined, undefined);
-				}
-				const thread = typeof event.body.threadId === 'number' ? this.getThread(event.body.threadId) : undefined;
-				if (thread) {
-					// Call fetch call stack twice, the first only return the top stack frame.
-					// Second retrieves the rest of the call stack. For performance reasons #25605
-					const promises = this.model.refreshTopOfCallstack(<Thread>thread);
-					const focus = async () => {
-						if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
-							const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-							if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
-								// Only take focus if nothing is focused, or if the focus is already on the current session
-								const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
-								await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
-							}
+			this.passFocusScheduler.cancel();
+			this.stoppedDetails.push(event.body);
 
-							if (thread.stoppedDetails) {
-								if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
-									await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
-								}
+			statusQueue.run(
+				this.fetchThreads(event.body).then(() => event.body.threadId === undefined ? this.threadIds : [event.body.threadId]),
+				async (threadId, token) => {
+					const hasLotsOfThreads = event.body.threadId === undefined && this.threadIds.length > 10;
 
-								if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
-									await this.hostService.focus({ force: true /* Application may not be active */ });
-								}
-							}
-						}
-					};
-
-					await promises.topCallStack;
-					focus();
-					await promises.wholeCallStack;
-					const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
-					if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
-						// The top stack frame can be deemphesized so try to focus again #68616
-						focus();
+					// If the focus for the current session is on a non-existent thread, clear the focus.
+					const focusedThread = this.debugService.getViewModel().focusedThread;
+					const focusedThreadDoesNotExist = focusedThread !== undefined && focusedThread.session === this && !this.threads.has(focusedThread.threadId);
+					if (focusedThreadDoesNotExist) {
+						this.debugService.focusStackFrame(undefined, undefined);
 					}
-				}
-				this._onDidChangeState.fire();
-			});
+					const thread = typeof threadId === 'number' ? this.getThread(threadId) : undefined;
+					if (thread) {
+						// Call fetch call stack twice, the first only return the top stack frame.
+						// Second retrieves the rest of the call stack. For performance reasons #25605
+						// Second call is only done if there's few threads that stopped in this event.
+						const promises = this.model.refreshTopOfCallstack(<Thread>thread, /* fetchFullStack= */!hasLotsOfThreads);
+						const focus = async () => {
+							if (focusedThreadDoesNotExist || (!event.body.preserveFocusHint && thread.getCallStack().length)) {
+								const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+								if (!focusedStackFrame || focusedStackFrame.thread.session === this) {
+									// Only take focus if nothing is focused, or if the focus is already on the current session
+									const preserveFocus = !this.configurationService.getValue<IDebugConfiguration>('debug').focusEditorOnBreak;
+									await this.debugService.focusStackFrame(undefined, thread, undefined, { preserveFocus });
+								}
+
+								if (thread.stoppedDetails && !token.isCancellationRequested) {
+									if (thread.stoppedDetails.reason === 'breakpoint' && this.configurationService.getValue<IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak' && !this.suppressDebugView) {
+										await this.paneCompositeService.openPaneComposite(VIEWLET_ID, ViewContainerLocation.Sidebar);
+									}
+
+									if (this.configurationService.getValue<IDebugConfiguration>('debug').focusWindowOnBreak && !this.workbenchEnvironmentService.extensionTestsLocationURI) {
+										await this.hostService.focus(mainWindow, { force: true /* Application may not be active */ });
+									}
+								}
+							}
+						};
+
+						await promises.topCallStack;
+						if (token.isCancellationRequested) {
+							return;
+						}
+
+						focus();
+
+						await promises.wholeCallStack;
+						if (token.isCancellationRequested) {
+							return;
+						}
+
+						const focusedStackFrame = this.debugService.getViewModel().focusedStackFrame;
+						if (!focusedStackFrame || !focusedStackFrame.source || focusedStackFrame.source.presentationHint === 'deemphasize' || focusedStackFrame.presentationHint === 'deemphasize') {
+							// The top stack frame can be deemphesized so try to focus again #68616
+							focus();
+						}
+					}
+					this._onDidChangeState.fire();
+				},
+			);
 		}));
 
 		this.rawListeners.add(this.raw.onDidThread(event => {
-			statusQueue.queue(async () => {
-				if (event.body.reason === 'started') {
-					// debounce to reduce threadsRequest frequency and improve performance
-					if (!this.fetchThreadsScheduler) {
-						this.fetchThreadsScheduler = new RunOnceScheduler(() => {
-							this.fetchThreads();
-						}, 100);
-						this.rawListeners.add(this.fetchThreadsScheduler);
-					}
-					if (!this.fetchThreadsScheduler.isScheduled()) {
-						this.fetchThreadsScheduler.schedule();
-					}
-				} else if (event.body.reason === 'exited') {
-					this.model.clearThreads(this.getId(), true, event.body.threadId);
-					const viewModel = this.debugService.getViewModel();
-					const focusedThread = viewModel.focusedThread;
-					this.passFocusScheduler.cancel();
-					if (focusedThread && event.body.threadId === focusedThread.threadId) {
-						// De-focus the thread in case it was focused
-						this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
-					}
+			statusQueue.cancel([event.body.threadId]);
+			if (event.body.reason === 'started') {
+				// debounce to reduce threadsRequest frequency and improve performance
+				if (!this.fetchThreadsScheduler) {
+					this.fetchThreadsScheduler = new RunOnceScheduler(() => {
+						this.fetchThreads();
+					}, 100);
+					this.rawListeners.add(this.fetchThreadsScheduler);
 				}
-			});
+				if (!this.fetchThreadsScheduler.isScheduled()) {
+					this.fetchThreadsScheduler.schedule();
+				}
+			} else if (event.body.reason === 'exited') {
+				this.model.clearThreads(this.getId(), true, event.body.threadId);
+				const viewModel = this.debugService.getViewModel();
+				const focusedThread = viewModel.focusedThread;
+				this.passFocusScheduler.cancel();
+				if (focusedThread && event.body.threadId === focusedThread.threadId) {
+					// De-focus the thread in case it was focused
+					this.debugService.focusStackFrame(undefined, undefined, viewModel.focusedSession, { explicit: false });
+				}
+			}
 		}));
 
 		this.rawListeners.add(this.raw.onDidTerminateDebugee(async event => {
@@ -1059,23 +1083,25 @@ export class DebugSession implements IDebugSession, IDisposable {
 		}));
 
 		this.rawListeners.add(this.raw.onDidContinued(event => {
-			statusQueue.queue(async () => {
-				const threadId = event.body.allThreadsContinued !== false ? undefined : event.body.threadId;
-				if (typeof threadId === 'number') {
-					this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
-					const tokens = this.cancellationMap.get(threadId);
-					this.cancellationMap.delete(threadId);
-					tokens?.forEach(t => t.dispose(true));
-				} else {
-					this.stoppedDetails = [];
-					this.cancelAllRequests();
-				}
-				this.lastContinuedThreadId = threadId;
-				// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
-				this.passFocusScheduler.schedule();
-				this.model.clearThreads(this.getId(), false, threadId);
-				this._onDidChangeState.fire();
-			});
+			const allThreads = event.body.allThreadsContinued !== false;
+
+			statusQueue.cancel(allThreads ? undefined : [event.body.threadId]);
+
+			const threadId = allThreads ? undefined : event.body.threadId;
+			if (typeof threadId === 'number') {
+				this.stoppedDetails = this.stoppedDetails.filter(sd => sd.threadId !== threadId);
+				const tokens = this.cancellationMap.get(threadId);
+				this.cancellationMap.delete(threadId);
+				tokens?.forEach(t => t.dispose(true));
+			} else {
+				this.stoppedDetails = [];
+				this.cancelAllRequests();
+			}
+			this.lastContinuedThreadId = threadId;
+			// We need to pass focus to other sessions / threads with a timeout in case a quick stop event occurs #130321
+			this.passFocusScheduler.schedule();
+			this.model.clearThreads(this.getId(), false, threadId);
+			this._onDidChangeState.fire();
 		}));
 
 		const outputQueue = new Queue<void>();
@@ -1262,7 +1288,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	// Disconnects and clears state. Session can be initialized again for a new connection.
 	private shutdown(): void {
-		dispose(this.rawListeners);
+		this.rawListeners.clear();
 		if (this.raw) {
 			// Send out disconnect and immediatly dispose (do not wait for response) #127418
 			this.raw.disconnect({});
@@ -1279,7 +1305,7 @@ export class DebugSession implements IDebugSession, IDisposable {
 
 	public dispose() {
 		this.cancelAllRequests();
-		dispose(this.rawListeners);
+		this.rawListeners.dispose();
 	}
 
 	//---- sources
@@ -1355,6 +1381,98 @@ export class DebugSession implements IDebugSession, IDisposable {
 		this.repl.appendToRepl(this, data);
 		if (isImportant) {
 			this.notificationService.notify({ message: data.output.toString(), severity: data.sev, source: this.name });
+		}
+	}
+}
+
+/**
+ * Keeps track of events for threads, and cancels any previous operations for
+ * a thread when the thread goes into a new state. Currently, the operations a thread has are:
+ *
+ * - started
+ * - stopped
+ * - continue
+ * - exited
+ *
+ * In each case, the new state preempts the old state, so we don't need to
+ * queue work, just cancel old work. It's up to the caller to make sure that
+ * no UI effects happen at the point when the `token` is cancelled.
+ */
+export class ThreadStatusScheduler extends Disposable {
+	/**
+	 * An array of set of thread IDs. When a 'stopped' event is encountered, the
+	 * editor refreshes its thread IDs. In the meantime, the thread may change
+	 * state it again. So the editor puts a Set into this array when it starts
+	 * the refresh, and checks it after the refresh is finished, to see if
+	 * any of the threads it looked up should now be invalidated.
+	 */
+	private pendingCancellations: Set<number | undefined>[] = [];
+
+	/**
+	 * Cancellation tokens for currently-running operations on threads.
+	 */
+	private readonly threadOps = this._register(new DisposableMap<number, CancellationTokenSource>());
+
+	/**
+	 * Runs the operation.
+	 * If thread is undefined it affects all threads.
+	 */
+	public async run(threadIdsP: Promise<number[]>, operation: (threadId: number, ct: CancellationToken) => Promise<unknown>) {
+		const cancelledWhileLookingUpThreads = new Set<number | undefined>();
+		this.pendingCancellations.push(cancelledWhileLookingUpThreads);
+		const threadIds = await threadIdsP;
+
+		// Now that we got our threads,
+		// 1. Remove our pending set, and
+		// 2. Cancel any slower callers who might also have found this thread
+		for (let i = 0; i < this.pendingCancellations.length; i++) {
+			const s = this.pendingCancellations[i];
+			if (s === cancelledWhileLookingUpThreads) {
+				this.pendingCancellations.splice(i, 1);
+				break;
+			} else {
+				for (const threadId of threadIds) {
+					s.add(threadId);
+				}
+			}
+		}
+
+		if (cancelledWhileLookingUpThreads.has(undefined)) {
+			return;
+		}
+
+		await Promise.all(threadIds.map(threadId => {
+			if (cancelledWhileLookingUpThreads.has(threadId)) {
+				return;
+			}
+			this.threadOps.get(threadId)?.cancel();
+			const cts = new CancellationTokenSource();
+			this.threadOps.set(threadId, cts);
+			return operation(threadId, cts.token);
+		}));
+	}
+
+	/**
+	 * Cancels all ongoing state operations on the given threads.
+	 * If threads is undefined it cancel all threads.
+	 */
+	public cancel(threadIds?: readonly number[]) {
+		if (!threadIds) {
+			for (const [_, op] of this.threadOps) {
+				op.cancel();
+			}
+			this.threadOps.clearAndDisposeAll();
+			for (const s of this.pendingCancellations) {
+				s.add(undefined);
+			}
+		} else {
+			for (const threadId of threadIds) {
+				this.threadOps.get(threadId)?.cancel();
+				this.threadOps.deleteAndDispose(threadId);
+				for (const s of this.pendingCancellations) {
+					s.add(threadId);
+				}
+			}
 		}
 	}
 }

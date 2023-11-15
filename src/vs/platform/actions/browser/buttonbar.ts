@@ -55,7 +55,7 @@ export class MenuWorkbenchButtonBar extends ButtonBar {
 					'workbenchActionExecuted',
 					{ id: e.action.id, from: options.telemetrySource! }
 				);
-			}, this._store);
+			}, undefined, this._store);
 		}
 
 		const conifgProvider: IButtonConfigProvider = options?.buttonConfigProvider ?? (() => ({ showLabel: true }));

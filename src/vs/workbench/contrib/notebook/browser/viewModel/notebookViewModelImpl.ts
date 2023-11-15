@@ -152,7 +152,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	private readonly _onDidChangeSelection = this._register(new Emitter<string>());
 	get onDidChangeSelection(): Event<string> { return this._onDidChangeSelection.event; }
 
-	private _selectionCollection = new NotebookCellSelectionCollection();
+	private _selectionCollection = this._register(new NotebookCellSelectionCollection());
 
 	private get selectionHandles() {
 		const handlesSet = new Set<number>();

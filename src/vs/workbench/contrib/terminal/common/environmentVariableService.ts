@@ -56,7 +56,7 @@ export class EnvironmentVariableService extends Disposable implements IEnvironme
 		this.mergedCollection = this._resolveMergedCollection();
 
 		// Listen for uninstalled/disabled extensions
-		this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections());
+		this._register(this._extensionService.onDidChangeExtensions(() => this._invalidateExtensionCollections()));
 	}
 
 	set(extensionIdentifier: string, collection: IEnvironmentVariableCollectionWithPersistence): void {

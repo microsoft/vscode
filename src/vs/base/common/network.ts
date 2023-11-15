@@ -192,9 +192,11 @@ export const nodeModulesPath: AppResourcePath = 'vs/../../node_modules';
 export const nodeModulesAsarPath: AppResourcePath = 'vs/../../node_modules.asar';
 export const nodeModulesAsarUnpackedPath: AppResourcePath = 'vs/../../node_modules.asar.unpacked';
 
+export const VSCODE_AUTHORITY = 'vscode-app';
+
 class FileAccessImpl {
 
-	private static readonly FALLBACK_AUTHORITY = 'vscode-app';
+	private static readonly FALLBACK_AUTHORITY = VSCODE_AUTHORITY;
 
 	/**
 	 * Returns a URI to use in contexts where the browser is responsible
@@ -227,7 +229,7 @@ class FileAccessImpl {
 				// ...and we run in native environments
 				platform.isNative ||
 				// ...or web worker extensions on desktop
-				(platform.isWebWorker && platform.globals.origin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
+				(platform.webWorkerOrigin === `${Schemas.vscodeFileResource}://${FileAccessImpl.FALLBACK_AUTHORITY}`)
 			)
 		) {
 			return uri.with({

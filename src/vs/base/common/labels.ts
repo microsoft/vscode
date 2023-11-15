@@ -80,10 +80,10 @@ export function getPathLabel(resource: URI, formatting: IPathLabelFormatting): s
 		// to a user home resource. We cannot assume that the resource is
 		// already a user home resource.
 		let userHomeCandidate: string;
-		if (resource.scheme !== tildifier.userHome.scheme && resource.path.startsWith(posix.sep)) {
+		if (resource.scheme !== tildifier.userHome.scheme && resource.path[0] === posix.sep && resource.path[1] !== posix.sep) {
 			userHomeCandidate = tildifier.userHome.with({ path: resource.path }).fsPath;
 		} else {
-			userHomeCandidate = resource.fsPath;
+			userHomeCandidate = absolutePath;
 		}
 
 		absolutePath = tildify(userHomeCandidate, userHome, os);
@@ -108,7 +108,7 @@ function getRelativePathLabel(resource: URI, relativePathProvider: IRelativePath
 	// the resource belongs to, we need to make sure to convert it
 	// to a workspace resource. We cannot assume that the resource is
 	// already matching the workspace.
-	if (resource.scheme !== firstFolder.uri.scheme && resource.path.startsWith(posix.sep)) {
+	if (resource.scheme !== firstFolder.uri.scheme && resource.path[0] === posix.sep && resource.path[1] !== posix.sep) {
 		resource = firstFolder.uri.with({ path: resource.path });
 	}
 

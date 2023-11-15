@@ -50,7 +50,7 @@ export interface Tunnel {
 }
 
 export function parseAddress(address: string): { host: string; port: number } | undefined {
-	const matches = address.match(/^([a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*:)?([0-9]+)$/);
+	const matches = address.match(/^([a-zA-Z0-9_-]+(?:\.[a-zA-Z0-9_-]+)*:)?([0-9]+)$/);
 	if (!matches) {
 		return undefined;
 	}

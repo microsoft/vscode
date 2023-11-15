@@ -6,7 +6,7 @@
 import { asArray, coalesce, isNonEmptyArray } from 'vs/base/common/arrays';
 import { VSBuffer, encodeBase64 } from 'vs/base/common/buffer';
 import { IDataTransferFile, IDataTransferItem, UriList } from 'vs/base/common/dataTransfer';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { ResourceMap, ResourceSet } from 'vs/base/common/map';
@@ -46,6 +46,8 @@ import type * as vscode from 'vscode';
 import * as types from './extHostTypes';
 import * as chatProvider from 'vs/workbench/contrib/chat/common/chatProvider';
 import { IChatRequestVariableValue } from 'vs/workbench/contrib/chat/common/chatVariables';
+import { InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { checkProposedApiEnabled } from 'vs/workbench/services/extensions/common/extensions';
 
 export namespace Command {
 
@@ -1563,6 +1565,38 @@ export namespace LanguageSelector {
 	}
 }
 
+export namespace MappedEditsContext {
+
+	export function is(v: unknown): v is vscode.MappedEditsContext {
+		return (
+			!!v && typeof v === 'object' &&
+			'documents' in v &&
+			Array.isArray(v.documents) &&
+			v.documents.every(subArr =>
+				Array.isArray(subArr) &&
+				subArr.every(docRef =>
+					docRef && typeof docRef === 'object' &&
+					'uri' in docRef && URI.isUri(docRef.uri) &&
+					'version' in docRef && typeof docRef.version === 'number' &&
+					'ranges' in docRef && Array.isArray(docRef.ranges) && docRef.ranges.every((r: unknown) => r instanceof types.Range)
+				)
+			)
+		);
+	}
+
+	export function from(extContext: vscode.MappedEditsContext): languages.MappedEditsContext {
+		return {
+			documents: extContext.documents.map((subArray) =>
+				subArray.map((r) => ({
+					uri: URI.from(r.uri),
+					version: r.version,
+					ranges: r.ranges.map((r) => Range.from(r)),
+				}))
+			),
+		};
+	}
+}
+
 export namespace NotebookRange {
 
 	export function from(range: vscode.NotebookRange): ICellRange {
@@ -1800,7 +1834,7 @@ export namespace NotebookRendererScript {
 }
 
 export namespace TestMessage {
-	export function from(message: vscode.TestMessage2): ITestErrorMessage.Serialized {
+	export function from(message: vscode.TestMessage): ITestErrorMessage.Serialized {
 		return {
 			message: MarkdownString.fromStrict(message.message) || '',
 			type: TestMessageType.Error,
@@ -1811,7 +1845,7 @@ export namespace TestMessage {
 		};
 	}
 
-	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage2 {
+	export function to(item: ITestErrorMessage.Serialized): vscode.TestMessage {
 		const message = new types.TestMessage(typeof item.message === 'string' ? item.message : MarkdownString.to(item.message));
 		message.actualOutput = item.actual;
 		message.expectedOutput = item.expected;
@@ -2043,7 +2077,7 @@ export namespace DataTransferItem {
 		const file = item.fileData;
 		if (file) {
 			return new types.InternalFileDataTransferItem(
-				new types.DataTransferFile(file.name, URI.revive(file.uri), file.id, once(() => resolveFileData(file.id))));
+				new types.DataTransferFile(file.name, URI.revive(file.uri), file.id, createSingleCallFunction(() => resolveFileData(file.id))));
 		}
 
 		if (mime === Mimes.uriList && item.uriListData) {
@@ -2123,20 +2157,10 @@ export namespace DataTransfer {
 }
 
 export namespace ChatReplyFollowup {
-	export function to(followup: IChatReplyFollowup): vscode.InteractiveSessionReplyFollowup {
-		return {
-			message: followup.message,
-			metadata: followup.metadata,
-			title: followup.title,
-			tooltip: followup.tooltip,
-		};
-	}
-
 	export function from(followup: vscode.InteractiveSessionReplyFollowup): IChatReplyFollowup {
 		return {
 			kind: 'reply',
 			message: followup.message,
-			metadata: followup.metadata,
 			title: followup.title,
 			tooltip: followup.tooltip,
 		};
@@ -2144,7 +2168,7 @@ export namespace ChatReplyFollowup {
 }
 
 export namespace ChatFollowup {
-	export function from(followup: string | vscode.InteractiveSessionFollowup): IChatFollowup {
+	export function from(followup: string | vscode.ChatAgentFollowup): IChatFollowup {
 		if (typeof followup === 'string') {
 			return <IChatReplyFollowup>{ title: followup, message: followup, kind: 'reply' };
 		} else if ('commandId' in followup) {
@@ -2152,6 +2176,7 @@ export namespace ChatFollowup {
 				kind: 'command',
 				title: followup.title ?? '',
 				commandId: followup.commandId ?? '',
+				when: followup.when ?? '',
 				args: followup.args
 			};
 		} else {
@@ -2202,6 +2227,15 @@ export namespace ChatMessageRole {
 }
 
 export namespace ChatVariable {
+	export function objectTo(variableObject: Record<string, IChatRequestVariableValue[]>): Record<string, vscode.ChatVariableValue[]> {
+		const result: Record<string, vscode.ChatVariableValue[]> = {};
+		for (const key of Object.keys(variableObject)) {
+			result[key] = variableObject[key].map(ChatVariable.to);
+		}
+
+		return result;
+	}
+
 	export function to(variable: IChatRequestVariableValue): vscode.ChatVariableValue {
 		return {
 			level: ChatVariableLevel.to(variable.level),
@@ -2238,6 +2272,75 @@ export namespace ChatVariableLevel {
 			case types.ChatVariableLevel.Full:
 			default:
 				return 'full';
+		}
+	}
+}
+
+export namespace InteractiveEditorResponseFeedbackKind {
+
+	export function to(kind: InlineChatResponseFeedbackKind): vscode.InteractiveEditorResponseFeedbackKind {
+		switch (kind) {
+			case InlineChatResponseFeedbackKind.Helpful:
+				return types.InteractiveEditorResponseFeedbackKind.Helpful;
+			case InlineChatResponseFeedbackKind.Unhelpful:
+				return types.InteractiveEditorResponseFeedbackKind.Unhelpful;
+			case InlineChatResponseFeedbackKind.Undone:
+				return types.InteractiveEditorResponseFeedbackKind.Undone;
+			case InlineChatResponseFeedbackKind.Accepted:
+				return types.InteractiveEditorResponseFeedbackKind.Accepted;
+			case InlineChatResponseFeedbackKind.Bug:
+				return types.InteractiveEditorResponseFeedbackKind.Bug;
+		}
+	}
+}
+
+export namespace ChatResponseProgress {
+	export function from(extension: IExtensionDescription, progress: vscode.ChatAgentExtendedProgress): extHostProtocol.IChatProgressDto {
+		if ('placeholder' in progress && 'resolvedContent' in progress) {
+			return { content: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
+		} else if ('markdownContent' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
+		} else if ('content' in progress) {
+			if (typeof progress.content === 'string') {
+				return { content: progress.content, kind: 'content' };
+			}
+
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
+		} else if ('documents' in progress) {
+			return {
+				documents: progress.documents.map(d => ({
+					uri: d.uri,
+					version: d.version,
+					ranges: d.ranges.map(r => Range.from(r))
+				})),
+				kind: 'usedContext'
+			};
+		} else if ('reference' in progress) {
+			return {
+				reference: 'uri' in progress.reference ?
+					{
+						uri: progress.reference.uri,
+						range: Range.from(progress.reference.range)
+					} : progress.reference,
+				kind: 'reference'
+			};
+		} else if ('inlineReference' in progress) {
+			return {
+				inlineReference: 'uri' in progress.inlineReference ?
+					{
+						uri: progress.inlineReference.uri,
+						range: Range.from(progress.inlineReference.range)
+					} : progress.inlineReference,
+				name: progress.title,
+				kind: 'inlineReference'
+			};
+		} else if ('agentName' in progress) {
+			checkProposedApiEnabled(extension, 'chatAgents2Additions');
+			return { agentName: progress.agentName, command: progress.command, kind: 'agentDetection' };
+		} else {
+			return { treeData: progress.treeData, kind: 'treeData' };
 		}
 	}
 }

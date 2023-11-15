@@ -5,6 +5,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { IProcessEnvironment, OperatingSystem } from 'vs/base/common/platform';
 import Severity from 'vs/base/common/severity';
 import { ThemeIcon } from 'vs/base/common/themables';
@@ -253,7 +254,8 @@ export interface IDefaultShellAndArgsRequest {
 	callback: (shell: string, args: string[] | string | undefined) => void;
 }
 
-export interface ITerminalProcessManager extends IDisposable {
+/** Read-only process information that can apply to detached terminals. */
+export interface ITerminalProcessInfo {
 	readonly processState: ProcessState;
 	readonly ptyProcessReady: Promise<void>;
 	readonly shellProcessId: number | undefined;
@@ -270,7 +272,11 @@ export interface ITerminalProcessManager extends IDisposable {
 	readonly capabilities: ITerminalCapabilityStore;
 	readonly shellIntegrationNonce: string;
 	readonly extEnvironmentVariableCollection: IMergedEnvironmentVariableCollection | undefined;
+}
 
+export const isTerminalProcessManager = (t: ITerminalProcessInfo | ITerminalProcessManager): t is ITerminalProcessManager => typeof (t as ITerminalProcessManager).write === 'function';
+
+export interface ITerminalProcessManager extends IDisposable, ITerminalProcessInfo {
 	readonly onPtyDisconnect: Event<void>;
 	readonly onPtyReconnect: Event<void>;
 
@@ -374,6 +380,14 @@ export interface ITerminalStatusHoverAction {
 	run: () => void;
 }
 
+/**
+ * Context for actions taken on terminal instances.
+ */
+export interface ISerializedTerminalInstanceContext {
+	$mid: MarshalledId.TerminalContext;
+	instanceId: number;
+}
+
 export const QUICK_LAUNCH_PROFILE_CHOICE = 'workbench.action.terminal.profile.choice';
 
 export const enum TerminalCommandId {
@@ -394,10 +408,11 @@ export const enum TerminalCommandId {
 	OpenWebLink = 'workbench.action.terminal.openUrlLink',
 	RunRecentCommand = 'workbench.action.terminal.runRecentCommand',
 	FocusAccessibleBuffer = 'workbench.action.terminal.focusAccessibleBuffer',
-	NavigateAccessibleBuffer = 'workbench.action.terminal.navigateAccessibleBuffer',
 	AccessibleBufferGoToNextCommand = 'workbench.action.terminal.accessibleBufferGoToNextCommand',
 	AccessibleBufferGoToPreviousCommand = 'workbench.action.terminal.accessibleBufferGoToPreviousCommand',
+	CopyLastCommand = 'workbench.action.terminal.copyLastCommand',
 	CopyLastCommandOutput = 'workbench.action.terminal.copyLastCommandOutput',
+	CopyLastCommandAndLastCommandOutput = 'workbench.action.terminal.copyLastCommandAndLastCommandOutput',
 	GoToRecentDirectory = 'workbench.action.terminal.goToRecentDirectory',
 	CopyAndClearSelection = 'workbench.action.terminal.copyAndClearSelection',
 	CopySelection = 'workbench.action.terminal.copySelection',
@@ -418,7 +433,6 @@ export const enum TerminalCommandId {
 	SplitInActiveWorkspace = 'workbench.action.terminal.splitInActiveWorkspace',
 	ShowQuickFixes = 'workbench.action.terminal.showQuickFixes',
 	Unsplit = 'workbench.action.terminal.unsplit',
-	UnsplitActiveTab = 'workbench.action.terminal.unsplitActiveTab',
 	JoinActiveTab = 'workbench.action.terminal.joinActiveTab',
 	Join = 'workbench.action.terminal.join',
 	Relaunch = 'workbench.action.terminal.relaunch',
@@ -452,13 +466,10 @@ export const enum TerminalCommandId {
 	Clear = 'workbench.action.terminal.clear',
 	ClearSelection = 'workbench.action.terminal.clearSelection',
 	ChangeIcon = 'workbench.action.terminal.changeIcon',
-	ChangeIconPanel = 'workbench.action.terminal.changeIconPanel',
 	ChangeIconActiveTab = 'workbench.action.terminal.changeIconActiveTab',
 	ChangeColor = 'workbench.action.terminal.changeColor',
-	ChangeColorPanel = 'workbench.action.terminal.changeColorPanel',
 	ChangeColorActiveTab = 'workbench.action.terminal.changeColorActiveTab',
 	Rename = 'workbench.action.terminal.rename',
-	RenamePanel = 'workbench.action.terminal.renamePanel',
 	RenameActiveTab = 'workbench.action.terminal.renameActiveTab',
 	RenameWithArgs = 'workbench.action.terminal.renameWithArg',
 	FindFocus = 'workbench.action.terminal.focusFind',
@@ -478,7 +489,6 @@ export const enum TerminalCommandId {
 	AttachToSession = 'workbench.action.terminal.attachToSession',
 	DetachSession = 'workbench.action.terminal.detachSession',
 	MoveToEditor = 'workbench.action.terminal.moveToEditor',
-	MoveToEditorActiveTab = 'workbench.action.terminal.moveToEditorActiveTab',
 	MoveToTerminalPanel = 'workbench.action.terminal.moveToTerminalPanel',
 	SetDimensions = 'workbench.action.terminal.setDimensions',
 	ClearPreviousSessionHistory = 'workbench.action.terminal.clearPreviousSessionHistory',
@@ -490,6 +500,7 @@ export const enum TerminalCommandId {
 	HideSuggestWidget = 'workbench.action.terminal.hideSuggestWidget',
 	FocusHover = 'workbench.action.terminal.focusHover',
 	ShowEnvironmentContributions = 'workbench.action.terminal.showEnvironmentContributions',
+	ToggleStickyScroll = 'workbench.action.terminal.toggleStickyScroll',
 
 	// Developer commands
 
@@ -504,7 +515,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.CopyAndClearSelection,
 	TerminalCommandId.CopySelection,
 	TerminalCommandId.CopySelectionAsHtml,
+	TerminalCommandId.CopyLastCommand,
 	TerminalCommandId.CopyLastCommandOutput,
+	TerminalCommandId.CopyLastCommandAndLastCommandOutput,
 	TerminalCommandId.DeleteToLineStart,
 	TerminalCommandId.DeleteWordLeft,
 	TerminalCommandId.DeleteWordRight,
@@ -563,6 +576,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.AcceptSelectedSuggestion,
 	TerminalCommandId.HideSuggestWidget,
 	TerminalCommandId.FocusHover,
+	TerminalCommandId.FocusAccessibleBuffer,
 	AccessibilityCommandId.OpenAccessibilityHelp,
 	'editor.action.toggleTabFocusMode',
 	'notifications.hideList',

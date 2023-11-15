@@ -62,6 +62,7 @@ import { IExtHostTelemetry } from 'vs/workbench/api/common/extHostTelemetry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { ensureFileSystemProviderError } from 'vs/platform/files/common/files';
 
 function assertRejects(fn: () => Promise<any>, message: string = 'Expected rejection') {
 	return fn().then(() => assert.ok(false, message), _err => assert.ok(true));
@@ -202,6 +203,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		disposables = dispose(disposables);
 		return rpcProtocol.sync();
 	});
+
+	ensureFileSystemProviderError();
 
 	// --- workspace symbols
 

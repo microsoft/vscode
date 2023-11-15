@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions,
 	InstallExtensionEvent, DidUninstallExtensionEvent, InstallOperation, InstallOptions, WEB_EXTENSION_TAG, InstallExtensionResult,
-	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible
+	IExtensionsControlManifest, InstallVSIXOptions, IExtensionInfo, IExtensionQueryOptions, IDeprecationInfo, isTargetPlatformCompatible, InstallExtensionInfo
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchExtensionEnablementService, EnablementState, IExtensionManagementServerService, IExtensionManagementServer, IWorkbenchExtensionManagementService, DefaultIconPath } from 'vs/workbench/services/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, groupByExtension, ExtensionKey, getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -51,6 +51,7 @@ import { ILocaleService } from 'vs/workbench/services/localization/common/locale
 import { TelemetryTrustedValue } from 'vs/platform/telemetry/common/telemetryUtils';
 import { ILifecycleService, LifecyclePhase } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { IUserDataProfileService } from 'vs/workbench/services/userDataProfile/common/userDataProfile';
+import { mainWindow } from 'vs/base/browser/window';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -1364,6 +1365,23 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		}
 	}
 
+	async updateAll(): Promise<InstallExtensionResult[]> {
+		const toUpdate: InstallExtensionInfo[] = [];
+		this.outdated.forEach((extension) => {
+			if (extension.gallery) {
+				toUpdate.push({
+					extension: extension.gallery,
+					options: {
+						operation: InstallOperation.Update,
+						installPreReleaseVersion: extension.local?.isPreReleaseVersion,
+						profileLocation: this.userDataProfileService.currentProfile.extensionsResource,
+					}
+				});
+			}
+		});
+		return this.extensionManagementService.installGalleryExtensions(toUpdate);
+	}
+
 	private async syncInstalledExtensionsWithGallery(gallery: IGalleryExtension[]): Promise<void> {
 		const extensions: Extensions[] = [];
 		if (this.localExtensions) {
@@ -1622,7 +1640,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async toggleApplyExtensionToAllProfiles(extension: IExtension): Promise<void> {
-		if (!extension.local || isApplicationScopedExtension(extension.local.manifest)) {
+		if (!extension.local || isApplicationScopedExtension(extension.local.manifest) || extension.isBuiltin) {
 			return;
 		}
 		await this.extensionManagementService.toggleAppliationScope(extension.local, this.userDataProfileService.currentProfile.extensionsResource);
@@ -1911,7 +1929,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				[extension] = await this.getExtensions([{ id: extensionId }], { source: 'uri' }, CancellationToken.None);
 			}
 			if (extension) {
-				await this.hostService.focus();
+				await this.hostService.focus(mainWindow);
 				await this.open(extension);
 			}
 		}).then(undefined, error => this.onError(error));

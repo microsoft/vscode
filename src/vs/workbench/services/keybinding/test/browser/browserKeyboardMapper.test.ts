@@ -16,6 +16,7 @@ import { TestNotificationService } from 'vs/platform/notification/test/common/te
 import { TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 	constructor(configurationService: IConfigurationService, notificationService: INotificationService, storageService: IStorageService, commandService: ICommandService) {
@@ -35,17 +36,22 @@ class TestKeyboardMapperFactory extends BrowserKeyboardMapperFactoryBase {
 }
 
 suite('keyboard layout loader', () => {
+	const ds = ensureNoDisposablesAreLeakedInTestSuite();
 	let instantiationService: TestInstantiationService;
 	let instance: TestKeyboardMapperFactory;
 
 	setup(() => {
 		instantiationService = new TestInstantiationService();
+		const storageService = new TestStorageService();
 		const notitifcationService = instantiationService.stub(INotificationService, new TestNotificationService());
-		const storageService = instantiationService.stub(IStorageService, new TestStorageService());
 		const configurationService = instantiationService.stub(IConfigurationService, new TestConfigurationService());
-
 		const commandService = instantiationService.stub(ICommandService, {});
+
+		ds.add(instantiationService);
+		ds.add(storageService);
+
 		instance = new TestKeyboardMapperFactory(configurationService, notitifcationService, storageService, commandService);
+		ds.add(instance);
 	});
 
 	teardown(() => {

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { addDisposableListener } from 'vs/base/browser/dom';
+import { addDisposableListener, getActiveDocument } from 'vs/base/browser/dom';
 import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
@@ -99,7 +99,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 		this._editor.focus();
 		try {
 			this._pasteAsActionContext = { preferredId };
-			document.execCommand('paste');
+			getActiveDocument().execCommand('paste');
 		} finally {
 			this._pasteAsActionContext = undefined;
 		}
@@ -283,6 +283,12 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 					return;
 				}
 
+				// If the only edit returned is a text edit, use the default paste handler
+				if (providerEdits.length === 1 && providerEdits[0].providerId === 'text') {
+					await this.applyDefaultPasteHandler(dataTransfer, metadata, tokenSource.token);
+					return;
+				}
+
 				if (providerEdits.length) {
 					const canShowWidget = editor.getOption(EditorOption.pasteAs).showPasteSelector === 'afterPaste';
 					return this._postPasteWidgetManager.applyEditAndShowIfNeeded(selections, { activeEditIndex: 0, allEdits: providerEdits }, canShowWidget, tokenSource.token);
@@ -442,8 +448,7 @@ export class CopyPasteController extends Disposable implements IEditorContributi
 			})),
 			token);
 		const edits = coalesce(results ?? []);
-		sortEditsByYieldTo(edits);
-		return edits;
+		return sortEditsByYieldTo(edits);
 	}
 
 	private async applyDefaultPasteHandler(dataTransfer: VSDataTransfer, metadata: CopyMetadata | undefined, token: CancellationToken) {

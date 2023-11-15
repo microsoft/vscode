@@ -51,7 +51,7 @@ if [ -n "${VSCODE_ENV_PREPEND:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_PREPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="$(echo -e {ITEM#*=})${(P)VARNAME}"
+		export $VARNAME="$(echo -e ${ITEM#*=})${(P)VARNAME}"
 	done
 	unset VSCODE_ENV_PREPEND
 fi
@@ -59,7 +59,7 @@ if [ -n "${VSCODE_ENV_APPEND:-}" ]; then
 	IFS=':' read -rA ADDR <<< "$VSCODE_ENV_APPEND"
 	for ITEM in "${ADDR[@]}"; do
 		VARNAME="$(echo ${ITEM%%=*})"
-		export $VARNAME="${(P)VARNAME}$(echo -e {ITEM#*=})"
+		export $VARNAME="${(P)VARNAME}$(echo -e ${ITEM#*=})"
 	done
 	unset VSCODE_ENV_APPEND
 fi

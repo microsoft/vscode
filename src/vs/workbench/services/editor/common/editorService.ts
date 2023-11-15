@@ -9,9 +9,10 @@ import { IEditorPane, GroupIdentifier, IUntitledTextResourceEditorInput, IResour
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { Event } from 'vs/base/common/event';
 import { IEditor, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { ICloseEditorOptions, IEditorGroup, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { ICloseEditorOptions, IEditorGroup, IEditorGroupsContainer, isEditorGroup } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { URI } from 'vs/base/common/uri';
 import { IGroupModelChangeEvent } from 'vs/workbench/common/editor/editorGroupModel';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 export const IEditorService = createDecorator<IEditorService>('editorService');
 
@@ -335,4 +336,11 @@ export interface IEditorService {
 	 * @returns `true` if all editors reverted and `false` otherwise.
 	 */
 	revertAll(options?: IRevertAllEditorsOptions): Promise<boolean>;
+
+	/**
+	 * Create a scoped editor service that only operates on the provided
+	 * editor group container. Use `main` to create a scoped editor service
+	 * to the main editor group container of the main window.
+	 */
+	createScoped(editorGroupsContainer: IEditorGroupsContainer | 'main', disposables: DisposableStore): IEditorService;
 }

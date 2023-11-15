@@ -183,7 +183,24 @@
 	text-align: center;
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-badge-content {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-icon-overlay {
+	position: absolute;
+	top: 27px;
+	right: 6px;
+	background-color: var(--vscode-activityBar-background);
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-icon-overlay .codicon {
+	color: var(--vscode-activityBar-inactiveForeground);
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item.active .profile-badge .profile-icon-overlay .codicon,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .profile-badge .profile-icon-overlay .codicon,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .profile-badge .profile-icon-overlay .codicon {
+	color: var(--vscode-activityBar-foreground) !important;
+}
+
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .profile-badge .profile-text-overlay {
 	position: absolute;
 	font-weight: 600;
 	font-size: 9px;
@@ -197,9 +214,9 @@
 	border: 2px solid var(--vscode-activityBar-background);
 }
 
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:active .profile-badge-content,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .profile-badge-content,
-.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .profile-badge-content {
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:active .profile-text-overlay,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:focus .profile-text-overlay,
+.monaco-workbench .activitybar > .content :not(.monaco-menu) > .monaco-action-bar .action-item:hover .profile-text-overlay {
 	color: var(--vscode-activityBar-foreground);
 }
 

@@ -35,7 +35,7 @@ import { getColorClass, getIconId, getUriClasses } from 'vs/workbench/contrib/te
 import { IEditableData } from 'vs/workbench/common/views';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { InputBox, MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { once } from 'vs/base/common/functional';
+import { createSingleCallFunction } from 'vs/base/common/functional';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { CodeDataTransfers, containsDragType } from 'vs/platform/dnd/browser/dnd';
@@ -49,6 +49,7 @@ import { defaultInputBoxStyles } from 'vs/platform/theme/browser/defaultStyles';
 import { Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
 import { getColorForSeverity } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
+import { TerminalContextActionRunner } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 
 const $ = DOM.$;
 
@@ -112,9 +113,9 @@ export class TerminalTabList extends WorkbenchList<ITerminalInstance> {
 			this._terminalGroupService.onDidChangeGroups(() => this.refresh()),
 			this._terminalGroupService.onDidShow(() => this.refresh()),
 			this._terminalGroupService.onDidChangeInstanceCapability(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceTitle(() => this.refresh()),
-			this._terminalService.onDidChangeInstanceIcon(() => this.refresh()),
-			this._terminalService.onDidChangeInstancePrimaryStatus(() => this.refresh()),
+			this._terminalService.onAnyInstanceTitleChange(() => this.refresh()),
+			this._terminalService.onAnyInstanceIconChange(() => this.refresh()),
+			this._terminalService.onAnyInstancePrimaryStatusChange(() => this.refresh()),
 			this._terminalService.onDidChangeConnectionState(() => this.refresh()),
 			this._themeService.onDidColorThemeChange(() => this.refresh()),
 			this._terminalGroupService.onDidChangeActiveInstance(e => {
@@ -266,7 +267,9 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 					return this._hoverService.showHover({
 						...options,
 						actions: context.hoverActions,
-						hideOnHover: true
+						persistence: {
+							hideOnHover: true
+						}
 					});
 				}
 			}
@@ -275,6 +278,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		const actionsContainer = DOM.append(label.element, $('.actions'));
 
 		const actionBar = new ActionBar(actionsContainer, {
+			actionRunner: new TerminalContextActionRunner(),
 			actionViewItemProvider: action =>
 				action instanceof MenuItemAction
 					? this._instantiationService.createInstance(MenuEntryActionViewItem, action, undefined)
@@ -417,7 +421,7 @@ class TerminalTabsRenderer implements IListRenderer<ITerminalInstance, ITerminal
 		inputBox.focus();
 		inputBox.select({ start: 0, end: value.length });
 
-		const done = once((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
 			inputBox.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -559,14 +563,16 @@ class TerminalTabsAccessibilityProvider implements IListAccessibilityProvider<IT
 	}
 }
 
-class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
+class TerminalTabsDragAndDrop extends Disposable implements IListDragAndDrop<ITerminalInstance> {
 	private _autoFocusInstance: ITerminalInstance | undefined;
 	private _autoFocusDisposable: IDisposable = Disposable.None;
 	private _primaryBackend: ITerminalBackend | undefined;
+
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
 		@ITerminalGroupService private readonly _terminalGroupService: ITerminalGroupService,
 	) {
+		super();
 		this._primaryBackend = this._terminalService.getPrimaryBackend();
 	}
 
@@ -624,7 +630,7 @@ class TerminalTabsDragAndDrop implements IListDragAndDrop<ITerminalInstance> {
 			this._autoFocusDisposable = disposableTimeout(() => {
 				this._terminalService.setActiveInstance(targetInstance);
 				this._autoFocusInstance = undefined;
-			}, 500);
+			}, 500, this._store);
 		}
 
 		return {
@@ -747,7 +753,7 @@ class TabDecorationsProvider extends Disposable implements IDecorationsProvider 
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {
 		super();
-		this._register(this._terminalService.onDidChangeInstancePrimaryStatus(e => this._onDidChange.fire([e.resource])));
+		this._register(this._terminalService.onAnyInstancePrimaryStatusChange(e => this._onDidChange.fire([e.resource])));
 	}
 
 	provideDecorations(resource: URI): IDecorationData | undefined {

@@ -6,13 +6,11 @@
 import * as assert from 'assert';
 import { consolidate, groupIntersect, RangeMap } from 'vs/base/browser/ui/list/rangeMap';
 import { Range } from 'vs/base/common/range';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('RangeMap', () => {
-	let rangeMap: RangeMap;
 
-	setup(() => {
-		rangeMap = new RangeMap();
-	});
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('intersection', () => {
 		assert.deepStrictEqual(Range.intersect({ start: 0, end: 0 }, { start: 0, end: 0 }), { start: 0, end: 0 });
@@ -141,6 +139,7 @@ suite('RangeMap', () => {
 	});
 
 	test('empty', () => {
+		const rangeMap = new RangeMap();
 		assert.strictEqual(rangeMap.size, 0);
 		assert.strictEqual(rangeMap.count, 0);
 	});
@@ -152,30 +151,35 @@ suite('RangeMap', () => {
 	const ten = { size: 10 };
 
 	test('length & count', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [one]);
 		assert.strictEqual(rangeMap.size, 1);
 		assert.strictEqual(rangeMap.count, 1);
 	});
 
 	test('length & count #2', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [one, one, one, one, one]);
 		assert.strictEqual(rangeMap.size, 5);
 		assert.strictEqual(rangeMap.count, 5);
 	});
 
 	test('length & count #3', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [five]);
 		assert.strictEqual(rangeMap.size, 5);
 		assert.strictEqual(rangeMap.count, 1);
 	});
 
 	test('length & count #4', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [five, five, five, five, five]);
 		assert.strictEqual(rangeMap.size, 25);
 		assert.strictEqual(rangeMap.count, 5);
 	});
 
 	test('insert', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [five, five, five, five, five]);
 		assert.strictEqual(rangeMap.size, 25);
 		assert.strictEqual(rangeMap.count, 5);
@@ -194,6 +198,7 @@ suite('RangeMap', () => {
 	});
 
 	test('delete', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [five, five, five, five, five,
 			five, five, five, five, five,
 			five, five, five, five, five,
@@ -219,6 +224,7 @@ suite('RangeMap', () => {
 	});
 
 	test('insert & delete', () => {
+		const rangeMap = new RangeMap();
 		assert.strictEqual(rangeMap.size, 0);
 		assert.strictEqual(rangeMap.count, 0);
 
@@ -232,6 +238,7 @@ suite('RangeMap', () => {
 	});
 
 	test('insert & delete #2', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one]);
 		rangeMap.splice(2, 6);
@@ -240,6 +247,7 @@ suite('RangeMap', () => {
 	});
 
 	test('insert & delete #3', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one,
 			two, two, two, two, two,
@@ -249,7 +257,8 @@ suite('RangeMap', () => {
 		assert.strictEqual(rangeMap.size, 24);
 	});
 
-	test('insert & delete #3', () => {
+	test('insert & delete #4', () => {
+		const rangeMap = new RangeMap();
 		rangeMap.splice(0, 0, [one, one, one, one, one,
 			one, one, one, one, one,
 			two, two, two, two, two,
@@ -265,6 +274,7 @@ suite('RangeMap', () => {
 
 	suite('indexAt, positionAt', () => {
 		test('empty', () => {
+			const rangeMap = new RangeMap();
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(10), 0);
 			assert.strictEqual(rangeMap.indexAt(-1), -1);
@@ -274,6 +284,7 @@ suite('RangeMap', () => {
 		});
 
 		test('simple', () => {
+			const rangeMap = new RangeMap();
 			rangeMap.splice(0, 0, [one]);
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(1), 1);
@@ -282,6 +293,7 @@ suite('RangeMap', () => {
 		});
 
 		test('simple #2', () => {
+			const rangeMap = new RangeMap();
 			rangeMap.splice(0, 0, [ten]);
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(5), 0);
@@ -292,6 +304,7 @@ suite('RangeMap', () => {
 		});
 
 		test('insert', () => {
+			const rangeMap = new RangeMap();
 			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(1), 1);
@@ -312,6 +325,7 @@ suite('RangeMap', () => {
 		});
 
 		test('delete', () => {
+			const rangeMap = new RangeMap();
 			rangeMap.splice(0, 0, [one, one, one, one, one, one, one, one, one, one]);
 			rangeMap.splice(2, 6);
 
@@ -327,6 +341,7 @@ suite('RangeMap', () => {
 		});
 
 		test('delete #2', () => {
+			const rangeMap = new RangeMap();
 			rangeMap.splice(0, 0, [ten, ten, ten, ten, ten, ten, ten, ten, ten, ten]);
 			rangeMap.splice(2, 6);
 
@@ -345,13 +360,9 @@ suite('RangeMap', () => {
 });
 
 suite('RangeMap with top padding', () => {
-	let rangeMap: RangeMap;
-
-	setup(() => {
-		rangeMap = new RangeMap(10);
-	});
 
 	test('empty', () => {
+		const rangeMap = new RangeMap(10);
 		assert.strictEqual(rangeMap.size, 10);
 		assert.strictEqual(rangeMap.count, 0);
 	});
@@ -361,30 +372,35 @@ suite('RangeMap with top padding', () => {
 	const ten = { size: 10 };
 
 	test('length & count', () => {
+		const rangeMap = new RangeMap(10);
 		rangeMap.splice(0, 0, [one]);
 		assert.strictEqual(rangeMap.size, 11);
 		assert.strictEqual(rangeMap.count, 1);
 	});
 
 	test('length & count #2', () => {
+		const rangeMap = new RangeMap(10);
 		rangeMap.splice(0, 0, [one, one, one, one, one]);
 		assert.strictEqual(rangeMap.size, 15);
 		assert.strictEqual(rangeMap.count, 5);
 	});
 
 	test('length & count #3', () => {
+		const rangeMap = new RangeMap(10);
 		rangeMap.splice(0, 0, [five]);
 		assert.strictEqual(rangeMap.size, 15);
 		assert.strictEqual(rangeMap.count, 1);
 	});
 
 	test('length & count #4', () => {
+		const rangeMap = new RangeMap(10);
 		rangeMap.splice(0, 0, [five, five, five, five, five]);
 		assert.strictEqual(rangeMap.size, 35);
 		assert.strictEqual(rangeMap.count, 5);
 	});
 
 	test('insert', () => {
+		const rangeMap = new RangeMap(10);
 		rangeMap.splice(0, 0, [five, five, five, five, five]);
 		assert.strictEqual(rangeMap.size, 35);
 		assert.strictEqual(rangeMap.count, 5);
@@ -404,6 +420,7 @@ suite('RangeMap with top padding', () => {
 
 	suite('indexAt, positionAt', () => {
 		test('empty', () => {
+			const rangeMap = new RangeMap(10);
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(10), 0);
 			assert.strictEqual(rangeMap.indexAt(-1), -1);
@@ -413,6 +430,7 @@ suite('RangeMap with top padding', () => {
 		});
 
 		test('simple', () => {
+			const rangeMap = new RangeMap(10);
 			rangeMap.splice(0, 0, [one]);
 			assert.strictEqual(rangeMap.indexAt(0), 0);
 			assert.strictEqual(rangeMap.indexAt(1), 0);

@@ -21,6 +21,7 @@ import { HeartbeatService } from 'vs/platform/terminal/node/heartbeatService';
 import { PtyService } from 'vs/platform/terminal/node/ptyService';
 import { isUtilityProcess } from 'vs/base/parts/sandbox/node/electronTypes';
 import { timeout } from 'vs/base/common/async';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 
 startPtyHost();
 
@@ -72,13 +73,15 @@ async function startPtyHost() {
 		logService.warn(`Pty host is simulating ${simulatedLatency}ms latency`);
 	}
 
+	const disposables = new DisposableStore();
+
 	// Heartbeat responsiveness tracking
 	const heartbeatService = new HeartbeatService();
-	server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService));
+	server.registerChannel(TerminalIpcChannels.Heartbeat, ProxyChannel.fromService(heartbeatService, disposables));
 
 	// Init pty service
 	const ptyService = new PtyService(logService, productService, reconnectConstants, simulatedLatency);
-	const ptyServiceChannel = ProxyChannel.fromService(ptyService);
+	const ptyServiceChannel = ProxyChannel.fromService(ptyService, disposables);
 	server.registerChannel(TerminalIpcChannels.PtyHost, ptyServiceChannel);
 
 	// Register a channel for direct communication via Message Port

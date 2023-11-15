@@ -142,7 +142,7 @@ export class RawDebugSession implements IDisposable {
 				case 'terminated':
 					this._onDidTerminateDebugee.fire(<DebugProtocol.TerminatedEvent>event);
 					break;
-				case 'exit':
+				case 'exited':
 					this._onDidExitDebugee.fire(<DebugProtocol.ExitedEvent>event);
 					break;
 				case 'progressStart':

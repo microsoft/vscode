@@ -5,7 +5,6 @@
 
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { isNonEmptyArray } from 'vs/base/common/arrays';
-import { IdleValue } from 'vs/base/common/async';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedError, onUnexpectedExternalError } from 'vs/base/common/errors';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -45,6 +44,7 @@ import { ISelectedSuggestion, SuggestWidget } from './suggestWidget';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { basename, extname } from 'vs/base/common/resources';
 import { hash } from 'vs/base/common/hash';
+import { WindowIdleValue, getWindow } from 'vs/base/browser/dom';
 
 // sticky suggest widget which doesn't disappear on focus out and such
 const _sticky = false
@@ -111,12 +111,12 @@ export class SuggestController implements IEditorContribution {
 
 	readonly editor: ICodeEditor;
 	readonly model: SuggestModel;
-	readonly widget: IdleValue<SuggestWidget>;
+	readonly widget: WindowIdleValue<SuggestWidget>;
 
-	private readonly _alternatives: IdleValue<SuggestAlternatives>;
+	private readonly _alternatives: WindowIdleValue<SuggestAlternatives>;
 	private readonly _lineSuffix = new MutableDisposable<LineSuffix>();
 	private readonly _toDispose = new DisposableStore();
-	private readonly _overtypingCapturer: IdleValue<OvertypingCapturer>;
+	private readonly _overtypingCapturer: WindowIdleValue<OvertypingCapturer>;
 	private readonly _selectors = new PriorityRegistry<ISuggestItemPreselector>(s => s.priority);
 
 	private readonly _onWillInsertSuggestItem = new Emitter<{ item: CompletionItem }>();
@@ -143,9 +143,9 @@ export class SuggestController implements IEditorContribution {
 		// context key: update insert/replace mode
 		const ctxInsertMode = SuggestContext.InsertMode.bindTo(_contextKeyService);
 		ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode);
-		this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode));
+		this._toDispose.add(this.model.onDidTrigger(() => ctxInsertMode.set(editor.getOption(EditorOption.suggest).insertMode)));
 
-		this.widget = this._toDispose.add(new IdleValue(() => {
+		this.widget = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 
 			const widget = this._instantiationService.createInstance(SuggestWidget, this.editor);
 
@@ -218,11 +218,11 @@ export class SuggestController implements IEditorContribution {
 		}));
 
 		// Wire up text overtyping capture
-		this._overtypingCapturer = this._toDispose.add(new IdleValue(() => {
+		this._overtypingCapturer = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new OvertypingCapturer(this.editor, this.model));
 		}));
 
-		this._alternatives = this._toDispose.add(new IdleValue(() => {
+		this._alternatives = this._toDispose.add(new WindowIdleValue(getWindow(editor.getDomNode()), () => {
 			return this._toDispose.add(new SuggestAlternatives(this.editor, this._contextKeyService));
 		}));
 

@@ -69,6 +69,7 @@ import 'vs/workbench/contrib/notebook/browser/controller/apiActions';
 import 'vs/workbench/contrib/notebook/browser/controller/foldingController';
 
 // Editor Contribution
+import 'vs/workbench/contrib/notebook/browser/contrib/editorHint/emptyCellEditorHint';
 import 'vs/workbench/contrib/notebook/browser/contrib/clipboard/notebookClipboard';
 import 'vs/workbench/contrib/notebook/browser/contrib/find/notebookFind';
 import 'vs/workbench/contrib/notebook/browser/contrib/format/formatting';
@@ -118,7 +119,6 @@ import { runAccessibilityHelpAction, showAccessibleOutput } from 'vs/workbench/c
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { AccessibilityHelpAction, AccessibleViewAction } from 'vs/workbench/contrib/accessibility/browser/accessibleViewActions';
-
 /*--------------------------------------------------------------------------------------------- */
 
 Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane(
@@ -180,7 +180,7 @@ class NotebookDiffEditorSerializer implements IEditorSerializer {
 	}
 
 }
-type SerializedNotebookEditorData = { resource: URI; viewType: string; options?: NotebookEditorInputOptions };
+type SerializedNotebookEditorData = { resource: URI; preferredResource: URI; viewType: string; options?: NotebookEditorInputOptions };
 class NotebookEditorSerializer implements IEditorSerializer {
 	canSerialize(): boolean {
 		return true;
@@ -189,6 +189,7 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		assertType(input instanceof NotebookEditorInput);
 		const data: SerializedNotebookEditorData = {
 			resource: input.resource,
+			preferredResource: input.preferredResource,
 			viewType: input.viewType,
 			options: input.options
 		};
@@ -199,12 +200,12 @@ class NotebookEditorSerializer implements IEditorSerializer {
 		if (!data) {
 			return undefined;
 		}
-		const { resource, viewType, options } = data;
+		const { resource, preferredResource, viewType, options } = data;
 		if (!data || !URI.isUri(resource) || typeof viewType !== 'string') {
 			return undefined;
 		}
 
-		const input = NotebookEditorInput.create(instantiationService, resource, viewType, options);
+		const input = NotebookEditorInput.getOrCreate(instantiationService, resource, preferredResource, viewType, options);
 		return input;
 	}
 }
@@ -455,7 +456,7 @@ class CellInfoContentProvider {
 		let result: { content: string; mode: ILanguageSelection } | undefined = undefined;
 
 		const mode = this._languageService.createById('json');
-		const op = cell.outputs.find(op => op.outputId === data.outputId);
+		const op = cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId);
 		const streamOutputData = this.parseStreamOutput(op);
 		if (streamOutputData) {
 			result = streamOutputData;
@@ -491,7 +492,7 @@ class CellInfoContentProvider {
 		}
 
 		const ref = await this._notebookModelResolverService.resolve(data.notebook);
-		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId));
+		const cell = ref.object.notebook.cells.find(cell => !!cell.outputs.find(op => op.outputId === data.outputId || op.alternativeOutputId === data.outputId));
 
 		if (!cell) {
 			ref.dispose();
@@ -639,7 +640,7 @@ class SimpleNotebookWorkingCopyEditorHandler extends Disposable implements IWork
 	}
 
 	createEditor(workingCopy: IWorkingCopyIdentifier): EditorInput {
-		return NotebookEditorInput.create(this._instantiationService, workingCopy.resource, this._getViewType(workingCopy)!);
+		return NotebookEditorInput.getOrCreate(this._instantiationService, workingCopy.resource, undefined, this._getViewType(workingCopy)!);
 	}
 
 	private async _installHandler(): Promise<void> {
@@ -946,7 +947,7 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout', 'notebookOutputLayout']
 		},
 		[NotebookSetting.outputScrolling]: {
-			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit"),
+			markdownDescription: nls.localize('notebook.outputScrolling', "Initially render notebook outputs in a scrollable region when longer than the limit."),
 			type: 'boolean',
 			tags: ['notebookLayout', 'notebookOutputLayout'],
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
@@ -963,11 +964,21 @@ configurationRegistry.registerConfiguration({
 			tags: ['notebookLayout'],
 			default: false
 		},
+		[NotebookSetting.insertFinalNewline]: {
+			markdownDescription: nls.localize('notebook.insertFinalNewline', "When enabled, insert a final new line into the end of code cells when saving a notebook."),
+			type: 'boolean',
+			tags: ['notebookLayout'],
+			default: false
+		},
 		[NotebookSetting.codeActionsOnSave]: {
-			markdownDescription: nls.localize('notebook.codeActionsOnSave', "Experimental. Run a series of CodeActions for a notebook on save. CodeActions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `source.fixAll: true`"),
+			markdownDescription: nls.localize('notebook.codeActionsOnSave', 'Run a series of Code Actions for a notebook on save. Code Actions must be specified, the file must not be saved after delay, and the editor must not be shutting down. Example: `"notebook.source.organizeImports": "explicit"`'),
 			type: 'object',
 			additionalProperties: {
-				type: 'boolean'
+				type: ['string', 'boolean'],
+				enum: ['explicit', 'never', true, false],
+				// enum: ['explicit', 'always', 'never'], -- autosave support needs to be built first
+				// nls.localize('always', 'Always triggers Code Actions on save, including autosave, focus, and window change events.'),
+				enumDescriptions: [nls.localize('explicit', 'Triggers Code Actions only when explicitly saved.'), nls.localize('never', 'Never triggers Code Actions on save.'), nls.localize('explicitBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "explicit".'), nls.localize('neverBoolean', 'Triggers Code Actions only when explicitly saved. This value will be deprecated in favor of "never".')],
 			},
 			default: {}
 		},
@@ -1014,8 +1025,28 @@ configurationRegistry.registerConfiguration({
 			markdownDescription: nls.localize('notebook.remoteSaving', "Enables the incremental saving of notebooks in Remote environment. When enabled, only the changes to the notebook are sent to the extension host, improving performance for large notebooks and slow network connections."),
 			type: 'boolean',
 			default: typeof product.quality === 'string' && product.quality !== 'stable' // only enable as default in insiders
+		},
+		[NotebookSetting.scrollToRevealCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.revealNextCellOnExecute.description', "How far to scroll when revealing the next cell upon running {0}.", 'notebook.cell.executeAndSelectBelow'),
+			type: 'string',
+			enum: ['fullCell', 'firstLine', 'none'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.fullCell.description', 'Scroll to fully reveal the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.firstLine.description', 'Scroll to reveal the first line of the next cell.'),
+				nls.localize('notebook.scrolling.revealNextCellOnExecute.none.description', 'Do not scroll.'),
+			],
+			default: 'fullCell'
+		},
+		[NotebookSetting.anchorToFocusedCell]: {
+			markdownDescription: nls.localize('notebook.scrolling.anchorToFocusedCell.description', "Experimental. Keep the focused cell steady while surrounding cells change size."),
+			type: 'string',
+			enum: ['auto', 'on', 'off'],
+			markdownEnumDescriptions: [
+				nls.localize('notebook.scrolling.anchorToFocusedCell.auto.description', "Anchor the viewport to the focused cell depending on context unless {0} is set to {1}.", 'notebook.scrolling.revealCellBehavior', 'none'),
+				nls.localize('notebook.scrolling.anchorToFocusedCell.on.description', "Always anchor the viewport to the focused cell."),
+				nls.localize('notebook.scrolling.anchorToFocusedCell.off.description', "The focused cell may shift around as cells resize.")
+			],
+			default: 'auto'
 		}
 	}
 });
-
-

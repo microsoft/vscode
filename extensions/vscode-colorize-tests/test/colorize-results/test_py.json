@@ -1907,14 +1907,14 @@
 		"c": "reduce",
 		"t": "source.python meta.function-call.python variable.legacy.builtin.python",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "variable.legacy.builtin.python: #D4D4D4",
+			"light_plus": "variable.legacy.builtin.python: #000000",
+			"dark_vs": "variable.legacy.builtin.python: #D4D4D4",
+			"light_vs": "variable.legacy.builtin.python: #000000",
+			"hc_black": "variable.legacy.builtin.python: #FFFFFF",
+			"dark_modern": "variable.legacy.builtin.python: #D4D4D4",
+			"hc_light": "variable.legacy.builtin.python: #292929",
+			"light_modern": "variable.legacy.builtin.python: #000000"
 		}
 	},
 	{
@@ -6233,14 +6233,14 @@
 		"c": "raw_input",
 		"t": "source.python meta.function-call.python variable.legacy.builtin.python",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE",
-			"dark_modern": "variable: #9CDCFE",
-			"hc_light": "variable: #001080",
-			"light_modern": "variable: #001080"
+			"dark_plus": "variable.legacy.builtin.python: #D4D4D4",
+			"light_plus": "variable.legacy.builtin.python: #000000",
+			"dark_vs": "variable.legacy.builtin.python: #D4D4D4",
+			"light_vs": "variable.legacy.builtin.python: #000000",
+			"hc_black": "variable.legacy.builtin.python: #FFFFFF",
+			"dark_modern": "variable.legacy.builtin.python: #D4D4D4",
+			"hc_light": "variable.legacy.builtin.python: #292929",
+			"light_modern": "variable.legacy.builtin.python: #000000"
 		}
 	},
 	{

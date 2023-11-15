@@ -5,7 +5,7 @@
 
 // Importing types is safe in any layer
 // eslint-disable-next-line local/code-import-patterns
-import type { ITerminalAddon } from 'xterm-headless';
+import type { ITerminalAddon } from '@xterm/headless';
 import { Emitter, Event } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ITerminalCapabilityStore, ITerminalCommand, TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
@@ -16,7 +16,7 @@ import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { DecorationSelector, updateLayout } from 'vs/workbench/contrib/terminal/browser/xterm/decorationStyles';
-import type { IDecoration, Terminal } from 'xterm';
+import type { IDecoration, Terminal } from '@xterm/xterm';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -36,9 +36,8 @@ import { Codicon } from 'vs/base/common/codicons';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
-const quickFixSelectors = [
+const quickFixClasses = [
 	DecorationSelector.QuickFix,
-	DecorationSelector.LightBulb,
 	DecorationSelector.Codicon,
 	DecorationSelector.CommandDecoration,
 	DecorationSelector.XtermDecoration
@@ -90,7 +89,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (commandDetectionCapability) {
 			this._registerCommandHandlers();
 		} else {
-			this._register(this._capabilities.onDidAddCapability(c => {
+			this._register(this._capabilities.onDidAddCapabilityType(c => {
 				if (c === TerminalCapability.CommandDetection) {
 					this._registerCommandHandlers();
 				}
@@ -116,7 +115,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		}
 
 		// TODO: What's documentation do? Need a vscode command?
-		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFixItem(f, f.type, f.source, f.label));
+		const actions = this._currentRenderContext.quickFixes.map(f => new TerminalQuickFixItem(f, f.type, f.source, f.label, f.kind));
 		const documentation = this._currentRenderContext.quickFixes.map(f => { return { id: f.source, title: f.label, tooltip: f.source }; });
 		const actionSet = {
 			// TODO: Documentation and actions are separate?
@@ -150,7 +149,8 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 			type: 'unresolved',
 			commandLineMatcher: selector.commandLineMatcher,
 			outputMatcher: selector.outputMatcher,
-			commandExitResult: selector.commandExitResult
+			commandExitResult: selector.commandExitResult,
+			kind: selector.kind
 		});
 		this._registeredSelectors.add(selector.id);
 		this._commandListeners.set(matcherKey, currentOptions);
@@ -186,13 +186,29 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 		if (command.command !== '' && this._lastQuickFixId) {
 			this._disposeQuickFix(this._lastQuickFixId, false);
 		}
+
+
+		// Wait for the next command to start to ensure the quick fix marker is created on the next
+		// prompt line
+		const commandDetection = this._capabilities.get(TerminalCapability.CommandDetection);
+		if (commandDetection) {
+			await Event.toPromise(commandDetection.onCommandStarted);
+		}
+
 		const resolver = async (selector: ITerminalQuickFixOptions, lines?: string[]) => {
 			if (lines === undefined) {
 				return undefined;
 			}
 			const id = selector.id;
 			await this._extensionService.activateByEvent(`onTerminalQuickFixRequest:${id}`);
-			return this._quickFixService.providers.get(id)?.provideTerminalQuickFixes(command, lines, { type: 'resolved', commandLineMatcher: selector.commandLineMatcher, outputMatcher: selector.outputMatcher, commandExitResult: selector.commandExitResult, id: selector.id }, new CancellationTokenSource().token);
+			return this._quickFixService.providers.get(id)?.provideTerminalQuickFixes(command, lines, {
+				type: 'resolved',
+				commandLineMatcher: selector.commandLineMatcher,
+				outputMatcher: selector.outputMatcher,
+				commandExitResult: selector.commandExitResult,
+				kind: selector.kind,
+				id: selector.id
+			}, new CancellationTokenSource().token);
 		};
 		const result = await getQuickFixesForCommand(aliases, terminal, command, this._commandListeners, this._commandService, this._openerService, this._labelService, this._onDidRequestRerunCommand, resolver);
 		if (!result) {
@@ -266,11 +282,17 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 				return;
 			}
 
-			e.classList.add(...quickFixSelectors);
+			e.classList.add(...quickFixClasses);
+			const isExplainOnly = fixes.every(e => e.kind === 'explain');
+			if (isExplainOnly) {
+				e.classList.add('explainOnly');
+			}
+			e.classList.add(...ThemeIcon.asClassNameArray(isExplainOnly ? Codicon.sparkle : Codicon.lightBulb));
+
 			updateLayout(this._configurationService, e);
 			this._audioCueService.playAudioCue(AudioCue.terminalQuickFix);
 
-			const parentElement = e.parentElement?.parentElement?.parentElement?.parentElement;
+			const parentElement = (e.closest('.xterm') as HTMLElement).parentElement;
 			if (!parentElement) {
 				return;
 			}
@@ -285,6 +307,7 @@ export class TerminalQuickFixAddon extends Disposable implements ITerminalAddon,
 
 export interface ITerminalAction extends IAction {
 	type: TerminalQuickFixType;
+	kind?: 'fix' | 'explain';
 	source: string;
 	uri?: URI;
 	command?: string;
@@ -351,6 +374,7 @@ export async function getQuickFixesForCommand(
 								const label = localize('quickFix.command', 'Run: {0}', fix.terminalCommand);
 								action = {
 									type: TerminalQuickFixType.TerminalCommand,
+									kind: option.kind,
 									class: undefined,
 									source: quickFix.source,
 									id: quickFix.id,
@@ -384,6 +408,7 @@ export async function getQuickFixesForCommand(
 									id: quickFix.id,
 									label,
 									type: TerminalQuickFixType.Opener,
+									kind: option.kind,
 									class: undefined,
 									enabled: true,
 									run: () => openerService.open(fix.uri),
@@ -397,6 +422,7 @@ export async function getQuickFixesForCommand(
 								action = {
 									source: 'builtin',
 									type: fix.type,
+									kind: option.kind,
 									id: fix.id,
 									label: fix.label,
 									class: fix.class,
@@ -413,6 +439,7 @@ export async function getQuickFixesForCommand(
 								action = {
 									source: quickFix.source,
 									type: fix.type,
+									kind: option.kind,
 									id: fix.id,
 									label: fix.title,
 									class: undefined,
@@ -441,22 +468,20 @@ function convertToQuickFixOptions(selectorProvider: ITerminalQuickFixProviderSel
 		commandLineMatcher: selectorProvider.selector.commandLineMatcher,
 		outputMatcher: selectorProvider.selector.outputMatcher,
 		commandExitResult: selectorProvider.selector.commandExitResult,
+		kind: selectorProvider.selector.kind,
 		getQuickFixes: selectorProvider.provider.provideTerminalQuickFixes
 	};
 }
 
 class TerminalQuickFixItem {
-	action: ITerminalAction;
-	type: TerminalQuickFixType;
-	disabled?: boolean;
-	title?: string;
-	source: string;
-	constructor(action: ITerminalAction, type: TerminalQuickFixType, source: string, title?: string, disabled?: boolean) {
-		this.action = action;
-		this.disabled = disabled;
-		this.title = title;
-		this.source = source;
-		this.type = type;
+	readonly disabled = false;
+	constructor(
+		readonly action: ITerminalAction,
+		readonly type: TerminalQuickFixType,
+		readonly source: string,
+		readonly title: string | undefined,
+		readonly kind: 'fix' | 'explain' = 'fix'
+	) {
 	}
 }
 
@@ -488,6 +513,9 @@ function toActionWidgetItems(inputQuickFixes: readonly TerminalQuickFixItem[], s
 }
 
 function getQuickFixIcon(quickFix: TerminalQuickFixItem): ThemeIcon {
+	if (quickFix.kind === 'explain') {
+		return Codicon.sparkle;
+	}
 	switch (quickFix.type) {
 		case TerminalQuickFixType.Opener:
 			if ('uri' in quickFix.action && quickFix.action.uri) {

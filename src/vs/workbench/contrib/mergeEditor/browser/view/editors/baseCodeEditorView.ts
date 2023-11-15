@@ -71,8 +71,7 @@ export class BaseCodeEditorView extends CodeEditorView {
 		this._register(applyObservableDecorations(this.editor, this.decorations));
 	}
 
-	private readonly decorations = derived(reader => {
-		/** @description base.decorations */
+	private readonly decorations = derived(this, reader => {
 		const viewModel = this.viewModel.read(reader);
 		if (!viewModel) {
 			return [];

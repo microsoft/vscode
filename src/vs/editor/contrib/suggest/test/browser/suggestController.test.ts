@@ -32,6 +32,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { LanguageFeaturesService } from 'vs/editor/common/services/languageFeaturesService';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { DeleteLinesAction } from 'vs/editor/contrib/linesOperations/browser/linesOperations';
 
 suite('SuggestController', function () {
 
@@ -42,10 +43,12 @@ suite('SuggestController', function () {
 	let model: TextModel;
 	const languageFeaturesService = new LanguageFeaturesService();
 
-
 	teardown(function () {
+
 		disposables.clear();
 	});
+
+	// ensureNoDisposablesAreLeakedInTestSuite();
 
 	setup(function () {
 
@@ -53,7 +56,7 @@ suite('SuggestController', function () {
 			[ILanguageFeaturesService, languageFeaturesService],
 			[ITelemetryService, NullTelemetryService],
 			[ILogService, new NullLogService()],
-			[IStorageService, new InMemoryStorageService()],
+			[IStorageService, disposables.add(new InMemoryStorageService())],
 			[IKeybindingService, new MockKeybindingService()],
 			[IEditorWorkerService, new class extends mock<IEditorWorkerService>() {
 				override computeWordRanges() {
@@ -578,5 +581,39 @@ suite('SuggestController', function () {
 
 		controller.acceptSelectedSuggestion(false, false);
 		assert.strictEqual(editor.getValue(), 'for');
+	});
+
+	test.skip('Suggest widget gets orphaned in editor #187779', async function () {
+
+		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
+			_debugDisplayName: 'test',
+			provideCompletionItems(doc, pos) {
+
+				const word = doc.getLineContent(pos.lineNumber);
+				const range = new Range(pos.lineNumber, 1, pos.lineNumber, pos.column);
+
+				return {
+					suggestions: [{
+						kind: CompletionItemKind.Text,
+						label: word,
+						insertText: word,
+						range
+					}]
+				};
+			}
+		}));
+
+		editor.setValue(`console.log(example.)\nconsole.log(EXAMPLE.not)`);
+		editor.setSelection(new Selection(1, 21, 1, 21));
+
+		const p1 = Event.toPromise(controller.model.onDidSuggest);
+		controller.triggerSuggest();
+
+		await p1;
+
+		const p2 = Event.toPromise(controller.model.onDidCancel);
+		new DeleteLinesAction().run(null!, editor);
+
+		await p2;
 	});
 });

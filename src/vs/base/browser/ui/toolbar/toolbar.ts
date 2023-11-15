@@ -52,7 +52,7 @@ export class ToolBar extends Disposable {
 
 	private _onDidChangeDropdownVisibility = this._register(new EventMultiplexer<boolean>());
 	readonly onDidChangeDropdownVisibility = this._onDidChangeDropdownVisibility.event;
-	private disposables = new DisposableStore();
+	private disposables = this._register(new DisposableStore());
 
 	constructor(container: HTMLElement, contextMenuProvider: IContextMenuProvider, options: IToolBarOptions = { orientation: ActionsOrientation.HORIZONTAL }) {
 		super();
@@ -85,7 +85,8 @@ export class ToolBar extends Disposable {
 							classNames: ThemeIcon.asClassNameArray(options.moreIcon ?? Codicon.toolBarMore),
 							anchorAlignmentProvider: this.options.anchorAlignmentProvider,
 							menuAsChild: !!this.options.renderDropdownAsChildElement,
-							skipTelemetry: this.options.skipTelemetry
+							skipTelemetry: this.options.skipTelemetry,
+							isMenu: true
 						}
 					);
 					this.toggleMenuActionViewItem.setActionContext(this.actionBar.context);
@@ -212,6 +213,7 @@ export class ToolBar extends Disposable {
 
 	override dispose(): void {
 		this.clear();
+		this.disposables.dispose();
 		super.dispose();
 	}
 }

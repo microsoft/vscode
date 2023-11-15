@@ -15,13 +15,14 @@ import { IRange, Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { IWordAtPosition } from 'vs/editor/common/core/wordHelper';
 import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/editor/common/cursorEvents';
-import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/smartLinesDiffComputer';
+import { IDiffComputationResult, ILineChange } from 'vs/editor/common/diff/legacyLinesDiffComputer';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { GlyphMarginLane, ICursorStateComputer, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration, ITextModel, PositionAffinity } from 'vs/editor/common/model';
 import { InjectedText } from 'vs/editor/common/modelLineProjectionData';
 import { IModelContentChangedEvent, IModelDecorationsChangedEvent, IModelLanguageChangedEvent, IModelLanguageConfigurationChangedEvent, IModelOptionsChangedEvent, IModelTokensChangedEvent } from 'vs/editor/common/textModelEvents';
 import { IEditorWhitespace, IViewModel } from 'vs/editor/common/viewModel';
 import { OverviewRulerZone } from 'vs/editor/common/viewModel/overviewZoneManager';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 
 /**
@@ -538,6 +539,11 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	readonly isSimpleWidget: boolean;
 	/**
+	 * The editor's scoped context key service.
+	 * @internal
+	 */
+	readonly contextKeyService: IContextKeyService;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -957,7 +963,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get the vertical position (top offset) for the line's top w.r.t. to the first line.
 	 */
-	getTopForLineNumber(lineNumber: number): number;
+	getTopForLineNumber(lineNumber: number, includeViewZones?: boolean): number;
 
 	/**
 	 * Get the vertical position (top offset) for the line's bottom w.r.t. to the first line.
@@ -1270,6 +1276,8 @@ export interface IDiffEditor extends editorCommon.IEditor {
 	accessibleDiffViewerNext(): void;
 
 	accessibleDiffViewerPrev(): void;
+
+	handleInitialized(): void;
 }
 
 /**

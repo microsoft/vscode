@@ -5,8 +5,8 @@
 
 import * as assert from 'assert';
 import { VSBuffer } from 'vs/base/common/buffer';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { dirname, joinPath } from 'vs/base/common/resources';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUserDataProfilesService } from 'vs/platform/userDataProfile/common/userDataProfile';
@@ -15,9 +15,7 @@ import { UserDataSyncClient, UserDataSyncTestServer } from 'vs/platform/userData
 
 suite('UserDataSyncService', () => {
 
-	const disposableStore = new DisposableStore();
-
-	teardown(() => disposableStore.clear());
+	const disposableStore = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('test first time sync ever', async () => {
 		// Setup the client

@@ -23,16 +23,6 @@
 		window.alert = function () { throw new Error('window.alert() is not supported in tests!'); }
 		window.confirm = function () { throw new Error('window.confirm() is not supported in tests!'); }
 
-		// Ignore uncaught cancelled promise errors
-		window.addEventListener('unhandledrejection', e => {
-			const name = e && e.reason && e.reason.name;
-
-			if (name === 'Canceled') {
-				e.preventDefault();
-				e.stopPropagation();
-			}
-		});
-
 		mocha.setup({
 			ui: 'tdd',
 			timeout: typeof process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] === 'string' ? 30000 : 5000,

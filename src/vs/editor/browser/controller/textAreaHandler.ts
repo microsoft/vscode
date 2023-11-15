@@ -188,8 +188,7 @@ export class TextAreaHandler extends ViewPart {
 		this.textArea.setAttribute('role', 'textbox');
 		this.textArea.setAttribute('aria-roledescription', nls.localize('editor', "editor"));
 		this.textArea.setAttribute('aria-multiline', 'true');
-		this.textArea.setAttribute('aria-haspopup', 'false');
-		this.textArea.setAttribute('aria-autocomplete', 'both');
+		this.textArea.setAttribute('aria-autocomplete', options.get(EditorOption.readOnly) ? 'none' : 'both');
 
 		this._ensureReadOnlyAttribute();
 
@@ -392,7 +391,7 @@ export class TextAreaHandler extends ViewPart {
 				const distanceToModelLineStart = startModelPosition.column - 1 - visibleBeforeCharCount;
 				const hiddenLineTextBefore = lineTextBeforeSelection.substring(0, lineTextBeforeSelection.length - visibleBeforeCharCount);
 				const { tabSize } = this._context.viewModel.model.getOptions();
-				const widthOfHiddenTextBefore = measureText(hiddenLineTextBefore, this._fontInfo, tabSize);
+				const widthOfHiddenTextBefore = measureText(this.textArea.domNode.ownerDocument, hiddenLineTextBefore, this._fontInfo, tabSize);
 
 				return { distanceToModelLineStart, widthOfHiddenTextBefore };
 			})();
@@ -819,7 +818,7 @@ export class TextAreaHandler extends ViewPart {
 
 		// The primary cursor is in the viewport (at least vertically) => place textarea on the cursor
 
-		if (platform.isMacintosh) {
+		if (platform.isMacintosh || this._accessibilitySupport === AccessibilitySupport.Enabled) {
 			// For the popup emoji input, we will make the text area as high as the line height
 			// We will also make the fontSize and lineHeight the correct dimensions to help with the placement of these pickers
 			this._doRender({
@@ -928,28 +927,28 @@ interface IRenderData {
 	strikethrough?: boolean;
 }
 
-function measureText(text: string, fontInfo: FontInfo, tabSize: number): number {
+function measureText(targetDocument: Document, text: string, fontInfo: FontInfo, tabSize: number): number {
 	if (text.length === 0) {
 		return 0;
 	}
 
-	const container = document.createElement('div');
+	const container = targetDocument.createElement('div');
 	container.style.position = 'absolute';
 	container.style.top = '-50000px';
 	container.style.width = '50000px';
 
-	const regularDomNode = document.createElement('span');
+	const regularDomNode = targetDocument.createElement('span');
 	applyFontInfo(regularDomNode, fontInfo);
 	regularDomNode.style.whiteSpace = 'pre'; // just like the textarea
 	regularDomNode.style.tabSize = `${tabSize * fontInfo.spaceWidth}px`; // just like the textarea
 	regularDomNode.append(text);
 	container.appendChild(regularDomNode);
 
-	document.body.appendChild(container);
+	targetDocument.body.appendChild(container);
 
 	const res = regularDomNode.offsetWidth;
 
-	document.body.removeChild(container);
+	targetDocument.body.removeChild(container);
 
 	return res;
 }

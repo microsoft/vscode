@@ -10,7 +10,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { TerminalBuiltinLinkType } from 'vs/workbench/contrib/terminalContrib/links/browser/links';
 import { assertLinkHelper } from 'vs/workbench/contrib/terminalContrib/links/test/browser/linkTestUtils';
-import type { Terminal } from 'xterm';
+import type { Terminal } from '@xterm/xterm';
 import { timeout } from 'vs/base/common/async';
 import { strictEqual } from 'assert';
 import { TerminalLinkResolver } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalLinkResolver';
@@ -21,6 +21,7 @@ import { NullLogService } from 'vs/platform/log/common/log';
 import { ITerminalLogService } from 'vs/platform/terminal/common/terminal';
 import { TerminalMultiLineLinkDetector } from 'vs/workbench/contrib/terminalContrib/links/browser/terminalMultiLineLinkDetector';
 import { importAMDNodeModule } from 'vs/amdX';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 const unixLinks: (string | { link: string; resource: URI })[] = [
 	// Absolute
@@ -100,6 +101,8 @@ const supportedLinkFormats: LinkFormatInfo[] = [
 ];
 
 suite('Workbench - TerminalMultiLineLinkDetector', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
 	let instantiationService: TestInstantiationService;
 	let configurationService: TestConfigurationService;
 	let detector: TerminalMultiLineLinkDetector;
@@ -112,11 +115,13 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		text: string,
 		expected: ({ uri: URI; range: [number, number][] })[]
 	) {
+		let to;
 		const race = await Promise.race([
 			assertLinkHelper(text, expected, detector, type).then(() => 'success'),
-			timeout(2).then(() => 'timeout')
+			(to = timeout(2)).then(() => 'timeout')
 		]);
 		strictEqual(race, 'success', `Awaiting link assertion for "${text}" timed out`);
+		to.cancel();
 	}
 
 	async function assertLinksMain(link: string, resource?: URI) {
@@ -132,7 +137,7 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 	}
 
 	setup(async () => {
-		instantiationService = new TestInstantiationService();
+		instantiationService = store.add(new TestInstantiationService());
 		configurationService = new TestConfigurationService();
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, {
@@ -147,12 +152,8 @@ suite('Workbench - TerminalMultiLineLinkDetector', () => {
 		resolver = instantiationService.createInstance(TerminalLinkResolver);
 		validResources = [];
 
-		const TerminalCtor = (await importAMDNodeModule<typeof import('xterm')>('xterm', 'lib/xterm.js')).Terminal;
+		const TerminalCtor = (await importAMDNodeModule<typeof import('@xterm/xterm')>('@xterm/xterm', 'lib/xterm.js')).Terminal;
 		xterm = new TerminalCtor({ allowProposedApi: true, cols: 80, rows: 30 });
-	});
-
-	teardown(() => {
-		instantiationService.dispose();
 	});
 
 	suite('macOS/Linux', () => {
