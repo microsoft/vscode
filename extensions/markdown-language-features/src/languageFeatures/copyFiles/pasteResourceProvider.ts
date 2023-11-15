@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { Mime, mediaMimes } from '../../util/mimes';
 import { Schemes } from '../../util/schemes';
 import { PasteUrlAsFormattedLink, createEditAddingLinksForUriList, createEditForMediaFiles, getPasteUrlAsFormattedLinkSetting } from './shared';
+import { getParentDocumentUri } from '../../util/document';
 
 class PasteResourceEditProvider implements vscode.DocumentPasteEditProvider {
 
@@ -64,7 +65,7 @@ class PasteResourceEditProvider implements vscode.DocumentPasteEditProvider {
 	}
 
 	private async _getMediaFilesEdit(document: vscode.TextDocument, dataTransfer: vscode.DataTransfer, token: vscode.CancellationToken): Promise<vscode.DocumentPasteEdit | undefined> {
-		if (document.uri.scheme === Schemes.untitled) {
+		if (getParentDocumentUri(document.uri).scheme === Schemes.untitled) {
 			return;
 		}
 
