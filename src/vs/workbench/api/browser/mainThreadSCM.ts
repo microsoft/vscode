@@ -15,7 +15,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryGroupWithDetails, ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupDetails, ISCMHistoryItemGroupEntry, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
@@ -171,7 +171,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
 
-	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<{ incoming?: ISCMHistoryGroupWithDetails; outgoing: ISCMHistoryGroupWithDetails } | undefined> {
+	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
 		// History item group base
 		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
 
@@ -180,7 +180,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 			await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id) : undefined;
 
 		// Incoming
-		let incoming: ISCMHistoryGroupWithDetails | undefined;
+		let incoming: ISCMHistoryItemGroupEntry | undefined;
 		if (historyItemGroupBase) {
 			incoming = {
 				id: historyItemGroupBase.id,
@@ -192,7 +192,7 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 		}
 
 		// Outgoing
-		const outgoing: ISCMHistoryGroupWithDetails = {
+		const outgoing: ISCMHistoryItemGroupEntry = {
 			id: historyItemGroup.id,
 			label: `$(cloud-upload) ${historyItemGroup.label}`,
 			// description: localize('outgoing', "Outgoing Changes"),
