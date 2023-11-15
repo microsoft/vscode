@@ -198,8 +198,10 @@ class ESRPClient {
 		version: string,
 		filePath: string
 	): Promise<Release> {
-		this.log(`Submitting release for ${version}: ${filePath}`);
-		const submitReleaseResult = await ESRPClient.Sequencer.queue(() => this.SubmitRelease(version, filePath));
+		const submitReleaseResult = await ESRPClient.Sequencer.queue(async () => {
+			this.log(`Submitting release for ${version}: ${filePath}`);
+			return await this.SubmitRelease(version, filePath);
+		});
 
 		if (submitReleaseResult.submissionResponse.statusCode !== 'pass') {
 			throw new Error(`Unexpected status code: ${submitReleaseResult.submissionResponse.statusCode}`);
@@ -646,11 +648,11 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 		if (await retry(() => blobClient.exists())) {
 			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		} else {
-			await retry(async (attempt) => {
+			await retry(attempt => azureSequencer.queue(async () => {
 				log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
-				await azureSequencer.queue(() => blobClient.uploadFile(filePath, blobOptions));
+				await blobClient.uploadFile(filePath, blobOptions);
 				log('Blob successfully uploaded to Azure storage.');
-			});
+			}));
 		}
 	})());
 
@@ -668,11 +670,11 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 			if (await retry(() => mooncakeBlobClient.exists())) {
 				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
 			} else {
-				await retry(async (attempt) => {
+				await retry(attempt => mooncakeSequencer.queue(async () => {
 					log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
-					await mooncakeSequencer.queue(() => mooncakeBlobClient.uploadFile(filePath, blobOptions));
+					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
 					log('Blob successfully uploaded to Mooncake Azure storage.');
-				});
+				}));
 			}
 		})());
 	}
@@ -711,10 +713,11 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 	const log = (...args: any[]) => console.log(`[${product} ${os} ${arch} ${unprocessedType}]`, ...args);
 
 	const filePath = await retry(async attempt => {
-		log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
-
 		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-		await downloadSequencer.queue(() => downloadArtifact(artifact, artifactZipPath));
+		await downloadSequencer.queue(async () => {
+			log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
+			await downloadArtifact(artifact, artifactZipPath);
+		});
 
 		log(`Extracting (attempt ${attempt}) ...`);
 		const filePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
