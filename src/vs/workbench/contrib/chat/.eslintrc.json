@@ -1,0 +1,8 @@
+{
+	"parserOptions": {
+		"project": "src/tsconfig.json"
+	},
+	"rules": {
+		"@typescript-eslint/no-base-to-string": "warn"
+	}
+}

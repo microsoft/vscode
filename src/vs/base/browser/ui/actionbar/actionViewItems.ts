@@ -419,7 +419,7 @@ export class ActionViewItem extends BaseActionViewItem {
 				this.label.setAttribute('role', 'checkbox');
 			} else {
 				this.label.classList.remove('checked');
-				this.label.setAttribute('aria-checked', '');
+				this.label.removeAttribute('aria-checked');
 				this.label.setAttribute('role', this.getDefaultAriaRole());
 			}
 		}

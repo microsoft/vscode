@@ -6,12 +6,14 @@
 import * as DOM from 'vs/base/browser/dom';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { MultiDiffEditorWidget } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidget';
+import { IResourceLabel, IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
@@ -31,7 +33,11 @@ export class MultiDiffEditor extends EditorPane {
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(MultiDiffEditorWidget, parent));
+		this._multiDiffEditorWidget = this._register(this.instantiationService.createInstance(
+			MultiDiffEditorWidget,
+			parent,
+			this.instantiationService.createInstance(WorkbenchUIElementFactory),
+		));
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -40,7 +46,30 @@ export class MultiDiffEditor extends EditorPane {
 		this._multiDiffEditorWidget?.setModel(vm);
 	}
 
+	override async clearInput(): Promise<void> {
+		await super.clearInput();
+		this._multiDiffEditorWidget?.setModel(undefined);
+	}
+
 	layout(dimension: DOM.Dimension): void {
 		this._multiDiffEditorWidget?.layout(dimension);
+	}
+}
+
+class WorkbenchUIElementFactory implements IWorkbenchUIElementFactory {
+	constructor(
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) { }
+
+	createResourceLabel(element: HTMLElement): IResourceLabel {
+		const label = this._instantiationService.createInstance(ResourceLabel, element, {});
+		return {
+			setUri(uri) {
+				label.element.setFile(uri, {});
+			},
+			dispose() {
+				label.dispose();
+			}
+		};
 	}
 }

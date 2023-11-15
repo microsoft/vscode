@@ -167,7 +167,6 @@
 	],
 
 	// Temporarily enabled for self-hosting
-	"terminal.integrated.enableStickyScroll": true,
 	"terminal.integrated.stickyScroll.enabled": true,
 
 	// Temporarily enabled for self-hosting

@@ -1434,11 +1434,16 @@ export class Repository {
 		return result;
 	}
 
-	async getMergeBase(ref1: string, ref2: string): Promise<string> {
-		const args = ['merge-base', ref1, ref2];
-		const result = await this.exec(args);
+	async getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
+		try {
+			const args = ['merge-base', ref1, ref2];
+			const result = await this.exec(args);
 
-		return result.stdout.trim();
+			return result.stdout.trim();
+		}
+		catch (err) {
+			return undefined;
+		}
 	}
 
 	async hashObject(data: string): Promise<string> {
