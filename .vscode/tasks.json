@@ -29,18 +29,6 @@
 				}
 			}
 		},
-				{
-			"label": "go mod tidy",
-			"type": "shell",
-			"command": "echo hi",
-			"group": "build",
-			"presentation": {
-				"reveal": "always",
-				"panel": "new",
-				"focus": true,
-				"echo": true
-			},
-		},
 		{
 			"type": "npm",
 			"script": "watch-extensionsd",
