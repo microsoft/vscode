@@ -118,7 +118,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IUserDataInitializationService private readonly userDataInitializationService: IUserDataInitializationService,
 		@ILanguageService languageService: ILanguageService
 	) {
-		this.container = layoutService.container;
+		this.container = layoutService.mainContainer;
 		this.settings = new ThemeConfiguration(configurationService);
 
 		this.colorThemeRegistry = new ThemeRegistry(colorThemesExtPoint, ColorThemeData.fromExtensionTheme);
