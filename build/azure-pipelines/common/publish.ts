@@ -763,7 +763,7 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 	]);
 
 	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
-	log('Creating asset:', JSON.stringify(asset, null, '  '));
+	log('Creating asset...', JSON.stringify(asset));
 
 	await retry(async (attempt) => {
 		await cosmosSequencer.queue(async () => {
@@ -783,7 +783,7 @@ async function main() {
 	const processing = new Set<string>();
 
 	for (const name of done) {
-		console.log(`Already processed artifact: ${name}`);
+		console.log(`\u2705 ${name}`);
 	}
 
 	const stages = new Set<string>();
@@ -793,14 +793,18 @@ async function main() {
 	if (e('VSCODE_BUILD_STAGE_MACOS') === 'True') { stages.add('macOS'); }
 	if (e('VSCODE_BUILD_STAGE_WEB') === 'True') { stages.add('Web'); }
 
-	const publishPromises: Promise<void>[] = [];
+	const operations: { name: string; operation: Promise<void> }[] = [];
 
 	while (true) {
 		console.log('Checking for stages & artifacts...');
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
-		console.log('Stages missing:', [...stages].filter(s => !stagesCompleted.has(s)).join(', '));
+		const stagesMissing = [...stages].filter(s => !stagesCompleted.has(s));
+
+		if (stagesMissing.length > 0) {
+			console.log('Stages missing:', stagesMissing.join(', '));
+		}
 
 		if (stagesCompleted.size === stages.size && artifacts.length === done.size + processing.size) {
 			break;
@@ -813,31 +817,31 @@ async function main() {
 
 			console.log(`Found new artifact: ${artifact.name}`);
 			processing.add(artifact.name);
+			const operation = processArtifact(artifact).then(() => {
+				processing.delete(artifact.name);
+				done.add(artifact.name);
+				console.log(`\u2705 ${artifact.name}`);
+			});
 
-			publishPromises.push(
-				processArtifact(artifact).then(() => {
-					processing.delete(artifact.name);
-					done.add(artifact.name);
-				})
-			);
+			operations.push({ name: artifact.name, operation });
 		}
 
-		console.log('Waiting 10 seconds...');
 		await new Promise(c => setTimeout(c, 10_000));
-		console.log('Waited 10 seconds...');
 	}
 
-	console.log(`Waiting for all ${processing.size}/${done.size + processing.size} artifacts to be published...`);
+	console.log(`Found all ${done.size + processing.size} artifacts, waiting for ${processing.size} artifacts to finish publishing...`);
 
-	const results = await Promise.allSettled(publishPromises);
-	const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
+	const results = await Promise.allSettled(operations.map(o => o.operation));
 
-	if (rejected.length > 0) {
-		for (const result of rejected) {
-			console.error('***');
-			console.error(result.reason);
+	for (let i = 0; i < operations.length; i++) {
+		const result = results[i];
+
+		if (result.status === 'rejected') {
+			console.error(`[${operations[i].name}]`, result.reason);
 		}
+	}
 
+	if (results.some(r => r.status === 'rejected')) {
 		throw new Error('Some artifacts failed to publish');
 	}
 
