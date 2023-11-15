@@ -7,8 +7,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import fetch, { RequestInit } from 'node-fetch';
 import { Readable } from 'stream';
-import { pipeline } from 'node:stream';
-import { promisify } from 'node:util';
+import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
 import * as crypto from 'crypto';
 import { retry } from './retry';
@@ -454,14 +453,19 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 	await retry(async attempt => {
 		console.log(`[downloadArtifact] [${artifact.name}] Downloading (attempt ${attempt})...`);
 
-		const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 5 * 60 * 1000 });
+		const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 10_000 });
 
 		if (!res.ok) {
 			throw new Error(`Unexpected status code: ${res.status}`);
 		}
 
 		console.log(`[downloadArtifact] [${artifact.name}] ${res.status} ${res.statusText}`);
-		await promisify(pipeline)(res.body, fs.createWriteStream(downloadPath));
+
+		await Promise.race([
+			pipeline(res.body, fs.createWriteStream(downloadPath)),
+			new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5 * 60 * 1000))
+		]);
+
 		console.log(`[downloadArtifact] [${artifact.name}] Completed`);
 	});
 }
