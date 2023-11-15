@@ -812,8 +812,8 @@ async function main() {
 			break;
 		}
 
-		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
-		console.log(`Artifacts processed: ${done.size}/${artifacts.length}`);
+		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}. Missing: ${Array.from(stages).filter(s => !stagesCompleted.has(s)).join(', ')}}`);
+		console.log(`Artifacts processed: ${done.size}/${artifacts.length}. Missing: ${artifacts.filter(a => !done.has(a.name)).map(a => a.name).join(', ')}}`);
 
 		await new Promise(c => setTimeout(c, 10_000));
 	}
