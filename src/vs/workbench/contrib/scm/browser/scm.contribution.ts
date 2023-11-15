@@ -298,29 +298,32 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			markdownDescription: localize('showActionButton', "Controls whether an action button can be shown in the Source Control view."),
 			default: true
 		},
+		'scm.showIncomingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showIncomingChanges.always', "Always show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.never', "Never show incoming changes in the Source Control view."),
+				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
+			default: 'never'
+		},
+		'scm.showOutgoingChanges': {
+			type: 'string',
+			enum: ['always', 'never', 'auto'],
+			enumDescriptions: [
+				localize('scm.showOutgoingChanges.always', "Always show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.never', "Never show outgoing changes in the Source Control view."),
+				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
+			],
+			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
+			default: 'never'
+		},
 		'scm.experimental.showSyncView': {
 			type: 'boolean',
 			description: localize('showSyncView', "Controls whether the Source Control Sync view is shown."),
 			default: false
-		},
-		'scm.experimental.showSyncInformation': {
-			type: 'object',
-			description: localize('showSyncInformation', "Controls whether incoming/outgoing changes are shown in the Source Control view."),
-			additionalProperties: false,
-			properties: {
-				'incoming': {
-					type: 'boolean',
-					description: localize('showSyncInformationIncoming', "Show incoming changes in the Source Control view."),
-				},
-				'outgoing': {
-					type: 'boolean',
-					description: localize('showSyncInformationOutgoing', "Show outgoing changes in the Source Control view."),
-				},
-			},
-			default: {
-				'incoming': false,
-				'outgoing': false
-			}
 		}
 	}
 });

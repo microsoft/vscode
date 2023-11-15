@@ -117,6 +117,8 @@ type TreeElement =
 	IResourceNode<SCMHistoryItemChangeTreeElement, SCMHistoryItemTreeElement> |
 	SCMViewSeparatorElement;
 
+type ShowChangesSetting = 'always' | 'never' | 'auto';
+
 registerColor('scm.historyItemAdditionsForeground', {
 	dark: 'gitDecoration.addedResourceForeground',
 	light: 'gitDecoration.addedResourceForeground',
@@ -1023,8 +1025,6 @@ class SCMTreeFilter implements ITreeFilter<TreeElement> {
 			return true;
 		} else if (isSCMResourceGroup(element)) {
 			return element.resources.length > 0 || !element.hideWhenEmpty;
-		} else if (isSCMHistoryItemGroupTreeElement(element)) {
-			return (element.count ?? 0) > 0;
 		} else if (isSCMViewSeparator(element)) {
 			return element.repository.provider.groups.some(g => g.resources.length > 0);
 		} else {
@@ -2351,8 +2351,11 @@ export class SCMViewPane extends ViewPane {
 	private _alwaysShowRepositories = false;
 	get alwaysShowRepositories(): boolean { return this._alwaysShowRepositories; }
 
-	private _showSyncInformation: { incoming: boolean; outgoing: boolean } = { incoming: false, outgoing: false };
-	get showSyncInformation(): { incoming: boolean; outgoing: boolean } { return this._showSyncInformation; }
+	private _showIncomingChanges: ShowChangesSetting | undefined;
+	get showIncomingChanges(): ShowChangesSetting { return this._showIncomingChanges ?? 'never'; }
+
+	private _showOutgoingChanges: ShowChangesSetting | undefined;
+	get showOutgoingChanges(): ShowChangesSetting { return this._showOutgoingChanges ?? 'never'; }
 
 	private readonly items = new DisposableMap<ISCMRepository, IDisposable>();
 	private readonly visibilityDisposables = new DisposableStore();
@@ -2468,10 +2471,15 @@ export class SCMViewPane extends ViewPane {
 				await this.tree.setInput(this.scmViewService, viewState);
 
 				const onDidChangeConfiguration = (e?: IConfigurationChangeEvent) => {
-					if (!e || e.affectsConfiguration('scm.showActionButton') || e.affectsConfiguration('scm.alwaysShowRepositories') || e.affectsConfiguration('scm.experimental.showSyncInformation')) {
+					if (!e ||
+						e.affectsConfiguration('scm.showActionButton') ||
+						e.affectsConfiguration('scm.alwaysShowRepositories') ||
+						e.affectsConfiguration('scm.showIncomingChanges') ||
+						e.affectsConfiguration('scm.showOutgoingChanges')) {
 						this._showActionButton = this.configurationService.getValue<boolean>('scm.showActionButton');
 						this._alwaysShowRepositories = this.configurationService.getValue<boolean>('scm.alwaysShowRepositories');
-						this._showSyncInformation = this.configurationService.getValue<{ incoming: boolean; outgoing: boolean }>('scm.experimental.showSyncInformation');
+						this._showIncomingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showIncomingChanges');
+						this._showOutgoingChanges = this.configurationService.getValue<ShowChangesSetting>('scm.showOutgoingChanges');
 
 						if (e?.affectsConfiguration('scm.alwaysShowRepositories')) {
 							this.updateActions();
@@ -2521,7 +2529,7 @@ export class SCMViewPane extends ViewPane {
 		actionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(actionRunner);
 
-		this.treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showSyncInformation);
+		this.treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -2970,7 +2978,8 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		private readonly viewMode: () => ViewMode,
 		private readonly alwaysShowRepositories: () => boolean,
 		private readonly showActionButton: () => boolean,
-		private readonly showSyncInformation: () => { incoming: boolean; outgoing: boolean },
+		private readonly showIncomingChanges: () => ShowChangesSetting,
+		private readonly showOutgoingChanges: () => ShowChangesSetting,
 		@ISCMViewService private readonly scmViewService: ISCMViewService,
 		@IUriIdentityService private uriIdentityService: IUriIdentityService,
 	) { }
@@ -3088,7 +3097,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		const historyProvider = scmProvider.historyProvider;
 		const currentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 
-		if (!historyProvider || !currentHistoryItemGroup || (this.showSyncInformation().incoming === false && this.showSyncInformation().outgoing === false)) {
+		if (!historyProvider || !currentHistoryItemGroup || (this.showIncomingChanges() === 'never' && this.showOutgoingChanges() === 'never')) {
 			return [];
 		}
 
@@ -3105,7 +3114,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 
 		// Incoming
-		if (this.showSyncInformation().incoming && historyItemGroupDetails?.incoming) {
+		if (historyItemGroupDetails?.incoming &&
+			(this.showIncomingChanges() === 'always' ||
+				(this.showIncomingChanges() === 'auto' && (historyItemGroupDetails.incoming.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.incoming,
 				repository: element,
@@ -3114,7 +3125,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 
 		// Outgoing
-		if (this.showSyncInformation().outgoing && historyItemGroupDetails?.outgoing) {
+		if (historyItemGroupDetails?.outgoing &&
+			(this.showOutgoingChanges() === 'always' ||
+				(this.showOutgoingChanges() === 'auto' && (historyItemGroupDetails.outgoing.count ?? 0) > 0))) {
 			children.push({
 				...historyItemGroupDetails.outgoing,
 				repository: element,
