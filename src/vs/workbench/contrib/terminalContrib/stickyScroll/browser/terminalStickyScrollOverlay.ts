@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
-import type { IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
+import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
@@ -243,9 +243,12 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// or `git log` active. This is done by checking if the bottom left cell contains the :
 		// character and the cursor is immediately to its right. This improves the behavior of a
 		// common case where the top of the text being viewport would otherwise be obscured.
-		if (isPartialCommand && buffer.viewportY === buffer.baseY && buffer.cursorY === xterm.rows - 1 && buffer.cursorX === 1) {
+		if (isPartialCommand && buffer.viewportY === buffer.baseY && buffer.cursorY === xterm.rows - 1) {
 			const line = buffer.getLine(buffer.baseY + xterm.rows - 1);
-			if (line && line.getCell(0)?.getCode() === 58/*:*/) {
+			if (
+				(buffer.cursorX === 1 && lineStartsWith(line, ':')) ||
+				(buffer.cursorX === 5 && lineStartsWith(line, '(END)'))
+			) {
 				this._setVisible(false);
 				return;
 			}
@@ -412,4 +415,16 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const m = await importAMDNodeModule<typeof import('@xterm/addon-serialize')>('@xterm/addon-serialize', 'lib/addon-serialize.js');
 		return m.SerializeAddon;
 	}
+}
+
+function lineStartsWith(line: IBufferLine | undefined, text: string): boolean {
+	if (!line) {
+		return false;
+	}
+	for (let i = 0; i < text.length; i++) {
+		if (line.getCell(i)?.getChars() !== text[i]) {
+			return false;
+		}
+	}
+	return true;
 }
