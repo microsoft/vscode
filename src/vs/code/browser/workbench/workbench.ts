@@ -17,9 +17,8 @@ import { URI, UriComponents } from 'vs/base/common/uri';
 import product from 'vs/platform/product/common/product';
 import { ISecretStorageProvider } from 'vs/platform/secrets/common/secrets';
 import { isFolderToOpen, isWorkspaceToOpen } from 'vs/platform/window/common/window';
-import type { IWorkbenchConstructionOptions } from 'vs/workbench/browser/web.api';
+import type { IWorkbenchConstructionOptions, IWorkspace, IWorkspaceProvider } from 'vs/workbench/browser/web.api';
 import { AuthenticationSessionInfo } from 'vs/workbench/services/authentication/browser/authenticationService';
-import type { IWorkspace, IWorkspaceProvider } from 'vs/workbench/services/host/browser/browserHostService';
 import type { IURLCallbackProvider } from 'vs/workbench/services/url/browser/urlService';
 import { create } from 'vs/workbench/workbench.web.main';
 
@@ -197,7 +196,7 @@ export class LocalStorageSecretStorageProvider implements ISecretStorageProvider
 
 	private loadAuthSessionFromElement(): Record<string, string> {
 		let authSessionInfo: (AuthenticationSessionInfo & { scopes: string[][] }) | undefined;
-		const authSessionElement = document.getElementById('vscode-workbench-auth-session');
+		const authSessionElement = mainWindow.document.getElementById('vscode-workbench-auth-session');
 		const authSessionElementAttribute = authSessionElement ? authSessionElement.getAttribute('data-settings') : undefined;
 		if (authSessionElementAttribute) {
 			try {
@@ -565,7 +564,7 @@ function readCookie(name: string): string | undefined {
 (function () {
 
 	// Find config by checking for DOM
-	const configElement = document.getElementById('vscode-workbench-web-configuration');
+	const configElement = mainWindow.document.getElementById('vscode-workbench-web-configuration');
 	const configElementAttribute = configElement ? configElement.getAttribute('data-settings') : undefined;
 	if (!configElement || !configElementAttribute) {
 		throw new Error('Missing web configuration element');
@@ -576,7 +575,7 @@ function readCookie(name: string): string | undefined {
 		? new ServerKeyedAESCrypto(secretStorageKeyPath) : new TransparentCrypto();
 
 	// Create workbench
-	create(document.body, {
+	create(mainWindow.document.body, {
 		...config,
 		windowIndicator: config.windowIndicator ?? { label: '$(remote)', tooltip: `${product.nameShort} Web` },
 		settingsSyncOptions: config.settingsSyncOptions ? { enabled: config.settingsSyncOptions.enabled, } : undefined,

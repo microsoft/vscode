@@ -131,7 +131,6 @@ export class EditorPanes extends Disposable {
 		try {
 
 			// Assert the `EditorInputCapabilities.AuxWindowUnsupported` condition
-			// TODO@bpasero revisit this once all editors can support aux windows
 			if (getWindow(this.editorPanesParent) !== mainWindow && editor.hasCapability(EditorInputCapabilities.AuxWindowUnsupported)) {
 				return await this.doShowError(createEditorOpenError(localize('editorUnsupportedInAuxWindow', "This type of editor cannot be opened in floating windows yet."), [
 					toAction({

@@ -77,7 +77,7 @@ suite('FormattedTextRenderer', () => {
 		});
 		assert.strictEqual(result.innerHTML, '<a>action</a>');
 
-		const event: MouseEvent = <any>document.createEvent('MouseEvent');
+		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
 		result.firstChild!.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
@@ -96,7 +96,7 @@ suite('FormattedTextRenderer', () => {
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a>action</a></b></i>');
 
-		const event: MouseEvent = <any>document.createEvent('MouseEvent');
+		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
 		result.firstChild!.firstChild!.firstChild!.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);
@@ -116,7 +116,7 @@ suite('FormattedTextRenderer', () => {
 		});
 		assert.strictEqual(result.innerHTML, '<code><i><b><a>action</a></b></i></code>');
 
-		const event: MouseEvent = <any>document.createEvent('MouseEvent');
+		const event: MouseEvent = document.createEvent('MouseEvent');
 		event.initEvent('click', true, true);
 		result.firstChild!.firstChild!.firstChild!.firstChild!.dispatchEvent(event);
 		assert.strictEqual(callbackCalled, true);

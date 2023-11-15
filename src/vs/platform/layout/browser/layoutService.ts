@@ -5,6 +5,7 @@
 
 import { IDimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const ILayoutService = createDecorator<ILayoutService>('layoutService');
@@ -32,9 +33,20 @@ export interface ILayoutService {
 	readonly onDidLayoutMainContainer: Event<IDimension>;
 
 	/**
+	 * An event that is emitted when any container is layed out.
+	 */
+	readonly onDidLayoutContainer: Event<{ container: HTMLElement; dimension: IDimension }>;
+
+	/**
 	 * An event that is emitted when the active container is layed out.
 	 */
 	readonly onDidLayoutActiveContainer: Event<IDimension>;
+
+	/**
+	 * An event that is emitted when a new container is added. This
+	 * can happen in multi-window environments.
+	 */
+	readonly onDidAddContainer: Event<{ container: HTMLElement; disposables: DisposableStore }>;
 
 	/**
 	 * An event that is emitted when the active container changes.
@@ -52,11 +64,6 @@ export interface ILayoutService {
 	readonly activeContainerDimension: IDimension;
 
 	/**
-	 * Does the application have a single container?
-	 */
-	readonly hasContainer: boolean;
-
-	/**
 	 * Main container of the application.
 	 *
 	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.
@@ -68,7 +75,7 @@ export interface ILayoutService {
 	 * it is code editor instance specific.
 	 *
 	 */
-	readonly container: HTMLElement;
+	readonly mainContainer: HTMLElement;
 
 	/**
 	 * Active container of the application. When multiple windows are opened, will return

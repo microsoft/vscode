@@ -588,12 +588,6 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 		} else {
 			dependencyTask.configurationProperties.icon = task.configurationProperties.icon;
 		}
-
-		if (dependencyTask.configurationProperties.hide) {
-			dependencyTask.configurationProperties.hide ||= task.configurationProperties.hide;
-		} else {
-			dependencyTask.configurationProperties.hide = task.configurationProperties.hide;
-		}
 	}
 
 	private async _getDependencyPromise(task: IActiveTerminalData): Promise<ITaskSummary> {
@@ -1180,10 +1174,12 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 			shellLaunchConfig.args = windowsShellArgs ? combinedShellArgs.join(' ') : combinedShellArgs;
 			if (task.command.presentation && task.command.presentation.echo) {
 				if (needsFolderQualification && workspaceFolder) {
+					const folder = cwd ? path.posix.basename(cwd.toString()) : workspaceFolder.name;
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executingInFolder',
 						comment: ['The workspace folder the task is running in', 'The task command line or label']
-					}, 'Executing task in folder {0}: {1}', workspaceFolder.name, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
+
+					}, 'Executing task in folder {0}: {1}', folder, commandLine), { excludeLeadingNewLine: true }) + this.taskShellIntegrationOutputSequence;
 				} else {
 					shellLaunchConfig.initialText = this.taskShellIntegrationStartSequence(cwd) + formatMessageForTerminal(nls.localize({
 						key: 'task.executing.shellIntegration',

@@ -403,27 +403,33 @@ export class InlineCompletionsModel extends Disposable {
 
 		const partialText = line.substring(0, acceptUntilIndexExclusive);
 
-		this._isAcceptingPartially = true;
+		// Executing the edit might free the completion, so we have to hold a reference on it.
+		completion.source.addRef();
 		try {
-			editor.pushUndoStop();
-			editor.executeEdits('inlineSuggestion.accept', [
-				EditOperation.replace(Range.fromPositions(position), partialText),
-			]);
-			const length = lengthOfText(partialText);
-			editor.setPosition(addPositions(position, length));
-		} finally {
-			this._isAcceptingPartially = false;
-		}
+			this._isAcceptingPartially = true;
+			try {
+				editor.pushUndoStop();
+				editor.executeEdits('inlineSuggestion.accept', [
+					EditOperation.replace(Range.fromPositions(position), partialText),
+				]);
+				const length = lengthOfText(partialText);
+				editor.setPosition(addPositions(position, length));
+			} finally {
+				this._isAcceptingPartially = false;
+			}
 
-		if (completion.source.provider.handlePartialAccept) {
-			const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), addPositions(position, lengthOfText(partialText)));
-			// This assumes that the inline completion and the model use the same EOL style.
-			const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
-			completion.source.provider.handlePartialAccept(
-				completion.source.inlineCompletions,
-				completion.sourceInlineCompletion,
-				text.length,
-			);
+			if (completion.source.provider.handlePartialAccept) {
+				const acceptedRange = Range.fromPositions(completion.range.getStartPosition(), addPositions(position, lengthOfText(partialText)));
+				// This assumes that the inline completion and the model use the same EOL style.
+				const text = editor.getModel()!.getValueInRange(acceptedRange, EndOfLinePreference.LF);
+				completion.source.provider.handlePartialAccept(
+					completion.source.inlineCompletions,
+					completion.sourceInlineCompletion,
+					text.length,
+				);
+			}
+		} finally {
+			completion.source.removeRef();
 		}
 	}
 

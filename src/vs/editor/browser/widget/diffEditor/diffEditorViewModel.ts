@@ -221,6 +221,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 			result = applyModifiedEdits(result, modifiedTextEditInfos, model.original, model.modified) ?? result;
 
 			transaction(tx => {
+				/** @description write diff result */
 				updateUnchangedRegions(result, tx);
 
 				this._lastDiff = result;

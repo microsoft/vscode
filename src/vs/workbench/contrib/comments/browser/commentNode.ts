@@ -170,7 +170,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._scrollable = new Scrollable({
 			forceIntegerValues: true,
 			smoothScrollDuration: 125,
-			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(cb, dom.getWindow(container))
+			scheduleAtNextAnimationFrame: cb => dom.scheduleAtNextAnimationFrame(dom.getWindow(container), cb)
 		});
 		this._scrollableElement = this._register(new SmoothScrollableElement(body, {
 			horizontal: ScrollbarVisibility.Visible,
@@ -486,10 +486,10 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditor.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 		this._commentEditor.focus();
 
-		dom.scheduleAtNextAnimationFrame(() => {
+		dom.scheduleAtNextAnimationFrame(dom.getWindow(editContainer), () => {
 			this._commentEditor!.layout({ width: container.clientWidth - 14, height: this._editorHeight });
 			this._commentEditor!.focus();
-		}, dom.getWindow(editContainer));
+		});
 
 		const lastLine = this._commentEditorModel.getLineCount();
 		const lastColumn = this._commentEditorModel.getLineLength(lastLine) + 1;
@@ -729,7 +729,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(dom.getWindow(this._domNode), e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,

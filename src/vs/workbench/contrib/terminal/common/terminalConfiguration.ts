@@ -625,6 +625,21 @@ const terminalConfiguration: IConfigurationNode = {
 			type: 'boolean',
 			default: false
 		},
+		[TerminalSettingId.StickyScrollEnabled]: {
+			markdownDescription: localize('terminal.integrated.stickyScroll.enabled', "Experimental: Shows the current command at the top of the terminal."),
+			type: 'boolean',
+			default: false,
+			// TODO: Prevent setting at folder level after it becomes stable,
+			// scope: ConfigurationScope.APPLICATION
+		},
+		[TerminalSettingId.StickyScrollMaxLineCount]: {
+			markdownDescription: localize('terminal.integrated.stickyScroll.maxLineCount', "Defines the maximum number of sticky lines to show."),
+			type: 'number',
+			default: 5,
+			minimum: 1,
+			maximum: 10,
+			scope: ConfigurationScope.APPLICATION
+		}
 	}
 };
 

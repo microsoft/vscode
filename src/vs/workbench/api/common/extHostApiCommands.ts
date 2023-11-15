@@ -432,6 +432,31 @@ const newCommands: ApiCommand[] = [
 		],
 		ApiCommandResult.Void
 	),
+	new ApiCommand(
+		'vscode.changes', '_workbench.changes', 'Opens a list of resources in the changes editor to compare their contents.',
+		[
+			ApiCommandArgument.String.with('title', 'Human readable title for the changes editor'),
+			new ApiCommandArgument<[URI, URI?, URI?][]>('resourceList', 'List of resources to compare',
+				resources => {
+					for (const resource of resources) {
+						if (resource.length !== 3) {
+							return false;
+						}
+
+						const [label, left, right] = resource;
+						if (!URI.isUri(label) ||
+							(!URI.isUri(left) && left !== undefined && left !== null) ||
+							(!URI.isUri(right) && right !== undefined && right !== null)) {
+							return false;
+						}
+					}
+
+					return true;
+				},
+				v => v)
+		],
+		ApiCommandResult.Void
+	),
 	// --- type hierarchy
 	new ApiCommand(
 		'vscode.prepareTypeHierarchy', '_executePrepareTypeHierarchy', 'Prepare type hierarchy at a position inside a document',

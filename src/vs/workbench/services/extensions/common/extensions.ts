@@ -456,6 +456,12 @@ export interface IExtensionService {
 	activateByEvent(activationEvent: string, activationKind?: ActivationKind): Promise<void>;
 
 	/**
+	 * Send an activation ID and activate interested extensions.
+	 *
+	 */
+	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void>;
+
+	/**
 	 * Determine if `activateByEvent(activationEvent)` has resolved already.
 	 *
 	 * i.e. the activation event is finished and all interested extensions are already active.
@@ -573,6 +579,7 @@ export class NullExtensionService implements IExtensionService {
 	onWillStop: Event<WillStopExtensionHostsEvent> = Event.None;
 	readonly extensions = [];
 	activateByEvent(_activationEvent: string): Promise<void> { return Promise.resolve(undefined); }
+	activateById(extensionId: ExtensionIdentifier, reason: ExtensionActivationReason): Promise<void> { return Promise.resolve(undefined); }
 	activationEventIsDone(_activationEvent: string): boolean { return false; }
 	whenInstalledExtensionsRegistered(): Promise<boolean> { return Promise.resolve(true); }
 	getExtension() { return Promise.resolve(undefined); }
