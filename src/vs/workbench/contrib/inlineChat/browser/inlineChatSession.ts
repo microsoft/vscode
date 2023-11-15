@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isEqual } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
@@ -23,10 +22,15 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Iterable } from 'vs/base/common/iterator';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { isCancellationError } from 'vs/base/common/errors';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { raceCancellation } from 'vs/base/common/async';
 import { LineRangeMapping } from 'vs/editor/common/diff/rangeMapping';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILanguageService } from 'vs/editor/common/languages/language';
+import { ResourceMap } from 'vs/base/common/map';
+import { Schemas } from 'vs/base/common/network';
 
 export type Recording = {
 	when: Date;
@@ -282,9 +286,7 @@ export class ErrorResponse {
 export class ReplyResponse {
 
 	readonly allLocalEdits: TextEdit[][] = [];
-	readonly singleCreateFileEdit: { uri: URI; edits: Promise<TextEdit>[] } | undefined;
-	readonly workspaceEdits: ResourceEdit[] | undefined;
-	readonly workspaceEditsIncludeLocalEdits: boolean = false;
+	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
 
 	readonly responseType: InlineChateResponseTypes;
 
@@ -294,62 +296,71 @@ export class ReplyResponse {
 		localUri: URI,
 		readonly modelAltVersionId: number,
 		progressEdits: TextEdit[][],
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 
-		this.allLocalEdits.push(...progressEdits);
+		const editsMap = new ResourceMap<TextEdit[][]>();
+
+		editsMap.set(localUri, [...progressEdits]);
 
 		if (raw.type === InlineChatResponseType.EditorEdit) {
 			//
-			this.allLocalEdits.push(raw.edits);
-			this.singleCreateFileEdit = undefined;
-			this.workspaceEdits = undefined;
+			editsMap.get(localUri)!.push(raw.edits);
+
 
 		} else if (raw.type === InlineChatResponseType.BulkEdit) {
 			//
 			const edits = ResourceEdit.convert(raw.edits);
-			this.workspaceEdits = edits;
-
-			let isComplexEdit = false;
-			const localEdits: TextEdit[] = [];
 
 			for (const edit of edits) {
 				if (edit instanceof ResourceFileEdit) {
-					if (!isComplexEdit && edit.newResource && !edit.oldResource) {
-						// file create
-						if (this.singleCreateFileEdit) {
-							isComplexEdit = true;
-							this.singleCreateFileEdit = undefined;
-						} else {
-							this.singleCreateFileEdit = { uri: edit.newResource, edits: [] };
-							if (edit.options.contents) {
-								this.singleCreateFileEdit.edits.push(edit.options.contents.then(x => ({ range: new Range(1, 1, 1, 1), text: x.toString() })));
-							}
+					if (edit.newResource && !edit.oldResource) {
+						editsMap.set(edit.newResource, []);
+						if (edit.options.contents) {
+							console.warn('CONTENT not supported');
 						}
 					}
 				} else if (edit instanceof ResourceTextEdit) {
 					//
-					if (isEqual(edit.resource, localUri)) {
-						localEdits.push(edit.textEdit);
-						this.workspaceEditsIncludeLocalEdits = true;
-
-					} else if (isEqual(this.singleCreateFileEdit?.uri, edit.resource)) {
-						this.singleCreateFileEdit!.edits.push(Promise.resolve(edit.textEdit));
+					const array = editsMap.get(edit.resource);
+					if (array) {
+						array.push([edit.textEdit]);
 					} else {
-						isComplexEdit = true;
+						editsMap.set(edit.resource, [[edit.textEdit]]);
 					}
 				}
 			}
-			if (localEdits.length > 0) {
-				this.allLocalEdits.push(localEdits);
-			}
-			if (isComplexEdit) {
-				this.singleCreateFileEdit = undefined;
+		}
+
+		if (editsMap.size === 0) {
+			this.responseType = InlineChateResponseTypes.OnlyMessages;
+		} else if (editsMap.size === 1 && editsMap.has(localUri)) {
+			this.responseType = InlineChateResponseTypes.OnlyEdits;
+		} else {
+			this.responseType = InlineChateResponseTypes.Mixed;
+		}
+
+		for (const [uri, edits] of editsMap) {
+			if (uri.scheme === Schemas.untitled) {
+				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
+				const untitledTextModel = this._textFileService.untitled.create({
+					associatedResource: uri,
+					languageId: langSelection.languageId
+				});
+				this.untitledTextModel = untitledTextModel;
+
+				untitledTextModel.resolve().then(async () => {
+					const model = untitledTextModel.textEditorModel!;
+					model.applyEdits(edits.flat().map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
+				});
+
+				//TODO@jrieken the first untitled model WINS
+				break;
 			}
 		}
 
-		this.responseType = (this.allLocalEdits.length || this.workspaceEdits)
-			? mdContent.value ? InlineChateResponseTypes.Mixed : InlineChateResponseTypes.OnlyEdits
-			: InlineChateResponseTypes.OnlyMessages;
+		this.allLocalEdits = editsMap.get(localUri) ?? [];
 	}
 }
 
