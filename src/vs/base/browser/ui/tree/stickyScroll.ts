@@ -187,9 +187,10 @@ export class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 	}
 
 	private createStickyScrollNode(node: ITreeNode<T, TFilterData>, currentStickyNodesHeight: number): StickyScrollNode<T, TFilterData> {
-		const startIndex = this._treeHelper.getNodeIndex(node);
-		const endIndex = this._treeHelper.getNodeIndex(this._treeHelper.lastVisibleDescendant(node));
 		const height = this.treeDelegate.getHeight(node);
+		const startIndex = this._treeHelper.getNodeIndex(node);
+		let endIndex = this._treeHelper.getNodeIndex(this._treeHelper.lastVisibleDescendant(node));
+		endIndex = endIndex < 0 ? startIndex : endIndex;
 
 		const position = this.calculateStickyNodePosition(endIndex, currentStickyNodesHeight);
 
