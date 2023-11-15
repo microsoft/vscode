@@ -99,6 +99,10 @@ export class NotebookCellChatController extends Disposable {
 				await this._startSession(token);
 			} else {
 				await Event.toPromise(Event.once(this._cell.onDidChangeEditorAttachState));
+				if (token.isCancellationRequested) {
+					return;
+				}
+
 				await this._startSession(token);
 			}
 
