@@ -102,8 +102,13 @@ export interface IChatAgentDetection {
 }
 
 export interface IChatContent {
-	content: string | IMarkdownString;
+	content: string;
 	kind: 'content';
+}
+
+export interface IChatMarkdownContent {
+	content: IMarkdownString;
+	kind: 'markdownContent';
 }
 
 export interface IChatTreeData {
@@ -112,13 +117,17 @@ export interface IChatTreeData {
 }
 
 export interface IChatAsyncContent {
-	placeholder: string;
+	/**
+	 * The placeholder to show while the content is loading
+	 */
+	content: string;
 	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
 	kind: 'asyncContent';
 }
 
 export type IChatProgress =
 	| IChatContent
+	| IChatMarkdownContent
 	| IChatTreeData
 	| IChatAsyncContent
 	| IChatUsedContext
@@ -258,7 +267,7 @@ export interface IChatDynamicRequest {
 }
 
 export interface IChatCompleteResponse {
-	message: string | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
+	message: string | ReadonlyArray<IChatProgress>;
 	errorDetails?: IChatResponseErrorDetails;
 	followups?: IChatFollowup[];
 }
