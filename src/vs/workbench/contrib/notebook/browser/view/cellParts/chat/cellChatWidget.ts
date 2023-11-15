@@ -63,7 +63,7 @@ export class CellChatWidget extends Disposable {
 
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
-		_partContainer: HTMLElement,
+		private readonly _partContainer: HTMLElement,
 		@IModelService private readonly _modelService: IModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService
@@ -130,7 +130,7 @@ export class CellChatWidget extends Disposable {
 	}
 
 	show(element: ICellViewModel) {
-		this._elements.root.style.display = 'block';
+		this._partContainer.style.display = 'block';
 
 		this._activeCell = element;
 
@@ -143,11 +143,11 @@ export class CellChatWidget extends Disposable {
 
 		this.layout();
 		this._inputEditor.focus();
-		this._activeCell.chatHeight = 62;
+		this._activeCell.chatHeight = 82 + 8 /* bottom margin*/;
 	}
 
 	hide() {
-		this._elements.root.style.display = 'none';
+		this._partContainer.style.display = 'none';
 		if (this._activeCell) {
 			this._activeCell.chatHeight = 0;
 		}

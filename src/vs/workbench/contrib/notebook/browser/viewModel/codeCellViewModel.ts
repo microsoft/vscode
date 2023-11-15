@@ -253,7 +253,7 @@ export class CodeCellViewModel extends BaseCellViewModel implements ICellViewMod
 			}
 
 			const statusBarHeight = this.viewContext.notebookOptions.computeEditorStatusbarHeight(this.internalMetadata, this.uri);
-			const codeIndicatorHeight = chatHeight + editorHeight + statusBarHeight;
+			const codeIndicatorHeight = editorHeight + statusBarHeight;
 			const outputIndicatorHeight = outputTotalHeight + outputShowMoreContainerHeight;
 			const outputContainerOffset = notebookLayoutConfiguration.editorToolbarHeight
 				+ notebookLayoutConfiguration.cellTopMargin // CELL_TOP_MARGIN

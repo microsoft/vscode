@@ -260,6 +260,7 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 
 		// This is also the drag handle
 		const focusIndicatorLeft = new FastDomNode(DOM.append(container, DOM.$('.cell-focus-indicator.cell-focus-indicator-side.cell-focus-indicator-left')));
+		const cellChatPart = DOM.append(container, $('.cell-chat-part'));
 		const cellContainer = DOM.append(container, $('.cell.code'));
 		const runButtonContainer = DOM.append(cellContainer, $('.run-button-container'));
 		const cellInputCollapsedContainer = DOM.append(cellContainer, $('.input-collapse-container'));
@@ -267,7 +268,6 @@ export class CodeCellRenderer extends AbstractCellRenderer implements IListRende
 		const executionOrderLabel = DOM.append(focusIndicatorLeft.domNode, $('div.execution-count-label'));
 		executionOrderLabel.title = localize('cellExecutionOrderCountLabel', 'Execution Order');
 		const editorPart = DOM.append(cellContainer, $('.cell-editor-part'));
-		const cellChatPart = DOM.append(editorPart, $('.cell-chat-part'));
 		const editorContainer = DOM.append(editorPart, $('.cell-editor-container'));
 		const cellCommentPartContainer = DOM.append(container, $('.cell-comment-container'));
 

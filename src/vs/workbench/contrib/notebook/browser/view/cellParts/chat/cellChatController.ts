@@ -444,7 +444,7 @@ registerAction2(class extends NotebookCellAction {
 		if (!newCell) {
 			return;
 		}
-		await context.notebookEditor.focusNotebookCell(newCell, 'editor');
+		await context.notebookEditor.focusNotebookCell(newCell, 'container');
 		const ctrl = NotebookCellChatController.get(newCell);
 		if (!ctrl) {
 			return;
