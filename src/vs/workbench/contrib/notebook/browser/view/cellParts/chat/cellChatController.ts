@@ -9,7 +9,7 @@ import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -29,6 +29,7 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
+import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/inlineChatController';
 import { IInlineChatSessionService, ReplyResponse, Session, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { CTX_INLINE_CHAT_HAS_PROVIDER, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -59,6 +60,8 @@ export class NotebookCellChatController extends Disposable {
 	private _isVisible: boolean = false;
 	private _strategy: EditStrategy = new EditStrategy();
 
+	private _inlineChatListener: IDisposable | undefined;
+
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _chatPart: ICellChatPart,
@@ -71,6 +74,22 @@ export class NotebookCellChatController extends Disposable {
 
 		NotebookCellChatController._cellChatControllers.set(this._cell, this);
 		this._ctxHasActiveRequest = CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.bindTo(this._contextKeyService);
+
+		this._register(this._cell.onDidChangeEditorAttachState(() => {
+			const editor = this._getCellEditor();
+			this._inlineChatListener?.dispose();
+
+			if (!editor) {
+				return;
+			}
+
+			const inlineChatController = InlineChatController.get(editor);
+			if (inlineChatController) {
+				this._inlineChatListener = inlineChatController.onWillStartSession(() => {
+					this.dismiss();
+				});
+			}
+		}));
 	}
 
 	public override dispose(): void {
@@ -80,6 +99,9 @@ export class NotebookCellChatController extends Disposable {
 			this._sessionCtor?.cancel();
 			this._sessionCtor = undefined;
 		}
+
+		this._inlineChatListener?.dispose();
+		this._inlineChatListener = undefined;
 		this._ctxHasActiveRequest.reset();
 		NotebookCellChatController._cellChatControllers.delete(this._cell);
 		super.dispose();
@@ -96,31 +118,42 @@ export class NotebookCellChatController extends Disposable {
 		this._chatPart.getWidget().show(this._cell);
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (this._cell.editorAttached) {
-				await this._startSession(token);
+				const editor = this._getCellEditor();
+				if (editor) {
+					await this._startSession(editor, token);
+				}
 			} else {
 				await Event.toPromise(Event.once(this._cell.onDidChangeEditorAttachState));
 				if (token.isCancellationRequested) {
 					return;
 				}
 
-				await this._startSession(token);
+				const editor = this._getCellEditor();
+				if (editor) {
+					await this._startSession(editor, token);
+				}
 			}
 
 			this._chatPart.getWidget().placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 		});
 	}
 
-	private async _startSession(token: CancellationToken) {
-		if (this._activeSession) {
-			this._inlineChatSessionService.releaseSession(this._activeSession);
-		}
-
+	private _getCellEditor() {
 		const editors = this._notebookEditor.codeEditors.find(editor => editor[0] === this._chatPart.activeCell);
 		if (!editors || !editors[1].hasModel()) {
 			return;
 		}
 
 		const editor = editors[1];
+		return editor;
+	}
+
+	private async _startSession(editor: IActiveCodeEditor, token: CancellationToken) {
+		if (this._activeSession) {
+			this._inlineChatSessionService.releaseSession(this._activeSession);
+		}
+
+
 
 		const session = await this._inlineChatSessionService.createSession(
 			editor,
