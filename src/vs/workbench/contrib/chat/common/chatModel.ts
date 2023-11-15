@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatProgressMessage, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -49,6 +49,7 @@ export interface IChatResponseModel {
 	readonly agent?: IChatAgentData;
 	readonly usedContext: IChatUsedContext | undefined;
 	readonly contentReferences: ReadonlyArray<IChatContentReference>;
+	readonly progressMessages: ReadonlyArray<IChatProgressMessage>;
 	readonly slashCommand?: IChatAgentCommand;
 	readonly response: IResponse;
 	readonly isComplete: boolean;
@@ -249,6 +250,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		return this._contentReferences;
 	}
 
+	private readonly _progressMessages: IChatProgressMessage[] = [];
+	public get progressMessages(): ReadonlyArray<IChatProgressMessage> {
+		return this._progressMessages;
+	}
 
 	constructor(
 		_response: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>,
@@ -269,15 +274,24 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
+	/**
+	 * Apply a progress update to the actual response content.
+	 */
 	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
-	updateReferences(reference: IChatUsedContext | IChatContentReference) {
-		if (reference.kind === 'usedContext') {
-			this._usedContext = reference;
-		} else if (reference.kind === 'reference') {
-			this._contentReferences.push(reference);
+	/**
+	 * Apply one of the progress updates that are not part of the actual response content.
+	 */
+	applyProgress(progress: IChatUsedContext | IChatContentReference | IChatProgressMessage) {
+		if (progress.kind === 'usedContext') {
+			this._usedContext = progress;
+		} else if (progress.kind === 'reference') {
+			this._contentReferences.push(progress);
+			this._onDidChange.fire();
+		} else if (progress.kind === 'progressMessage') {
+			this._progressMessages.push(progress);
 			this._onDidChange.fire();
 		}
 	}
@@ -528,11 +542,11 @@ export class ChatModel extends Disposable implements IChatModel {
 						revive<ISerializableChatAgentData>(raw.agent) : undefined;
 					request.response = new ChatResponseModel(raw.response ?? [new MarkdownString(raw.response)], this, agent, request.id, true, raw.isCanceled, raw.vote, raw.responseErrorDetails, raw.followups);
 					if (raw.usedContext) { // @ulugbekna: if this's a new vscode sessions, doc versions are incorrect anyway?
-						request.response.updateReferences(raw.usedContext);
+						request.response.applyProgress(raw.usedContext);
 					}
 
 					if (raw.contentReferences) {
-						raw.contentReferences.forEach(r => request.response!.updateReferences(r));
+						raw.contentReferences.forEach(r => request.response!.applyProgress(r));
 					}
 				}
 				return request;
@@ -628,8 +642,8 @@ export class ChatModel extends Disposable implements IChatModel {
 
 		if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference') {
 			request.response.updateContent(progress, quiet);
-		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
-			request.response.updateReferences(progress);
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference' || progress.kind === 'progressMessage') {
+			request.response.applyProgress(progress);
 		} else if (progress.kind === 'agentDetection') {
 			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
