@@ -9,18 +9,15 @@ import { isEqualOrParent, joinPath, relativePath } from 'vs/base/common/resource
 import { URI } from 'vs/base/common/uri';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkspaceStateFolder } from 'vs/platform/userDataSync/common/userDataSync';
 import { EditSessionIdentityMatch, IEditSessionIdentityService } from 'vs/platform/workspace/common/editSessions';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-
-export interface IWorkspaceStateFolder {
-	resourceUri: string;
-	workspaceFolderIdentity: string;
-}
 
 export const IWorkspaceIdentityService = createDecorator<IWorkspaceIdentityService>('IWorkspaceIdentityService');
 export interface IWorkspaceIdentityService {
 	_serviceBrand: undefined;
-	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(obj: any) => any>;
+	matches(folders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((obj: any) => any) | false>;
+	getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]>;
 }
 
 export class WorkspaceIdentityService implements IWorkspaceIdentityService {
@@ -31,7 +28,19 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 		@IEditSessionIdentityService private readonly editSessionIdentityService: IEditSessionIdentityService
 	) { }
 
-	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<(value: any) => any> {
+	async getWorkspaceStateFolders(cancellationToken: CancellationToken): Promise<IWorkspaceStateFolder[]> {
+		const workspaceStateFolders: IWorkspaceStateFolder[] = [];
+
+		for (const workspaceFolder of this.workspaceContextService.getWorkspace().folders) {
+			const workspaceFolderIdentity = await this.editSessionIdentityService.getEditSessionIdentifier(workspaceFolder, cancellationToken);
+			if (!workspaceFolderIdentity) { continue; }
+			workspaceStateFolders.push({ resourceUri: workspaceFolder.uri.toString(), workspaceFolderIdentity });
+		}
+
+		return workspaceStateFolders;
+	}
+
+	async matches(incomingWorkspaceFolders: IWorkspaceStateFolder[], cancellationToken: CancellationToken): Promise<((value: any) => any) | false> {
 		const incomingToCurrentWorkspaceFolderUris: { [key: string]: string } = {};
 
 		const incomingIdentitiesToIncomingWorkspaceFolders: { [key: string]: string } = {};
@@ -72,7 +81,7 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 				continue;
 			}
 
-			return () => { };
+			return false;
 		}
 
 		const convertUri = (uriToConvert: URI) => {
@@ -123,6 +132,8 @@ export class WorkspaceIdentityService implements IWorkspaceIdentityService {
 					}
 				}
 			}
+
+			return obj;
 		};
 
 		return uriReplacer;

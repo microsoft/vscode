@@ -138,7 +138,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	override async isValidTargetWorkspacePath(workspaceUri: URI): Promise<boolean> {
-		const windows = await this.nativeHostService.getWindows();
+		const windows = await this.nativeHostService.getWindows({ includeAuxiliaryWindows: false });
 
 		// Prevent overwriting a workspace that is currently opened in another window
 		if (windows.some(window => isWorkspaceIdentifier(window.workspace) && this.uriIdentityService.extUri.isEqual(window.workspace.configPath, workspaceUri))) {
@@ -154,7 +154,7 @@ export class NativeWorkspaceEditingService extends AbstractWorkspaceEditingServi
 	}
 
 	async enterWorkspace(workspaceUri: URI): Promise<void> {
-		const stopped = await this.extensionService.stopExtensionHosts();
+		const stopped = await this.extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Opening a multi-root workspace."));
 		if (!stopped) {
 			return;
 		}

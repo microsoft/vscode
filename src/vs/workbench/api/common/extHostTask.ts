@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+/* eslint-disable local/code-no-native-private */
+
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { asPromise } from 'vs/base/common/async';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -744,7 +746,8 @@ export class WorkerExtHostTask extends ExtHostTaskBase {
 			for (const task of value) {
 				this.checkDeprecation(task, handler);
 				if (!task.definition || !validTypes[task.definition.type]) {
-					this._logService.warn(`The task [${task.source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
+					const source = task.source ? task.source : 'No task source';
+					this._logService.warn(`The task [${source}, ${task.name}] uses an undefined task type. The task will be ignored in the future.`);
 				}
 
 				const taskDTO: tasks.ITaskDTO | undefined = TaskDTO.from(task, handler.extension);

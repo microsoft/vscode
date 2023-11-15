@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { UriList, VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { IReadonlyVSDataTransfer, UriList } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Mimes } from 'vs/base/common/mime';
 import { Schemas } from 'vs/base/common/network';
@@ -19,23 +19,25 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { localize } from 'vs/nls';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 
+const builtInLabel = localize('builtIn', 'Built-in');
+
 abstract class SimplePasteAndDropProvider implements DocumentOnDropEditProvider, DocumentPasteEditProvider {
 
 	abstract readonly id: string;
 	abstract readonly dropMimeTypes: readonly string[] | undefined;
 	abstract readonly pasteMimeTypes: readonly string[];
 
-	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
+	async provideDocumentPasteEdits(_model: ITextModel, _ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+		return edit ? { insertText: edit.insertText, label: edit.label, detail: edit.detail, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
 	}
 
-	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
+	async provideDocumentOnDropEdits(_model: ITextModel, _position: IPosition, dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentOnDropEdit | undefined> {
 		const edit = await this.getEdit(dataTransfer, token);
-		return edit ? { insertText: edit.insertText, label: edit.label } : undefined;
+		return edit ? { insertText: edit.insertText, label: edit.label, handledMimeType: edit.handledMimeType, yieldTo: edit.yieldTo } : undefined;
 	}
 
-	protected abstract getEdit(dataTransfer: VSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
+	protected abstract getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined>;
 }
 
 class DefaultTextProvider extends SimplePasteAndDropProvider {
@@ -44,7 +46,7 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 	readonly dropMimeTypes = [Mimes.text];
 	readonly pasteMimeTypes = [Mimes.text];
 
-	protected async getEdit(dataTransfer: VSDataTransfer, _token: CancellationToken) {
+	protected async getEdit(dataTransfer: IReadonlyVSDataTransfer, _token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const textEntry = dataTransfer.get(Mimes.text);
 		if (!textEntry) {
 			return;
@@ -58,7 +60,9 @@ class DefaultTextProvider extends SimplePasteAndDropProvider {
 
 		const insertText = await textEntry.asString();
 		return {
+			handledMimeType: Mimes.text,
 			label: localize('text.label', "Insert Plain Text"),
+			detail: builtInLabel,
 			insertText
 		};
 	}
@@ -70,7 +74,7 @@ class PathProvider extends SimplePasteAndDropProvider {
 	readonly dropMimeTypes = [Mimes.uriList];
 	readonly pasteMimeTypes = [Mimes.uriList];
 
-	protected async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
+	protected async getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;
@@ -101,7 +105,12 @@ class PathProvider extends SimplePasteAndDropProvider {
 				: localize('defaultDropProvider.uriList.path', "Insert Path");
 		}
 
-		return { insertText, label };
+		return {
+			handledMimeType: Mimes.uriList,
+			insertText,
+			label,
+			detail: builtInLabel,
+		};
 	}
 }
 
@@ -117,7 +126,7 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 		super();
 	}
 
-	protected async getEdit(dataTransfer: VSDataTransfer, token: CancellationToken) {
+	protected async getEdit(dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<DocumentPasteEdit | undefined> {
 		const entries = await extractUriList(dataTransfer);
 		if (!entries.length || token.isCancellationRequested) {
 			return;
@@ -133,15 +142,17 @@ class RelativePathProvider extends SimplePasteAndDropProvider {
 		}
 
 		return {
+			handledMimeType: Mimes.uriList,
 			insertText: relativeUris.join(' '),
 			label: entries.length > 1
 				? localize('defaultDropProvider.uriList.relativePaths', "Insert Relative Paths")
-				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path")
+				: localize('defaultDropProvider.uriList.relativePath', "Insert Relative Path"),
+			detail: builtInLabel,
 		};
 	}
 }
 
-async function extractUriList(dataTransfer: VSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
+async function extractUriList(dataTransfer: IReadonlyVSDataTransfer): Promise<{ readonly uri: URI; readonly originalText: string }[]> {
 	const urlListEntry = dataTransfer.get(Mimes.uriList);
 	if (!urlListEntry) {
 		return [];

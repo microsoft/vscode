@@ -6,12 +6,11 @@
 import { ITerminalInstance, ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IShellLaunchConfig, ITerminalProfile, TerminalLocation } from 'vs/platform/terminal/common/terminal';
+import { IShellLaunchConfig, ITerminalBackend, ITerminalBackendRegistry, ITerminalProfile, TerminalExtensions, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TerminalInstance } from 'vs/workbench/contrib/terminal/browser/terminalInstance';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/terminalConfigHelper';
-import { ITerminalBackend, ITerminalBackendRegistry, TerminalExtensions } from 'vs/workbench/contrib/terminal/common/terminal';
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
@@ -26,7 +25,7 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 	private _configHelper: TerminalConfigHelper;
 	private _backendRegistration = new Map<string | undefined, { promise: Promise<void>; resolve: () => void }>();
 
-	private readonly _onDidCreateInstance = new Emitter<ITerminalInstance>();
+	private readonly _onDidCreateInstance = this._register(new Emitter<ITerminalInstance>());
 	get onDidCreateInstance(): Event<ITerminalInstance> { return this._onDidCreateInstance.event; }
 
 	constructor(
@@ -48,17 +47,16 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 		}
 	}
 
-	createInstance(profile: ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation, resource?: URI): ITerminalInstance;
-	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation, resource?: URI): ITerminalInstance {
+	createInstance(profile: ITerminalProfile, target: TerminalLocation): ITerminalInstance;
+	createInstance(shellLaunchConfig: IShellLaunchConfig, target: TerminalLocation): ITerminalInstance;
+	createInstance(config: IShellLaunchConfig | ITerminalProfile, target: TerminalLocation): ITerminalInstance {
 		const shellLaunchConfig = this.convertProfileToShellLaunchConfig(config);
 		const instance = this._instantiationService.createInstance(TerminalInstance,
 			this._terminalShellTypeContextKey,
 			this._terminalInRunCommandPicker,
 			this._terminalSuggestWidgetVisibleContextKey,
 			this._configHelper,
-			shellLaunchConfig,
-			resource
+			shellLaunchConfig
 		);
 		instance.target = target;
 		this._onDidCreateInstance.fire(instance);
@@ -103,6 +101,10 @@ export class TerminalInstanceService extends Disposable implements ITerminalInst
 			backend = Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).getTerminalBackend(remoteAuthority);
 		}
 		return backend;
+	}
+
+	getRegisteredBackends(): IterableIterator<ITerminalBackend> {
+		return Registry.as<ITerminalBackendRegistry>(TerminalExtensions.Backend).backends.values();
 	}
 
 	didRegisterBackend(remoteAuthority?: string) {

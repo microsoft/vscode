@@ -5,6 +5,7 @@
 
 import * as vscode from 'vscode';
 import { getLocation, Location } from 'jsonc-parser';
+import { implicitActivationEvent, redundantImplicitActivationEvent } from './constants';
 
 
 export class PackageDocument {
@@ -19,6 +20,24 @@ export class PackageDocument {
 		}
 
 		return undefined;
+	}
+
+	public provideCodeActions(_range: vscode.Range, context: vscode.CodeActionContext, _token: vscode.CancellationToken): vscode.ProviderResult<vscode.CodeAction[]> {
+		const codeActions: vscode.CodeAction[] = [];
+		for (const diagnostic of context.diagnostics) {
+			if (diagnostic.message === implicitActivationEvent || diagnostic.message === redundantImplicitActivationEvent) {
+				const codeAction = new vscode.CodeAction(vscode.l10n.t("Remove activation event"), vscode.CodeActionKind.QuickFix);
+				codeAction.edit = new vscode.WorkspaceEdit();
+				const rangeForCharAfter = diagnostic.range.with(diagnostic.range.end, diagnostic.range.end.translate(0, 1));
+				if (this.document.getText(rangeForCharAfter) === ',') {
+					codeAction.edit.delete(this.document.uri, diagnostic.range.with(undefined, diagnostic.range.end.translate(0, 1)));
+				} else {
+					codeAction.edit.delete(this.document.uri, diagnostic.range);
+				}
+				codeActions.push(codeAction);
+			}
+		}
+		return codeActions;
 	}
 
 	private provideLanguageOverridesCompletionItems(location: Location, position: vscode.Position): vscode.ProviderResult<vscode.CompletionItem[]> {

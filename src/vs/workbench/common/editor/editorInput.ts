@@ -5,11 +5,13 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorModel, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
+import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorCloseHandler {
 
@@ -68,8 +70,6 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 */
 	readonly onWillDispose = this._onWillDispose.event;
 
-	private disposed: boolean = false;
-
 	/**
 	 * Optional: subclasses can override to implement
 	 * custom confirmation on close behavior.
@@ -122,6 +122,10 @@ export abstract class EditorInput extends AbstractEditorInput {
 		}
 
 		return (this.capabilities & capability) !== 0;
+	}
+
+	isReadonly(): boolean | IMarkdownString {
+		return this.hasCapability(EditorInputCapabilities.Readonly);
 	}
 
 	/**
@@ -181,6 +185,13 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
+	 * Returns if the input has unsaved changes.
+	 */
+	isModified(): boolean {
+		return this.isDirty();
+	}
+
+	/**
 	 * Returns if this input is currently being saved or soon to be
 	 * saved. Based on this assumption the editor may for example
 	 * decide to not signal the dirty state to the user assuming that
@@ -191,14 +202,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
+	 * Returns a type of `IDisposable` that represents the resolved input.
 	 * Subclasses should override to provide a meaningful model or return
 	 * `null` if the editor does not require a model.
 	 *
 	 * The `options` parameter are passed down from the editor when the
 	 * input is resolved as part of it.
 	 */
-	async resolve(options?: IEditorOptions): Promise<IEditorModel | null> {
+	async resolve(options?: IEditorOptions): Promise<IDisposable | null> {
 		return null;
 	}
 
@@ -304,12 +315,11 @@ export abstract class EditorInput extends AbstractEditorInput {
 	 * Returns if this editor is disposed.
 	 */
 	isDisposed(): boolean {
-		return this.disposed;
+		return this._store.isDisposed;
 	}
 
 	override dispose(): void {
-		if (!this.disposed) {
-			this.disposed = true;
+		if (!this.isDisposed()) {
 			this._onWillDispose.fire();
 		}
 

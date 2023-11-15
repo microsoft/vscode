@@ -180,8 +180,9 @@ export = new class implements eslint.Rule.RuleModule {
 			const restrictions = (typeof option.restrictions === 'string' ? [option.restrictions] : option.restrictions).slice(0);
 
 			if (targetIsVS) {
-				// Always add "vs/nls"
+				// Always add "vs/nls" and "vs/amdX"
 				restrictions.push('vs/nls');
+				restrictions.push('vs/amdX'); // TODO@jrieken remove after ESM is real
 			}
 
 			if (targetIsVS && option.layer) {

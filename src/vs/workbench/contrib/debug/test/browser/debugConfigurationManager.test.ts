@@ -5,26 +5,28 @@
 
 import * as assert from 'assert';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { FileService } from 'vs/platform/files/common/fileService';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { UriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentityService';
 import { ConfigurationManager } from 'vs/workbench/contrib/debug/browser/debugConfigurationManager';
 import { DebugConfigurationProviderTriggerKind, IAdapterManager, IConfig, IDebugAdapterExecutable, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { TestHistoryService, TestQuickInputService } from 'vs/workbench/test/browser/workbenchTestServices';
 import { TestContextService, TestExtensionService, TestStorageService } from 'vs/workbench/test/common/workbenchTestServices';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { URI } from 'vs/base/common/uri';
 
 suite('debugConfigurationManager', () => {
 	const configurationProviderType = 'custom-type';
 	let _debugConfigurationManager: ConfigurationManager;
-	const disposables = new DisposableStore();
+	let disposables: DisposableStore;
 
 	const adapterManager = <IAdapterManager>{
 		getDebugAdapterDescriptor(session: IDebugSession, config: IConfig): Promise<IDebugAdapterExecutable | undefined> {
@@ -46,19 +48,25 @@ suite('debugConfigurationManager', () => {
 
 	const configurationService = new TestConfigurationService();
 	setup(() => {
+		disposables = new DisposableStore();
 		const fileService = disposables.add(new FileService(new NullLogService()));
+		const instantiationService = disposables.add(new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService], [IConfigurationService, configurationService])));
 		_debugConfigurationManager = new ConfigurationManager(
 			adapterManager,
 			new TestContextService(),
 			configurationService,
 			new TestQuickInputService(),
-			new TestInstantiationService(new ServiceCollection([IPreferencesService, preferencesService])),
+			instantiationService,
 			new TestStorageService(),
 			new TestExtensionService(),
 			new TestHistoryService(),
 			new UriIdentityService(fileService),
 			new ContextKeyService(configurationService));
 	});
+
+	teardown(() => disposables.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('resolves configuration based on type', async () => {
 		disposables.add(_debugConfigurationManager.registerDebugConfigurationProvider({

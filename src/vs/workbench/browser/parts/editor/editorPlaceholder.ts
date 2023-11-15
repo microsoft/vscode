@@ -17,7 +17,7 @@ import { Dimension, size, clearNode, $, EventHelper } from 'vs/base/browser/dom'
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { DisposableStore, IDisposable, MutableDisposable } from 'vs/base/common/lifecycle';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { assertIsDefined, assertAllDefined } from 'vs/base/common/types';
+import { assertAllDefined } from 'vs/base/common/types';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, isSingleFolderWorkspaceIdentifier, toWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { EditorOpenSource, IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -166,9 +166,9 @@ export abstract class EditorPlaceholder extends EditorPane {
 	}
 
 	override focus(): void {
-		const container = assertIsDefined(this.container);
+		super.focus();
 
-		container.focus();
+		this.container?.focus();
 	}
 
 	override dispose(): void {

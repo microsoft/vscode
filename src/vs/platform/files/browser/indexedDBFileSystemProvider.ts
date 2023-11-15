@@ -311,7 +311,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 				throw createFileSystemProviderError('Cannot rename files with different types', FileSystemProviderErrorCode.Unknown);
 			}
 			// delete the target file if exists
-			await this.delete(to, { recursive: true, useTrash: false });
+			await this.delete(to, { recursive: true, useTrash: false, atomic: false });
 		}
 
 		const toTargetResource = (path: string): URI => this.extUri.joinPath(to, this.extUri.relativePath(from, from.with({ path })) || '');
@@ -339,7 +339,7 @@ export class IndexedDBFileSystemProvider extends Disposable implements IFileSyst
 			await this.bulkWrite(targetFiles);
 		}
 
-		await this.delete(from, { recursive: true, useTrash: false });
+		await this.delete(from, { recursive: true, useTrash: false, atomic: false });
 	}
 
 	async delete(resource: URI, opts: IFileDeleteOptions): Promise<void> {

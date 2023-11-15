@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { alert } from 'vs/base/browser/ui/aria/aria';
 import { asArray, isNonEmptyArray } from 'vs/base/common/arrays';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
@@ -20,12 +19,10 @@ import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { DocumentFormattingEditProvider, DocumentRangeFormattingEditProvider, FormattingOptions, TextEdit } from 'vs/editor/common/languages';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { FormattingEdit } from 'vs/editor/contrib/format/browser/formattingEdit';
-import * as nls from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ExtensionIdentifierSet } from 'vs/platform/extensions/common/extensions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -33,33 +30,7 @@ import { IProgress } from 'vs/platform/progress/common/progress';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { LanguageFeatureRegistry } from 'vs/editor/common/languageFeatureRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
-
-export function alertFormattingEdits(edits: ISingleEditOperation[]): void {
-
-	edits = edits.filter(edit => edit.range);
-	if (!edits.length) {
-		return;
-	}
-
-	let { range } = edits[0];
-	for (let i = 1; i < edits.length; i++) {
-		range = Range.plusRange(range, edits[i].range);
-	}
-	const { startLineNumber, endLineNumber } = range;
-	if (startLineNumber === endLineNumber) {
-		if (edits.length === 1) {
-			alert(nls.localize('hint11', "Made 1 formatting edit on line {0}", startLineNumber));
-		} else {
-			alert(nls.localize('hintn1', "Made {0} formatting edits on line {1}", edits.length, startLineNumber));
-		}
-	} else {
-		if (edits.length === 1) {
-			alert(nls.localize('hint1n', "Made 1 formatting edit between lines {0} and {1}", startLineNumber, endLineNumber));
-		} else {
-			alert(nls.localize('hintnn', "Made {0} formatting edits between lines {1} and {2}", edits.length, startLineNumber, endLineNumber));
-		}
-	}
-}
+import { AccessibleNotificationEvent, IAccessibleNotificationService } from 'vs/platform/accessibility/common/accessibility';
 
 export function getRealAndSyntheticDocumentFormattersOrdered(
 	documentFormattingEditProvider: LanguageFeatureRegistry<DocumentFormattingEditProvider>,
@@ -134,7 +105,8 @@ export async function formatDocumentRangesWithSelectedProvider(
 	rangeOrRanges: Range | Range[],
 	mode: FormattingMode,
 	progress: IProgress<DocumentRangeFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
@@ -144,7 +116,7 @@ export async function formatDocumentRangesWithSelectedProvider(
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token);
+		await instaService.invokeFunction(formatDocumentRangesWithProvider, selected, editorOrModel, rangeOrRanges, token, userGesture);
 	}
 }
 
@@ -153,10 +125,12 @@ export async function formatDocumentRangesWithProvider(
 	provider: DocumentRangeFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	rangeOrRanges: Range | Range[],
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
 	const logService = accessor.get(ILogService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -279,7 +253,6 @@ export async function formatDocumentRangesWithProvider(
 	if (isCodeEditor(editorOrModel)) {
 		// use editor to apply edits
 		FormattingEdit.execute(editorOrModel, allEdits, true);
-		alertFormattingEdits(allEdits);
 		editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 
 	} else {
@@ -301,7 +274,7 @@ export async function formatDocumentRangesWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
 	return true;
 }
 
@@ -310,7 +283,8 @@ export async function formatDocumentWithSelectedProvider(
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
 	progress: IProgress<DocumentFormattingEditProvider>,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<void> {
 
 	const instaService = accessor.get(IInstantiationService);
@@ -320,7 +294,7 @@ export async function formatDocumentWithSelectedProvider(
 	const selected = await FormattingConflicts.select(provider, model, mode);
 	if (selected) {
 		progress.report(selected);
-		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token);
+		await instaService.invokeFunction(formatDocumentWithProvider, selected, editorOrModel, mode, token, userGesture);
 	}
 }
 
@@ -329,9 +303,11 @@ export async function formatDocumentWithProvider(
 	provider: DocumentFormattingEditProvider,
 	editorOrModel: ITextModel | IActiveCodeEditor,
 	mode: FormattingMode,
-	token: CancellationToken
+	token: CancellationToken,
+	userGesture?: boolean
 ): Promise<boolean> {
 	const workerService = accessor.get(IEditorWorkerService);
+	const accessibleNotificationService = accessor.get(IAccessibleNotificationService);
 
 	let model: ITextModel;
 	let cts: CancellationTokenSource;
@@ -370,7 +346,6 @@ export async function formatDocumentWithProvider(
 		FormattingEdit.execute(editorOrModel, edits, mode !== FormattingMode.Silent);
 
 		if (mode !== FormattingMode.Silent) {
-			alertFormattingEdits(edits);
 			editorOrModel.revealPositionInCenterIfOutsideViewport(editorOrModel.getPosition(), ScrollType.Immediate);
 		}
 
@@ -393,7 +368,7 @@ export async function formatDocumentWithProvider(
 			return null;
 		});
 	}
-
+	accessibleNotificationService.notify(AccessibleNotificationEvent.Format, userGesture);
 	return true;
 }
 

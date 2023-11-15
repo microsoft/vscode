@@ -52,6 +52,10 @@ export interface SystemInfo extends IMachineInfo {
 
 export interface IRemoteDiagnosticInfo extends IDiagnosticInfo {
 	hostName: string;
+	latency?: {
+		current: number;
+		average: number;
+	};
 }
 
 export interface IRemoteDiagnosticError {

@@ -5,10 +5,13 @@
 
 import { deepStrictEqual } from 'assert';
 import { Codicon } from 'vs/base/common/codicons';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 
 suite('terminalProfiles', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('createProfileSchemaEnums', () => {
 		test('should return an empty array when there are no profiles', () => {
 			deepStrictEqual(createProfileSchemaEnums([]), {

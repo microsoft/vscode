@@ -7,7 +7,6 @@ import { Promises } from 'vs/base/common/async';
 import { getErrorMessage } from 'vs/base/common/errors';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
-import { isWindows } from 'vs/base/common/platform';
 import { joinPath } from 'vs/base/common/resources';
 import * as semver from 'vs/base/common/semver/semver';
 import { isBoolean } from 'vs/base/common/types';
@@ -129,7 +128,7 @@ export class ExtensionsDownloader extends Disposable {
 
 		try {
 			// Rename temp location to original
-			await this.rename(tempLocation, location, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */);
+			await FSPromises.rename(tempLocation.fsPath, location.fsPath, 2 * 60 * 1000 /* Retry for 2 minutes */);
 		} catch (error) {
 			try {
 				await this.fileService.del(tempLocation);
@@ -146,18 +145,6 @@ export class ExtensionsDownloader extends Disposable {
 	async delete(location: URI): Promise<void> {
 		await this.cleanUpPromise;
 		await this.fileService.del(location);
-	}
-
-	private async rename(from: URI, to: URI, retryUntil: number): Promise<void> {
-		try {
-			await FSPromises.rename(from.fsPath, to.fsPath);
-		} catch (error) {
-			if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
-				this.logService.info(`Failed renaming ${from} to ${to} with 'EPERM' error. Trying again...`);
-				return this.rename(from, to, retryUntil);
-			}
-			throw error;
-		}
 	}
 
 	private async cleanUp(): Promise<void> {

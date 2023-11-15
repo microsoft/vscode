@@ -10,7 +10,8 @@
 			"scope": [
 				"meta.embedded",
 				"source.groovy.embedded",
-				"string meta.image.inline.markdown"
+				"string meta.image.inline.markdown",
+				"variable.legacy.builtin.python"
 			],
 			"settings": {
 				"foreground": "#333333"
@@ -251,7 +252,8 @@
 				"meta.selector",
 				"meta.selector entity",
 				"meta.selector entity punctuation",
-				"entity.name.tag.css"
+				"entity.name.tag.css",
+				"entity.name.tag.less"
 			],
 			"settings": {
 				"foreground": "#7A3E9D"

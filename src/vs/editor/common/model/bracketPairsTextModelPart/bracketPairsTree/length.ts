@@ -216,6 +216,14 @@ export function lengthsToRange(lengthStart: Length, lengthEnd: Length): Range {
 	return new Range(lineCount + 1, colCount + 1, lineCount2 + 1, colCount2 + 1);
 }
 
+export function lengthOfRange(range: Range): LengthObj {
+	if (range.startLineNumber === range.endLineNumber) {
+		return new LengthObj(0, range.endColumn - range.startColumn);
+	} else {
+		return new LengthObj(range.endLineNumber - range.startLineNumber, range.endColumn - 1);
+	}
+}
+
 export function lengthCompare(length1: Length, length2: Length): number {
 	const l1 = length1 as any as number;
 	const l2 = length2 as any as number;

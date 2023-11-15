@@ -18,8 +18,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editor
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import * as perf from 'vs/base/common/performance';
 import { assertIsDefined } from 'vs/base/common/types';
-import { runWhenIdle } from 'vs/base/common/async';
 import { ISplashStorageService } from 'vs/workbench/contrib/splash/browser/splash';
+import { mainWindow } from 'vs/base/browser/window';
 
 export class PartsSplash {
 
@@ -37,15 +37,15 @@ export class PartsSplash {
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ISplashStorageService private readonly _partSplashService: ISplashStorageService
 	) {
-		Event.once(_layoutService.onDidLayout)(() => {
+		Event.once(_layoutService.onDidLayoutMainContainer)(() => {
 			this._removePartsSplash();
 			perf.mark('code/didRemovePartsSplash');
 		}, undefined, this._disposables);
 
 		let lastIdleSchedule: IDisposable | undefined;
-		Event.any(onDidChangeFullscreen, editorGroupsService.onDidLayout, _themeService.onDidColorThemeChange)(() => {
+		Event.any(onDidChangeFullscreen, editorGroupsService.mainPart.onDidLayout, _themeService.onDidColorThemeChange)(() => {
 			lastIdleSchedule?.dispose();
-			lastIdleSchedule = runWhenIdle(() => this._savePartsSplash(), 800);
+			lastIdleSchedule = dom.runWhenWindowIdle(mainWindow, () => this._savePartsSplash(), 800);
 		}, undefined, this._disposables);
 
 		_configService.onDidChangeConfiguration(e => {
@@ -95,15 +95,15 @@ export class PartsSplash {
 	}
 
 	private _removePartsSplash(): void {
-		const element = document.getElementById(PartsSplash._splashElementId);
+		const element = mainWindow.document.getElementById(PartsSplash._splashElementId);
 		if (element) {
 			element.style.display = 'none';
 		}
 
 		// remove initial colors
-		const defaultStyles = document.head.getElementsByClassName('initialShellColors');
+		const defaultStyles = mainWindow.document.head.getElementsByClassName('initialShellColors');
 		if (defaultStyles.length) {
-			document.head.removeChild(defaultStyles[0]);
+			mainWindow.document.head.removeChild(defaultStyles[0]);
 		}
 	}
 }

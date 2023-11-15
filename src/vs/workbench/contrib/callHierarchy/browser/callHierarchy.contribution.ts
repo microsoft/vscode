@@ -174,7 +174,7 @@ class CallHierarchyController implements IEditorContribution {
 
 registerEditorContribution(CallHierarchyController.Id, CallHierarchyController, EditorContributionInstantiation.Eager); // eager because it needs to define a context key
 
-registerAction2(class extends EditorAction2 {
+registerAction2(class PeekCallHierarchyAction extends EditorAction2 {
 
 	constructor() {
 		super({
@@ -197,7 +197,8 @@ registerAction2(class extends EditorAction2 {
 			precondition: ContextKeyExpr.and(
 				_ctxHasCallHierarchyProvider,
 				PeekContext.notInPeekEditor
-			)
+			),
+			f1: true
 		});
 	}
 

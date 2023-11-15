@@ -17,6 +17,7 @@ import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/r
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IReference } from 'vs/base/common/lifecycle';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
+import { IFilesConfigurationService } from 'vs/workbench/services/filesConfiguration/common/filesConfigurationService';
 
 /**
  * The base class for all editor inputs that open in text editors.
@@ -29,9 +30,10 @@ export abstract class AbstractTextResourceEditorInput extends AbstractResourceEd
 		@IEditorService protected readonly editorService: IEditorService,
 		@ITextFileService protected readonly textFileService: ITextFileService,
 		@ILabelService labelService: ILabelService,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, preferredResource, labelService, fileService);
+		super(resource, preferredResource, labelService, fileService, filesConfigurationService);
 	}
 
 	override save(group: GroupIdentifier, options?: ITextFileSaveOptions): Promise<IUntypedEditorInput | undefined> {
@@ -97,13 +99,14 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		private description: string | undefined,
 		private preferredLanguageId: string | undefined,
 		private preferredContents: string | undefined,
-		@ITextModelService private readonly textModelResolverService: ITextModelService,
+		@ITextModelService private readonly textModelService: ITextModelService,
 		@ITextFileService textFileService: ITextFileService,
 		@IEditorService editorService: IEditorService,
 		@IFileService fileService: IFileService,
-		@ILabelService labelService: ILabelService
+		@ILabelService labelService: ILabelService,
+		@IFilesConfigurationService filesConfigurationService: IFilesConfigurationService
 	) {
-		super(resource, undefined, editorService, textFileService, labelService, fileService);
+		super(resource, undefined, editorService, textFileService, labelService, fileService, filesConfigurationService);
 	}
 
 	override getName(): string {
@@ -157,7 +160,7 @@ export class TextResourceEditorInput extends AbstractTextResourceEditorInput imp
 		this.preferredLanguageId = undefined;
 
 		if (!this.modelReference) {
-			this.modelReference = this.textModelResolverService.createModelReference(this.resource);
+			this.modelReference = this.textModelService.createModelReference(this.resource);
 		}
 
 		const ref = await this.modelReference;

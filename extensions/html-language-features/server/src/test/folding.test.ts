@@ -37,7 +37,7 @@ function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRan
 	return { startLine, endLine, kind };
 }
 
-suite('HTML Folding', async () => {
+suite('HTML Folding', () => {
 
 	test('Embedded JavaScript', async () => {
 		const input = [

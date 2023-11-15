@@ -25,7 +25,7 @@ if ($env:VSCODE_ENV_REPLACE) {
 	$Split = $env:VSCODE_ENV_REPLACE.Split(":")
 	foreach ($Item in $Split) {
 		$Inner = $Item.Split('=')
-		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1])
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_REPLACE = $null
 }
@@ -33,7 +33,7 @@ if ($env:VSCODE_ENV_PREPEND) {
 	$Split = $env:VSCODE_ENV_PREPEND.Split(":")
 	foreach ($Item in $Split) {
 		$Inner = $Item.Split('=')
-		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1] + [Environment]::GetEnvironmentVariable($Inner[0]))
+		[Environment]::SetEnvironmentVariable($Inner[0], $Inner[1].Replace('\x3a', ':') + [Environment]::GetEnvironmentVariable($Inner[0]))
 	}
 	$env:VSCODE_ENV_PREPEND = $null
 }
@@ -41,7 +41,7 @@ if ($env:VSCODE_ENV_APPEND) {
 	$Split = $env:VSCODE_ENV_APPEND.Split(":")
 	foreach ($Item in $Split) {
 		$Inner = $Item.Split('=')
-		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1])
+		[Environment]::SetEnvironmentVariable($Inner[0], [Environment]::GetEnvironmentVariable($Inner[0]) + $Inner[1].Replace('\x3a', ':'))
 	}
 	$env:VSCODE_ENV_APPEND = $null
 }
@@ -120,7 +120,12 @@ if (Get-Module -Name PSReadLine) {
 }
 
 # Set IsWindows property
-[Console]::Write("$([char]0x1b)]633;P;IsWindows=$($IsWindows)`a")
+if ($PSVersionTable.PSVersion -lt "6.0") {
+	# Windows PowerShell is only available on Windows
+	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$true`a")
+} else {
+	[Console]::Write("$([char]0x1b)]633;P;IsWindows=$IsWindows`a")
+}
 
 # Set always on key handlers which map to default VS Code keybindings
 function Set-MappedKeyHandler {

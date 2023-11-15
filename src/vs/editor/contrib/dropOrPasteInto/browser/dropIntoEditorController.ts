@@ -5,7 +5,7 @@
 
 import { coalesce } from 'vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, raceCancellation } from 'vs/base/common/async';
-import { VSDataTransfer } from 'vs/base/common/dataTransfer';
+import { VSDataTransfer, matchesMimeType } from 'vs/base/common/dataTransfer';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { toExternalVSDataTransfer } from 'vs/editor/browser/dnd';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -13,16 +13,22 @@ import { EditorOption } from 'vs/editor/common/config/editorOptions';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { DocumentOnDropEdit, DocumentOnDropEditProvider } from 'vs/editor/common/languages';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
 import { DraggedTreeItemsIdentifier } from 'vs/editor/common/services/treeViewsDnd';
 import { ITreeViewsDnDService } from 'vs/editor/common/services/treeViewsDndService';
 import { CodeEditorStateFlag, EditorStateCancellationTokenSource } from 'vs/editor/contrib/editorState/browser/editorState';
 import { InlineProgressManager } from 'vs/editor/contrib/inlineProgress/browser/inlineProgress';
 import { localize } from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { LocalSelectionTransfer } from 'vs/platform/dnd/browser/dnd';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { sortEditsByYieldTo } from './edit';
 import { PostEditWidgetManager } from './postEditWidget';
+
+export const defaultProviderConfig = 'editor.experimental.dropIntoEditor.defaultProvider';
 
 export const changeDropTypeCommandId = 'editor.changeDropType';
 
@@ -46,6 +52,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 	constructor(
 		editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@ITreeViewsDnDService private readonly _treeViewsDragAndDropService: ITreeViewsDnDService
 	) {
@@ -99,19 +106,16 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 						return provider.dropMimeTypes.some(mime => ourDataTransfer.matches(mime));
 					});
 
-				const possibleDropEdits = await raceCancellation(Promise.all(providers.map(provider => {
-					return provider.provideDocumentOnDropEdits(model, position, ourDataTransfer, tokenSource.token);
-				})), tokenSource.token);
+				const edits = await this.getDropEdits(providers, model, position, ourDataTransfer, tokenSource);
 				if (tokenSource.token.isCancellationRequested) {
 					return;
 				}
 
-				if (possibleDropEdits) {
-					const allEdits = coalesce(possibleDropEdits);
-					// Pass in the parent token here as it tracks cancelling the entire drop operation.
-
+				if (edits.length) {
+					const activeEditIndex = this.getInitialActiveEditIndex(model, edits);
 					const canShowWidget = editor.getOption(EditorOption.dropIntoEditor).showDropSelector === 'afterDrop';
-					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex: 0, allEdits }, canShowWidget, token);
+					// Pass in the parent token here as it tracks cancelling the entire drop operation
+					await this._postDropWidgetManager.applyEditAndShowIfNeeded([Range.fromPositions(position)], { activeEditIndex, allEdits: edits }, canShowWidget, token);
 				}
 			} finally {
 				tokenSource.dispose();
@@ -123,6 +127,36 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 
 		this._dropProgressManager.showWhile(position, localize('dropIntoEditorProgress', "Running drop handlers. Click to cancel"), p);
 		this._currentOperation = p;
+	}
+
+	private async getDropEdits(providers: readonly DocumentOnDropEditProvider[], model: ITextModel, position: IPosition, dataTransfer: VSDataTransfer, tokenSource: EditorStateCancellationTokenSource) {
+		const results = await raceCancellation(Promise.all(providers.map(async provider => {
+			try {
+				const edit = await provider.provideDocumentOnDropEdits(model, position, dataTransfer, tokenSource.token);
+				if (edit) {
+					return { ...edit, providerId: provider.id };
+				}
+			} catch (err) {
+				console.error(err);
+			}
+			return undefined;
+		})), tokenSource.token);
+
+		const edits = coalesce(results ?? []);
+		return sortEditsByYieldTo(edits);
+	}
+
+	private getInitialActiveEditIndex(model: ITextModel, edits: ReadonlyArray<DocumentOnDropEdit & { readonly providerId?: string }>) {
+		const preferredProviders = this._configService.getValue<Record<string, string>>(defaultProviderConfig, { resource: model.uri });
+		for (const [configMime, desiredId] of Object.entries(preferredProviders)) {
+			const editIndex = edits.findIndex(edit =>
+				desiredId === edit.providerId
+				&& edit.handledMimeType && matchesMimeType(configMime, [edit.handledMimeType]));
+			if (editIndex >= 0) {
+				return editIndex;
+			}
+		}
+		return 0;
 	}
 
 	private async extractDataTransferData(dragEvent: DragEvent): Promise<VSDataTransfer> {
@@ -138,7 +172,7 @@ export class DropIntoEditorController extends Disposable implements IEditorContr
 				for (const id of data) {
 					const treeDataTransfer = await this._treeViewsDragAndDropService.removeDragOperationTransfer(id.identifier);
 					if (treeDataTransfer) {
-						for (const [type, value] of treeDataTransfer.entries()) {
+						for (const [type, value] of treeDataTransfer) {
 							dataTransfer.replace(type, value);
 						}
 					}
