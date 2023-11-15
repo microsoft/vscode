@@ -850,6 +850,13 @@ export function getActiveDocument(): Document {
 	return documents.find(doc => doc.hasFocus()) ?? document;
 }
 
+export function getDocument(element: Node | undefined | null): Document;
+export function getDocument(event: UIEvent | undefined | null): Document;
+export function getDocument(e: unknown): Document {
+	const candidateNode = e as Node | undefined | null;
+	return getWindow(candidateNode).document;
+}
+
 export function getActiveWindow(): CodeWindow {
 	const document = getActiveDocument();
 	return (document.defaultView?.window ?? mainWindow) as CodeWindow;

@@ -24,6 +24,7 @@ import { ITerminalProcessManager, TerminalCommandId } from 'vs/workbench/contrib
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import type { Terminal } from '@xterm/xterm';
 import { TerminalCapability } from 'vs/platform/terminal/common/capabilities/capabilities';
+import { getWindow } from 'vs/base/browser/dom';
 
 registerTerminalAction({
 	id: TerminalCommandId.ShowTextureAtlas,
@@ -145,7 +146,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 		// Text area syncing
 		if (this._xterm?.raw.textarea) {
-			const font = this._terminalService.configHelper.getFont();
+			const font = this._terminalService.configHelper.getFont(getWindow(this._xterm.raw.textarea));
 			this._xterm.raw.textarea.style.fontFamily = font.fontFamily;
 			this._xterm.raw.textarea.style.fontSize = `${font.fontSize}px`;
 		}
