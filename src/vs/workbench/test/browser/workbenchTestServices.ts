@@ -594,7 +594,6 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
-	hasContainer = true;
 	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;

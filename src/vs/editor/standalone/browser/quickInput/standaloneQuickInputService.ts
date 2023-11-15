@@ -39,7 +39,6 @@ class EditorScopedQuickInputService extends QuickInputService {
 			const widget = contribution.widget;
 			this.host = {
 				_serviceBrand: undefined,
-				get hasContainer() { return true; },
 				get mainContainer() { return widget.getDomNode(); },
 				getContainer() { return widget.getDomNode(); },
 				get containers() { return [widget.getDomNode()]; },

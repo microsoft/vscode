@@ -165,7 +165,6 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	//#region Properties
 
-	readonly hasContainer = true;
 	readonly mainContainer = document.createElement('div');
 	get activeContainer() { return this.getContainerFromDocument(getActiveDocument()); }
 	get containers(): Iterable<HTMLElement> {
