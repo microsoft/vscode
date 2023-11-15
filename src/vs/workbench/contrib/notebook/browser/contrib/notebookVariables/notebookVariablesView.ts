@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { IObjectTreeElement } from 'vs/base/browser/ui/tree/tree';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import * as nls from 'vs/nls';
 import { ILocalizedString } from 'vs/platform/action/common/action';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -18,11 +20,11 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { mockVariables, NotebookVariableAccessibilityProvider, NotebookVariableRenderer, INotebookVariableElement, NotebookVariablesDelegate, NotebookVariablesTree } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
+import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, INotebookVariableElement, NotebookVariablesDelegate, NotebookVariablesTree } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
-import { INotebookKernelService } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
+import { INotebookKernelService, VariablesResult } from 'vs/workbench/contrib/notebook/common/notebookKernelService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class NotebookVariablesView extends ViewPane {
@@ -103,11 +105,49 @@ export class NotebookVariablesView extends ViewPane {
 		}
 	}
 
-	private updateVariables(notebook: NotebookTextModel) {
+	private async updateVariables(notebook: NotebookTextModel) {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
-		if (selectedKernel) {
+		if (selectedKernel && selectedKernel.providesVariables) {
 
-			this.tree?.setChildren(null, mockVariables(notebook.uri.toString(), selectedKernel.label));
+			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
+			const treeData = await variables
+				.map(variable => { return this.createTreeItem(variable); })
+				.toPromise();
+
+			this.tree?.setChildren(null, treeData);
 		}
+	}
+
+	private index = 0;
+
+	private createTreeItem(variable: VariablesResult): IObjectTreeElement<INotebookVariableElement> {
+		let collapsed: boolean | undefined = undefined;
+		let children: IObjectTreeElement<INotebookVariableElement>[] | undefined = undefined;
+		if (variable.namedChildrenCount > 0 || variable.indexedChildrenCount > 0) {
+			collapsed = true;
+			children = [
+				{
+					element: {
+						id: `${this.index + 1}-placeholder`,
+						label: ' ',
+						value: 'loading...',
+					}
+				}
+			];
+		}
+
+		const element = {
+			element: {
+				id: `${this.index++}`,
+				label: variable.variable.name,
+				value: variable.variable.value,
+			},
+			children,
+			collapsed
+		};
+
+
+
+		return element;
 	}
 }
