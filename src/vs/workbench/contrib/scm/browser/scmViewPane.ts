@@ -3172,9 +3172,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 	getParent(element: TreeElement): ISCMViewService | TreeElement {
 		if (isSCMResourceNode(element)) {
-			if (element === element.context.resourceTree.root) {
-				return element.context;
-			} else if (element.parent === element.context.resourceTree.root) {
+			if (element.parent === element.context.resourceTree.root) {
 				return element.context;
 			} else if (element.parent) {
 				return element.parent;
@@ -3191,6 +3189,10 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			if (!result) {
 				throw new Error('Invalid element passed to getParent');
+			}
+
+			if (result === element.resourceGroup.resourceTree.root) {
+				return element.resourceGroup;
 			}
 
 			return result;
