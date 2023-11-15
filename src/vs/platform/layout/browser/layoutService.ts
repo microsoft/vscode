@@ -64,11 +64,6 @@ export interface ILayoutService {
 	readonly activeContainerDimension: IDimension;
 
 	/**
-	 * Does the application have a single container?
-	 */
-	readonly hasContainer: boolean;
-
-	/**
 	 * Main container of the application.
 	 *
 	 * **NOTE**: In the standalone editor case, multiple editors can be created on a page.

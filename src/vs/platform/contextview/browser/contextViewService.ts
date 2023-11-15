@@ -21,7 +21,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 	) {
 		super();
 
-		this.container = layoutService.hasContainer ? layoutService.mainContainer : null;
+		this.container = layoutService.mainContainer;
 		this.contextView = this._register(new ContextView(this.container, ContextViewDOMPosition.ABSOLUTE));
 		this.layout();
 
@@ -41,7 +41,7 @@ export class ContextViewService extends Disposable implements IContextViewServic
 				this.setContainer(container, shadowRoot ? ContextViewDOMPosition.FIXED_SHADOW : ContextViewDOMPosition.FIXED);
 			}
 		} else {
-			if (this.layoutService.hasContainer && this.container !== this.layoutService.activeContainer) {
+			if (this.container !== this.layoutService.activeContainer) {
 				this.setContainer(this.layoutService.activeContainer, ContextViewDOMPosition.ABSOLUTE);
 			}
 		}

@@ -65,12 +65,10 @@ export class BrowserClipboardService extends Disposable implements IClipboardSer
 			});
 		};
 
-		if (this.layoutService.hasContainer) {
-			this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
-				disposables.add(addDisposableListener(container, 'click', handler));
-				disposables.add(addDisposableListener(container, 'keydown', handler));
-			}, { container: this.layoutService.mainContainer, disposables: this._store }));
-		}
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'click', handler));
+			disposables.add(addDisposableListener(container, 'keydown', handler));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
 	async writeText(text: string, type?: string): Promise<void> {
