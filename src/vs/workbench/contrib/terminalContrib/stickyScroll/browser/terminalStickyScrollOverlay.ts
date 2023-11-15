@@ -8,7 +8,7 @@ import type { IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, T
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
-import { memoize, throttle } from 'vs/base/common/decorators';
+import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
@@ -119,8 +119,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _installRefreshListeners() {
 		if (!this._refreshListeners.value) {
 			this._refreshListeners.value = combinedDisposable(
-				this._xterm.raw.onScroll(() => this._refresh()),
-				this._xterm.raw.onLineFeed(() => this._refresh()),
+				Event.any(
+					this._xterm.raw.onScroll,
+					this._xterm.raw.onLineFeed,
+					// Rarely an update may be required after just a cursor move, like when
+					// scrolling horizontally in a pager
+					this._xterm.raw.onCursorMove
+				)(() => this._refresh()),
 				addStandardDisposableListener(this._xterm.raw.element!.querySelector('.xterm-viewport')!, 'scroll', () => this._refresh()),
 			);
 		}
@@ -140,15 +145,43 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._element?.classList.toggle(CssClasses.Visible, isVisible);
 	}
 
-	@throttle(0)
+	/**
+	 * The entry point to refresh sticky scroll. This is synchronous and will call into the method
+	 * that actually refreshes using either debouncing or throttling depending on the situation.
+	 *
+	 * The goal is that if the command has changed to update immediately (with throttling) and if
+	 * the command is the same then update with debouncing as it's less likely updates will show up.
+	 * This approach also helps with:
+	 *
+	 * - Cursor move only updates such as moving horizontally in pagers which without this may show
+	 *   the sticky scroll before hiding it again almost immediately due to everything not being
+	 *   parsed yet.
+	 * - Improving performance due to deferring less important updates via debouncing.
+	 * - Less flickering when scrolling, while still updating immediately when the command changes.
+	 */
 	private _refresh(): void {
 		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
+		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
+		if (command && this._currentStickyCommand !== command) {
+			this._throttledRefresh();
+		} else {
+			this._debouncedRefresh();
+		}
+	}
+
+	@debounce(20)
+	private _debouncedRefresh(): void {
+		this._throttledRefresh();
+	}
+
+	@throttle(0)
+	private _throttledRefresh(): void {
+		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
 
 		// The command from viewportY + 1 is used because this one will not be obscured by sticky
 		// scroll.
-		const command = this._commandDetection.getCommandForLine(this._xterm.raw.buffer.active.viewportY);
 		this._currentStickyCommand = undefined;
 
 		// No command
@@ -181,12 +214,13 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	}
 
 	private _updateContent(command: ITerminalCommand | ICurrentPartialCommand, startMarker: IMarker) {
-		if (!this._xterm.raw.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
+		const xterm = this._xterm.raw;
+		if (!xterm.element?.parentElement || !this._stickyScrollOverlay || !this._serializeAddon) {
 			return;
 		}
 
 		// Determine sticky scroll line count
-		const buffer = this._xterm.raw.buffer.active;
+		const buffer = xterm.buffer.active;
 		const promptRowCount = command.getPromptRowCount();
 		const commandRowCount = command.getCommandRowCount();
 		const stickyScrollLineStart = startMarker.line - (promptRowCount - 1);
@@ -195,13 +229,26 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		// of the sticky overlay because we do not want to show any content above the bounds of the
 		// original terminal. This is done because it seems like scrolling flickers more when a
 		// partial line can be drawn on the top.
-		const rowOffset = 'getOutput' in command && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
+		const isPartialCommand = !('getOutput' in command);
+		const rowOffset = !isPartialCommand && command.endMarker ? Math.max(buffer.viewportY - command.endMarker.line + 1, 0) : 0;
 		const stickyScrollLineCount = Math.min(promptRowCount + commandRowCount - 1, this._maxLineCount) - rowOffset;
 
 		// Hide sticky scroll if it's currently on a line that contains it
 		if (buffer.viewportY === stickyScrollLineStart) {
 			this._setVisible(false);
 			return;
+		}
+
+		// Hide sticky scroll for the partial command if it looks like there is a pager like `less`
+		// or `git log` active. This is done by checking if the bottom left cell contains the :
+		// character and the cursor is immediately to its right. This improves the behavior of a
+		// common case where the top of the text being viewport would otherwise be obscured.
+		if (isPartialCommand && buffer.viewportY === buffer.baseY && buffer.cursorY === xterm.rows - 1 && buffer.cursorX === 1) {
+			const line = buffer.getLine(buffer.baseY + xterm.rows - 1);
+			if (line && line.getCell(0)?.getCode() === 58/*:*/) {
+				this._setVisible(false);
+				return;
+			}
 		}
 
 		// Clear attrs, reset cursor position, clear right
@@ -232,8 +279,8 @@ export class TerminalStickyScrollOverlay extends Disposable {
 			// following command. This must happen after setVisible to ensure the element is
 			// initialized.
 			if (this._element) {
-				const termBox = this._xterm.raw.element.getBoundingClientRect();
-				const rowHeight = termBox.height / this._xterm.raw.rows;
+				const termBox = xterm.element.getBoundingClientRect();
+				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
 				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
 			}
