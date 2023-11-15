@@ -6,7 +6,7 @@
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
+import { MarkdownString } from 'vs/base/common/htmlContent';
 import { Iterable } from 'vs/base/common/iterator';
 import { Disposable, DisposableMap, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { revive } from 'vs/base/common/marshalling';
@@ -646,10 +646,7 @@ export class ChatService extends Disposable implements IChatService {
 			model.acceptResponseProgress(request, { content: response.message, kind: 'content' });
 		} else {
 			for (const part of response.message) {
-				const progress: IChatProgress = 'inlineReference' in part ? part :
-					isMarkdownString(part) ? { content: part.value, kind: 'content' } :
-						{ treeData: part, kind: 'treeData' };
-				model.acceptResponseProgress(request, progress, true);
+				model.acceptResponseProgress(request, part, true);
 			}
 		}
 		model.setResponse(request, {
