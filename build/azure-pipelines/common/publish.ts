@@ -350,6 +350,7 @@ async function releaseAndProvision(
 	const result = `${e('PRSS_CDN_URL')}/${fileName}`;
 
 	const res = await retry(() => fetch(result));
+
 	if (res.status === 200) {
 		log(`Already released and provisioned: ${result}`);
 		return result;
@@ -421,7 +422,10 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 		throw new Error(`Unexpected status code: ${res.status}`);
 	}
 
-	return await res.json();
+	return await Promise.race([
+		res.json(),
+		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20 * 1000))
+	]);
 }
 
 interface Artifact {
