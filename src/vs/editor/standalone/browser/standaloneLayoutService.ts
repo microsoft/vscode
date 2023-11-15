@@ -16,7 +16,9 @@ class StandaloneLayoutService implements ILayoutService {
 
 	readonly onDidLayoutMainContainer = Event.None;
 	readonly onDidLayoutActiveContainer = Event.None;
+	readonly onDidLayoutContainer = Event.None;
 	readonly onDidChangeActiveContainer = Event.None;
+	readonly onDidAddContainer = Event.None;
 
 	private _dimension?: dom.IDimension;
 	get mainContainerDimension(): dom.IDimension {
@@ -36,13 +38,13 @@ class StandaloneLayoutService implements ILayoutService {
 		return false;
 	}
 
-	get container(): HTMLElement {
+	get mainContainer(): HTMLElement {
 		// On a page, multiple editors can be created. Therefore, there are multiple containers, not
 		// just a single one. Please use `activeContainer` to get the current focused code editor
 		// and use its container if necessary. You can also instantiate `EditorScopedLayoutService`
 		// which implements `ILayoutService` but is not a part of the service collection because
 		// it is code editor instance specific.
-		throw new Error(`ILayoutService.container is not available in the standalone editor!`);
+		throw new Error(`ILayoutService.mainContainer is not available in the standalone editor!`);
 	}
 
 	get containers(): Iterable<HTMLElement> {
@@ -52,7 +54,7 @@ class StandaloneLayoutService implements ILayoutService {
 	get activeContainer(): HTMLElement {
 		const activeCodeEditor = this._codeEditorService.getFocusedCodeEditor() ?? this._codeEditorService.getActiveCodeEditor();
 
-		return activeCodeEditor?.getContainerDomNode() ?? this.container;
+		return activeCodeEditor?.getContainerDomNode() ?? this.mainContainer;
 	}
 
 	getContainer() {
@@ -73,7 +75,7 @@ export class EditorScopedLayoutService extends StandaloneLayoutService {
 	override get hasContainer(): boolean {
 		return false;
 	}
-	override get container(): HTMLElement {
+	override get mainContainer(): HTMLElement {
 		return this._container;
 	}
 	constructor(

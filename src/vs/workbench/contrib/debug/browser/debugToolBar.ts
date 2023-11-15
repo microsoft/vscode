@@ -275,7 +275,7 @@ export class DebugToolBar extends Themable implements IWorkbenchContribution {
 		}
 		if (!this.isBuilt) {
 			this.isBuilt = true;
-			this.layoutService.container.appendChild(this.$el);
+			this.layoutService.mainContainer.appendChild(this.$el);
 		}
 
 		this.isVisible = true;

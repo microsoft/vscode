@@ -77,10 +77,9 @@ export class TextInputActionsProvider extends Disposable implements IWorkbenchCo
 	private registerListeners(): void {
 
 		// Context menu support in input/textarea
-		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, container => {
-			const listener = addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e));
-			this._register(Event.filter(this.layoutService.onDidRemoveContainer, removed => removed === container, this._store)(() => listener.dispose()));
-		}, this.layoutService.container));
+		this._register(Event.runAndSubscribe(this.layoutService.onDidAddContainer, ({ container, disposables }) => {
+			disposables.add(addDisposableListener(container, 'contextmenu', e => this.onContextMenu(getWindow(container), e)));
+		}, { container: this.layoutService.mainContainer, disposables: this._store }));
 	}
 
 	private onContextMenu(targetWindow: Window, e: MouseEvent): void {
