@@ -2084,8 +2084,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.revealCell(cell, CellRevealType.Center);
 	}
 
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
+	async revealInCenterIfOutsideViewport(cell: ICellViewModel) {
+		await this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
 	}
 
 	revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
@@ -2398,7 +2398,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
 					await this.revealInView(cell);
 				} else {
-					this.revealInCenterIfOutsideViewport(cell);
+					await this.revealInCenterIfOutsideViewport(cell);
 				}
 			}
 			this._list.focusView();

@@ -12,7 +12,7 @@
 	background: var(--vscode-inlineChat-background);
 }
 .monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container {
-	padding: 8px 12px 0px 8px;
+	padding: 8px 8px 0px 8px;
 }
 
 .monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body {

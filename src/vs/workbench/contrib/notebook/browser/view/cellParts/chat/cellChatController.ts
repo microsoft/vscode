@@ -88,8 +88,15 @@ export class NotebookCellChatController extends Disposable {
 		}
 	}
 
-	async startSession() {
+	async show() {
 		this._isVisible = true;
+		this._chatPart.getWidget().show(this._cell);
+		this._chatPart.getWidget().placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+
+		await this.startSession();
+	}
+
+	async startSession() {
 		if (this._activeSession) {
 			this._inlineChatSessionService.releaseSession(this._activeSession);
 		}
@@ -99,9 +106,7 @@ export class NotebookCellChatController extends Disposable {
 			return;
 		}
 
-		this._chatPart.getWidget().show(this._cell);
 		this._activeSession = await this._createSession(editors[1]);
-		this._chatPart.getWidget().placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
 	}
 
 	async acceptInput() {
@@ -308,7 +313,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		ctrl.startSession();
+		ctrl.show();
 	}
 });
 
@@ -449,6 +454,6 @@ registerAction2(class extends NotebookCellAction {
 		if (!ctrl) {
 			return;
 		}
-		ctrl.startSession();
+		await ctrl.show();
 	}
 });
