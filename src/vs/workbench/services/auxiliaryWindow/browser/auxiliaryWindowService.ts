@@ -52,7 +52,7 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 }
 
-class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
+export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
@@ -70,8 +70,12 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, 'beforeunload', () => {
-			this._onWillClose.fire();
+		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, e => {
+			if (!this.vetoBeforeunload()) {
+				this._onWillClose.fire();
+			} else {
+				e.preventDefault();
+			}
 		}));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
@@ -97,6 +101,10 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			this._register(addDisposableListener(this.window.document.body, EventType.DRAG_OVER, (e: DragEvent) => EventHelper.stop(e)));	// Prevent drag feedback on <body>
 			this._register(addDisposableListener(this.window.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
 		}
+	}
+
+	protected vetoBeforeunload(): boolean {
+		return false;
 	}
 
 	layout(): void {
@@ -149,7 +157,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const containerDisposables = new DisposableStore();
 		const container = this.createContainer(targetWindow, containerDisposables);
 
-		const auxiliaryWindow = new AuxiliaryWindow(targetWindow, container);
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container);
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -171,6 +179,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		mark('code/auxiliaryWindow/didOpen');
 
 		return auxiliaryWindow;
+	}
+
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container);
 	}
 
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
