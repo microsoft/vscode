@@ -792,7 +792,3 @@ export class ChatWelcomeMessageModel implements IChatWelcomeMessageModel {
 		return this.session.responderAvatarIconUri;
 	}
 }
-
-export function isCompleteInteractiveProgressTreeData(item: unknown): item is { treeData: IChatResponseProgressFileTreeData } {
-	return typeof item === 'object' && !!item && 'treeData' in item;
-}
