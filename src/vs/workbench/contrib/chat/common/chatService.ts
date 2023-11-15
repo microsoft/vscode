@@ -102,8 +102,13 @@ export interface IChatAgentDetection {
 }
 
 export interface IChatContent {
-	content: string | IMarkdownString;
+	content: string;
 	kind: 'content';
+}
+
+export interface IChatMarkdownContent {
+	content: IMarkdownString;
+	kind: 'markdownContent';
 }
 
 export interface IChatTreeData {
@@ -119,6 +124,7 @@ export interface IChatAsyncContent {
 
 export type IChatProgress =
 	| IChatContent
+	| IChatMarkdownContent
 	| IChatTreeData
 	| IChatAsyncContent
 	| IChatUsedContext

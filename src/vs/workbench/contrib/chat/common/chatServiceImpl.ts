@@ -469,7 +469,7 @@ export class ChatService extends Disposable implements IChatService {
 
 				gotProgress = true;
 
-				if (progress.kind === 'content') {
+				if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 					this.trace('sendRequest', `Provider returned progress for session ${model.sessionId}, ${typeof progress.content === 'string' ? progress.content.length : progress.content.value.length} chars`);
 				} else {
 					this.trace('sendRequest', `Provider returned progress: ${JSON.stringify(progress)}`);

@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentDetection, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAgentDetection, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -84,11 +84,6 @@ export interface IPlaceholderMarkdownString extends IMarkdownString {
 	isPlaceholder: boolean;
 }
 
-type InternalResponsePart =
-	| { string: IMarkdownString; isPlaceholder?: boolean }
-	| IChatContentInlineReference
-	| { treeData: IChatResponseProgressFileTreeData; isPlaceholder?: undefined };
-
 export class Response implements IResponse {
 	private _onDidChangeValue = new Emitter<void>();
 	public get onDidChangeValue() {
@@ -96,7 +91,7 @@ export class Response implements IResponse {
 	}
 
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
-	private _responseParts: InternalResponsePart[];
+	private _responseParts: Exclude<IChatProgressResponseContent, IChatContent>[];
 	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
 	private _responseData: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference)[];
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
@@ -108,16 +103,21 @@ export class Response implements IResponse {
 
 	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>) {
 		this._responseData = Array.isArray(value) ? value : [value];
-		this._responseParts = Array.isArray(value) ? value.map((v) => ('value' in v ? { string: v } : { treeData: v })) : [{ string: value }];
+		this._responseParts = Array.isArray(value) ?
+			value.map((v) => ('value' in v ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent : { treeData: v, kind: 'treeData' })) :
+			[{ content: value as IMarkdownString, kind: 'markdownContent' } satisfies IChatMarkdownContent];
 		this._responseRepr = this._responseParts.map((part) => {
 			if (isCompleteInteractiveProgressTreeData(part)) {
 				return '';
 			}
 			// TODO duplicates _updateRepr
-			if ('inlineReference' in part) {
+			if (part.kind === 'inlineReference') {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+			} else if (part.kind === 'markdownContent') {
+				return part.content.value;
+			} else {
+				return part.placeholder;
 			}
-			return part.string.value;
 		}).join('\n');
 	}
 
@@ -126,51 +126,49 @@ export class Response implements IResponse {
 	}
 
 	updateContent(progress: IChatProgressResponseContent, quiet?: boolean): void {
-		if (progress.kind === 'content') {
+		if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
 
-			if (lastResponsePart && ('inlineReference' in lastResponsePart || lastResponsePart.isPlaceholder === true || isCompleteInteractiveProgressTreeData(lastResponsePart))) {
-				// The last part is resolving or a tree data item, start a new part
-				this._responseParts.push({ string: typeof progress.content === 'string' ? new MarkdownString(progress.content) : progress.content });
-			} else if (lastResponsePart) {
-				// Combine this part with the last, non-resolving string part
-				if (isMarkdownString(progress.content)) {
-					// Merge all enabled commands
-					const lastPartEnabledCommands = typeof lastResponsePart.string.isTrusted === 'object' ? lastResponsePart.string.isTrusted.enabledCommands : [];
-					const thisPartEnabledCommands = typeof progress.content.isTrusted === 'object' ? progress.content.isTrusted.enabledCommands : [];
-					const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + progress.content.value, { isTrusted: { enabledCommands } }) };
+			if (!lastResponsePart || lastResponsePart.kind !== 'markdownContent') {
+				// The last part can't be merged with
+				if (progress.kind === 'content') {
+					this._responseParts.push({ content: new MarkdownString(progress.content), kind: 'markdownContent' });
 				} else {
-					this._responseParts[responsePartLength] = { string: new MarkdownString(lastResponsePart.string.value + progress.content, lastResponsePart.string) };
+					this._responseParts.push(progress);
 				}
+			} else if (progress.kind === 'markdownContent') {
+				// Merge all enabled commands
+				const lastPartEnabledCommands = typeof lastResponsePart.content.isTrusted === 'object' ?
+					lastResponsePart.content.isTrusted.enabledCommands :
+					[];
+				const thisPartEnabledCommands = typeof progress.content.isTrusted === 'object' ?
+					progress.content.isTrusted.enabledCommands :
+					[];
+				const enabledCommands = [...lastPartEnabledCommands, ...thisPartEnabledCommands];
+				this._responseParts[responsePartLength] = { content: new MarkdownString(lastResponsePart.content.value + progress.content.value, { isTrusted: { enabledCommands } }), kind: 'markdownContent' };
 			} else {
-				this._responseParts.push({ string: isMarkdownString(progress.content) ? progress.content : new MarkdownString(progress.content) });
+				this._responseParts[responsePartLength] = { content: new MarkdownString(lastResponsePart.content.value + progress.content, lastResponsePart.content), kind: 'markdownContent' };
 			}
 
 			this._updateRepr(quiet);
-		} else if ('placeholder' in progress) {
+		} else if (progress.kind === 'asyncContent') {
 			// Add a new resolving part
-			const responsePosition = this._responseParts.push({ string: new MarkdownString(progress.placeholder), isPlaceholder: true }) - 1;
+			const responsePosition = this._responseParts.push(progress) - 1;
 			this._updateRepr(quiet);
 
 			progress.resolvedContent?.then((content) => {
 				// Replace the resolving part's content with the resolved response
 				if (typeof content === 'string') {
-					this._responseParts[responsePosition] = { string: new MarkdownString(content), isPlaceholder: true };
-					this._updateRepr(quiet);
-				} else if ('value' in content) {
-					this._responseParts[responsePosition] = { string: content, isPlaceholder: true };
-					this._updateRepr(quiet);
-				} else if (content.treeData) {
-					this._responseParts[responsePosition] = { treeData: content.treeData };
-					this._updateRepr(quiet);
+					this._responseParts[responsePosition] = { content: new MarkdownString(content), kind: 'markdownContent' };
+				} else if (isMarkdownString(content)) {
+					this._responseParts[responsePosition] = { content, kind: 'markdownContent' };
+				} else {
+					this._responseParts[responsePosition] = content;
 				}
+				this._updateRepr(quiet);
 			});
-		} else if (isCompleteInteractiveProgressTreeData(progress)) {
-			this._responseParts.push(progress);
-			this._updateRepr(quiet);
-		} else if ('inlineReference' in progress) {
+		} else if (progress.kind === 'treeData' || progress.kind === 'inlineReference') {
 			this._responseParts.push(progress);
 			this._updateRepr(quiet);
 		}
@@ -178,25 +176,26 @@ export class Response implements IResponse {
 
 	private _updateRepr(quiet?: boolean) {
 		this._responseData = this._responseParts.map(part => {
-			if ('inlineReference' in part) {
+			if (part.kind === 'inlineReference') {
 				return part;
-			} else if (isCompleteInteractiveProgressTreeData(part)) {
+			} else if (part.kind === 'treeData') {
 				return part.treeData;
-			} else if (part.isPlaceholder) {
-				return { ...part.string, isPlaceholder: true };
+			} else if (part.kind === 'asyncContent') {
+				return { ...new MarkdownString(part.placeholder), isPlaceholder: true };
 			}
-			return part.string;
+			return part.content;
 		});
 
 		this._responseRepr = this._responseParts.map(part => {
-			if (isCompleteInteractiveProgressTreeData(part)) {
+			if (part.kind === 'treeData') {
 				return '';
-			}
-			if ('inlineReference' in part) {
+			} else if (part.kind === 'inlineReference') {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
+			} else if (part.kind === 'asyncContent') {
+				return part.placeholder;
+			} else {
+				return part.content;
 			}
-
-			return part.string.value;
 		}).join('\n\n');
 
 		if (!quiet) {

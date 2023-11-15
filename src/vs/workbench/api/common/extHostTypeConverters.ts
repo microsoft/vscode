@@ -2300,14 +2300,14 @@ export namespace ChatResponseProgress {
 			return { placeholder: progress.placeholder, kind: 'asyncContent' } satisfies extHostProtocol.IChatAsyncContentDto;
 		} else if ('markdownContent' in progress) {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.markdownContent), kind: 'content' };
+			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
 			if (typeof progress.content === 'string') {
 				return { content: progress.content, kind: 'content' };
 			}
 
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
-			return { content: MarkdownString.from(progress.content), kind: 'content' };
+			return { content: MarkdownString.from(progress.content), kind: 'markdownContent' };
 		} else if ('documents' in progress) {
 			return {
 				documents: progress.documents.map(d => ({
