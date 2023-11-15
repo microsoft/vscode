@@ -1,0 +1,43 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sticky-tree-widget{
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 0;
+
+	background-color: var(--vscode-sideBar-background);
+	z-index: 4;
+}
+
+.sticky-tree-widget .sticky-element{
+	position: absolute;
+	width: 100%;
+	height: 22px;
+	line-height: 22px;
+
+	background-color: var(--vscode-sideBar-background);
+	z-index: 5;
+}
+
+.sticky-tree-widget .sticky-element.last-sticky{
+	z-index: 4;
+}
+
+.sticky-tree-widget .sticky-element:hover{
+	background-color: var(--vscode-list-hoverBackground);
+	cursor: pointer;
+}
+
+.sticky-tree-widget .sticky-tree-widget-shadow{
+	position: absolute;
+	bottom: -3px;
+	left: 0px;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}

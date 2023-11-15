@@ -13,7 +13,7 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { IInputBoxStyles, IMessage, MessageType, unthemedInboxStyles } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IIdentityProvider, IKeyboardNavigationLabelProvider, IListContextMenuEvent, IListDragAndDrop, IListDragOverReaction, IListMouseEvent, IListRenderer, IListVirtualDelegate } from 'vs/base/browser/ui/list/list';
 import { ElementsDragAndDropData } from 'vs/base/browser/ui/list/listView';
-import { IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
+import { IListOptions, IListStyles, isButton, isInputElement, isMonacoEditor, isStickyScrollElement, List, MouseController, TypeNavigationMode } from 'vs/base/browser/ui/list/listWidget';
 import { IToggleStyles, Toggle, unthemedToggleStyles } from 'vs/base/browser/ui/toggle/toggle';
 import { getVisibleState, isFilterResult } from 'vs/base/browser/ui/tree/indexTreeModel';
 import { ICollapseStateChangeEvent, ITreeContextMenuEvent, ITreeDragAndDrop, ITreeEvent, ITreeFilter, ITreeModel, ITreeModelSpliceEvent, ITreeMouseEvent, ITreeNavigator, ITreeNode, ITreeRenderer, TreeDragOverBubble, TreeError, TreeFilterResult, TreeMouseEventTarget, TreeVisibility } from 'vs/base/browser/ui/tree/tree';
@@ -33,6 +33,7 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { isNumber } from 'vs/base/common/types';
 import 'vs/css!./media/tree';
 import { localize } from 'vs/nls';
+import { StickyScrollController } from 'vs/base/browser/ui/tree/stickyScroll';
 
 class TreeElementsDragAndDropData<T, TFilterData, TContext> extends ElementsDragAndDropData<T, TContext> {
 
@@ -327,7 +328,7 @@ class EventCollection<T> implements Collection<T>, IDisposable {
 	}
 }
 
-class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
+export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListRenderer<ITreeNode<T, TFilterData>, ITreeListTemplateData<TTemplateData>> {
 
 	private static readonly DefaultIndent = 8;
 
@@ -1212,6 +1213,8 @@ export interface IAbstractTreeOptionsUpdate extends ITreeRendererOptions {
 	readonly fastScrollSensitivity?: number;
 	readonly expandOnDoubleClick?: boolean;
 	readonly expandOnlyOnTwistieClick?: boolean | ((e: any) => boolean); // e is T
+	readonly enableStickyScroll?: boolean;
+	readonly stickyScrollMaxItemCount?: number;
 }
 
 export interface IAbstractTreeOptions<T, TFilterData = void> extends IAbstractTreeOptionsUpdate, IListOptions<T> {
@@ -1377,10 +1380,14 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 		const target = e.browserEvent.target as HTMLElement;
 		const onTwistie = target.classList.contains('monaco-tl-twistie')
 			|| (target.classList.contains('monaco-icon-label') && target.classList.contains('folder-icon') && e.browserEvent.offsetX < 16);
+		const isStickyElement = isStickyScrollElement(e.browserEvent.target as HTMLElement);
 
 		let expandOnlyOnTwistieClick = false;
 
-		if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
+		if (isStickyElement) {
+			expandOnlyOnTwistieClick = true;
+		}
+		else if (typeof this.tree.expandOnlyOnTwistieClick === 'function') {
 			expandOnlyOnTwistieClick = this.tree.expandOnlyOnTwistieClick(node.element);
 		} else {
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
@@ -1524,6 +1531,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	protected view: TreeNodeList<T, TFilterData, TRef>;
 	private renderers: TreeRenderer<T, TFilterData, TRef, any>[];
 	protected model: ITreeModel<T, TFilterData, TRef>;
+	private treeDelegate: ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>;
 	private focus: Trait<T>;
 	private selection: Trait<T>;
 	private anchor: Trait<T>;
@@ -1531,6 +1539,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 	private findController?: FindController<T, TFilterData>;
 	readonly onDidChangeFindOpenState: Event<boolean> = Event.None;
 	private focusNavigationFilter: ((node: ITreeNode<T, TFilterData>) => boolean) | undefined;
+	private stickyScrollController?: StickyScrollController<T, TFilterData, TRef>;
 	private styleElement: HTMLStyleElement;
 	protected readonly disposables = new DisposableStore();
 
@@ -1584,7 +1593,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		renderers: ITreeRenderer<T, TFilterData, any>[],
 		private _options: IAbstractTreeOptions<T, TFilterData> = {}
 	) {
-		const treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
+		this.treeDelegate = new ComposedTreeDelegate<T, ITreeNode<T, TFilterData>>(delegate);
 
 		const onDidChangeCollapseStateRelay = new Relay<ICollapseStateChangeEvent<T, TFilterData>>();
 		const onDidChangeActiveNodes = new Relay<ITreeNode<T, TFilterData>[]>();
@@ -1606,7 +1615,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 		this.focus = new Trait(() => this.view.getFocusedElements()[0], _options.identityProvider);
 		this.selection = new Trait(() => this.view.getSelectedElements()[0], _options.identityProvider);
 		this.anchor = new Trait(() => this.view.getAnchorElement(), _options.identityProvider);
-		this.view = new TreeNodeList(_user, container, treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
+		this.view = new TreeNodeList(_user, container, this.treeDelegate, this.renderers, this.focus, this.selection, this.anchor, { ...asListOptions(() => this.model, _options), tree: this });
 
 		this.model = this.createModel(_user, this.view, _options);
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
@@ -1668,6 +1677,10 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 			this.onDidChangeFindMatchType = Event.None;
 		}
 
+		if (_options.enableStickyScroll) {
+			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, _options);
+		}
+
 		this.styleElement = createStyleSheet(this.view.getHTMLElement());
 		this.getHTMLElement().classList.toggle('always', this._options.renderIndentGuides === RenderIndentGuides.Always);
 	}
@@ -1681,6 +1694,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 		this.view.updateOptions(this._options);
 		this.findController?.updateOptions(optionsUpdate);
+		this.updateStickyScroll(optionsUpdate);
 
 		this._onDidUpdateOptions.fire(this._options);
 
@@ -1689,6 +1703,16 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	get options(): IAbstractTreeOptions<T, TFilterData> {
 		return this._options;
+	}
+
+	private updateStickyScroll(optionsUpdate: IAbstractTreeOptionsUpdate) {
+		if (!this.stickyScrollController && this._options.enableStickyScroll) {
+			this.stickyScrollController = new StickyScrollController(this, this.model, this.view, this.renderers, this.treeDelegate, this._options);
+		} else if (this.stickyScrollController && !this._options.enableStickyScroll) {
+			this.stickyScrollController.dispose();
+			this.stickyScrollController = undefined;
+		}
+		this.stickyScrollController?.updateOptions(optionsUpdate);
 	}
 
 	updateWidth(element: TRef): void {
@@ -2086,6 +2110,7 @@ export abstract class AbstractTree<T, TFilterData, TRef> implements IDisposable 
 
 	dispose(): void {
 		dispose(this.disposables);
+		this.stickyScrollController?.dispose();
 		this.view.dispose();
 	}
 }

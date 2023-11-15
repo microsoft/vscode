@@ -256,8 +256,8 @@ export function isInputElement(e: HTMLElement): boolean {
 	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
 }
 
-export function isMonacoEditor(e: HTMLElement): boolean {
-	if (e.classList.contains('monaco-editor')) {
+function isListElementDescendantOfClass(e: HTMLElement, className: string): boolean {
+	if (e.classList.contains(className)) {
 		return true;
 	}
 
@@ -269,7 +269,27 @@ export function isMonacoEditor(e: HTMLElement): boolean {
 		return false;
 	}
 
-	return isMonacoEditor(e.parentElement);
+	return isListElementDescendantOfClass(e.parentElement, className);
+}
+
+export function isMonacoEditor(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-editor');
+}
+
+export function isMonacoCustomToggle(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-custom-toggle');
+}
+
+export function isActionItem(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'action-item');
+}
+
+export function isMonacoTwistie(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'monaco-tl-twistie');
+}
+
+export function isStickyScrollElement(e: HTMLElement): boolean {
+	return isListElementDescendantOfClass(e, 'sticky-element');
 }
 
 export function isButton(e: HTMLElement): boolean {
@@ -1598,6 +1618,10 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.firstVisibleIndex;
 	}
 
+	get firstHalfVisibleIndex(): number {
+		return this.view.firstHalfVisibleIndex;
+	}
+
 	get lastVisibleIndex(): number {
 		return this.view.lastVisibleIndex;
 	}
@@ -1887,8 +1911,16 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.domNode;
 	}
 
+	getScrollableElement(): HTMLElement {
+		return this.view.scrollableElementDomNode;
+	}
+
 	getElementID(index: number): string {
 		return this.view.getElementDomId(index);
+	}
+
+	getElementTop(index: number): number {
+		return this.view.elementTop(index);
 	}
 
 	style(styles: IListStyles): void {
