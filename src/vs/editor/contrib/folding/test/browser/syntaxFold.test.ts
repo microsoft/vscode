@@ -9,6 +9,7 @@ import { FoldingContext, FoldingRange, FoldingRangeProvider, ProviderResult } fr
 import { SyntaxRangeProvider } from 'vs/editor/contrib/folding/browser/syntaxRangeProvider';
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 import { FoldingLimitReporter } from 'vs/editor/contrib/folding/browser/folding';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 interface IndentRange {
 	start: number;
@@ -77,15 +78,20 @@ suite('Syntax folding', () => {
 		async function assertLimit(maxEntries: number, expectedRanges: IndentRange[], message: string) {
 			let reported: number | false = false;
 			const foldingRangesLimit: FoldingLimitReporter = { limit: maxEntries, update: (computed, limited) => reported = limited };
-			const indentRanges = await new SyntaxRangeProvider(model, providers, () => { }, foldingRangesLimit, undefined).compute(CancellationToken.None);
-			const actual: IndentRange[] = [];
-			if (indentRanges) {
-				for (let i = 0; i < indentRanges.length; i++) {
-					actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+			const syntaxRangeProvider = new SyntaxRangeProvider(model, providers, () => { }, foldingRangesLimit, undefined);
+			try {
+				const indentRanges = await syntaxRangeProvider.compute(CancellationToken.None);
+				const actual: IndentRange[] = [];
+				if (indentRanges) {
+					for (let i = 0; i < indentRanges.length; i++) {
+						actual.push({ start: indentRanges.getStartLineNumber(i), end: indentRanges.getEndLineNumber(i) });
+					}
+					assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
 				}
-				assert.equal(reported, 9 <= maxEntries ? false : maxEntries, 'limited');
+				assert.deepStrictEqual(actual, expectedRanges, message);
+			} finally {
+				syntaxRangeProvider.dispose();
 			}
-			assert.deepStrictEqual(actual, expectedRanges, message);
 
 		}
 
@@ -103,5 +109,5 @@ suite('Syntax folding', () => {
 
 		model.dispose();
 	});
-
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

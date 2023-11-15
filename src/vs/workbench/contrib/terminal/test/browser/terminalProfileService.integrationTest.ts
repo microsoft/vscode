@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { ITerminalConfiguration, ITerminalBackend, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
+import { ITerminalConfiguration, ITerminalProfileService } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TestExtensionService } from 'vs/workbench/test/common/workbenchTestServices';
 import { TerminalProfileService } from 'vs/workbench/contrib/terminal/browser/terminalProfileService';
 import { ITerminalContributionService } from 'vs/workbench/contrib/terminal/common/terminalExtensionPoints';
-import { IExtensionTerminalProfile, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
+import { IExtensionTerminalProfile, ITerminalBackend, ITerminalProfile } from 'vs/platform/terminal/common/terminal';
 import { ITerminalInstanceService } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { isLinux, isWindows, OperatingSystem } from 'vs/base/common/platform';
 import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -200,6 +200,9 @@ suite('TerminalProfileService', () => {
 			remoteAgentService.setEnvironment(OperatingSystem.Macintosh);
 		}
 		configurationService.setUserConfiguration('terminal', { integrated: defaultTerminalConfig });
+	});
+	teardown(() => {
+		instantiationService.dispose();
 	});
 	suite('Contributed Profiles', () => {
 		test('should filter out contributed profiles set to null (Linux)', async () => {

@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { Position } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLineSequence, PositionAffinity } from 'vs/editor/common/model';
-import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 import { ViewEventHandler } from 'vs/editor/common/viewEventHandler';
 import { ViewEvent } from 'vs/editor/common/viewEvents';
-import { Position } from 'vs/editor/common/core/position';
+import { testViewModel } from 'vs/editor/test/browser/viewModel/testViewModel';
 
 suite('ViewModel', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('issue #21073: SplitLinesCollection: attempt to access a \'newer\' model', () => {
 		const text = [''];
@@ -66,16 +69,20 @@ suite('ViewModel', () => {
 			const viewLineCount: number[] = [];
 
 			viewLineCount.push(viewModel.getLineCount());
-			viewModel.addViewEventHandler(new class extends ViewEventHandler {
+			const eventHandler = new class extends ViewEventHandler {
 				override handleEvents(events: ViewEvent[]): void {
 					// Access the view model
 					viewLineCount.push(viewModel.getLineCount());
 				}
-			});
+			};
+			viewModel.addViewEventHandler(eventHandler);
 			model.undo();
 			viewLineCount.push(viewModel.getLineCount());
 
 			assert.deepStrictEqual(viewLineCount, [4, 1, 1, 1, 1]);
+
+			viewModel.removeViewEventHandler(eventHandler);
+			eventHandler.dispose();
 		});
 	});
 

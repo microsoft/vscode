@@ -3,9 +3,11 @@
 	// for the documentation about the extensions.json format
 	"recommendations": [
 		"dbaeumer.vscode-eslint",
-		"EditorConfig.EditorConfig",
-		"GitHub.vscode-pull-request-github",
+		"editorconfig.editorconfig",
+		"github.vscode-pull-request-github",
 		"ms-vscode.vscode-github-issue-notebooks",
-		"ms-vscode.vscode-selfhost-test-provider"
+		"ms-vscode.vscode-selfhost-test-provider",
+		"ms-vscode.extension-test-runner",
+		"jrieken.vscode-pr-pinger"
 	]
 }

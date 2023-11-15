@@ -10,7 +10,7 @@ import { TextResourceEditorInput } from 'vs/workbench/common/editor/textResource
 import { TextResourceEditorModel } from 'vs/workbench/common/editor/textResourceEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { workbenchInstantiationService, TestServiceAccessor, ITestTextFileEditorModelManager } from 'vs/workbench/test/browser/workbenchTestServices';
-import { toResource } from 'vs/base/test/common/utils';
+import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from 'vs/base/test/common/utils';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { snapshotToString } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
@@ -22,25 +22,22 @@ import { DisposableStore } from 'vs/base/common/lifecycle';
 
 suite('Workbench - TextModelResolverService', () => {
 
-	let disposables: DisposableStore;
+	const disposables = new DisposableStore();
 	let instantiationService: IInstantiationService;
 	let accessor: TestServiceAccessor;
-	let model: TextFileEditorModel;
 
 	setup(() => {
-		disposables = new DisposableStore();
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 		accessor = instantiationService.createInstance(TestServiceAccessor);
+		disposables.add(<TextFileEditorModelManager>accessor.textFileService.files);
 	});
 
 	teardown(() => {
-		model?.dispose();
-		(<TextFileEditorModelManager>accessor.textFileService.files).dispose();
-		disposables.dispose();
+		disposables.clear();
 	});
 
 	test('resolve resource', async () => {
-		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: async function (resource: URI): Promise<ITextModel | null> {
 				if (resource.scheme === 'test') {
 					const modelContent = 'Hello Test';
@@ -51,12 +48,12 @@ suite('Workbench - TextModelResolverService', () => {
 
 				return null;
 			}
-		});
+		}));
 
 		const resource = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
 		const input = instantiationService.createInstance(TextResourceEditorInput, resource, 'The Name', 'The Description', undefined, undefined);
 
-		const model = await input.resolve();
+		const model = disposables.add(await input.resolve());
 		assert.ok(model);
 		assert.strictEqual(snapshotToString(((model as TextResourceEditorModel).createSnapshot()!)), 'Hello Test');
 		let disposed = false;
@@ -70,11 +67,10 @@ suite('Workbench - TextModelResolverService', () => {
 
 		await disposedPromise;
 		assert.strictEqual(disposed, true);
-		disposable.dispose();
 	});
 
 	test('resolve file', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
+		const textModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.resolve();
@@ -98,7 +94,7 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	test('resolved dirty file eventually disposes', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
+		const textModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.resolve();
@@ -123,7 +119,7 @@ suite('Workbench - TextModelResolverService', () => {
 	});
 
 	test('resolved dirty file does not dispose when new reference created', async function () {
-		const textModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined);
+		const textModel = disposables.add(instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_resolver.txt'), 'utf8', undefined));
 		(<ITestTextFileEditorModelManager>accessor.textFileService.files).add(textModel.resource, textModel);
 
 		await textModel.resolve();
@@ -156,8 +152,8 @@ suite('Workbench - TextModelResolverService', () => {
 
 	test('resolve untitled', async () => {
 		const service = accessor.untitledTextEditorService;
-		const untitledModel = service.create();
-		const input = instantiationService.createInstance(UntitledTextEditorInput, untitledModel);
+		const untitledModel = disposables.add(service.create());
+		const input = disposables.add(instantiationService.createInstance(UntitledTextEditorInput, untitledModel));
 
 		await input.resolve();
 		const ref = await accessor.textModelResolverService.createModelReference(input.resource);
@@ -174,15 +170,15 @@ suite('Workbench - TextModelResolverService', () => {
 		let resolveModel!: Function;
 		const waitForIt = new Promise(resolve => resolveModel = resolve);
 
-		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
+		disposables.add(accessor.textModelResolverService.registerTextModelContentProvider('test', {
 			provideTextContent: async (resource: URI): Promise<ITextModel> => {
 				await waitForIt;
 
 				const modelContent = 'Hello Test';
 				const languageSelection = accessor.languageService.createById('json');
-				return accessor.modelService.createModel(modelContent, languageSelection, resource);
+				return disposables.add(accessor.modelService.createModel(modelContent, languageSelection, resource));
 			}
-		});
+		}));
 
 		const uri = URI.from({ scheme: 'test', authority: null!, path: 'thePath' });
 
@@ -203,12 +199,12 @@ suite('Workbench - TextModelResolverService', () => {
 		modelRef1.dispose();
 		assert(!textModel.isDisposed(), 'the text model should still not be disposed');
 
-		const p1 = new Promise<void>(resolve => textModel.onWillDispose(resolve));
+		const p1 = new Promise<void>(resolve => disposables.add(textModel.onWillDispose(resolve)));
 		modelRef2.dispose();
 
 		await p1;
 		assert(textModel.isDisposed(), 'the text model should finally be disposed');
-
-		disposable.dispose();
 	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 });

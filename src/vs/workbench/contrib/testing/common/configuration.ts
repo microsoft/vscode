@@ -17,13 +17,15 @@ export const enum TestingConfigKeys {
 	GutterEnabled = 'testing.gutterEnabled',
 	SaveBeforeTest = 'testing.saveBeforeTest',
 	AlwaysRevealTestOnStateChange = 'testing.alwaysRevealTestOnStateChange',
-	CountBadge = 'testing.countBadge'
+	CountBadge = 'testing.countBadge',
+	ShowAllMessages = 'testing.showAllMessages',
 }
 
 export const enum AutoOpenTesting {
 	NeverOpen = 'neverOpen',
 	OpenOnTestStart = 'openOnTestStart',
 	OpenOnTestFailure = 'openOnTestFailure',
+	OpenExplorerOnTestStart = 'openExplorerOnTestStart',
 }
 
 export const enum AutoOpenPeekViewWhen {
@@ -70,6 +72,11 @@ export const testingConfiguration: IConfigurationNode = {
 				localize('testing.automaticallyOpenPeekView.failureInVisibleDocument', "Open automatically when a test fails in a visible document."),
 				localize('testing.automaticallyOpenPeekView.never', "Never automatically open."),
 			],
+		},
+		[TestingConfigKeys.ShowAllMessages]: {
+			description: localize('testing.showAllMessages', "Controls whether to show messages from all test runs."),
+			type: 'boolean',
+			default: false,
 		},
 		[TestingConfigKeys.AutoOpenPeekViewDuringContinuousRun]: {
 			description: localize('testing.automaticallyOpenPeekViewDuringContinuousRun', "Controls whether to automatically open the Peek view during continuous run mode."),
@@ -126,11 +133,13 @@ export const testingConfiguration: IConfigurationNode = {
 				AutoOpenTesting.NeverOpen,
 				AutoOpenTesting.OpenOnTestStart,
 				AutoOpenTesting.OpenOnTestFailure,
+				AutoOpenTesting.OpenExplorerOnTestStart,
 			],
 			enumDescriptions: [
-				localize('testing.openTesting.neverOpen', 'Never automatically open the testing view'),
-				localize('testing.openTesting.openOnTestStart', 'Open the testing view when tests start'),
-				localize('testing.openTesting.openOnTestFailure', 'Open the testing view on any test failure'),
+				localize('testing.openTesting.neverOpen', 'Never automatically open the testing views'),
+				localize('testing.openTesting.openOnTestStart', 'Open the test results view when tests start'),
+				localize('testing.openTesting.openOnTestFailure', 'Open the test result view on any test failure'),
+				localize('testing.openTesting.openExplorerOnTestStart', 'Open the test explorer when tests start'),
 			],
 			default: 'openOnTestStart',
 			description: localize('testing.openTesting', "Controls when the testing view should open.")
@@ -154,6 +163,7 @@ export interface ITestingConfiguration {
 	[TestingConfigKeys.SaveBeforeTest]: boolean;
 	[TestingConfigKeys.OpenTesting]: AutoOpenTesting;
 	[TestingConfigKeys.AlwaysRevealTestOnStateChange]: boolean;
+	[TestingConfigKeys.ShowAllMessages]: boolean;
 }
 
 export const getTestingConfiguration = <K extends TestingConfigKeys>(config: IConfigurationService, key: K) => config.getValue<ITestingConfiguration[K]>(key);

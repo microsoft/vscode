@@ -77,11 +77,11 @@ export class TestService extends Disposable implements ITestService {
 	/**
 	 * @inheritdoc
 	 */
-	public readonly showInlineOutput = MutableObservableValue.stored(new StoredValue<boolean>({
+	public readonly showInlineOutput = MutableObservableValue.stored(this._register(new StoredValue<boolean>({
 		key: 'inlineTestOutputVisible',
 		scope: StorageScope.WORKSPACE,
 		target: StorageTarget.USER
-	}, this.storage), true);
+	}, this.storage)), true);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,

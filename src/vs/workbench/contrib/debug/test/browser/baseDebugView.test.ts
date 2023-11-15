@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
 import * as dom from 'vs/base/browser/dom';
-import { Expression, Variable, Scope, StackFrame, Thread } from 'vs/workbench/contrib/debug/common/debugModel';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { isWindows } from 'vs/base/common/platform';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
-import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
-import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
+import { renderExpressionValue, renderVariable, renderViewTree } from 'vs/workbench/contrib/debug/browser/baseDebugView';
+import { LinkDetector } from 'vs/workbench/contrib/debug/browser/linkDetector';
 import { isStatusbarInDebugMode } from 'vs/workbench/contrib/debug/browser/statusbarColorProvider';
 import { State } from 'vs/workbench/contrib/debug/common/debug';
-import { isWindows } from 'vs/base/common/platform';
+import { Expression, Scope, StackFrame, Thread, Variable } from 'vs/workbench/contrib/debug/common/debugModel';
+import { createTestSession } from 'vs/workbench/contrib/debug/test/browser/callStack.test';
 import { createMockDebugModel } from 'vs/workbench/contrib/debug/test/browser/mockDebugModel';
-import { DisposableStore } from 'vs/base/common/lifecycle';
 import { MockSession } from 'vs/workbench/contrib/debug/test/common/mockDebug';
+import { workbenchInstantiationService } from 'vs/workbench/test/browser/workbenchTestServices';
 const $ = dom.$;
 
 suite('Debug - Base Debug View', () => {
@@ -132,9 +132,9 @@ suite('Debug - Base Debug View', () => {
 	});
 
 	test('statusbar in debug mode', () => {
-		const model = createMockDebugModel();
-		const session = createTestSession(model);
-		const session2 = createTestSession(model, undefined, { suppressDebugStatusbar: true });
+		const model = createMockDebugModel(disposables);
+		const session = disposables.add(createTestSession(model));
+		const session2 = disposables.add(createTestSession(model, undefined, { suppressDebugStatusbar: true }));
 		assert.strictEqual(isStatusbarInDebugMode(State.Inactive, []), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Initializing, [session]), false);
 		assert.strictEqual(isStatusbarInDebugMode(State.Running, [session]), true);

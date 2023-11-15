@@ -5,6 +5,7 @@
 import * as assert from 'assert';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { URI } from 'vs/base/common/uri';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { CommandsRegistry, ICommandService } from 'vs/platform/commands/common/commands';
@@ -32,6 +33,8 @@ suite('OpenerService', function () {
 	setup(function () {
 		lastCommand = undefined;
 	});
+
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('delegate to editorService, scheme:///fff', async function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
@@ -83,7 +86,7 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(editorService, commandService);
 
 		const id = `aCommand${Math.random()}`;
-		CommandsRegistry.registerCommand(id, function () { });
+		store.add(CommandsRegistry.registerCommand(id, function () { }));
 
 		assert.strictEqual(lastCommand, undefined);
 		await openerService.open(URI.parse('command:' + id));
@@ -91,11 +94,11 @@ suite('OpenerService', function () {
 	});
 
 
-	test('delegate to commandsService, command:someid', async function () {
+	test('delegate to commandsService, command:someid, 2', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 
 		const id = `aCommand${Math.random()}`;
-		CommandsRegistry.registerCommand(id, function () { });
+		store.add(CommandsRegistry.registerCommand(id, function () { }));
 
 		await openerService.open(URI.parse('command:' + id).with({ query: '\"123\"' }), { allowCommands: true });
 		assert.strictEqual(lastCommand!.id, id);
@@ -121,7 +124,7 @@ suite('OpenerService', function () {
 	test('links are protected by validators', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 
-		openerService.registerValidator({ shouldOpen: () => Promise.resolve(false) });
+		store.add(openerService.registerValidator({ shouldOpen: () => Promise.resolve(false) }));
 
 		const httpResult = await openerService.open(URI.parse('https://www.microsoft.com'));
 		const httpsResult = await openerService.open(URI.parse('https://www.microsoft.com'));
@@ -132,15 +135,15 @@ suite('OpenerService', function () {
 	test('links validated by validators go to openers', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 
-		openerService.registerValidator({ shouldOpen: () => Promise.resolve(true) });
+		store.add(openerService.registerValidator({ shouldOpen: () => Promise.resolve(true) }));
 
 		let openCount = 0;
-		openerService.registerOpener({
+		store.add(openerService.registerOpener({
 			open: (resource: URI) => {
 				openCount++;
 				return Promise.resolve(true);
 			}
-		});
+		}));
 
 		await openerService.open(URI.parse('http://microsoft.com'));
 		assert.strictEqual(openCount, 1);
@@ -151,13 +154,13 @@ suite('OpenerService', function () {
 	test('links aren\'t manipulated before being passed to validator: PR #118226', async function () {
 		const openerService = new OpenerService(editorService, commandService);
 
-		openerService.registerValidator({
+		store.add(openerService.registerValidator({
 			shouldOpen: (resource) => {
 				// We don't want it to convert strings into URIs
 				assert.strictEqual(resource instanceof URI, false);
 				return Promise.resolve(false);
 			}
-		});
+		}));
 		await openerService.open('https://wwww.microsoft.com');
 		await openerService.open('https://www.microsoft.com??params=CountryCode%3DUSA%26Name%3Dvscode"');
 	});

@@ -15,6 +15,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
 import { TestEnvironmentService } from 'vs/workbench/test/browser/workbenchTestServices';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Workbench - TerminalInstanceService', () => {
 	let instantiationService: TestInstantiationService;
@@ -35,6 +36,12 @@ suite('Workbench - TerminalInstanceService', () => {
 
 		terminalInstanceService = instantiationService.createInstance(TerminalInstanceService);
 	});
+
+	teardown(() => {
+		instantiationService.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	suite('convertProfileToShellLaunchConfig', () => {
 		test('should return an empty shell launch config when undefined is provided', () => {

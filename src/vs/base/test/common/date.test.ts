@@ -5,8 +5,11 @@
 
 import { strictEqual } from 'assert';
 import { fromNow } from 'vs/base/common/date';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 
 suite('Date', () => {
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	suite('fromNow', () => {
 		test('appendAgoLabel', () => {
 			strictEqual(fromNow(Date.now() - 35000), '35 secs');

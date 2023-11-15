@@ -76,5 +76,5 @@ export function registerChatCopyActions() {
 
 function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel): string {
 	return isRequestVM(item) ?
-		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.value}`;
+		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.asString()}`;
 }

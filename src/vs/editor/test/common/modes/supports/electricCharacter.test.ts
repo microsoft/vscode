@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { StandardTokenType } from 'vs/editor/common/encodedTokenAttributes';
 import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/common/languages/supports/electricCharacter';
 import { RichEditBrackets } from 'vs/editor/common/languages/supports/richEditBrackets';
@@ -12,6 +13,9 @@ import { TokenText, createFakeScopedLineTokens } from 'vs/editor/test/common/mod
 const fakeLanguageId = 'test';
 
 suite('Editor Modes - Auto Indentation', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function _testOnElectricCharacter(electricCharacterSupport: BracketElectricCharacterSupport, line: TokenText[], character: string, offset: number): IElectricAction | null {
 		return electricCharacterSupport.onElectricCharacter(character, createFakeScopedLineTokens(line), offset);
 	}

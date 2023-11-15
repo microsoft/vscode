@@ -29,12 +29,12 @@ pub fn try_parse_legacy(
 				match args.get_mut(long) {
 					Some(prev) => {
 						if let Some(v) = value {
-							prev.push(v.to_str_lossy().to_string());
+							prev.push(v.to_string_lossy().to_string());
 						}
 					}
 					None => {
 						if let Some(v) = value {
-							args.insert(long.to_string(), vec![v.to_str_lossy().to_string()]);
+							args.insert(long.to_string(), vec![v.to_string_lossy().to_string()]);
 						} else {
 							args.insert(long.to_string(), vec![]);
 						}
@@ -118,7 +118,7 @@ mod tests {
 			"themes",
 			"--show-versions",
 		];
-		let cli = try_parse_legacy(args.into_iter()).unwrap();
+		let cli = try_parse_legacy(args).unwrap();
 
 		if let Some(Commands::Extension(extension_args)) = cli.subcommand {
 			if let ExtensionSubcommand::List(list_args) = extension_args.subcommand {
@@ -145,7 +145,7 @@ mod tests {
 			"--pre-release",
 			"--force",
 		];
-		let cli = try_parse_legacy(args.into_iter()).unwrap();
+		let cli = try_parse_legacy(args).unwrap();
 
 		if let Some(Commands::Extension(extension_args)) = cli.subcommand {
 			if let ExtensionSubcommand::Install(install_args) = extension_args.subcommand {
@@ -169,7 +169,7 @@ mod tests {
 	#[test]
 	fn test_parses_uninstall_extension() {
 		let args = vec!["code", "--uninstall-extension", "connor4312.codesong"];
-		let cli = try_parse_legacy(args.into_iter()).unwrap();
+		let cli = try_parse_legacy(args).unwrap();
 
 		if let Some(Commands::Extension(extension_args)) = cli.subcommand {
 			if let ExtensionSubcommand::Uninstall(uninstall_args) = extension_args.subcommand {
@@ -196,7 +196,7 @@ mod tests {
 			"--extensions-dir",
 			"bar",
 		];
-		let cli = try_parse_legacy(args.into_iter()).unwrap();
+		let cli = try_parse_legacy(args).unwrap();
 
 		if let Some(Commands::Extension(extension_args)) = cli.subcommand {
 			assert_eq!(
@@ -223,7 +223,7 @@ mod tests {
 	#[test]
 	fn test_status() {
 		let args = vec!["code", "--status"];
-		let cli = try_parse_legacy(args.into_iter()).unwrap();
+		let cli = try_parse_legacy(args).unwrap();
 
 		if let Some(Commands::Status) = cli.subcommand {
 			// no-op

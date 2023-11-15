@@ -11,7 +11,6 @@ import { SaveReason, IEditorIdentifier, GroupIdentifier, ISaveOptions, EditorInp
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/editor/common/editorGroupsService';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import { IWorkingCopyService } from 'vs/workbench/services/workingCopy/common/workingCopyService';
 import { IWorkingCopy, WorkingCopyCapabilities } from 'vs/workbench/services/workingCopy/common/workingCopy';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -50,6 +49,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 	private registerListeners(): void {
 		this._register(this.hostService.onDidChangeFocus(focused => this.onWindowFocusChange(focused)));
+		this._register(this.hostService.onDidChangeActiveWindow(() => this.onActiveWindowChange()));
 		this._register(this.editorService.onDidActiveEditorChange(() => this.onDidActiveEditorChange()));
 		this._register(this.filesConfigurationService.onAutoSaveConfigurationChange(config => this.onAutoSaveConfigurationChange(config, true)));
 
@@ -66,6 +66,10 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		}
 	}
 
+	private onActiveWindowChange(): void {
+		this.maybeTriggerAutoSave(SaveReason.WINDOW_CHANGE);
+	}
+
 	private onDidActiveEditorChange(): void {
 
 		// Treat editor change like a focus change for our last active editor if any
@@ -75,7 +79,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 
 		// Remember as last active
 		const activeGroup = this.editorGroupService.activeGroup;
-		const activeEditor = this.lastActiveEditor = withNullAsUndefined(activeGroup.activeEditor);
+		const activeEditor = this.lastActiveEditor = activeGroup.activeEditor ?? undefined;
 		this.lastActiveGroupId = activeGroup.id;
 
 		// Dispose previous active control listeners
@@ -91,7 +95,7 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 	}
 
 	private maybeTriggerAutoSave(reason: SaveReason, editorIdentifier?: IEditorIdentifier): void {
-		if (editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Readonly) || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
+		if (editorIdentifier?.editor.isReadonly() || editorIdentifier?.editor.hasCapability(EditorInputCapabilities.Untitled)) {
 			return; // no auto save for readonly or untitled editors
 		}
 
@@ -192,12 +196,11 @@ export class EditorAutoSave extends Disposable implements IWorkbenchContribution
 		const handle = setTimeout(() => {
 
 			// Clear disposable
-			this.pendingAutoSavesAfterDelay.delete(workingCopy);
+			this.discardAutoSave(workingCopy);
 
 			// Save if dirty
 			if (workingCopy.isDirty()) {
 				this.logService.trace(`[editor auto save] running auto save`, workingCopy.resource.toString(), workingCopy.typeId);
-
 				workingCopy.save({ reason: SaveReason.AUTO });
 			}
 		}, this.autoSaveAfterDelay);
