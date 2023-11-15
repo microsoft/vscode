@@ -37,10 +37,12 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		super(window, container, configurationService);
 	}
 
-	protected override  async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
+	protected override async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
 		if (this.skipUnloadConfirmation) {
 			return;
 		}
+
+		e.preventDefault();
 
 		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
