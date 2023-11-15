@@ -91,6 +91,7 @@ export class CellFocusIndicator extends CellContentPart {
 			this.right.setHeight(indicatorHeight);
 			this.codeFocusIndicator.setTop(cell.layoutInfo.chatHeight);
 			this.codeFocusIndicator.setHeight(cell.layoutInfo.codeIndicatorHeight);
+			this.outputFocusIndicator.setTop(cell.layoutInfo.chatHeight);
 			this.outputFocusIndicator.setHeight(Math.max(cell.layoutInfo.outputIndicatorHeight - cell.viewContext.notebookOptions.getLayoutConfiguration().focusIndicatorGap, 0));
 			this.bottom.domNode.style.transform = `translateY(${cell.layoutInfo.totalHeight - bottomToolbarDimensions.bottomToolbarGap - layoutInfo.cellBottomMargin}px)`;
 		}
