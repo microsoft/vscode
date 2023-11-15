@@ -20,7 +20,7 @@ declare module 'vscode' {
 	interface NotebookVariableProvider {
 		onDidChangeVariables: Event<void>;
 
-		/** When variablesReference is undefined, this is requesting global Variables. When a variable is passed, it's requesting child props of that Variable. */
+		/** When parent is undefined, this is requesting global Variables. When a variable is passed, it's requesting child props of that Variable. */
 		provideVariables(notebook: NotebookDocument, parent: Variable | undefined, kind: VariablesRequestKind, start: number, token: CancellationToken): AsyncIterable<VariablesResult>;
 	}
 

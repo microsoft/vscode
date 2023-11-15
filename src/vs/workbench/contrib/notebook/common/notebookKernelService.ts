@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction } from 'vs/base/common/actions';
+import { AsyncIterableObject } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -64,11 +65,12 @@ export interface INotebookKernel {
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
+	providesVariables?: boolean;
 
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
 
-	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterable<VariablesResult>;
+	provideVariables(notebookUri: URI, variableName: string | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult>;
 }
 
 export const enum ProxyKernelState {
