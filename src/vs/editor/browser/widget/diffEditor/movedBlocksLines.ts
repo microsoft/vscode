@@ -138,7 +138,7 @@ export class MovedBlocksLinesPart extends Disposable {
 	private readonly _modifiedViewZonesChangedSignal = observableSignalFromEvent('modified.onDidChangeViewZones', this._editors.modified.onDidChangeViewZones);
 	private readonly _originalViewZonesChangedSignal = observableSignalFromEvent('original.onDidChangeViewZones', this._editors.original.onDidChangeViewZones);
 
-	private readonly _state = derivedWithStore((reader, store) => {
+	private readonly _state = derivedWithStore(this, (reader, store) => {
 		/** @description state */
 
 		this._element.replaceChildren();

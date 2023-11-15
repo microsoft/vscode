@@ -110,6 +110,7 @@ export interface IMarkTracker {
 	scrollToClosestMarker(startMarkerId: string, endMarkerId?: string, highlight?: boolean | undefined): void;
 
 	scrollToLine(line: number, position: ScrollPosition): void;
+	revealCommand(command: ITerminalCommand, position?: ScrollPosition): void;
 	registerTemporaryDecoration(marker: IMarker, endMarker?: IMarker): void;
 }
 
@@ -288,7 +289,7 @@ export interface ITerminalService extends ITerminalInstanceHost {
 	getReconnectedTerminals(reconnectionOwner: string): ITerminalInstance[] | undefined;
 
 	getActiveOrCreateInstance(options?: { acceptsInput?: boolean }): Promise<ITerminalInstance>;
-	revealActiveTerminal(): Promise<void>;
+	revealActiveTerminal(preserveFocus?: boolean): Promise<void>;
 	moveToEditor(source: ITerminalInstance): void;
 	moveToTerminalView(source: ITerminalInstance | URI): Promise<void>;
 	getPrimaryBackend(): ITerminalBackend | undefined;
@@ -959,14 +960,14 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	rename(title?: string): Promise<void>;
 
 	/**
-	 * Triggers a quick pick to change the icon of this terminal.
+	 * Sets or triggers a quick pick to change the icon of this terminal.
 	 */
-	changeIcon(): Promise<void>;
+	changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined>;
 
 	/**
-	 * Triggers a quick pick to change the color of the associated terminal tab icon.
+	 * Sets or triggers a quick pick to change the color of the associated terminal tab icon.
 	 */
-	changeColor(): Promise<void>;
+	changeColor(color?: string): Promise<string | undefined>;
 
 	/**
 	 * Triggers a quick pick that displays recent commands or cwds. Selecting one will

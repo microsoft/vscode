@@ -467,9 +467,10 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * Close this auxiliary editor part and free up associated resources.
+	 * Close this auxiliary editor part after moving all
+	 * editors of all groups back to the main editor part.
 	 */
-	close(): Promise<void>;
+	close(): void;
 }
 
 /**
@@ -490,6 +491,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	readonly mainPart: IEditorPart;
 
 	/**
+	 * Provides access to all editor parts.
+	 */
+	readonly parts: ReadonlyArray<IEditorPart>;
+
+	/**
 	 * Get the editor part that contains the group with the provided identifier.
 	 */
 	getPart(group: IEditorGroup | GroupIdentifier): IEditorPart;
@@ -501,9 +507,9 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	/**
 	 * Opens a new window with a full editor part instantiated
-	 * in there at the optional position on screen.
+	 * in there at the optional position and size on screen.
 	 */
-	createAuxiliaryEditorPart(options?: { position?: IRectangle }): Promise<IAuxiliaryEditorPart>;
+	createAuxiliaryEditorPart(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryEditorPart>;
 }
 
 export const enum OpenEditorContext {

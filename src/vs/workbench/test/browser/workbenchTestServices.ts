@@ -18,7 +18,7 @@ import { IConfigurationService, ConfigurationTarget, IConfigurationValue } from 
 import { IWorkbenchLayoutService, PanelAlignment, Parts, Position as PartPosition } from 'vs/workbench/services/layout/browser/layoutService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, IResourceEditorInput, IEditorModel, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceEditorInput, IResourceEditorInputIdentifier, ITextResourceEditorInput, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IUntitledTextEditorService, UntitledTextEditorService } from 'vs/workbench/services/untitled/common/untitledTextEditorService';
 import { IWorkspaceContextService, IWorkspaceIdentifier } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownReason, StartupKind, LifecyclePhase, WillShutdownEvent, BeforeShutdownErrorEvent, InternalBeforeShutdownEvent, IWillShutdownEventJoiner } from 'vs/workbench/services/lifecycle/common/lifecycle';
@@ -594,8 +594,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
-	hasContainer = true;
-	container: HTMLElement = mainWindow.document.body;
+	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;
 
@@ -608,9 +607,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
+	onDidLayoutContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
-	onDidRemoveContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 
 	layout(): void { }
@@ -823,6 +822,8 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	declare readonly _serviceBrand: undefined;
 
 	constructor(public groups: TestEditorGroupView[] = []) { }
+
+	readonly parts: readonly IEditorPart[] = [this];
 
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
@@ -1493,6 +1494,7 @@ export class TestHostService implements IHostService {
 
 	async focus(): Promise<void> { }
 	async moveTop(): Promise<void> { }
+	async getCursorScreenPoint(): Promise<undefined> { return undefined; }
 
 	async openWindow(arg1?: IOpenEmptyWindowOptions | IWindowOpenable[], arg2?: IOpenWindowOptions): Promise<void> { }
 
@@ -1530,7 +1532,7 @@ export class TestEditorInput extends EditorInput {
 		return this._typeId;
 	}
 
-	override resolve(): Promise<IEditorModel | null> {
+	override resolve(): Promise<IDisposable | null> {
 		return Promise.resolve(null);
 	}
 }
@@ -1681,7 +1683,7 @@ export class TestFileEditorInput extends EditorInput implements IFileEditorInput
 		}
 	}
 
-	override resolve(): Promise<IEditorModel | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
+	override resolve(): Promise<IDisposable | null> { return !this.fails ? Promise.resolve(null) : Promise.reject(new Error('fails')); }
 	override matches(other: EditorInput | IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput): boolean {
 		if (super.matches(other)) {
 			return true;
@@ -1753,6 +1755,7 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 
 	readonly activePart = this;
 	readonly mainPart = this;
+	readonly parts: readonly IEditorPart[] = [this];
 
 	testSaveState(): void {
 		return super.saveState();

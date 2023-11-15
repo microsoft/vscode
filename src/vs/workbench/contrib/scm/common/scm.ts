@@ -13,7 +13,7 @@ import { IMenu } from 'vs/platform/actions/common/actions';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { ResourceTree } from 'vs/base/common/resourceTree';
-import { ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryProvider, ISCMHistoryProviderMenus } from 'vs/workbench/contrib/scm/common/history';
 
 export const VIEWLET_ID = 'workbench.view.scm';
 export const VIEW_PANE_ID = 'workbench.scm';
@@ -79,6 +79,17 @@ export interface ISCMProvider extends IDisposable {
 	readonly onDidChange: Event<void>;
 
 	getOriginalResource(uri: URI): Promise<URI | null>;
+}
+
+export interface ISCMInputValueProviderContext {
+	readonly resourceGroupId: string;
+	readonly resources: readonly URI[];
+}
+
+export interface ISCMInputValueProvider {
+	readonly label: string;
+	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
+	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined>;
 }
 
 export const enum InputValidationType {
@@ -173,6 +184,11 @@ export interface ISCMService {
 
 	registerSCMProvider(provider: ISCMProvider): ISCMRepository;
 	getRepository(id: string): ISCMRepository | undefined;
+
+	readonly onDidChangeInputValueProviders: Event<void>;
+	readonly inputValueProviders: Iterable<ISCMInputValueProvider>;
+
+	registerSCMInputValueProvider(provider: ISCMInputValueProvider): IDisposable;
 }
 
 export interface ISCMTitleMenu {
@@ -184,6 +200,7 @@ export interface ISCMTitleMenu {
 
 export interface ISCMRepositoryMenus {
 	readonly titleMenu: ISCMTitleMenu;
+	readonly historyProviderMenu: ISCMHistoryProviderMenus | undefined;
 	readonly repositoryMenu: IMenu;
 	getResourceGroupMenu(group: ISCMResourceGroup): IMenu;
 	getResourceMenu(resource: ISCMResource): IMenu;
@@ -227,3 +244,7 @@ export interface ISCMViewService {
 	readonly onDidFocusRepository: Event<ISCMRepository | undefined>;
 	focus(repository: ISCMRepository): void;
 }
+
+export const SCM_CHANGES_EDITOR_ID = 'workbench.editor.scmChangesEditor';
+
+export interface ISCMChangesEditor { }

@@ -6,7 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
-import { ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { IMenu } from 'vs/platform/actions/common/actions';
+import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+
+export interface ISCMHistoryProviderMenus {
+	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+}
 
 export interface ISCMHistoryProvider {
 
@@ -21,13 +26,25 @@ export interface ISCMHistoryProvider {
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+}
+
+export interface ISCMHistoryProviderCacheEntry {
+	readonly historyItemGroupDetails?: ISCMHistoryItemGroupDetails;
+	readonly historyItems: Map<string, ISCMHistoryItem[]>;
+	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
 export interface ISCMHistoryOptions {
 	readonly cursor?: string;
 	readonly limit?: number | { id?: string };
+}
+
+export interface ISCMRemoteHistoryItemGroup {
+	readonly id: string;
+	readonly label: string;
 }
 
 export interface ISCMHistoryItemGroup {
@@ -36,9 +53,31 @@ export interface ISCMHistoryItemGroup {
 	readonly upstream?: ISCMRemoteHistoryItemGroup;
 }
 
-export interface ISCMRemoteHistoryItemGroup {
+export interface ISCMHistoryItemGroupDetails {
+	readonly incoming?: ISCMHistoryItemGroupEntry;
+	readonly outgoing: ISCMHistoryItemGroupEntry;
+}
+
+export interface ISCMHistoryItemGroupEntry {
 	readonly id: string;
 	readonly label: string;
+	readonly description?: string;
+	readonly ancestor?: string;
+	readonly count?: number;
+}
+
+export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
+	readonly description?: string;
+	readonly ancestor?: string;
+	readonly count?: number;
+	readonly repository: ISCMRepository;
+	readonly type: 'historyItemGroup';
+}
+
+export interface ISCMHistoryItemStatistics {
+	readonly files: number;
+	readonly insertions: number;
+	readonly deletions: number;
 }
 
 export interface ISCMHistoryItem {
@@ -48,6 +87,12 @@ export interface ISCMHistoryItem {
 	readonly description?: string;
 	readonly icon?: URI | { light: URI; dark: URI } | ThemeIcon;
 	readonly timestamp?: number;
+	readonly statistics?: ISCMHistoryItemStatistics;
+}
+
+export interface SCMHistoryItemTreeElement extends ISCMHistoryItem {
+	readonly historyItemGroup: SCMHistoryItemGroupTreeElement;
+	readonly type: 'historyItem';
 }
 
 export interface ISCMHistoryItemChange {
@@ -55,4 +100,15 @@ export interface ISCMHistoryItemChange {
 	readonly originalUri?: URI;
 	readonly modifiedUri?: URI;
 	readonly renameUri?: URI;
+}
+
+export interface SCMHistoryItemChangeTreeElement extends ISCMHistoryItemChange {
+	readonly historyItem: SCMHistoryItemTreeElement;
+	readonly type: 'historyItemChange';
+}
+
+export interface SCMViewSeparatorElement {
+	readonly label: string;
+	readonly repository: ISCMRepository;
+	readonly type: 'separator';
 }

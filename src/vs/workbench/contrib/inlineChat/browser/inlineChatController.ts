@@ -27,12 +27,12 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ReplyResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { Lazy } from 'vs/base/common/lazy';
-import { AsyncProgress } from 'vs/platform/progress/common/progress';
+import { Progress } from 'vs/platform/progress/common/progress';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -115,6 +115,7 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
+	private readonly _ctxSupportIssueReporting: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
 
@@ -147,6 +148,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
@@ -430,6 +432,9 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		// Update context key
+		this._ctxSupportIssueReporting.set(this._activeSession.provider.supportIssueReporting ?? false);
+
 		if (!this._activeSession.lastExchange) {
 			return State.WAIT_FOR_INPUT;
 		} else if (options.isUnstashed) {
@@ -602,7 +607,7 @@ export class InlineChatController implements IEditorContribution {
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
 
-		const progress = new AsyncProgress<IInlineChatProgressItem>(async data => {
+		const progress = new Progress<IInlineChatProgressItem>(data => {
 			this._log('received chunk', data, request);
 
 			if (requestCts.token.isCancellationRequested) {
@@ -671,17 +676,15 @@ export class InlineChatController implements IEditorContribution {
 				// we must wait for all edits that came in via progress to complete
 				await Event.toPromise(progressiveEditsQueue.onDrained);
 			}
-			await progress.drain();
 
 			if (!reply) {
 				response = new EmptyResponse();
 				a11yResponse = localize('empty', "No results, please refine your input and try again");
 			} else {
-
-				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
-				if (reply.type === InlineChatResponseType.Message) {
+				if (reply.message) {
 					markdownContents.appendMarkdown(reply.message.value);
 				}
+				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
 
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
@@ -836,6 +839,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxUserDidEdit.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
+		this._ctxSupportIssueReporting.reset();
 
 		this._zone.value.hide();
 
@@ -964,11 +968,19 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	feedbackLast(helpful: boolean) {
+	feedbackLast(kind: InlineChatResponseFeedbackKind) {
 		if (this._activeSession?.lastExchange && this._activeSession.lastExchange.response instanceof ReplyResponse) {
-			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
 			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
-			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+			switch (kind) {
+				case InlineChatResponseFeedbackKind.Helpful:
+					this._ctxLastFeedbackKind.set('helpful');
+					break;
+				case InlineChatResponseFeedbackKind.Unhelpful:
+					this._ctxLastFeedbackKind.set('unhelpful');
+					break;
+				default:
+					break;
+			}
 			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
