@@ -301,7 +301,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
 			}
 		} else {
 			this._setVisible(false);
