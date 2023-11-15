@@ -17,9 +17,9 @@ import { FileAccess, RemoteAuthorities, Schemas } from 'vs/base/common/network';
 import * as platform from 'vs/base/common/platform';
 import { URI } from 'vs/base/common/uri';
 import { hash } from 'vs/base/common/hash';
-import { CodeWindow, mainWindow } from 'vs/base/browser/window';
+import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 
-interface IRegisteredCodeWindow {
+export interface IRegisteredCodeWindow {
 	readonly window: CodeWindow;
 	readonly disposables: DisposableStore;
 }
@@ -27,11 +27,7 @@ interface IRegisteredCodeWindow {
 export const { registerWindow, getWindows, getWindowsCount, getWindowId, onDidRegisterWindow, onWillUnregisterWindow, onDidUnregisterWindow } = (function () {
 	const windows = new Map<number, IRegisteredCodeWindow>();
 
-	if (typeof mainWindow.vscodeWindowId !== 'number') {
-		Object.defineProperty(mainWindow, 'vscodeWindowId', {
-			get: () => 1
-		});
-	}
+	ensureCodeWindow(mainWindow, 1);
 	windows.set(mainWindow.vscodeWindowId, { window: mainWindow, disposables: new DisposableStore() });
 
 	const onDidRegisterWindow = new event.Emitter<IRegisteredCodeWindow>();
@@ -133,9 +129,9 @@ export interface IAddStandardDisposableListenerSignature {
 	(node: HTMLElement, type: 'pointerup', handler: (event: PointerEvent) => void, useCapture?: boolean): IDisposable;
 	(node: HTMLElement, type: string, handler: (event: any) => void, useCapture?: boolean): IDisposable;
 }
-function _wrapAsStandardMouseEvent(handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
+function _wrapAsStandardMouseEvent(targetWindow: Window, handler: (e: IMouseEvent) => void): (e: MouseEvent) => void {
 	return function (e: MouseEvent) {
-		return handler(new StandardMouseEvent(e));
+		return handler(new StandardMouseEvent(targetWindow, e));
 	};
 }
 function _wrapAsStandardKeyboardEvent(handler: (e: IKeyboardEvent) => void): (e: KeyboardEvent) => void {
@@ -147,7 +143,7 @@ export const addStandardDisposableListener: IAddStandardDisposableListenerSignat
 	let wrapHandler = handler;
 
 	if (type === 'click' || type === 'mousedown') {
-		wrapHandler = _wrapAsStandardMouseEvent(handler);
+		wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 	} else if (type === 'keydown' || type === 'keypress' || type === 'keyup') {
 		wrapHandler = _wrapAsStandardKeyboardEvent(handler);
 	}
@@ -156,13 +152,13 @@ export const addStandardDisposableListener: IAddStandardDisposableListenerSignat
 };
 
 export const addStandardDisposableGenericMouseDownListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseDownListener(node, wrapHandler, useCapture);
 };
 
 export const addStandardDisposableGenericMouseUpListener = function addStandardDisposableListener(node: HTMLElement, handler: (event: any) => void, useCapture?: boolean): IDisposable {
-	const wrapHandler = _wrapAsStandardMouseEvent(handler);
+	const wrapHandler = _wrapAsStandardMouseEvent(getWindow(node), handler);
 
 	return addDisposableGenericMouseUpListener(node, wrapHandler, useCapture);
 };
@@ -408,7 +404,7 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return el.ownerDocument.defaultView!.getComputedStyle(el, null);
+	return getWindow(el).getComputedStyle(el, null);
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
@@ -626,9 +622,10 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
+	const window = getWindow(domNode);
 	return {
-		left: bb.left + (domNode.ownerDocument.defaultView?.scrollX ?? 0),
-		top: bb.top + (domNode.ownerDocument.defaultView?.scrollY ?? 0),
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};

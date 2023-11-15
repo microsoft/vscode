@@ -9,14 +9,15 @@ import { INativeHostService } from 'vs/platform/native/common/native';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { ILabelService, Verbosity } from 'vs/platform/label/common/label';
 import { IWorkbenchEnvironmentService } from 'vs/workbench/services/environment/common/environmentService';
-import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions } from 'vs/platform/window/common/window';
+import { IWindowOpenable, IOpenWindowOptions, isFolderToOpen, isWorkspaceToOpen, IOpenEmptyWindowOptions, IPoint } from 'vs/platform/window/common/window';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { NativeHostService } from 'vs/platform/native/common/nativeHostService';
 import { INativeWorkbenchEnvironmentService } from 'vs/workbench/services/environment/electron-sandbox/environmentService';
 import { IMainProcessService } from 'vs/platform/ipc/common/mainProcessService';
-import { IAuxiliaryWindowService, isAuxiliaryWindow } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
+import { IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { disposableWindowInterval, getActiveDocument, getWindowsCount, onDidRegisterWindow } from 'vs/base/browser/dom';
 import { memoize } from 'vs/base/common/decorators';
+import { isAuxiliaryWindow } from 'vs/base/browser/window';
 
 class WorkbenchNativeHostService extends NativeHostService {
 
@@ -150,6 +151,10 @@ class WorkbenchHostService extends Disposable implements IHostService {
 		}
 
 		return this.nativeHostService.moveWindowTop(isAuxiliaryWindow(targetWindow) ? { targetWindowId: targetWindow.vscodeWindowId } : undefined);
+	}
+
+	getCursorScreenPoint(): Promise<IPoint> {
+		return this.nativeHostService.getCursorScreenPoint();
 	}
 
 	//#endregion

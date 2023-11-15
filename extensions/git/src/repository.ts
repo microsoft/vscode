@@ -1113,19 +1113,19 @@ export class Repository implements Disposable {
 	}
 
 	getConfigs(): Promise<{ key: string; value: string }[]> {
-		return this.run(Operation.Config, () => this.repository.getConfigs('local'));
+		return this.run(Operation.Config(true), () => this.repository.getConfigs('local'));
 	}
 
 	getConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key));
+		return this.run(Operation.Config(true), () => this.repository.config('local', key));
 	}
 
 	getGlobalConfig(key: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('global', key));
+		return this.run(Operation.Config(true), () => this.repository.config('global', key));
 	}
 
 	setConfig(key: string, value: string): Promise<string> {
-		return this.run(Operation.Config, () => this.repository.config('local', key, value));
+		return this.run(Operation.Config(false), () => this.repository.config('local', key, value));
 	}
 
 	log(options?: LogOptions): Promise<Commit[]> {
@@ -1140,6 +1140,11 @@ export class Repository implements Disposable {
 	@throttle
 	async status(): Promise<void> {
 		await this.run(Operation.Status);
+	}
+
+	@throttle
+	async refresh(): Promise<void> {
+		await this.run(Operation.Refresh);
 	}
 
 	diff(cached?: boolean): Promise<string> {
@@ -1189,7 +1194,7 @@ export class Repository implements Disposable {
 		return this.run(Operation.Diff, () => this.repository.diffBetweenShortStat(ref1, ref2));
 	}
 
-	getMergeBase(ref1: string, ref2: string): Promise<string> {
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined> {
 		return this.run(Operation.MergeBase, () => this.repository.getMergeBase(ref1, ref2));
 	}
 

@@ -24,16 +24,19 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { URI } from 'vs/base/common/uri';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
+	private _currentBreakpoints: readonly IBreakpoint[] = [];
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
+	private _hasInlineChatSession: boolean = false;
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
@@ -59,9 +62,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			}
 			this._onEnablementOrModelChanged();
 		}));
+		this._register(this._inlineChatSessionService.onWillStartSession((e) => {
+			if (e === this._editor) {
+				this._hasInlineChatSession = true;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._inlineChatSessionService.onDidEndSession((e) => {
+			if (e === this._editor) {
+				this._hasInlineChatSession = false;
+				this._onEnablementOrModelChanged();
+			}
+		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
 		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
-		this._register(this._debugService.getModel().onDidChangeBreakpoints(() => this._onEnablementOrModelChanged()));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
@@ -90,20 +104,25 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._gutterDecorationOpaque.glyphMarginHoverMessage = hoverMessage;
 	}
 
+	private _updateCurrentBreakpoints(uri: URI) {
+		this._currentBreakpoints = this._debugService.getModel().getBreakpoints({ uri });
+	}
+
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (!this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
 		const decorationUpdateScheduler = new RunOnceScheduler(() => this._onSelectionOrContentChanged(editor), 100);
 		this._localToDispose.add(decorationUpdateScheduler);
+		this._localToDispose.add(this._debugService.getModel().onDidChangeBreakpoints(() => {
+			this._updateCurrentBreakpoints(editor.getModel().uri);
+			decorationUpdateScheduler.schedule();
+		}));
 		this._localToDispose.add(this._editor.onDidChangeCursorSelection(() => decorationUpdateScheduler.schedule()));
 		this._localToDispose.add(this._editor.onDidChangeModelContent(() => decorationUpdateScheduler.schedule()));
-		const onInlineChatSessionChanged = (e: ICodeEditor) => (e === editor) && decorationUpdateScheduler.schedule();
-		this._localToDispose.add(this._inlineChatSessionService.onWillStartSession(onInlineChatSessionChanged));
-		this._localToDispose.add(this._inlineChatSessionService.onDidEndSession(onInlineChatSessionChanged));
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const showGutterIconMode = this._showGutterIconMode();
 			const gutterDecorationClassName = showGutterIconMode === ShowGutterIcon.Always ?
@@ -122,17 +141,34 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 				}
 			}
 		});
+		this._updateCurrentBreakpoints(editor.getModel().uri);
 		decorationUpdateScheduler.schedule();
 	}
 
 	private _onSelectionOrContentChanged(editor: IActiveCodeEditor): void {
 		const selection = editor.getSelection();
-		const model = editor.getModel();
-		const uri = model.uri;
-		const isInlineChatVisible = this._inlineChatSessionService.getSession(editor, uri);
 		const startLineNumber = selection.startLineNumber;
-		const hasBreakpoint = this._debugService.getModel().getBreakpoints({ uri: uri, lineNumber: startLineNumber }).length > 0;
-		const isEnabled = selection.isEmpty() && /^\s*$/g.test(model.getLineContent(startLineNumber)) && !isInlineChatVisible && !hasBreakpoint;
+		const model = editor.getModel();
+
+		let isEnabled = false;
+		const hasBreakpoint = this._currentBreakpoints.some(bp => bp.lineNumber === startLineNumber);
+		if (!hasBreakpoint) {
+			const selectionIsEmpty = selection.isEmpty();
+			if (selectionIsEmpty) {
+				if (/^\s*$/g.test(model.getLineContent(startLineNumber))) {
+					isEnabled = true;
+				}
+			} else {
+				const startPosition = selection.getStartPosition();
+				const endPosition = selection.getEndPosition();
+				const startWord = model.getWordAtPosition(startPosition);
+				const endWord = model.getWordAtPosition(endPosition);
+				const isFirstWordCoveredOrNull = !!startWord ? startPosition.column <= startWord.startColumn : true;
+				const isLastWordCoveredOrNull = !!endWord ? endPosition.column >= endWord.endColumn : true;
+				isEnabled = isFirstWordCoveredOrNull && isLastWordCoveredOrNull;
+			}
+		}
+
 		if (isEnabled) {
 			if (this._gutterDecorationID === undefined) {
 				this._addGutterDecoration(startLineNumber);

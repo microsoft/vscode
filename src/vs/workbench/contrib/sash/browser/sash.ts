@@ -36,8 +36,8 @@ export class SashSettingsController implements IWorkbenchContribution, IDisposab
 		const size = clamp(configuredSize, 4, 20);
 		const hoverSize = clamp(configuredSize, 1, 8);
 
-		this.layoutService.container.style.setProperty('--vscode-sash-size', size + 'px');
-		this.layoutService.container.style.setProperty('--vscode-sash-hover-size', hoverSize + 'px');
+		this.layoutService.mainContainer.style.setProperty('--vscode-sash-size', size + 'px');
+		this.layoutService.mainContainer.style.setProperty('--vscode-sash-hover-size', hoverSize + 'px');
 		setGlobalSashSize(size);
 	}
 

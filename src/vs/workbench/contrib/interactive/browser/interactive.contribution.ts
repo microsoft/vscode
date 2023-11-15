@@ -490,7 +490,7 @@ registerAction2(class extends Action2 {
 				historyService.addToHistory(notebookDocument.uri, '');
 				textModel.setValue('');
 
-				const collapseState = editorControl.notebookEditor.notebookOptions.getLayoutConfiguration().interactiveWindowCollapseCodeCells === 'fromEditor' ?
+				const collapseState = editorControl.notebookEditor.notebookOptions.getDisplayOptions().interactiveWindowCollapseCodeCells === 'fromEditor' ?
 					{
 						inputCollapsed: false,
 						outputCollapsed: false

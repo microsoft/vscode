@@ -454,7 +454,7 @@ export class CommandCenter {
 
 	@command('git.refresh', { repository: true })
 	async refresh(repository: Repository): Promise<void> {
-		await repository.status();
+		await repository.refresh();
 	}
 
 	@command('git.openResource')

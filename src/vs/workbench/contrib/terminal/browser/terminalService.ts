@@ -554,13 +554,13 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
-	async revealActiveTerminal(): Promise<void> {
+	async revealActiveTerminal(preserveFocus?: boolean): Promise<void> {
 		const instance = this.activeInstance;
 		if (!instance) {
 			return;
 		}
 		if (instance.target === TerminalLocation.Editor) {
-			await this._terminalEditorService.revealActiveEditor();
+			await this._terminalEditorService.revealActiveEditor(preserveFocus);
 		} else {
 			await this._terminalGroupService.showPanel();
 		}
@@ -968,7 +968,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			});
 			const instanceHost = resolvedLocation === TerminalLocation.Editor ? this._terminalEditorService : this._terminalGroupService;
 			const instance = instanceHost.instances[instanceHost.instances.length - 1];
-			await instance.focusWhenReady();
+			await instance?.focusWhenReady();
 			this._terminalHasBeenCreated.set(true);
 			return instance;
 		}

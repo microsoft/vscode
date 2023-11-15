@@ -467,9 +467,10 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * Close this auxiliary editor part and free up associated resources.
+	 * Close this auxiliary editor part after moving all
+	 * editors of all groups back to the main editor part.
 	 */
-	close(): Promise<void>;
+	close(): void;
 }
 
 /**
@@ -488,6 +489,11 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	 * Provides access to the main window editor part.
 	 */
 	readonly mainPart: IEditorPart;
+
+	/**
+	 * Provides access to all editor parts.
+	 */
+	readonly parts: ReadonlyArray<IEditorPart>;
 
 	/**
 	 * Get the editor part that contains the group with the provided identifier.
