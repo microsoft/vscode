@@ -3,8 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isWindows } from 'vs/base/common/platform';
 import { localize } from 'vs/nls';
+import { ExtensionToggleData } from 'vs/workbench/contrib/preferences/common/preferences';
+
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
@@ -13,11 +14,28 @@ export interface ITOCEntry<T> {
 	settings?: Array<T>;
 }
 
-export const commonlyUsedData: ITOCEntry<string> = {
-	id: 'commonlyUsed',
-	label: localize('commonlyUsed', "Commonly Used"),
-	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations', 'workbench.editor.enablePreview']
-};
+const defaultCommonlyUsedSettings: string[] = [
+	'files.autoSave',
+	'editor.fontSize',
+	'editor.fontFamily',
+	'editor.tabSize',
+	'editor.renderWhitespace',
+	'editor.cursorStyle',
+	'editor.multiCursorModifier',
+	'editor.insertSpaces',
+	'editor.wordWrap',
+	'files.exclude',
+	'files.associations',
+	'workbench.editor.enablePreview'
+];
+
+export function getCommonlyUsedData(toggleData: ExtensionToggleData | undefined): ITOCEntry<string> {
+	return {
+		id: 'commonlyUsed',
+		label: localize('commonlyUsed', "Commonly Used"),
+		settings: toggleData?.commonlyUsed ?? defaultCommonlyUsedSettings
+	};
+}
 
 export const tocData: ITOCEntry<string> = {
 	id: 'root',
@@ -210,8 +228,8 @@ export const tocData: ITOCEntry<string> = {
 				},
 				{
 					id: 'features/chat',
-					label: localize('interactiveSession', 'Interactive Session'),
-					settings: ['chat.*', 'interactiveEditor.*']
+					label: localize('chat', 'Chat'),
+					settings: ['chat.*', 'inlineChat.*']
 				}
 			]
 		},
@@ -259,7 +277,7 @@ export const tocData: ITOCEntry<string> = {
 		{
 			id: 'security',
 			label: localize('security', "Security"),
-			settings: isWindows ? ['security.*'] : undefined,
+			settings: ['security.*'],
 			children: [
 				{
 					id: 'security/workspace',

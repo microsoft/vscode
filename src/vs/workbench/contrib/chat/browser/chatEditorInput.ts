@@ -5,11 +5,10 @@
 
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Schemas } from 'vs/base/common/network';
 import { URI } from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
-import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInputCapabilities, IEditorSerializer, IUntypedEditorInput } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
@@ -18,9 +17,10 @@ import { IChatModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 
 export class ChatEditorInput extends EditorInput {
+	static readonly countsInUse = new Set<number>();
+
 	static readonly TypeID: string = 'workbench.input.chatSession';
 	static readonly EditorID: string = 'workbench.editor.chatSession';
-	static count = 0;
 
 	private readonly inputCount: number;
 	public sessionId: string | undefined;
@@ -31,6 +31,15 @@ export class ChatEditorInput extends EditorInput {
 	static getNewEditorUri(): URI {
 		const handle = Math.floor(Math.random() * 1e9);
 		return ChatUri.generate(handle);
+	}
+
+	static getNextCount(): number {
+		let count = 0;
+		while (ChatEditorInput.countsInUse.has(count)) {
+			count++;
+		}
+
+		return count;
 	}
 
 	constructor(
@@ -47,7 +56,9 @@ export class ChatEditorInput extends EditorInput {
 
 		this.sessionId = 'sessionId' in options.target ? options.target.sessionId : undefined;
 		this.providerId = 'providerId' in options.target ? options.target.providerId : undefined;
-		this.inputCount = ChatEditorInput.count++;
+		this.inputCount = ChatEditorInput.getNextCount();
+		ChatEditorInput.countsInUse.add(this.inputCount);
+		this._register(toDisposable(() => ChatEditorInput.countsInUse.delete(this.inputCount)));
 	}
 
 	override get editorId(): string | undefined {
@@ -88,7 +99,7 @@ export class ChatEditorInput extends EditorInput {
 		}
 
 		this.sessionId = this.model.sessionId;
-		await this.model.waitForInitialization();
+		this.providerId = this.model.providerId;
 		this._register(this.model.onDidChange(() => this._onDidChangeLabel.fire()));
 
 		return this._register(new ChatEditorModel(this.model));
@@ -102,7 +113,7 @@ export class ChatEditorInput extends EditorInput {
 	}
 }
 
-export class ChatEditorModel extends Disposable implements IEditorModel {
+export class ChatEditorModel extends Disposable {
 	private _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 

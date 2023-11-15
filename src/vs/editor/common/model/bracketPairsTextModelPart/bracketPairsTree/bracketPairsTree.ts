@@ -14,7 +14,7 @@ import { ResolvedLanguageConfiguration } from 'vs/editor/common/languages/langua
 import { AstNode, AstNodeKind } from './ast';
 import { TextEditInfo } from './beforeEditPositionMapper';
 import { LanguageAgnosticBracketTokens } from './brackets';
-import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThan, lengthLessThanEqual, lengthOfString, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
+import { Length, lengthAdd, lengthGreaterThanEqual, lengthLessThan, lengthLessThanEqual, lengthsToRange, lengthZero, positionToLength, toLength } from './length';
 import { parseDocument } from './parser';
 import { DenseKeyProvider } from './smallImmutableSet';
 import { FastTokenizer, TextBufferTokenizer } from './tokenizer';
@@ -103,16 +103,7 @@ export class BracketPairsTree extends Disposable {
 	}
 
 	public handleContentChanged(change: IModelContentChangedEvent) {
-		// Must be sorted in ascending order
-		const edits = change.changes.map(c => {
-			const range = Range.lift(c.range);
-			return new TextEditInfo(
-				positionToLength(range.getStartPosition()),
-				positionToLength(range.getEndPosition()),
-				lengthOfString(c.text)
-			);
-		}).reverse();
-
+		const edits = TextEditInfo.fromModelContentChanges(change.changes);
 		this.handleEdits(edits, false);
 	}
 

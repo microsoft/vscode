@@ -77,7 +77,6 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			return;
 		}
 
-		const anchor = { x: e.event.posx, y: e.event.posy };
 		const lineNumber = e.target.position.lineNumber;
 
 		const contextKeyService = this.contextKeyService.createOverlay([['editorLineNumber', lineNumber]]);
@@ -122,7 +121,7 @@ export class EditorLineNumberContextMenu extends Disposable implements IEditorCo
 			}
 
 			this.contextMenuService.showContextMenu({
-				getAnchor: () => anchor,
+				getAnchor: () => e.event,
 				getActions: () => Separator.join(...allActions.map((a) => a[1])),
 				onHide: () => menu.dispose(),
 			});

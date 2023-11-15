@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { IDisposable } from 'vs/base/common/lifecycle';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
 import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { EndOfLinePreference, EndOfLineSequence } from 'vs/editor/common/model';
@@ -13,6 +15,8 @@ import { assertSyncedModels, testApplyEditsWithSyncedModels } from 'vs/editor/te
 import { createTextModel } from 'vs/editor/test/common/testTextModel';
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		const model = createTextModel(original.join('\n'));
@@ -60,6 +64,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainRTL', () =
 
 suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicASCII', () => {
 
+	ensureNoDisposablesAreLeakedInTestSuite();
+
 	function testApplyEdits(original: string[], edits: ISingleEditOperation[], before: boolean, after: boolean): void {
 		const model = createTextModel(original.join('\n'));
 		model.setEOL(EndOfLineSequence.LF);
@@ -101,6 +107,8 @@ suite('EditorModel - EditableTextModel.applyEdits updates mightContainNonBasicAS
 });
 
 suite('EditorModel - EditableTextModel.applyEdits', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	function editOp(startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number, text: string[]): ISingleEditOperation {
 		return {
@@ -205,7 +213,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		);
 	});
 
-	test('Bug 19872: Undo is funky', () => {
+	test('Bug 19872: Undo is funky (2)', () => {
 		testApplyEditsWithSyncedModels(
 			[
 				'something',
@@ -981,7 +989,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 	});
 
 	test('change while emitting events 1', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -993,7 +1001,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeContent(() => {
+			disposable = model.onDidChangeContent(() => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1006,10 +1014,11 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('change while emitting events 2', () => {
-
+		let disposable!: IDisposable;
 		assertSyncedModels('Hello', (model, assertMirrorModels) => {
 			model.applyEdits([{
 				range: new Range(1, 6, 1, 6),
@@ -1021,7 +1030,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 
 		}, (model) => {
 			let isFirstTime = true;
-			model.onDidChangeContent((e: IModelContentChangedEvent) => {
+			disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 				if (!isFirstTime) {
 					return;
 				}
@@ -1034,6 +1043,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 				}]);
 			});
 		});
+		disposable.dispose();
 	});
 
 	test('issue #1580: Changes in line endings are not correctly reflected in the extension host, leading to invalid offsets sent to external refactoring tools', () => {
@@ -1043,7 +1053,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		const mirrorModel2 = new MirrorTextModel(null!, model.getLinesContent(), model.getEOL(), model.getVersionId());
 		let mirrorModel2PrevVersionId = model.getVersionId();
 
-		model.onDidChangeContent((e: IModelContentChangedEvent) => {
+		const disposable = model.onDidChangeContent((e: IModelContentChangedEvent) => {
 			const versionId = e.versionId;
 			if (versionId < mirrorModel2PrevVersionId) {
 				console.warn('Model version id did not advance between edits (2)');
@@ -1060,6 +1070,7 @@ suite('EditorModel - EditableTextModel.applyEdits', () => {
 		model.setEOL(EndOfLineSequence.CRLF);
 		assertMirrorModels();
 
+		disposable.dispose();
 		model.dispose();
 		mirrorModel2.dispose();
 	});

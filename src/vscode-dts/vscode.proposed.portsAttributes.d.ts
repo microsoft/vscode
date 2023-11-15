@@ -7,13 +7,16 @@ declare module 'vscode' {
 
 	// https://github.com/microsoft/vscode/issues/115616 @alexr00
 
+	/**
+	 * The action that should be taken when a port is discovered through automatic port forwarding discovery.
+	 */
 	export enum PortAutoForwardAction {
 		/**
 		 * Notify the user that the port is being forwarded. This is the default action.
 		 */
 		Notify = 1,
 		/**
-		 * Once the port is forwarded, open the browser to the forwarded port.
+		 * Once the port is forwarded, open the user's web browser to the forwarded port.
 		 */
 		OpenBrowser = 2,
 		/**
@@ -27,11 +30,7 @@ declare module 'vscode' {
 		/**
 		 * Do not forward the port.
 		 */
-		Ignore = 5,
-		/**
-		 * Once the port is forwarded, open the browser to the forwarded port. Only open the browser the first time the port is forwarded in a session.
-		 */
-		OpenBrowserOnce = 6
+		Ignore = 5
 	}
 
 	/**
@@ -43,10 +42,6 @@ declare module 'vscode' {
 		 */
 		autoForwardAction: PortAutoForwardAction;
 
-		/**
-		 * @deprecated
-		 */
-		constructor(port: number, autoForwardAction: PortAutoForwardAction);
 		/**
 		 * Creates a new PortAttributes object
 		 * @param port the port number
@@ -63,25 +58,25 @@ declare module 'vscode' {
 		 * Provides attributes for the given port. For ports that your extension doesn't know about, simply
 		 * return undefined. For example, if `providePortAttributes` is called with ports 3000 but your
 		 * extension doesn't know anything about 3000 you should return undefined.
+		 * @param port The port number of the port that attributes are being requested for.
+		 * @param pid The pid of the process that is listening on the port. If the pid is unknown, undefined will be passed.
+		 * @param commandLine The command line of the process that is listening on the port. If the command line is unknown, undefined will be passed.
+		 * @param token A cancellation token that indicates the result is no longer needed.
 		 */
-		providePortAttributes(port: number, pid: number | undefined, commandLine: string | undefined, token: CancellationToken): ProviderResult<PortAttributes>;
+		providePortAttributes(attributes: { port: number; pid?: number; commandLine?: string }, token: CancellationToken): ProviderResult<PortAttributes>;
 	}
 
-	export interface PortAttributesProviderSelector {
-		/**
-		 * TODO:  @alexr00 no one is currently using this. Should we delete it?
-		 * If your {@link PortAttributesProvider PortAttributesProvider} is registered after your process has started then already know the process id of port you are listening on.
-		 * Specifying a pid will cause your provider to only be called for ports that match the pid.
-		 */
-		pid?: number;
-
+	/**
+	 * A selector that will be used to filter which {@link PortAttributesProvider} should be called for each port.
+	 */
+	export interface PortAttributesSelector {
 		/**
 		 * Specifying a port range will cause your provider to only be called for ports within the range.
+		 * The start is inclusive and the end is exclusive.
 		 */
-		portRange?: [number, number];
+		portRange?: [number, number] | number;
 
 		/**
-		 * TODO: @alexr00 no one is currently using this. Should we delete it?
 		 * Specifying a command pattern will cause your provider to only be called for processes whose command line matches the pattern.
 		 */
 		commandPattern?: RegExp;
@@ -100,6 +95,6 @@ declare module 'vscode' {
 		 * If you don't specify a port selector your provider will be called for every port, which will result in slower port forwarding for the user.
 		 * @param provider The {@link PortAttributesProvider PortAttributesProvider}.
 		 */
-		export function registerPortAttributesProvider(portSelector: PortAttributesProviderSelector, provider: PortAttributesProvider): Disposable;
+		export function registerPortAttributesProvider(portSelector: PortAttributesSelector, provider: PortAttributesProvider): Disposable;
 	}
 }

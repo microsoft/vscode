@@ -23,6 +23,24 @@ export const enum Parts {
 	STATUSBAR_PART = 'workbench.parts.statusbar'
 }
 
+export const enum LayoutSettings {
+	ACTIVITY_BAR_LOCATION = 'workbench.activityBar.location',
+	EDITOR_TABS_MODE = 'workbench.editor.showTabs',
+	COMMAND_CENTER = 'window.commandCenter',
+}
+
+export const enum ActivityBarPosition {
+	SIDE = 'side',
+	TOP = 'top',
+	HIDDEN = 'hidden'
+}
+
+export const enum EditorTabsMode {
+	MULTIPLE = 'multiple',
+	SINGLE = 'single',
+	NONE = 'none'
+}
+
 export const enum Position {
 	LEFT,
 	RIGHT,
@@ -153,6 +171,7 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	/**
 	 * Returns the parts HTML element, if there is one.
 	 */
+	getContainer(window: Window): HTMLElement;
 	getContainer(part: Parts): HTMLElement | undefined;
 
 	/**

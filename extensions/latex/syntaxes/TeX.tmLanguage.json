@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jlelong/vscode-latex-basics/commit/2be145a0bde15dfaf367676a1227c8a701792f90",
+	"version": "https://github.com/jlelong/vscode-latex-basics/commit/3ae82b457c28f0368cbbb47024b0245ef1ff3d33",
 	"name": "TeX",
 	"scopeName": "text.tex",
 	"patterns": [
@@ -45,7 +45,7 @@
 			"end": "(?!\\G)",
 			"patterns": [
 				{
-					"begin": "%:",
+					"begin": "%:?",
 					"beginCaptures": {
 						"0": {
 							"name": "punctuation.definition.comment.tex"
@@ -63,16 +63,6 @@
 					},
 					"end": "$\\n?",
 					"name": "comment.line.percentage.directive.tex"
-				},
-				{
-					"begin": "%",
-					"beginCaptures": {
-						"0": {
-							"name": "punctuation.definition.comment.tex"
-						}
-					},
-					"end": "$\\n?",
-					"name": "comment.line.percentage.tex"
 				}
 			]
 		},

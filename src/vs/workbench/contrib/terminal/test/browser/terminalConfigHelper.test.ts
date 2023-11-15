@@ -8,6 +8,9 @@ import { TerminalConfigHelper } from 'vs/workbench/contrib/terminal/browser/term
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ensureNoDisposablesAreLeakedInTestSuite } from 'vs/base/test/common/utils';
+import { DisposableStore } from 'vs/base/common/lifecycle';
+import { mainWindow } from 'vs/base/browser/window';
 
 class TestTerminalConfigHelper extends TerminalConfigHelper {
 	set linuxDistro(distro: LinuxDistro) {
@@ -16,6 +19,7 @@ class TestTerminalConfigHelper extends TerminalConfigHelper {
 }
 
 suite('Workbench - TerminalConfigHelper', function () {
+	let store: DisposableStore;
 	let fixture: HTMLElement;
 
 	// This suite has retries setup because the font-related tests flake only on GitHub actions, not
@@ -24,15 +28,19 @@ suite('Workbench - TerminalConfigHelper', function () {
 	this.retries(3);
 
 	setup(() => {
-		fixture = document.body;
+		store = new DisposableStore();
+		fixture = mainWindow.document.body;
 	});
+	teardown(() => store.dispose());
+
+	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('TerminalConfigHelper - getFont fontFamily', () => {
 		const configurationService = new TestConfigurationService({
 			editor: { fontFamily: 'foo' },
 			terminal: { integrated: { fontFamily: 'bar' } }
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontFamily, 'bar, monospace', 'terminal.integrated.fontFamily should be selected over editor.fontFamily');
 	});
@@ -42,7 +50,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			editor: { fontFamily: 'foo' },
 			terminal: { integrated: { fontFamily: null } }
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.linuxDistro = LinuxDistro.Fedora;
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontFamily, '\'DejaVu Sans Mono\', monospace', 'Fedora should have its font overridden when terminal.integrated.fontFamily not set');
@@ -53,7 +61,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			editor: { fontFamily: 'foo' },
 			terminal: { integrated: { fontFamily: null } }
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.linuxDistro = LinuxDistro.Ubuntu;
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontFamily, '\'Ubuntu Mono\', monospace', 'Ubuntu should have its font overridden when terminal.integrated.fontFamily not set');
@@ -64,7 +72,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			editor: { fontFamily: 'foo' },
 			terminal: { integrated: { fontFamily: null } }
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontFamily, 'foo, monospace', 'editor.fontFamily should be the fallback when terminal.integrated.fontFamily not set');
 	});
@@ -82,7 +90,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, 10, 'terminal.integrated.fontSize should be selected over editor.fontSize');
 	});
@@ -99,12 +107,12 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		let configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.linuxDistro = LinuxDistro.Ubuntu;
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, 8, 'The minimum terminal font size (with adjustment) should be used when terminal.integrated.fontSize less than it');
 
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, 6, 'The minimum terminal font size should be used when terminal.integrated.fontSize less than it');
 	});
@@ -121,7 +129,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, 100, 'The maximum terminal font size should be used when terminal.integrated.fontSize more than it');
 	});
@@ -138,12 +146,12 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		let configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		let configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.linuxDistro = LinuxDistro.Ubuntu;
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize + 2, 'The default editor font size (with adjustment) should be used when terminal.integrated.fontSize is not set');
 
-		configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().fontSize, EDITOR_FONT_DEFAULTS.fontSize, 'The default editor font size should be used when terminal.integrated.fontSize is not set');
 	});
@@ -161,7 +169,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().lineHeight, 2, 'terminal.integrated.lineHeight should be selected over editor.lineHeight');
 	});
@@ -179,7 +187,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
@@ -193,7 +201,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
 	});
@@ -206,7 +214,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
 	});
@@ -219,7 +227,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 				}
 			}
 		});
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
 	});
@@ -236,7 +244,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
 	});
@@ -253,7 +261,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
 	});
@@ -270,7 +278,7 @@ suite('Workbench - TerminalConfigHelper', function () {
 			}
 		});
 
-		const configHelper = new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!);
+		const configHelper = store.add(new TestTerminalConfigHelper(configurationService, null!, null!, null!, null!));
 		configHelper.panelContainer = fixture;
 		assert.strictEqual(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
 	});

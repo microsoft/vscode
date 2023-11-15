@@ -75,6 +75,11 @@ impl ServiceManager for LaunchdService {
 		handle.run_service(self.log, launcher_paths).await
 	}
 
+	async fn is_installed(&self) -> Result<bool, AnyError> {
+		let cmd = capture_command_and_check_status("launchctl", &["list"]).await?;
+		Ok(String::from_utf8_lossy(&cmd.stdout).contains(&get_service_label()))
+	}
+
 	async fn unregister(&self) -> Result<(), crate::util::errors::AnyError> {
 		let service_file = get_service_file_path()?;
 

@@ -55,9 +55,8 @@ import 'vs/workbench/services/keybinding/electron-sandbox/nativeKeyboardLayout';
 import 'vs/workbench/services/path/electron-sandbox/pathService';
 import 'vs/workbench/services/themes/electron-sandbox/nativeHostColorSchemeService';
 import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionManagementService';
-import 'vs/workbench/services/extensionManagement/electron-sandbox/extensionUrlTrustService';
-import 'vs/workbench/services/credentials/electron-sandbox/credentialsService';
 import 'vs/workbench/services/encryption/electron-sandbox/encryptionService';
+import 'vs/workbench/services/secrets/electron-sandbox/secretStorageService';
 import 'vs/workbench/services/localization/electron-sandbox/languagePackService';
 import 'vs/workbench/services/telemetry/electron-sandbox/telemetryService';
 import 'vs/workbench/services/extensions/electron-sandbox/extensionHostStarter';
@@ -88,6 +87,7 @@ import 'vs/workbench/services/workingCopy/electron-sandbox/workingCopyHistorySer
 import 'vs/workbench/services/userDataSync/browser/userDataSyncEnablementService';
 import 'vs/workbench/services/extensions/electron-sandbox/nativeExtensionService';
 import 'vs/platform/userDataProfile/electron-sandbox/userDataProfileStorageService';
+import 'vs/workbench/services/auxiliaryWindow/electron-sandbox/auxiliaryWindowService';
 
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IUserDataInitializationService, UserDataInitializationService } from 'vs/workbench/services/userData/browser/userDataInit';
@@ -165,8 +165,14 @@ import 'vs/workbench/contrib/localHistory/electron-sandbox/localHistory.contribu
 // Merge Editor
 import 'vs/workbench/contrib/mergeEditor/electron-sandbox/mergeEditor.contribution';
 
+// Multi Diff Editor
+import 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contribution';
+
 // Remote Tunnel
 import 'vs/workbench/contrib/remoteTunnel/electron-sandbox/remoteTunnel.contribution';
+
+// Chat
+import 'vs/workbench/contrib/chat/electron-sandbox/chat.contribution';
 
 //#endregion
 

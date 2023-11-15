@@ -7,7 +7,6 @@ import { groupBy } from 'vs/base/common/arrays';
 import { CharCode } from 'vs/base/common/charCode';
 import { dispose } from 'vs/base/common/lifecycle';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { withNullAsUndefined } from 'vs/base/common/types';
 import 'vs/css!./snippetSession';
 import { IActiveCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { EditorOption } from 'vs/editor/common/config/editorOptions';
@@ -346,7 +345,7 @@ export class OneSnippet {
 		let result: Range | undefined;
 		const model = this._editor.getModel();
 		for (const decorationId of this._placeholderDecorations!.values()) {
-			const placeholderRange = withNullAsUndefined(model.getDecorationRange(decorationId));
+			const placeholderRange = model.getDecorationRange(decorationId) ?? undefined;
 			if (!result) {
 				result = placeholderRange;
 			} else {

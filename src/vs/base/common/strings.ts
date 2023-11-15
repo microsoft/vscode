@@ -42,6 +42,9 @@ const _format2Regexp = /{([^}]+)}/g;
  * Similar to `format` but with objects instead of positional arguments.
  */
 export function format2(template: string, values: Record<string, unknown>): string {
+	if (Object.keys(values).length === 0) {
+		return template;
+	}
 	return template.replace(_format2Regexp, (match, group) => (values[group] ?? match) as string);
 }
 
@@ -215,17 +218,6 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 	// (e.g. ends in an endless loop) it will match an empty string.
 	const match = regexp.exec('');
 	return !!(match && regexp.lastIndex === 0);
-}
-
-export function regExpContainsBackreference(regexpValue: string): boolean {
-	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
-}
-
-export function regExpFlags(regexp: RegExp): string {
-	return (regexp.global ? 'g' : '')
-		+ (regexp.ignoreCase ? 'i' : '')
-		+ (regexp.multiline ? 'm' : '')
-		+ ((regexp as any /* standalone editor compilation */).unicode ? 'u' : '');
 }
 
 export function splitLines(str: string): string[] {

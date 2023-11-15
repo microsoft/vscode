@@ -5,22 +5,28 @@
 
 import { asCSSPropertyValue, asCSSUrl } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
+import { DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { getIconRegistry, IconContribution, IconFontDefinition } from 'vs/platform/theme/common/iconRegistry';
 import { IProductIconTheme, IThemeService } from 'vs/platform/theme/common/themeService';
 
-export interface IIconsStyleSheet {
+export interface IIconsStyleSheet extends IDisposable {
 	getCSS(): string;
 	readonly onDidChange: Event<void>;
 }
 
 export function getIconsStyleSheet(themeService: IThemeService | undefined): IIconsStyleSheet {
-	const onDidChangeEmmiter = new Emitter<void>();
+	const disposable = new DisposableStore();
+
+	const onDidChangeEmmiter = disposable.add(new Emitter<void>());
 	const iconRegistry = getIconRegistry();
-	iconRegistry.onDidChange(() => onDidChangeEmmiter.fire());
-	themeService?.onDidProductIconThemeChange(() => onDidChangeEmmiter.fire());
+	disposable.add(iconRegistry.onDidChange(() => onDidChangeEmmiter.fire()));
+	if (themeService) {
+		disposable.add(themeService.onDidProductIconThemeChange(() => onDidChangeEmmiter.fire()));
+	}
 
 	return {
+		dispose: () => disposable.dispose(),
 		onDidChange: onDidChangeEmmiter.event,
 		getCSS() {
 			const productIconTheme = themeService ? themeService.getProductIconTheme() : new UnthemedProductIconTheme();

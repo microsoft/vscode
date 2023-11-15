@@ -13,7 +13,7 @@ import * as performance from 'vs/base/common/performance';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { generateUuid } from 'vs/base/common/uuid';
 import { IIPCLogger } from 'vs/base/parts/ipc/common/ipc';
-import { Client, ConnectionHealth, ISocket, PersistentProtocol, ProtocolConstants, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
+import { Client, ISocket, PersistentProtocol, SocketCloseEventType } from 'vs/base/parts/ipc/common/ipc.net';
 import { ILogService } from 'vs/platform/log/common/log';
 import { RemoteAgentConnectionContext } from 'vs/platform/remote/common/remoteAgentEnvironment';
 import { RemoteAuthorityResolverError, RemoteConnection } from 'vs/platform/remote/common/remoteAuthorityResolver';
@@ -250,7 +250,7 @@ async function connectToRemoteExtensionHostAgent<T extends RemoteConnection>(opt
 		protocol = options.reconnectionProtocol;
 		ownsProtocol = false;
 	} else {
-		protocol = new PersistentProtocol({ socket, measureRoundTripTime: true });
+		protocol = new PersistentProtocol({ socket });
 		ownsProtocol = true;
 	}
 
@@ -482,8 +482,7 @@ export const enum PersistentConnectionEventType {
 	ReconnectionWait,
 	ReconnectionRunning,
 	ReconnectionPermanentFailure,
-	ConnectionGain,
-	ConnectionHealthChanged
+	ConnectionGain
 }
 export class ConnectionLostEvent {
 	public readonly type = PersistentConnectionEventType.ConnectionLost;
@@ -521,13 +520,6 @@ export class ConnectionGainEvent {
 		public readonly attempt: number
 	) { }
 }
-export class ConnectionHealthChangedEvent {
-	public readonly type = PersistentConnectionEventType.ConnectionHealthChanged;
-	constructor(
-		public readonly reconnectionToken: string,
-		public readonly connectionHealth: ConnectionHealth
-	) { }
-}
 export class ReconnectionPermanentFailureEvent {
 	public readonly type = PersistentConnectionEventType.ReconnectionPermanentFailure;
 	constructor(
@@ -537,7 +529,7 @@ export class ReconnectionPermanentFailureEvent {
 		public readonly handled: boolean
 	) { }
 }
-export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionHealthChangedEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
+export type PersistentConnectionEvent = ConnectionGainEvent | ConnectionLostEvent | ReconnectionWaitEvent | ReconnectionRunningEvent | ReconnectionPermanentFailureEvent;
 
 export abstract class PersistentConnection extends Disposable {
 
@@ -606,13 +598,6 @@ export abstract class PersistentConnection extends Disposable {
 			const logPrefix = commonLogPrefix(this._connectionType, this.reconnectionToken, true);
 			this._options.logService.info(`${logPrefix} received socket timeout event (unacknowledgedMsgCount: ${e.unacknowledgedMsgCount}, timeSinceOldestUnacknowledgedMsg: ${e.timeSinceOldestUnacknowledgedMsg}, timeSinceLastReceivedSomeData: ${e.timeSinceLastReceivedSomeData}).`);
 			this._beginReconnecting();
-		}));
-		this._register(protocol.onHighRoundTripTime((e) => {
-			const logPrefix = _commonLogPrefix(this._connectionType, this.reconnectionToken);
-			this._options.logService.info(`${logPrefix} high roundtrip time: ${e.roundTripTime}ms (${e.recentHighRoundTripCount} of ${ProtocolConstants.LatencySampleCount} recent samples)`);
-		}));
-		this._register(protocol.onDidChangeConnectionHealth((connectionHealth) => {
-			this._onDidStateChange.fire(new ConnectionHealthChangedEvent(this.reconnectionToken, connectionHealth));
 		}));
 
 		PersistentConnection._instances.push(this);

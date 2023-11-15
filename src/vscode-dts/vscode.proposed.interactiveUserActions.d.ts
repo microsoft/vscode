@@ -6,14 +6,13 @@
 declare module 'vscode' {
 
 	export enum InteractiveSessionVoteDirection {
-		Up = 1,
-		Down = 2
+		Down = 0,
+		Up = 1
 	}
 
 	export interface InteractiveSessionVoteAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'vote';
-		responseId: string;
 		direction: InteractiveSessionVoteDirection;
 	}
 
@@ -26,7 +25,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionCopyAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'copy';
-		responseId: string;
 		codeBlockIndex: number;
 		copyType: InteractiveSessionCopyKind;
 		copiedCharacters: number;
@@ -37,7 +35,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionInsertAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'insert';
-		responseId: string;
 		codeBlockIndex: number;
 		totalCharacters: number;
 		newFile?: boolean;
@@ -46,7 +43,6 @@ declare module 'vscode' {
 	export interface InteractiveSessionTerminalAction {
 		// eslint-disable-next-line local/vscode-dts-string-type-literals
 		kind: 'runInTerminal';
-		responseId: string;
 		codeBlockIndex: number;
 		languageId?: string;
 	}
@@ -57,7 +53,18 @@ declare module 'vscode' {
 		command: InteractiveResponseCommand;
 	}
 
-	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction;
+	export interface InteractiveSessionFollowupAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'followUp';
+		followup: InteractiveSessionReplyFollowup;
+	}
+
+	export interface InteractiveSessionBugReportAction {
+		// eslint-disable-next-line local/vscode-dts-string-type-literals
+		kind: 'bug';
+	}
+
+	export type InteractiveSessionUserAction = InteractiveSessionVoteAction | InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionBugReportAction;
 
 	export interface InteractiveSessionUserActionEvent {
 		action: InteractiveSessionUserAction;

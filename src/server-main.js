@@ -45,12 +45,6 @@ async function start() {
 		return;
 	}
 
-	if (parsedArgs['compatibility'] === '1.63') {
-		console.warn(`server.sh is being replaced by 'bin/${product.serverApplicationName}'. Please migrate to the new command and adopt the following new default behaviors:`);
-		console.warn('* connection token is mandatory unless --without-connection-token is used');
-		console.warn('* host defaults to `localhost`');
-	}
-
 	/**
 	 * @typedef { import('./vs/server/node/remoteExtensionHostAgentServer').IServerAPI } IServerAPI
 	 */

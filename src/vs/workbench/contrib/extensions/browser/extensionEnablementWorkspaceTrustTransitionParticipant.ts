@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { localize } from 'vs/nls';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService, IWorkspaceTrustTransitionParticipant } from 'vs/platform/workspace/common/workspaceTrust';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -38,9 +39,11 @@ export class ExtensionEnablementWorkspaceTrustTransitionParticipant extends Disp
 							if (environmentService.remoteAuthority) {
 								hostService.reload();
 							} else {
-								extensionService.stopExtensionHosts(true); // TODO@lszomoru adopt support for extension host to veto stopping
+								const stopped = await extensionService.stopExtensionHosts(localize('restartExtensionHost.reason', "Restarting extension host due to workspace trust change."));
 								await extensionEnablementService.updateExtensionsEnablementsWhenWorkspaceTrustChanges();
-								extensionService.startExtensionHosts();
+								if (stopped) {
+									extensionService.startExtensionHosts();
+								}
 							}
 						}
 					}

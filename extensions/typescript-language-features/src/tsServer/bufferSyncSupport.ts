@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { vscodeNotebookCell } from '../configuration/fileSchemes';
+import { officeScript, vscodeNotebookCell } from '../configuration/fileSchemes';
 import * as languageModeIds from '../configuration/languageIds';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { inMemoryResourcePrefix } from '../typescriptServiceClient';
 import { coalesce } from '../utils/arrays';
 import { Delayer, setImmediate } from '../utils/async';
 import { nulToken } from '../utils/cancellation';
@@ -145,7 +146,7 @@ class BufferSynchronizer {
 			const closedFiles: string[] = [];
 			const openFiles: Proto.OpenRequestArgs[] = [];
 			const changedFiles: Proto.FileCodeEdits[] = [];
-			for (const change of this._pending.values) {
+			for (const change of this._pending.values()) {
 				switch (change.type) {
 					case BufferOperationType.Change: changedFiles.push(change.args); break;
 					case BufferOperationType.Open: openFiles.push(change.args); break;
@@ -200,7 +201,7 @@ class SyncedBuffer {
 		const args: Proto.OpenRequestArgs = {
 			file: this.filepath,
 			fileContent: this.document.getText(),
-			projectRootPath: this.client.getWorkspaceRootForResource(this.document.uri),
+			projectRootPath: this.getProjectRootPath(this.document.uri),
 		};
 
 		const scriptKind = mode2ScriptKind(this.document.languageId);
@@ -217,6 +218,16 @@ class SyncedBuffer {
 
 		this.synchronizer.open(this.resource, args);
 		this.state = BufferState.Open;
+	}
+
+	private getProjectRootPath(resource: vscode.Uri): string | undefined {
+		const workspaceRoot = this.client.getWorkspaceRootForResource(resource);
+		if (workspaceRoot) {
+			const tsRoot = this.client.toTsFilePath(workspaceRoot);
+			return tsRoot?.startsWith(inMemoryResourcePrefix) ? undefined : tsRoot;
+		}
+
+		return resource.scheme === officeScript ? '/' : undefined;
 	}
 
 	public get resource(): vscode.Uri {
@@ -259,13 +270,13 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 	}
 
 	public get allBuffers(): Iterable<SyncedBuffer> {
-		return this.values;
+		return this.values();
 	}
 }
 
 class PendingDiagnostics extends ResourceMap<number> {
 	public getOrderedFileSet(): ResourceMap<void> {
-		const orderedResources = Array.from(this.entries)
+		const orderedResources = Array.from(this.entries())
 			.sort((a, b) => a.value - b.value)
 			.map(entry => entry.resource);
 
@@ -302,7 +313,7 @@ class GetErrRequest {
 		}
 
 		const supportsSyntaxGetErr = this.client.apiVersion.gte(API.v440);
-		const allFiles = coalesce(Array.from(files.entries)
+		const allFiles = coalesce(Array.from(files.entries())
 			.filter(entry => supportsSyntaxGetErr || client.hasCapabilityForResource(entry.resource, ClientCapability.Semantic))
 			.map(entry => client.toTsFilePath(entry.resource)));
 
@@ -700,7 +711,7 @@ export default class BufferSyncSupport extends Disposable {
 		if (this.pendingGetErr) {
 			this.pendingGetErr.cancel();
 
-			for (const { resource } of this.pendingGetErr.files.entries) {
+			for (const { resource } of this.pendingGetErr.files.entries()) {
 				if (this.syncedBuffers.get(resource)) {
 					orderedFileSet.set(resource, undefined);
 				}
@@ -710,7 +721,7 @@ export default class BufferSyncSupport extends Disposable {
 		}
 
 		// Add all open TS buffers to the geterr request. They might be visible
-		for (const buffer of this.syncedBuffers.values) {
+		for (const buffer of this.syncedBuffers.values()) {
 			orderedFileSet.set(buffer.resource, undefined);
 		}
 
