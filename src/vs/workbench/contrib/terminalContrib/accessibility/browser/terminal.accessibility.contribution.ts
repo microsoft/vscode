@@ -111,6 +111,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 		addon.activate(xterm.raw);
 		this._xterm = xterm;
 		this._register(this._xterm.raw.onWriteParsed(async () => {
+			if (this._terminalService.activeInstance !== this._instance) {
+				return;
+			}
 			if (this._isTerminalAccessibleViewOpen() && this._xterm!.raw.buffer.active.baseY === 0) {
 				this.show();
 			}
@@ -118,6 +121,9 @@ export class TerminalAccessibleViewContribution extends Disposable implements IT
 
 		const onRequestUpdateEditor = Event.latch(this._xterm.raw.onScroll);
 		this._register(onRequestUpdateEditor(() => {
+			if (this._terminalService.activeInstance !== this._instance) {
+				return;
+			}
 			if (this._isTerminalAccessibleViewOpen()) {
 				this.show();
 			}
