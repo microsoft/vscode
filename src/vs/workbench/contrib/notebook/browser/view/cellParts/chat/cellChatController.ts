@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Queue, raceCancellationError } from 'vs/base/common/async';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
@@ -53,6 +53,7 @@ export class NotebookCellChatController extends Disposable {
 		return NotebookCellChatController._cellChatControllers.get(cell);
 	}
 
+	private _sessionCtor: CancelablePromise<void> | undefined;
 	private _activeSession?: Session;
 	private readonly _ctxHasActiveRequest: IContextKey<boolean>;
 	private _isVisible: boolean = false;
@@ -76,6 +77,8 @@ export class NotebookCellChatController extends Disposable {
 		if (this._isVisible) {
 			// detach the chat widget
 			this._chatPart.getWidget().hide();
+			this._sessionCtor?.cancel();
+			this._sessionCtor = undefined;
 		}
 		this._ctxHasActiveRequest.reset();
 		NotebookCellChatController._cellChatControllers.delete(this._cell);
@@ -91,12 +94,19 @@ export class NotebookCellChatController extends Disposable {
 	async show() {
 		this._isVisible = true;
 		this._chatPart.getWidget().show(this._cell);
-		this._chatPart.getWidget().placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		this._sessionCtor = createCancelablePromise<void>(async token => {
+			if (this._cell.editorAttached) {
+				await this._startSession(token);
+			} else {
+				await Event.toPromise(Event.once(this._cell.onDidChangeEditorAttachState));
+				await this._startSession(token);
+			}
 
-		await this.startSession();
+			this._chatPart.getWidget().placeholder = this._activeSession?.session.placeholder ?? localize('default.placeholder', "Ask a question");
+		});
 	}
 
-	async startSession() {
+	private async _startSession(token: CancellationToken) {
 		if (this._activeSession) {
 			this._inlineChatSessionService.releaseSession(this._activeSession);
 		}
@@ -106,7 +116,15 @@ export class NotebookCellChatController extends Disposable {
 			return;
 		}
 
-		this._activeSession = await this._createSession(editors[1]);
+		const editor = editors[1];
+
+		const session = await this._inlineChatSessionService.createSession(
+			editor,
+			{ editMode: EditMode.LivePreview },
+			token
+		);
+
+		this._activeSession = session;
 	}
 
 	async acceptInput() {
@@ -210,19 +228,6 @@ export class NotebookCellChatController extends Disposable {
 		return this._chatPart.getWidget().getInput();
 	}
 
-	private async _createSession(editor: IActiveCodeEditor) {
-		const createSessionCts = new CancellationTokenSource();
-		const session = await this._inlineChatSessionService.createSession(
-			editor,
-			{ editMode: EditMode.LivePreview },
-			createSessionCts.token
-		);
-
-		createSessionCts.dispose();
-
-		return session;
-	}
-
 	private async _makeChanges(editor: IActiveCodeEditor, edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
 		assertType(this._activeSession);
 
@@ -313,7 +318,7 @@ registerAction2(class extends NotebookCellAction {
 			return;
 		}
 
-		ctrl.show();
+		await ctrl.show();
 	}
 });
 
@@ -454,6 +459,6 @@ registerAction2(class extends NotebookCellAction {
 		if (!ctrl) {
 			return;
 		}
-		await ctrl.show();
+		ctrl.show();
 	}
 });
