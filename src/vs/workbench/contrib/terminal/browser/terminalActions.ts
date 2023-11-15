@@ -474,7 +474,7 @@ export function registerTerminalActions() {
 
 	registerActiveInstanceAction({
 		id: TerminalCommandId.CopyLastCommandAndLastCommandOutput,
-		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and its Output'), original: 'Copy Last Command and its Output' },
+		title: { value: localize('workbench.action.terminal.copyLastCommandAndOutput', 'Copy Last Command and Output'), original: 'Copy Last Command and Output' },
 		precondition: ContextKeyExpr.or(TerminalContextKeys.processSupported, TerminalContextKeys.terminalHasBeenCreated),
 		run: async (instance, c, accessor) => {
 			const clipboardService = accessor.get(IClipboardService);
