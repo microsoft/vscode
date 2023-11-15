@@ -413,7 +413,7 @@ class State {
 	}
 }
 
-const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` }, timeout: 10_000 };
+const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` }, timeout: 60_000 };
 
 async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoFetchOptions);
@@ -424,7 +424,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 
 	return await Promise.race([
 		res.json(),
-		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60 * 1000))
+		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60_000))
 	]);
 }
 

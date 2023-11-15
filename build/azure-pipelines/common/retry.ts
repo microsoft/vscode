@@ -10,7 +10,7 @@ export async function retry<T>(fn: (attempt: number) => Promise<T>): Promise<T> 
 		try {
 			return await fn(run);
 		} catch (err) {
-			if (!/fetch failed|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed/i.test(err.message)) {
+			if (!/fetch failed|timeout|TimeoutError|Timeout Error|RestError|Client network socket disconnected|socket hang up|ECONNRESET|CredentialUnavailableError|endpoints_resolution_error|Audience validation failed|end of central directory record signature not found/i.test(err.message)) {
 				throw err;
 			}
 
