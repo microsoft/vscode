@@ -413,10 +413,10 @@ class State {
 	}
 }
 
-const azdoOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } };
+const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` }, timeout: 10_000 };
 
 async function requestAZDOAPI<T>(path: string): Promise<T> {
-	const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoOptions);
+	const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoFetchOptions);
 
 	if (!res.ok) {
 		throw new Error(`Unexpected status code: ${res.status}`);
@@ -424,7 +424,7 @@ async function requestAZDOAPI<T>(path: string): Promise<T> {
 
 	return await Promise.race([
 		res.json(),
-		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 20 * 1000))
+		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60 * 1000))
 	]);
 }
 
@@ -456,7 +456,7 @@ async function getPipelineTimeline(): Promise<Timeline> {
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
-	const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 10_000 });
+	const res = await fetch(artifact.resource.downloadUrl, azdoFetchOptions);
 
 	if (!res.ok) {
 		throw new Error(`Unexpected status code: ${res.status}`);
@@ -796,6 +796,7 @@ async function main() {
 	const publishPromises: Promise<void>[] = [];
 
 	while (true) {
+		console.log('Checking for stages & artifacts...');
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
@@ -821,7 +822,9 @@ async function main() {
 			);
 		}
 
+		console.log('Waiting 10 seconds...');
 		await new Promise(c => setTimeout(c, 10_000));
+		console.log('Waited 10 seconds...');
 	}
 
 	console.log(`Waiting for all ${processing.size}/${done.size + processing.size} artifacts to be published...`);
