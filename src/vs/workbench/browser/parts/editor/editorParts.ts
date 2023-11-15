@@ -60,7 +60,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 			}
 
 			editorPart.close();
-			disposables.dispose();
 		}));
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));

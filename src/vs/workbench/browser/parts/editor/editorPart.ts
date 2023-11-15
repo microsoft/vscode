@@ -1432,9 +1432,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 
 	private doClose(mergeGroupsToMainPart: boolean): void {
 		if (mergeGroupsToMainPart) {
-			for (const group of this.groups) {
-				this.editorPartsView.mergeGroup(group, this.editorPartsView.mainPart.activeGroup);
-			}
+			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
 		}
 
 		this._onDidClose.fire();
