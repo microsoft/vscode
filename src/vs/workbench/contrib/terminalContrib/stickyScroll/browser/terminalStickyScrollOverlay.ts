@@ -6,18 +6,22 @@ import type { CanvasAddon as CanvasAddonType } from '@xterm/addon-canvas';
 import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serialize';
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
-import { $, addStandardDisposableListener } from 'vs/base/browser/dom';
+import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import 'vs/css!./media/stickyScroll';
+import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { openContextMenu } from 'vs/workbench/contrib/terminal/browser/terminalContextMenu';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
@@ -42,6 +46,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _element?: HTMLElement;
 	private _currentStickyCommand?: ITerminalCommand | ICurrentPartialCommand;
 	private _currentContent?: string;
+	private _contextMenu: IMenu;
 
 	private _refreshListeners = this._register(new MutableDisposable());
 
@@ -55,9 +60,14 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		private readonly _commandDetection: ICommandDetectionCapability,
 		xtermCtor: Promise<typeof XTermTerminal>,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IMenuService menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		super();
+
+		this._contextMenu = this._register(menuService.createMenu(MenuId.TerminalStickyScrollContext, contextKeyService));
 
 		// Only show sticky scroll in the normal buffer
 		this._register(Event.runAndSubscribe(this._xterm.raw.buffer.onBufferChange, buffer => {
@@ -326,6 +336,18 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				this._xterm.markTracker.revealCommand(this._currentStickyCommand);
 				this._instance.focus();
 			}
+		}));
+
+		// Context menu - stop propagation on mousedown because rightClickBehavior listens on
+		// mousedown, not contextmenu
+		this._register(addDisposableListener(hoverOverlay, 'mousedown', e => {
+			e.stopImmediatePropagation();
+			e.preventDefault();
+		}));
+		this._register(addDisposableListener(hoverOverlay, 'contextmenu', e => {
+			e.stopImmediatePropagation();
+			e.preventDefault();
+			openContextMenu(getWindow(hoverOverlay), e, this._instance, this._contextMenu, this._contextMenuService);
 		}));
 
 		// Instead of juggling decorations for hover styles, swap out the theme to indicate the
