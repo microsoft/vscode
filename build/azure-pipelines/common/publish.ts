@@ -433,7 +433,7 @@ interface Artifact {
 }
 
 async function getPipelineArtifacts(): Promise<Artifact[]> {
-	const result = await retry(() => requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts'));
+	const result = await requestAZDOAPI<{ readonly value: Artifact[] }>('artifacts');
 	return result.value.filter(a => /^vscode_/.test(a.name) && !/sbom$/.test(a.name));
 }
 
@@ -446,58 +446,43 @@ interface Timeline {
 }
 
 async function getPipelineTimeline(): Promise<Timeline> {
-	return await retry(() => requestAZDOAPI<Timeline>('timeline'));
+	return await requestAZDOAPI<Timeline>('timeline');
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
-	await retry(async attempt => {
-		console.log(`[downloadArtifact] [${artifact.name}] Downloading (attempt ${attempt})...`);
+	const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 10_000 });
 
-		const res = await fetch(artifact.resource.downloadUrl, { ...azdoOptions, timeout: 10_000 });
+	if (!res.ok) {
+		throw new Error(`Unexpected status code: ${res.status}`);
+	}
 
-		if (!res.ok) {
-			throw new Error(`Unexpected status code: ${res.status}`);
-		}
-
-		console.log(`[downloadArtifact] [${artifact.name}] ${res.status} ${res.statusText}`);
-
-		await Promise.race([
-			pipeline(res.body, fs.createWriteStream(downloadPath)),
-			new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5 * 60 * 1000))
-		]);
-
-		console.log(`[downloadArtifact] [${artifact.name}] Completed`);
-	});
+	await Promise.race([
+		pipeline(res.body, fs.createWriteStream(downloadPath)),
+		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5 * 60 * 1000))
+	]);
 }
 
 async function unzip(packagePath: string, outputPath: string): Promise<string> {
-	const name = path.basename(packagePath);
-
 	return new Promise((resolve, reject) => {
-		console.log(`[yauzl] [${name}] Opening archive...`);
 		yauzl.open(packagePath, { lazyEntries: true }, (err, zipfile) => {
 			if (err) {
 				return reject(err);
 			}
 
-			console.log(`[yauzl] [${name}] Opened archive`);
 			zipfile!.on('entry', entry => {
 				if (/\/$/.test(entry.fileName)) {
-					console.log(`[yauzl] [${name}] Skipping entry: ${entry.fileName}`);
 					zipfile!.readEntry();
 				} else {
-					console.log(`[yauzl] [${name}] Reading entry: ${entry.fileName}...`);
 					zipfile!.openReadStream(entry, (err, istream) => {
 						if (err) {
 							return reject(err);
 						}
 
-						console.log(`[yauzl] [${name}] Got stream for entry: ${entry.fileName}...`);
 						const filePath = path.join(outputPath, entry.fileName);
 						fs.mkdirSync(path.dirname(filePath), { recursive: true });
+
 						const ostream = fs.createWriteStream(filePath);
-						istream?.on('end', () => {
-							console.log(`[yauzl] [${name}] Done reading stream for entry: ${entry.fileName}...`);
+						ostream.on('finish', () => {
 							zipfile!.close();
 							resolve(filePath);
 						});
@@ -714,8 +699,32 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 
 const cosmosSequencer = new Sequencer();
 
-async function processArtifact(product: string, os: string, arch: string, unprocessedType: string, filePath: string): Promise<void> {
+async function processArtifact(artifact: Artifact): Promise<void> {
+	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
+
+	if (!match) {
+		throw new Error(`Invalid artifact name: ${artifact.name}`);
+	}
+
+	const { product, os, arch, unprocessedType } = match.groups!;
 	const log = (...args: any[]) => console.log(`[${product} ${os} ${arch} ${unprocessedType}]`, ...args);
+
+	const filePath = await retry(async attempt => {
+		log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
+
+		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
+		await downloadArtifact(artifact, artifactZipPath);
+
+		log(`Extracting (attempt ${attempt}) ...`);
+		const filePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
+		const artifactSize = fs.statSync(filePath).size;
+
+		if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
+			throw new Error(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
+		}
+
+		return filePath;
+	});
 
 	// getPlatform needs the unprocessedType
 	const quality = e('VSCODE_QUALITY');
@@ -723,14 +732,10 @@ async function processArtifact(product: string, os: string, arch: string, unproc
 	const platform = getPlatform(product, os, arch, unprocessedType);
 	const type = getRealType(unprocessedType);
 	const size = fs.statSync(filePath).size;
-
-	log('Size:', size);
-
 	const stream = fs.createReadStream(filePath);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
 
-	log('SHA1:', sha1hash);
-	log('SHA256:', sha256hash);
+	log(`Publishing (size = ${size}, SHA1 = ${sha1hash}, SHA256 = ${sha256hash})...`);
 
 	const [{ assetUrl, mooncakeUrl }, prssUrl] = await Promise.all([
 		uploadAssetLegacy(log, quality, commit, filePath),
@@ -749,26 +754,15 @@ async function processArtifact(product: string, os: string, arch: string, unproc
 		)
 	]);
 
-	const asset: Asset = {
-		platform,
-		type,
-		url: assetUrl,
-		hash: sha1hash,
-		mooncakeUrl,
-		prssUrl,
-		sha256hash,
-		size,
-		supportsFastUpdate: true
-	};
-
+	const asset: Asset = { platform, type, url: assetUrl, hash: sha1hash, mooncakeUrl, prssUrl, sha256hash, size, supportsFastUpdate: true };
 	log('Creating asset:', JSON.stringify(asset, null, '  '));
 
-	await cosmosSequencer.queue(async () => {
-		const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
-		const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
-		const scripts = client.database('builds').container(quality).scripts;
-		await retry(async (attempt) => {
+	await retry(async (attempt) => {
+		await cosmosSequencer.queue(async () => {
 			log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
+			const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
+			const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
+			const scripts = client.database('builds').container(quality).scripts;
 			await scripts.storedProcedure('createAsset').execute('', [commit, asset, true]);
 		});
 	});
@@ -794,64 +788,37 @@ async function main() {
 	const publishPromises: Promise<void>[] = [];
 
 	while (true) {
-		const artifacts = await getPipelineArtifacts();
-
-		for (const artifact of artifacts) {
-			if (!done.has(artifact.name) && !processing.has(artifact.name)) {
-				const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<type>[^_]+)$/.exec(artifact.name);
-
-				if (!match) {
-					throw new Error(`Invalid artifact name: ${artifact.name}`);
-				}
-
-				let artifactPath: string;
-
-				try {
-					console.log(`Downloading ${artifact.name} (${artifact.resource.downloadUrl})...`);
-					const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-					await downloadArtifact(artifact, artifactZipPath);
-					console.log(`Extracting ${artifact.name}...`);
-					artifactPath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
-					const artifactSize = fs.statSync(artifactPath).size;
-					console.log(`Extracted ${artifact.name}: ${artifactSize}...`);
-
-					if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
-						throw new Error(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
-					}
-				} catch (err) {
-					console.error(err);
-					continue;
-				}
-
-				const { product, os, arch, type } = match.groups!;
-				console.log('Submitting artifact for publish:', { path: artifactPath, product, os, arch, type });
-
-				processing.add(artifact.name);
-				publishPromises.push(
-					processArtifact(product, os, arch, type, artifactPath).then(() => {
-						processing.delete(artifact.name);
-						done.add(artifact.name);
-					})
-				);
+		for (const artifact of await retry(() => getPipelineArtifacts())) {
+			if (done.has(artifact.name) || processing.has(artifact.name)) {
+				continue;
 			}
+
+			console.log(`New artifact: ${artifact.name}`);
+			processing.add(artifact.name);
+
+			publishPromises.push(
+				processArtifact(artifact).then(() => {
+					processing.delete(artifact.name);
+					done.add(artifact.name);
+				})
+			);
 		}
 
-		const [timeline, artifacts2] = await Promise.all([getPipelineTimeline(), getPipelineArtifacts()]);
+		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
 
-		if (stagesCompleted.size === stages.size && artifacts2.length === done.size) {
+		if (stagesCompleted.size === stages.size && artifacts.length === done.size) {
 			break;
 		}
 
 		console.log(`Stages completed: ${stagesCompleted.size}/${stages.size}`);
-		console.log(`Artifacts processed: ${done.size}/${artifacts2.length}`);
+		console.log(`Artifacts processed: ${done.size}/${artifacts.length}`);
 
 		await new Promise(c => setTimeout(c, 10_000));
 	}
 
 	console.log(`Waiting for all artifacts to be published...`);
 	const results = await Promise.allSettled(publishPromises);
-
 	const rejected = results.filter((r): r is PromiseRejectedResult => r.status === 'rejected');
 
 	if (rejected.length > 0) {
@@ -867,16 +834,6 @@ async function main() {
 }
 
 if (require.main === module) {
-	process.on('beforeExit', (code) => {
-		console.log('Process beforeExit event with code: ', code);
-	});
-
-	process.on('exit', (code) => {
-		console.log(`About to exit with code: ${code}`);
-	});
-
-	const [] = process.argv.slice(2);
-
 	main().then(() => {
 		process.exit(0);
 	}, err => {
