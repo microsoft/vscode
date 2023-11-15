@@ -66,7 +66,7 @@ export class QuickInputController extends Disposable {
 				// close, so we have to make sure to reparent it back to an
 				// existing parent to not loose functionality.
 				// (https://github.com/microsoft/vscode/issues/195870)
-				this.reparentUI(this.layoutService.container);
+				this.reparentUI(this.layoutService.mainContainer);
 			}
 		}));
 	}

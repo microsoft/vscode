@@ -82,7 +82,7 @@ export class HoverService implements IHoverService {
 		// Set the container explicitly to enable aux window support
 		if (!options.container) {
 			const targetElement = options.target instanceof HTMLElement ? options.target : options.target.targetElements[0];
-			options.container = this._layoutService.getContainer(targetElement.ownerDocument.defaultView || mainWindow);
+			options.container = this._layoutService.getContainer(getWindow(targetElement));
 		}
 		const provider = this._contextViewService as IContextViewProvider;
 		provider.showContextView(

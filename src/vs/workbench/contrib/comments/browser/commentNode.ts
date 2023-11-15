@@ -729,7 +729,7 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 
 
 	private onContextMenu(e: MouseEvent) {
-		const event = new StandardMouseEvent(e);
+		const event = new StandardMouseEvent(dom.getWindow(this._domNode), e);
 
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => event,

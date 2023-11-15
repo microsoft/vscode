@@ -190,7 +190,7 @@ export class WebWorkerExtensionHost extends Disposable implements IExtensionHost
 			resolveBarrier(data);
 		}));
 
-		this._layoutService.container.appendChild(iframe);
+		this._layoutService.mainContainer.appendChild(iframe);
 		this._register(toDisposable(() => iframe.remove()));
 
 		// await MessagePort and use it to directly communicate

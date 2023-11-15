@@ -237,13 +237,15 @@
             "auto",
             "npm",
             "yarn",
-            "pnpm"
+            "pnpm",
+            "bun"
           ],
           "enumDescriptions": [
             "%config.npm.packageManager.auto%",
             "%config.npm.packageManager.npm%",
             "%config.npm.packageManager.yarn%",
-            "%config.npm.packageManager.pnpm%"
+            "%config.npm.packageManager.pnpm%",
+            "%config.npm.packageManager.bun%"
           ],
           "default": "auto",
           "description": "%config.npm.packageManager%"

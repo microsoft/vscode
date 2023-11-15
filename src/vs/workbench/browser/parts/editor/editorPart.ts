@@ -152,7 +152,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	private readonly gridWidgetView = this._register(new GridWidgetView<IEditorGroupView>());
 
 	constructor(
-		private readonly editorPartsView: IEditorPartsView,
+		protected readonly editorPartsView: IEditorPartsView,
 		id: string,
 		private readonly groupsLabel: string,
 		public readonly isAuxiliary: boolean,
@@ -759,11 +759,13 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 		// Remove empty group
 		if (groupView.isEmpty) {
-			return this.doRemoveEmptyGroup(groupView, preserveFocus);
+			this.doRemoveEmptyGroup(groupView, preserveFocus);
 		}
 
 		// Remove group with editors
-		this.doRemoveGroupWithEditors(groupView);
+		else {
+			this.doRemoveGroupWithEditors(groupView);
+		}
 	}
 
 	private doRemoveGroupWithEditors(groupView: IEditorGroupView): void {
@@ -809,7 +811,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.updateContainer();
 
 		// Update locked state: clear when we are at just 1 group
-		if (this.count === 1) {
+		// in case we are in the main editor part
+		if (this.count === 1 && !this.isAuxiliary) {
 			firstOrDefault(this.groups)?.lock(false);
 		}
 
@@ -918,7 +921,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		return target;
 	}
 
-	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	protected assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		let groupView: IEditorGroupView | undefined;
 		if (typeof group === 'number') {
 			groupView = this.editorPartsView.getGroup(group);
@@ -1405,12 +1408,33 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 		super(editorPartsView, `workbench.parts.auxiliaryEditor.${id}`, groupsLabel, true, instantiationService, themeService, configurationService, storageService, layoutService, hostService, contextKeyService);
 	}
 
+	override removeGroup(group: number | IEditorGroupView, preserveFocus?: boolean | undefined): void {
+
+		// Close aux window when last group removed
+		const groupView = this.assertGroupView(group);
+		if (this.count === 1 && this.activeGroup === groupView) {
+			this.doClose(false /* do not merge any groups to main part */);
+		}
+
+		// Otherwise delegate to parent implementation
+		else {
+			super.removeGroup(group, preserveFocus);
+		}
+	}
+
 	protected override saveState(): void {
 		return; // TODO support auxiliary editor state
 	}
 
-	async close(): Promise<void> {
-		// TODO this needs full support for closing all editors, handling vetos and showing dialogs
+	close(): void {
+		this.doClose(true /* merge all groups to main part */);
+	}
+
+	private doClose(mergeGroupsToMainPart: boolean): void {
+		if (mergeGroupsToMainPart) {
+			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
+		}
+
 		this._onDidClose.fire();
 	}
 }

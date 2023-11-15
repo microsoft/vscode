@@ -2171,7 +2171,12 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		}
 	}
 
-	async changeIcon() {
+	async changeIcon(icon?: TerminalIcon): Promise<TerminalIcon | undefined> {
+		if (icon) {
+			this._icon = icon;
+			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return icon;
+		}
 		type Item = IQuickPickItem & { icon: TerminalIcon };
 		const items: Item[] = [];
 		for (const icon of getAllCodicons()) {
@@ -2184,10 +2189,17 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 		if (result) {
 			this._icon = result.icon;
 			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return this._icon;
 		}
+		return;
 	}
 
-	async changeColor() {
+	async changeColor(color?: string): Promise<string | undefined> {
+		if (color) {
+			this.shellLaunchConfig.color = color;
+			this._onIconChanged.fire({ instance: this, userInitiated: true });
+			return color;
+		}
 		const icon = this._getIcon();
 		if (!icon) {
 			return;
@@ -2225,6 +2237,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 		quickPick.hide();
 		colorStyleDisposable.dispose();
+		return result?.id;
 	}
 
 	selectPreviousSuggestion(): void {

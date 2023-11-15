@@ -6,7 +6,7 @@
 import 'vs/css!./media/editortabscontrol';
 import { localize } from 'vs/nls';
 import { applyDragImage, DataTransfers } from 'vs/base/browser/dnd';
-import { Dimension, isMouseEvent } from 'vs/base/browser/dom';
+import { Dimension, getWindow, isMouseEvent } from 'vs/base/browser/dom';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { ActionsOrientation, IActionViewItem, prepareActions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IAction, ActionRunner } from 'vs/base/common/actions';
@@ -40,8 +40,9 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAuxiliaryEditorPart, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -132,7 +133,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -316,9 +318,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: { x: e.screenX, y: e.screenY }
-		});
+		const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, element);
+		if (!auxiliaryEditorPart) {
+			return;
+		}
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -326,6 +329,29 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		});
 
 		targetGroup.focus();
+	}
+
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const cursorLocation = await this.hostService.getCursorScreenPoint() ?? { x: e.screenX, y: e.screenY };
+		const window = getWindow(e);
+		if (cursorLocation.x >= window.screenX && cursorLocation.x <= window.screenX + window.outerWidth && cursorLocation.y >= window.screenY && cursorLocation.y <= window.screenY + window.outerHeight) {
+			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+		}
+
+		let offsetX = 0;
+		let offsetY = 30; // take title bar height into account (approximation)
+
+		if (offsetElement) {
+			offsetX += offsetElement.offsetWidth / 2;
+			offsetY += offsetElement.offsetHeight / 2;
+		}
+
+		return this.editorGroupService.createAuxiliaryEditorPart({
+			bounds: {
+				x: cursorLocation.x - offsetX,
+				y: cursorLocation.y - offsetY
+			}
+		});
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
@@ -381,7 +407,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		// Find target anchor
 		let anchor: HTMLElement | StandardMouseEvent = node;
 		if (isMouseEvent(e)) {
-			anchor = new StandardMouseEvent(e);
+			anchor = new StandardMouseEvent(getWindow(node), e);
 		}
 
 		// Show it

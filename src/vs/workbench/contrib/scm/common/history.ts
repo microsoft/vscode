@@ -6,7 +6,12 @@
 import { Event } from 'vs/base/common/event';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { URI } from 'vs/base/common/uri';
+import { IMenu } from 'vs/platform/actions/common/actions';
 import { ISCMActionButtonDescriptor, ISCMRepository } from 'vs/workbench/contrib/scm/common/scm';
+
+export interface ISCMHistoryProviderMenus {
+	getHistoryItemMenu(historyItem: ISCMHistoryItem): IMenu;
+}
 
 export interface ISCMHistoryProvider {
 
@@ -21,8 +26,15 @@ export interface ISCMHistoryProvider {
 
 	provideHistoryItems(historyItemGroupId: string, options: ISCMHistoryOptions): Promise<ISCMHistoryItem[] | undefined>;
 	provideHistoryItemChanges(historyItemId: string): Promise<ISCMHistoryItemChange[] | undefined>;
+	resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined>;
 	resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined>;
 	resolveHistoryItemGroupCommonAncestor(historyItemGroupId1: string, historyItemGroupId2: string): Promise<{ id: string; ahead: number; behind: number } | undefined>;
+}
+
+export interface ISCMHistoryProviderCacheEntry {
+	readonly historyItemGroupDetails?: ISCMHistoryItemGroupDetails;
+	readonly historyItems: Map<string, ISCMHistoryItem[]>;
+	readonly historyItemChanges: Map<string, ISCMHistoryItemChange[]>;
 }
 
 export interface ISCMHistoryOptions {
@@ -39,6 +51,19 @@ export interface ISCMHistoryItemGroup {
 	readonly id: string;
 	readonly label: string;
 	readonly upstream?: ISCMRemoteHistoryItemGroup;
+}
+
+export interface ISCMHistoryItemGroupDetails {
+	readonly incoming?: ISCMHistoryItemGroupEntry;
+	readonly outgoing: ISCMHistoryItemGroupEntry;
+}
+
+export interface ISCMHistoryItemGroupEntry {
+	readonly id: string;
+	readonly label: string;
+	readonly description?: string;
+	readonly ancestor?: string;
+	readonly count?: number;
 }
 
 export interface SCMHistoryItemGroupTreeElement extends ISCMHistoryItemGroup {
