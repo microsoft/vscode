@@ -253,18 +253,6 @@ function commandListEquals(a: readonly vscode.Command[], b: readonly vscode.Comm
 	return equals(a, b, commandEquals);
 }
 
-function historyItemGroupEquals(a: vscode.SourceControlHistoryItemGroup | undefined, b: vscode.SourceControlHistoryItemGroup | undefined): boolean {
-	if (a === b) {
-		return true;
-	}
-
-	if (!a || !b) {
-		return false;
-	}
-
-	return a.id === b.id && a.label === b.label && a.upstream?.id === b.upstream?.id && a.upstream?.label === b.upstream?.label;
-}
-
 export interface IValidateInput {
 	(value: string, cursorPosition: number): vscode.ProviderResult<vscode.SourceControlInputBoxValidation | undefined | null>;
 }
@@ -618,10 +606,6 @@ class ExtHostSourceControl implements vscode.SourceControl {
 
 		if (historyProvider) {
 			this._historyProviderDisposable.value.add(historyProvider.onDidChangeCurrentHistoryItemGroup(() => {
-				if (historyItemGroupEquals(this._historyProviderCurrentHistoryItemGroup, historyProvider?.currentHistoryItemGroup)) {
-					return;
-				}
-
 				this._historyProviderCurrentHistoryItemGroup = historyProvider?.currentHistoryItemGroup;
 				this.#proxy.$onDidChangeHistoryProviderCurrentHistoryItemGroup(this.handle, this._historyProviderCurrentHistoryItemGroup);
 			}));
