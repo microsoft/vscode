@@ -213,7 +213,7 @@ export interface ITerminalConfigHelper {
 	config: ITerminalConfiguration;
 
 	configFontIsMonospace(): boolean;
-	getFont(): ITerminalFont;
+	getFont(w: Window): ITerminalFont;
 	showRecommendations(shellLaunchConfig: IShellLaunchConfig): void;
 }
 
