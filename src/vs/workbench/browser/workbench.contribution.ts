@@ -737,7 +737,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'default': (isWeb && !isStandalone()) ? 'keyboardOnly' : 'never', // on by default in web, unless PWA, never on desktop
 				'markdownDescription': isWeb ?
 					localize('confirmBeforeCloseWeb', "Controls whether to show a confirmation dialog before closing the browser tab or window. Note that even if enabled, browsers may still decide to close a tab or window without confirmation and that this setting is only a hint that may not work in all cases.") :
-					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing the window or quitting the application."),
+					localize('confirmBeforeClose', "Controls whether to show a confirmation dialog before closing a window or quitting the application."),
 				'scope': ConfigurationScope.APPLICATION
 			}
 		}

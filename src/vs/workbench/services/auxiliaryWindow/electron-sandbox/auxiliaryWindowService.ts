@@ -12,7 +12,7 @@ import { IWindowsConfiguration } from 'vs/platform/window/common/window';
 import { DisposableStore } from 'vs/base/common/lifecycle';
 import { INativeHostService } from 'vs/platform/native/common/native';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { ModifierKeyEmitter, getActiveWindow } from 'vs/base/browser/dom';
+import { getActiveWindow } from 'vs/base/browser/dom';
 import { CodeWindow } from 'vs/base/browser/window';
 import { mark } from 'vs/base/common/performance';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,29 +30,18 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 	constructor(
 		window: CodeWindow,
 		container: HTMLElement,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(window, container);
+		super(window, container, configurationService);
 	}
 
-	protected override vetoBeforeunload(): boolean {
+	protected override  async confirmBeforeClose(e: BeforeUnloadEvent): Promise<void> {
 		if (this.skipUnloadConfirmation) {
-			return false;
+			return;
 		}
 
-		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
-		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
-		if (confirmBeforeClose) {
-			this.confirmClose();
-			return true;
-		}
-
-		return false;
-	}
-
-	private async confirmClose(): Promise<void> {
 		const confirmed = await this.instantiationService.invokeFunction(accessor => NativeWindow.confirmOnShutdown(accessor, ShutdownReason.CLOSE));
 		if (confirmed) {
 			this.skipUnloadConfirmation = true;
@@ -65,12 +54,12 @@ export class NativeAuxiliaryWindowService extends BrowserAuxiliaryWindowService 
 
 	constructor(
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@INativeHostService private readonly nativeHostService: INativeHostService,
 		@IDialogService dialogService: IDialogService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
-		super(layoutService, dialogService);
+		super(layoutService, dialogService, configurationService);
 	}
 
 	protected override async resolveWindowId(auxiliaryWindow: NativeCodeWindow): Promise<number> {
