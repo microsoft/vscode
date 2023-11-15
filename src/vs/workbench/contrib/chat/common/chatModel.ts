@@ -169,7 +169,7 @@ export class Response implements IResponse {
 			} else if (part.kind === 'asyncContent') {
 				return part.content;
 			} else {
-				return part.content;
+				return part.content.value;
 			}
 		}).join('\n\n');
 

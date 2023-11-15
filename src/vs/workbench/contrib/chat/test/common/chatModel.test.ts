@@ -127,6 +127,8 @@ suite('Response', () => {
 		response.updateContent({ content: 'text', kind: 'content' });
 		response.updateContent({ content: new MarkdownString('markdown'), kind: 'markdownContent' });
 		await assertSnapshot(response.value);
+
+		assert.strictEqual(response.asString(), 'textmarkdown');
 	});
 
 	test('markdown, content', async () => {
