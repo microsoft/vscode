@@ -8,9 +8,10 @@ import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/commo
 import { revive } from 'vs/base/common/marshalling';
 import { basename } from 'vs/base/common/resources';
 import { URI } from 'vs/base/common/uri';
+import { IRange } from 'vs/editor/common/core/range';
 import { Location } from 'vs/editor/common/languages';
 import { ChatRequestTextPart, IParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChatContentInlineReference, IChatResponseProgressFileTreeData } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAgentContentWithVulnerability, IChatContentInlineReference, IChatResponseProgressFileTreeData, isContentWithVulnerability } from 'vs/workbench/contrib/chat/common/chatService';
 
 const variableRefUrl = 'http://_vscodedecoration_';
 
@@ -59,7 +60,31 @@ function renderFileWidget(href: string, a: HTMLAnchorElement): void {
 
 const contentRefUrl = 'http://_vscodecontentref_'; // must be lowercase for URI
 
-export function reduceInlineContentReferences(response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>): ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData> {
+export interface IMarkdownVulnerability {
+	description: string;
+	range: IRange;
+}
+
+export function extractVulnerabilitiesFromText(text: string): { newText: string; vulnerabilities: IMarkdownVulnerability[] } {
+	const vulnerabilities: IMarkdownVulnerability[] = [];
+	let newText = text;
+	let match: RegExpExecArray | null;
+	while ((match = /<vscode_annotation description="(.+)">(.+)<\/vscode_annotation>/ms.exec(newText)) !== null) {
+		const [full, description, content] = match;
+		const start = match.index;
+		const endIdx = start + content.length;
+		vulnerabilities.push({ description, range: { startLineNumber: 1, startColumn: start + 1, endLineNumber: 1, endColumn: endIdx + 1 } });
+		newText = newText.substring(0, start) + content + newText.substring(start + full.length);
+	}
+
+	return { newText, vulnerabilities };
+}
+
+/**
+ * Some portions of the markdown source need to be transformed somehow after being rendered. eg inline content references which are
+ * transformed to special widgets, and vulnerability annotations which are removed from codeblock source and replaced with some kind of annotation.
+ */
+export function annotateSpecialMarkdownContent(response: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference | IChatAgentContentWithVulnerability>): { content: ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData>; vulnerabilities: { description: string }[] } {
 	const result: (IMarkdownString | IChatResponseProgressFileTreeData)[] = [];
 	for (const item of response) {
 		const previousItem = result[result.length - 1];
@@ -74,10 +99,19 @@ export function reduceInlineContentReferences(response: ReadonlyArray<IMarkdownS
 			}
 		} else if (isMarkdownString(item) && isMarkdownString(previousItem)) {
 			result[result.length - 1] = new MarkdownString(previousItem.value + item.value, { isTrusted: previousItem.isTrusted });
+		} else if (isContentWithVulnerability(item)) {
+			const markdownText = `<vscode_annotation description="${encodeURIComponent(item.description)}">${item.content}</vscode_annotation>`;
+			if (isMarkdownString(previousItem)) {
+				result[result.length - 1] = new MarkdownString(previousItem.value + markdownText, { isTrusted: previousItem.isTrusted });
+			} else {
+				result.push(new MarkdownString(markdownText));
+			}
 		} else {
 			result.push(item);
 		}
 	}
 
-	return result;
+	return { content: result, vulnerabilities: [] };
 }
+
+// export function

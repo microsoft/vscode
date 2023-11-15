@@ -51,7 +51,7 @@ import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibil
 import { IAccessibleViewService } from 'vs/workbench/contrib/accessibility/browser/accessibleView';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo } from 'vs/workbench/contrib/chat/browser/chat';
 import { ChatFollowups } from 'vs/workbench/contrib/chat/browser/chatFollowups';
-import { convertParsedRequestToMarkdown, reduceInlineContentReferences, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
+import { convertParsedRequestToMarkdown, annotateSpecialMarkdownContent, walkTreeAndAnnotateReferenceLinks } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { CodeBlockPart, ICodeBlockData, ICodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { IChatAgentMetadata } from 'vs/workbench/contrib/chat/common/chatAgents';
@@ -315,7 +315,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
 			runProgressiveRender(true);
 		} else if (isResponseVM(element)) {
-			const renderableResponse = reduceInlineContentReferences(element.response.value);
+			const result = annotateSpecialMarkdownContent(element.response.value);
+			const renderableResponse = result.content;
 			this.basicRenderElement(renderableResponse, element, index, templateData);
 		} else if (isRequestVM(element)) {
 			const markdown = 'kind' in element.message ?
@@ -503,7 +504,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		disposables.clear();
 
-		const renderableResponse = reduceInlineContentReferences(element.response.value);
+		const annotatedResult = annotateSpecialMarkdownContent(element.response.value);
+		const renderableResponse = annotatedResult.content;
 		let isFullyRendered = false;
 		if (element.isCanceled) {
 			this.traceLayout('runProgressiveRender', `canceled, index=${index}`);
@@ -785,18 +787,30 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const result = this.renderer.render(markdown, {
 			fillInIncompleteTokens,
 			codeBlockRendererSync: (languageId, text) => {
+				const result = text.match(/^(.*)<vscode_annotation>(.*)<\/vscode_annotation>(.*)$/ms);
+
+				let before = '';
+				let inside = '';
+				let after = '';
+				if (result) {
+					[, before, inside, after] = result;
+					text = before + inside + after;
+				}
+
 				const hideToolbar = isResponseVM(element) && element.errorDetails?.responseIsFiltered;
 				const data = { languageId, text, codeBlockIndex: codeBlockIndex++, element, hideToolbar, parentContextKeyService: templateData.contextKeyService };
 				const ref = this.renderCodeBlock(data, disposables);
 
-				this.markerService.changeOne('owner', ref.object.textModel.uri, [{
-					severity: MarkerSeverity.Warning,
-					startLineNumber: 1,
-					startColumn: 1,
-					endLineNumber: 2,
-					endColumn: 2,
-					message: 'hello'
-				}]);
+				if (inside) {
+					this.markerService.changeOne('owner', ref.object.textModel.uri, [{
+						severity: MarkerSeverity.Hint,
+						startLineNumber: 1,
+						startColumn: before.length + 1,
+						endLineNumber: 2,
+						endColumn: before.length + inside.length + 1,
+						message: 'hello'
+					}]);
+				}
 
 				// Attach this after updating text/layout of the editor, so it should only be fired when the size updates later (horizontal scrollbar, wrapping)
 				// not during a renderElement OR a progressive render (when we will be firing this event anyway at the end of the render)

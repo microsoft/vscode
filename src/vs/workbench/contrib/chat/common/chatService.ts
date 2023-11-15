@@ -117,8 +117,21 @@ export interface IChatAsyncContent {
 	kind: 'asyncContent';
 }
 
+export interface IChatAgentContentWithVulnerability {
+	content: string;
+	description: string;
+	kind: 'vulnerability';
+}
+
+export function isContentWithVulnerability(obj: unknown): obj is IChatAgentContentWithVulnerability {
+	return !!obj &&
+		typeof obj === 'object' &&
+		'kind' in obj && obj.kind === 'vulnerability';
+}
+
 export type IChatProgress =
 	| IChatContent
+	| IChatAgentContentWithVulnerability
 	| IChatTreeData
 	| IChatAsyncContent
 	| IChatUsedContext
