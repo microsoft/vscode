@@ -5,12 +5,13 @@
 
 import { Emitter } from 'vs/base/common/event';
 import { URI } from 'vs/base/common/uri';
-import { IEditorModel, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { firstOrDefault } from 'vs/base/common/arrays';
 import { EditorInputCapabilities, Verbosity, GroupIdentifier, ISaveOptions, IRevertOptions, IMoveResult, IEditorDescriptor, IEditorPane, IUntypedEditorInput, EditorResourceAccessor, AbstractEditorInput, isEditorInput, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { isEqual } from 'vs/base/common/resources';
 import { ConfirmResult } from 'vs/platform/dialogs/common/dialogs';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IEditorCloseHandler {
 
@@ -201,14 +202,14 @@ export abstract class EditorInput extends AbstractEditorInput {
 	}
 
 	/**
-	 * Returns a type of `IEditorModel` that represents the resolved input.
+	 * Returns a type of `IDisposable` that represents the resolved input.
 	 * Subclasses should override to provide a meaningful model or return
 	 * `null` if the editor does not require a model.
 	 *
 	 * The `options` parameter are passed down from the editor when the
 	 * input is resolved as part of it.
 	 */
-	async resolve(options?: IEditorOptions): Promise<IEditorModel | null> {
+	async resolve(options?: IEditorOptions): Promise<IDisposable | null> {
 		return null;
 	}
 

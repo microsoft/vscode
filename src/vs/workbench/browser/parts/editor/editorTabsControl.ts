@@ -42,6 +42,7 @@ import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGrou
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IAuxiliaryEditorPart, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
+import { IHostService } from 'vs/workbench/services/host/browser/host';
 
 export class EditorCommandsContextActionRunner extends ActionRunner {
 
@@ -132,7 +133,8 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService
+		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
+		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
 
@@ -316,7 +318,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e);
+		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, element);
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -326,7 +328,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		targetGroup.focus();
 	}
 
-	protected createAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart> {
+	protected async createAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart> {
 		let offsetX = 0;
 		let offsetY = 30; // take title bar height into account (approximation)
 
@@ -335,10 +337,15 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			offsetY += offsetElement.offsetHeight / 2;
 		}
 
+		let cursorLocation = await this.hostService.getCursorScreenPoint();
+		if (!cursorLocation) {
+			cursorLocation = { x: e.screenX, y: e.screenY };
+		}
+
 		return this.editorGroupService.createAuxiliaryEditorPart({
 			bounds: {
-				x: e.screenX - offsetX,
-				y: e.screenY - offsetY
+				x: cursorLocation.x - offsetX,
+				y: cursorLocation.y - offsetY
 			}
 		});
 	}

@@ -241,7 +241,7 @@ const getHistoryChatActionDescriptorForViewTitle = (viewId: string, providerId: 
 		id: MenuId.ViewTitle,
 		when: ContextKeyExpr.equals('view', viewId),
 		group: 'navigation',
-		order: 0
+		order: -1
 	},
 	category: CHAT_CATEGORY,
 	icon: Codicon.history,

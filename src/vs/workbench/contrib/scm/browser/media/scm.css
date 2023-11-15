@@ -173,6 +173,7 @@
 }
 
 .scm-view .monaco-list-row .history-item .stats-container .monaco-icon-label .codicon {
+	color: var(--vscode-badge-foreground);
 	margin: 0 1px;
 }
 

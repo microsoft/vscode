@@ -26,6 +26,10 @@ export interface IAuxiliaryWindowOpenEvent {
 	readonly disposables: DisposableStore;
 }
 
+export interface IAuxiliaryWindowOpenOptions {
+	readonly bounds?: Partial<IRectangle>;
+}
+
 export interface IAuxiliaryWindowService {
 
 	readonly _serviceBrand: undefined;
@@ -34,13 +38,13 @@ export interface IAuxiliaryWindowService {
 
 	hasWindow(windowId: number): boolean;
 
-	open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow>;
+	open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow>;
 }
 
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
-	readonly onDidClose: Event<void>;
+	readonly onWillClose: Event<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -53,8 +57,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -66,8 +70,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, 'unload', () => {
-			this._onDidClose.fire();
+		this._register(addDisposableListener(this.window, 'beforeunload', () => {
+			this._onWillClose.fire();
 		}));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
@@ -130,7 +134,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		super();
 	}
 
-	async open(options?: { bounds?: Partial<IRectangle> }): Promise<IAuxiliaryWindow> {
+	async open(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryWindow> {
 		mark('code/auxiliaryWindow/willOpen');
 
 		const targetWindow = await this.openWindow(options);
@@ -169,14 +173,17 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
-	private async openWindow(options?: { bounds?: Partial<IRectangle> }): Promise<Window | undefined> {
+	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
 
+		const width = options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width;
+		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
+
 		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? activeWindow.screen.availWidth / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.width / 2,
-			y: options?.bounds?.y ?? activeWindow.screen.availHeight / 2 - BrowserAuxiliaryWindowService.DEFAULT_SIZE.height / 2,
-			width: options?.bounds?.width ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.width,
-			height: options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height
+			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
+			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
+			width,
+			height
 		};
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
