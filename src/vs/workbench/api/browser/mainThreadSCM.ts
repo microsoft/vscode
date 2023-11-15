@@ -5,8 +5,8 @@
 
 import { URI, UriComponents } from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IDisposable, DisposableStore, combinedDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor } from 'vs/workbench/contrib/scm/common/scm';
+import { IDisposable, DisposableStore, combinedDisposable, dispose, DisposableMap } from 'vs/base/common/lifecycle';
+import { ISCMService, ISCMRepository, ISCMProvider, ISCMResource, ISCMResourceGroup, ISCMResourceDecorations, IInputValidation, ISCMViewService, InputValidationType, ISCMActionButtonDescriptor, ISCMInputValueProvider, ISCMInputValueProviderContext } from 'vs/workbench/contrib/scm/common/scm';
 import { ExtHostContext, MainThreadSCMShape, ExtHostSCMShape, SCMProviderFeatures, SCMRawResourceSplices, SCMGroupFeatures, MainContext, SCMHistoryItemDto, SCMActionButtonDto, SCMHistoryItemGroupDto, SCMInputActionButtonDto } from '../common/extHost.protocol';
 import { Command } from 'vs/editor/common/languages';
 import { extHostNamedCustomer, IExtHostContext } from 'vs/workbench/services/extensions/common/extHostCustomers';
@@ -15,7 +15,7 @@ import { MarshalledId } from 'vs/base/common/marshallingIds';
 import { ThemeIcon } from 'vs/base/common/themables';
 import { IMarkdownString } from 'vs/base/common/htmlContent';
 import { IQuickDiffService, QuickDiffProvider } from 'vs/workbench/contrib/scm/common/quickDiff';
-import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
+import { ISCMHistoryItem, ISCMHistoryItemChange, ISCMHistoryItemGroup, ISCMHistoryItemGroupDetails, ISCMHistoryItemGroupEntry, ISCMHistoryOptions, ISCMHistoryProvider } from 'vs/workbench/contrib/scm/common/history';
 import { ResourceTree } from 'vs/base/common/resourceTree';
 import { IUriIdentityService } from 'vs/platform/uriIdentity/common/uriIdentity';
 
@@ -41,6 +41,19 @@ function getSCMHistoryItemIcon(historyItem: SCMHistoryItemDto): URI | { light: U
 		return historyItem.icon;
 	} else {
 		const icon = historyItem.icon as { light: UriComponents; dark: UriComponents };
+		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
+	}
+}
+
+function getIconFromIconDto(iconDto?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): URI | { light: URI; dark: URI } | ThemeIcon | undefined {
+	if (iconDto === undefined) {
+		return undefined;
+	} else if (URI.isUri(iconDto)) {
+		return URI.revive(iconDto);
+	} else if (ThemeIcon.isThemeIcon(iconDto)) {
+		return iconDto;
+	} else {
+		const icon = iconDto as { light: UriComponents; dark: UriComponents };
 		return { light: URI.revive(icon.light), dark: URI.revive(icon.dark) };
 	}
 }
@@ -157,6 +170,38 @@ class MainThreadSCMHistoryProvider implements ISCMHistoryProvider {
 	}
 
 	constructor(private readonly proxy: ExtHostSCMShape, private readonly handle: number) { }
+
+	async resolveHistoryItemGroup(historyItemGroup: ISCMHistoryItemGroup): Promise<ISCMHistoryItemGroupDetails | undefined> {
+		// History item group base
+		const historyItemGroupBase = await this.resolveHistoryItemGroupBase(historyItemGroup.id);
+
+		// Common ancestor, ahead, behind
+		const ancestor = historyItemGroupBase ?
+			await this.resolveHistoryItemGroupCommonAncestor(historyItemGroup.id, historyItemGroupBase.id) : undefined;
+
+		// Incoming
+		let incoming: ISCMHistoryItemGroupEntry | undefined;
+		if (historyItemGroupBase) {
+			incoming = {
+				id: historyItemGroupBase.id,
+				label: `$(cloud-download) ${historyItemGroupBase.label}`,
+				// description: localize('incoming', "Incoming Changes"),
+				ancestor: ancestor?.id,
+				count: ancestor?.behind ?? 0,
+			};
+		}
+
+		// Outgoing
+		const outgoing: ISCMHistoryItemGroupEntry = {
+			id: historyItemGroup.id,
+			label: `$(cloud-upload) ${historyItemGroup.label}`,
+			// description: localize('outgoing', "Outgoing Changes"),
+			ancestor: ancestor?.id,
+			count: ancestor?.ahead ?? 0,
+		};
+
+		return { incoming, outgoing };
+	}
 
 	async resolveHistoryItemGroupBase(historyItemGroupId: string): Promise<ISCMHistoryItemGroup | undefined> {
 		return this.proxy.$resolveHistoryItemGroupBase(this.handle, historyItemGroupId, CancellationToken.None);
@@ -422,12 +467,27 @@ class MainThreadSCMProvider implements ISCMProvider, QuickDiffProvider {
 	}
 }
 
+class MainThreadSCMInputBoxValueProvider implements ISCMInputValueProvider {
+
+	constructor(
+		private readonly proxy: ExtHostSCMShape,
+		private readonly handle: number,
+		readonly label: string,
+		readonly icon?: URI | ThemeIcon | { light: URI; dark: URI }) { }
+
+	provideValue(repositoryId: string, context: ISCMInputValueProviderContext[]): Promise<string | undefined> {
+		return this.proxy.$provideInputBoxValue(this.handle, repositoryId, context);
+	}
+
+}
+
 @extHostNamedCustomer(MainContext.MainThreadSCM)
 export class MainThreadSCM implements MainThreadSCMShape {
 
 	private readonly _proxy: ExtHostSCMShape;
 	private _repositories = new Map<number, ISCMRepository>();
 	private _repositoryDisposables = new Map<number, IDisposable>();
+	private _inputBoxValueProviders = new DisposableMap<number>();
 	private readonly _disposables = new DisposableStore();
 
 	constructor(
@@ -447,6 +507,7 @@ export class MainThreadSCM implements MainThreadSCMShape {
 		dispose(this._repositoryDisposables.values());
 		this._repositoryDisposables.clear();
 
+		this._inputBoxValueProviders.dispose();
 		this._disposables.dispose();
 	}
 
@@ -494,6 +555,23 @@ export class MainThreadSCM implements MainThreadSCMShape {
 
 		repository.dispose();
 		this._repositories.delete(handle);
+	}
+
+	$registerSourceControlInputBoxValueProvider(handle: number, label: string, icon?: UriComponents | { light: UriComponents; dark: UriComponents } | ThemeIcon): void {
+		const provider = new MainThreadSCMInputBoxValueProvider(this._proxy, handle, label, getIconFromIconDto(icon));
+		const disposable = this.scmService.registerSCMInputValueProvider(provider);
+
+		this._inputBoxValueProviders.set(handle, disposable);
+	}
+
+	$unregisterSourceControlInputBoxValueProvider(handle: number): void {
+		const provider = this._inputBoxValueProviders.get(handle);
+		if (!provider) {
+			return;
+		}
+
+		provider.dispose();
+		this._inputBoxValueProviders.deleteAndDispose(handle);
 	}
 
 	$registerGroups(sourceControlHandle: number, groups: [number /*handle*/, string /*id*/, string /*label*/, SCMGroupFeatures][], splices: SCMRawResourceSplices[]): void {

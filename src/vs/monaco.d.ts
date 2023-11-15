@@ -4439,7 +4439,7 @@ declare namespace monaco.editor {
 		 * Defaults to `prefix`.
 		*/
 		mode?: 'prefix' | 'subword' | 'subwordSmart';
-		showToolbar?: 'always' | 'onHover';
+		showToolbar?: 'always' | 'onHover' | 'never';
 		suppressSuggestions?: boolean;
 		/**
 		 * Does not clear active inline suggestions when the editor loses focus.

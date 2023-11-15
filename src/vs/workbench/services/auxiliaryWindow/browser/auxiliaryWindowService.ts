@@ -14,7 +14,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
-import { IRectangle } from 'vs/platform/window/common/window';
+import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
@@ -44,7 +44,7 @@ export interface IAuxiliaryWindowService {
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
-	readonly onDidClose: Event<void>;
+	readonly onWillClose: Event<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -57,8 +57,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
@@ -70,8 +70,8 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, 'unload', () => {
-			this._onDidClose.fire();
+		this._register(addDisposableListener(this.window, 'beforeunload', () => {
+			this._onWillClose.fire();
 		}));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
@@ -180,10 +180,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const height = options?.bounds?.height ?? BrowserAuxiliaryWindowService.DEFAULT_SIZE.height;
 
 		const bounds: IRectangle = {
-			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
-			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
-			width,
-			height
+			x: Math.max(options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2), 0),
+			y: Math.max(options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2), 0),
+			width: Math.max(width, WindowMinimumSize.WIDTH),
+			height: Math.max(height, WindowMinimumSize.HEIGHT)
 		};
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
@@ -320,7 +320,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// Track attributes
 		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
 		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
-		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
+		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class'])); // only class attribute
 
 		mark('code/auxiliaryWindow/didApplyHTML');
 

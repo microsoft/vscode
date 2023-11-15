@@ -43,7 +43,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		const disposables = new DisposableStore();
 
 		const auxiliaryWindow = disposables.add(await this.auxiliaryWindowService.open(options));
-		disposables.add(Event.once(auxiliaryWindow.onDidClose)(() => disposables.dispose()));
 
 		const partContainer = document.createElement('div');
 		partContainer.classList.add('part', 'editor');
@@ -52,13 +51,18 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this, this.getGroupsLabel(this._parts.size)));
 		disposables.add(this.registerEditorPart(editorPart));
+		editorPart.create(partContainer, { restorePreviousState: false });
+		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
+		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
+			if (disposables.isDisposed) {
+				return; // the close happened as part of an earlier dispose call
+			}
+
+			editorPart.close();
+		}));
 		disposables.add(Event.once(editorPart.onDidClose)(() => disposables.dispose()));
 		disposables.add(Event.once(this.lifecycleService.onDidShutdown)(() => disposables.dispose()));
-
-		editorPart.create(partContainer, { restorePreviousState: false });
-
-		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
 		disposables.add(auxiliaryWindow.onDidLayout(dimension => editorPart.layout(dimension.width, dimension.height, 0, 0)));
 		auxiliaryWindow.layout();

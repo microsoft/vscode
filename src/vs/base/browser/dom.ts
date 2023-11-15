@@ -404,7 +404,7 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return el.ownerDocument.defaultView!.getComputedStyle(el, null);
+	return getWindow(el).getComputedStyle(el, null);
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
@@ -622,9 +622,10 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
+	const window = getWindow(domNode);
 	return {
-		left: bb.left + (domNode.ownerDocument.defaultView?.scrollX ?? 0),
-		top: bb.top + (domNode.ownerDocument.defaultView?.scrollY ?? 0),
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};

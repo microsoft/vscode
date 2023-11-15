@@ -318,7 +318,10 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			return; // drag to open in new window is disabled
 		}
 
-		const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, element);
+		const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, element);
+		if (!auxiliaryEditorPart) {
+			return;
+		}
 
 		const targetGroup = auxiliaryEditorPart.activeGroup;
 		this.groupsView.mergeGroup(this.groupView, targetGroup.id, {
@@ -328,18 +331,19 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		targetGroup.focus();
 	}
 
-	protected async createAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart> {
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const cursorLocation = await this.hostService.getCursorScreenPoint() ?? { x: e.screenX, y: e.screenY };
+		const window = getWindow(e);
+		if (cursorLocation.x >= window.screenX && cursorLocation.x <= window.screenX + window.outerWidth && cursorLocation.y >= window.screenY && cursorLocation.y <= window.screenY + window.outerHeight) {
+			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
+		}
+
 		let offsetX = 0;
 		let offsetY = 30; // take title bar height into account (approximation)
 
 		if (offsetElement) {
 			offsetX += offsetElement.offsetWidth / 2;
 			offsetY += offsetElement.offsetHeight / 2;
-		}
-
-		let cursorLocation = await this.hostService.getCursorScreenPoint();
-		if (!cursorLocation) {
-			cursorLocation = { x: e.screenX, y: e.screenY };
 		}
 
 		return this.editorGroupService.createAuxiliaryEditorPart({

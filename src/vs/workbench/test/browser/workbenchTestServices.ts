@@ -594,8 +594,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
-	hasContainer = true;
-	container: HTMLElement = mainWindow.document.body;
+	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;
 
@@ -608,9 +607,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
+	onDidLayoutContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
-	onDidRemoveContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 
 	layout(): void { }

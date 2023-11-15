@@ -1168,6 +1168,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
+			},
+			registerSourceControlInputBoxValueProvider(provider: vscode.SourceControlInputBoxValueProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'scmInputBoxValueProvider');
+				return extHostSCM.registerSourceControlInputBoxValueProvider(extension, provider);
 			}
 		};
 
@@ -1322,7 +1326,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 			registerInteractiveEditorSessionProvider(provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata) {
 				checkProposedApiEnabled(extension, 'interactive');
-				return extHostInteractiveEditor.registerProvider(extension, provider, metadata = { label: metadata?.label ?? extension.displayName ?? extension.name });
+				return extHostInteractiveEditor.registerProvider(extension, provider, metadata);
 			},
 			registerInteractiveSessionProvider(id: string, provider: vscode.InteractiveSessionProvider) {
 				checkProposedApiEnabled(extension, 'interactive');

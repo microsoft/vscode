@@ -17,7 +17,7 @@ import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/termi
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalInstance, IXtermColorProvider, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private';
 import { TERMINAL_CONFIG_SECTION } from 'vs/workbench/contrib/terminal/common/terminal';
 import { terminalStickyScrollHoverBackground } from 'vs/workbench/contrib/terminalContrib/stickyScroll/browser/terminalStickyScrollColorRegistry';
@@ -49,6 +49,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 	private _maxLineCount: number = 5;
 
 	constructor(
+		private readonly _instance: ITerminalInstance,
 		private readonly _xterm: IXtermTerminal & { raw: RawXtermTerminal },
 		private readonly _xtermColorProvider: IXtermColorProvider,
 		private readonly _commandDetection: ICommandDetectionCapability,
@@ -208,7 +209,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		const content = this._serializeAddon.serialize({
 			range: {
 				start: stickyScrollLineStart + rowOffset,
-				end: stickyScrollLineStart + rowOffset + stickyScrollLineCount - 1
+				end: stickyScrollLineStart + rowOffset + Math.max(stickyScrollLineCount - 1, 0)
 			}
 		});
 
@@ -273,6 +274,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		this._register(addStandardDisposableListener(hoverOverlay, 'click', () => {
 			if (this._xterm && this._currentStickyCommand && 'getOutput' in this._currentStickyCommand) {
 				this._xterm.markTracker.revealCommand(this._currentStickyCommand);
+				this._instance.focus();
 			}
 		}));
 
