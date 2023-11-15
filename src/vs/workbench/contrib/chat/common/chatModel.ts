@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { firstOrDefault } from 'vs/base/common/arrays';
+import { asArray, firstOrDefault } from 'vs/base/common/arrays';
 import { DeferredPromise } from 'vs/base/common/async';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
@@ -16,7 +16,7 @@ import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IChatAgentCommand, IChatAgentData, IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { ChatRequestTextPart, IParsedChatRequest, reviveParsedChatRequest } from 'vs/workbench/contrib/chat/common/chatParserTypes';
-import { IChat, IChatAgentDetection, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChat, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatFollowup, IChatMarkdownContent, IChatProgress, IChatReplyFollowup, IChatResponse, IChatResponseErrorDetails, IChatResponseProgressFileTreeData, IChatTreeData, IChatUsedContext, InteractiveSessionVoteDirection, isIUsedContext } from 'vs/workbench/contrib/chat/common/chatService';
 
 export interface IChatRequestModel {
 	readonly id: string;
@@ -27,10 +27,14 @@ export interface IChatRequestModel {
 	readonly response: IChatResponseModel | undefined;
 }
 
-export type IChatProgressResponseContent = Exclude<IChatProgress, IChatAgentDetection | IChatUsedContext | IChatContentReference>;
+export type IChatProgressResponseContent =
+	| IChatMarkdownContent
+	| IChatTreeData
+	| IChatAsyncContent
+	| IChatContentInlineReference;
 
 export interface IResponse {
-	readonly value: ReadonlyArray<IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>;
+	readonly value: ReadonlyArray<IChatProgressResponseContent>;
 	asString(): string;
 }
 
@@ -91,41 +95,27 @@ export class Response implements IResponse {
 	}
 
 	// responseParts internally tracks all the response parts, including strings which are currently resolving, so that they can be updated when they do resolve
-	private _responseParts: Exclude<IChatProgressResponseContent, IChatContent>[];
-	// responseData externally presents the response parts with consolidated contiguous strings (including strings which were previously resolving)
-	private _responseData: (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference)[];
+	private _responseParts: IChatProgressResponseContent[];
 	// responseRepr externally presents the response parts with consolidated contiguous strings (excluding tree data)
-	private _responseRepr: string;
+	private _responseRepr!: string;
 
-	get value(): (IMarkdownString | IPlaceholderMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference)[] {
-		return this._responseData;
+	get value(): (IChatProgressResponseContent)[] {
+		return this._responseParts;
 	}
 
 	constructor(value: IMarkdownString | ReadonlyArray<IMarkdownString | IChatResponseProgressFileTreeData | IChatContentInlineReference>) {
-		this._responseData = Array.isArray(value) ? value : [value];
-		this._responseParts = Array.isArray(value) ?
-			value.map((v) => ('value' in v ? { content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent : { treeData: v, kind: 'treeData' })) :
-			[{ content: value as IMarkdownString, kind: 'markdownContent' } satisfies IChatMarkdownContent];
-		this._responseRepr = this._responseParts.map((part) => {
-			if (isCompleteInteractiveProgressTreeData(part)) {
-				return '';
-			}
-			// TODO duplicates _updateRepr
-			if (part.kind === 'inlineReference') {
-				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
-			} else if (part.kind === 'markdownContent') {
-				return part.content.value;
-			} else {
-				return part.placeholder;
-			}
-		}).join('\n');
+		this._responseParts = asArray(value).map((v) => (isMarkdownString(v) ?
+			{ content: v, kind: 'markdownContent' } satisfies IChatMarkdownContent :
+			'kind' in v ? v : { kind: 'treeData', treeData: v }));
+
+		this._updateRepr(true);
 	}
 
 	asString(): string {
 		return this._responseRepr;
 	}
 
-	updateContent(progress: IChatProgressResponseContent, quiet?: boolean): void {
+	updateContent(progress: IChatProgressResponseContent | IChatContent, quiet?: boolean): void {
 		if (progress.kind === 'content' || progress.kind === 'markdownContent') {
 			const responsePartLength = this._responseParts.length - 1;
 			const lastResponsePart = this._responseParts[responsePartLength];
@@ -175,24 +165,13 @@ export class Response implements IResponse {
 	}
 
 	private _updateRepr(quiet?: boolean) {
-		this._responseData = this._responseParts.map(part => {
-			if (part.kind === 'inlineReference') {
-				return part;
-			} else if (part.kind === 'treeData') {
-				return part.treeData;
-			} else if (part.kind === 'asyncContent') {
-				return { ...new MarkdownString(part.placeholder), isPlaceholder: true };
-			}
-			return part.content;
-		});
-
 		this._responseRepr = this._responseParts.map(part => {
 			if (part.kind === 'treeData') {
 				return '';
 			} else if (part.kind === 'inlineReference') {
 				return basename('uri' in part.inlineReference ? part.inlineReference.uri : part.inlineReference);
 			} else if (part.kind === 'asyncContent') {
-				return part.placeholder;
+				return part.content;
 			} else {
 				return part.content;
 			}
@@ -294,7 +273,7 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._id = 'response_' + ChatResponseModel.nextId++;
 	}
 
-	updateContent(responsePart: IChatProgressResponseContent, quiet?: boolean) {
+	updateContent(responsePart: IChatProgressResponseContent | IChatContent, quiet?: boolean) {
 		this._response.updateContent(responsePart, quiet);
 	}
 
@@ -651,17 +630,17 @@ export class ChatModel extends Disposable implements IChatModel {
 			throw new Error('acceptResponseProgress: Adding progress to a completed response');
 		}
 
-		if (progress.kind === 'content') {
+		if (progress.kind === 'content' || progress.kind === 'markdownContent' || progress.kind === 'asyncContent' || progress.kind === 'treeData' || progress.kind === 'inlineReference') {
 			request.response.updateContent(progress, quiet);
-		} else if ('placeholder' in progress || isCompleteInteractiveProgressTreeData(progress) || 'inlineReference' in progress) {
-			request.response.updateContent(progress, quiet);
-		} else if ('documents' in progress || 'reference' in progress) {
+		} else if (progress.kind === 'usedContext' || progress.kind === 'reference') {
 			request.response.updateReferences(progress);
-		} else if ('agentName' in progress) {
+		} else if (progress.kind === 'agentDetection') {
 			const agent = this.chatAgentService.getAgent(progress.agentName);
 			if (agent) {
 				request.response.setAgent(agent, progress.command);
 			}
+		} else {
+			this.logService.error(`Couldn't handle progress: ${JSON.stringify(progress)}`);
 		}
 	}
 
@@ -732,7 +711,20 @@ export class ChatModel extends Disposable implements IChatModel {
 			requests: this._requests.map((r): ISerializableChatRequestData => {
 				return {
 					message: r.message,
-					response: r.response ? r.response.response.value : undefined,
+					response: r.response ?
+						r.response.response.value.map(item => {
+							// Keeping the shape of the persisted data the same for back compat
+							if (item.kind === 'treeData') {
+								return item.treeData;
+							} else if (item.kind === 'markdownContent') {
+								return item.content;
+							} else if (item.kind === 'asyncContent') {
+								return new MarkdownString(item.content);
+							} else {
+								return item;
+							}
+						})
+						: undefined,
 					responseErrorDetails: r.response?.errorDetails,
 					followups: r.response?.followups,
 					isCanceled: r.response?.isCanceled,

@@ -117,7 +117,10 @@ export interface IChatTreeData {
 }
 
 export interface IChatAsyncContent {
-	placeholder: string;
+	/**
+	 * The placeholder to show while the content is loading
+	 */
+	content: string;
 	resolvedContent: Promise<string | IMarkdownString | IChatTreeData>;
 	kind: 'asyncContent';
 }
