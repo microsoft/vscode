@@ -289,7 +289,7 @@ export function isMonacoTwistie(e: HTMLElement): boolean {
 }
 
 export function isStickyScrollElement(e: HTMLElement): boolean {
-	return isListElementDescendantOfClass(e, 'sticky-element');
+	return isListElementDescendantOfClass(e, 'monaco-tree-sticky-row');
 }
 
 export function isButton(e: HTMLElement): boolean {
@@ -1618,8 +1618,8 @@ export class List<T> implements ISpliceable<T>, IDisposable {
 		return this.view.firstVisibleIndex;
 	}
 
-	get firstHalfVisibleIndex(): number {
-		return this.view.firstHalfVisibleIndex;
+	get firstMostlyVisibleIndex(): number {
+		return this.view.firstMostlyVisibleIndex;
 	}
 
 	get lastVisibleIndex(): number {

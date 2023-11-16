@@ -1269,8 +1269,8 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		this.treeViewsService.addRenderedTreeItemElement(node, templateData.container);
 
 		// remember rendered element, an element can be rendered multiple times
-		const renderedItem = this._renderedElements.get(element.element.handle) ?? [];
-		this._renderedElements.set(element.element.handle, [...renderedItem, { original: element, rendered: templateData }]);
+		const renderedItems = this._renderedElements.get(element.element.handle) ?? [];
+		this._renderedElements.set(element.element.handle, [...renderedItems, { original: element, rendered: templateData }]);
 	}
 
 	private rerender() {
@@ -1279,10 +1279,10 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		const keys = new Set(this._renderedElements.keys());
 		for (const key of keys) {
 			const values = this._renderedElements.get(key) ?? [];
-			values.forEach(value => {
+			for (const value of values) {
 				this.disposeElement(value.original, 0, value.rendered);
 				this.renderElement(value.original, 0, value.rendered);
-			});
+			}
 
 		}
 	}
@@ -1420,9 +1420,7 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 		templateData.elementDisposable.clear();
 
 		const itemRenders = this._renderedElements.get(resource.element.handle) ?? [];
-		const renderedIndex = itemRenders.findIndex(renderedItem => {
-			return templateData === renderedItem.rendered;
-		});
+		const renderedIndex = itemRenders.findIndex(renderedItem => templateData === renderedItem.rendered);
 
 		if (renderedIndex < 0) {
 			throw new Error('Disposing unknown element');

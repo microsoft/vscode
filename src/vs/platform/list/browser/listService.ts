@@ -1480,12 +1480,12 @@ configurationRegistry.registerConfiguration({
 		[treeStickyScroll]: {
 			type: 'boolean',
 			default: 'false',
-			description: localize('sticky scroll', "Controls weather trees have sticky scrolling."),
+			description: localize('sticky scroll', "Controls whether sticky scrolling is enabled in trees."),
 		},
 		[treeStickyScrollMaxElements]: {
 			type: 'number',
 			default: 5,
-			markdownDescription: localize('sticky scroll maximum items', "Controls the number of elements displayed in the tree when `#workbench.tree.enableStickyScroll#` is enabled."),
+			markdownDescription: localize('sticky scroll maximum items', "Controls the number of sticky elements displayed in the tree when `#workbench.tree.enableStickyScroll#` is enabled."),
 		},
 		[typeNavigationModeSettingKey]: {
 			type: 'string',

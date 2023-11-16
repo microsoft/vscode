@@ -128,3 +128,41 @@
 .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
 	padding: 2px;
 }
+
+.monaco-tree-sticky-container{
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 0;
+
+	background-color: var(--vscode-sideBar-background);
+}
+
+.monaco-tree-sticky-container .monaco-tree-sticky-row{
+	position: absolute;
+	width: 100%;
+	height: 22px;
+	line-height: 22px;
+
+	background-color: var(--vscode-sideBar-background);
+	z-index: 5;
+}
+
+.monaco-tree-sticky-container .monaco-tree-sticky-row.last-sticky{
+	z-index: 4;
+}
+
+.monaco-tree-sticky-container .monaco-tree-sticky-row:hover{
+	background-color: var(--vscode-list-hoverBackground);
+	cursor: pointer;
+}
+
+.monaco-tree-sticky-container .monaco-tree-sticky-container-shadow{
+	position: absolute;
+	bottom: -3px;
+	left: 0px;
+	height: 3px;
+	width: 100%;
+	box-shadow: var(--vscode-scrollbar-shadow) 0 6px 6px -6px inset;
+}
