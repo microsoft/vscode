@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import fetch from 'node-fetch';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as url from 'url';
@@ -30,7 +29,7 @@ async function downloadExtensionDetails(extension: IExtensionDefinition): Promis
 		try {
 			const response = await fetch(`${repositoryContentBaseUrl}/${fileName}`);
 			if (response.ok) {
-				return { fileName, body: await response.buffer() };
+				return { fileName, body: Buffer.from(await response.arrayBuffer()) };
 			} else if (response.status === 404) {
 				return { fileName, body: undefined };
 			} else {

@@ -78,7 +78,7 @@ export class CellExecutionPart extends CellContentPart {
 			DOM.hide(this._executionOrderLabel);
 		} else {
 			DOM.show(this._executionOrderLabel);
-			const top = element.layoutInfo.editorHeight - 22 + element.layoutInfo.statusBarHeight;
+			const top = element.layoutInfo.editorHeight - 22 + element.layoutInfo.statusBarHeight + element.layoutInfo.chatHeight;
 			this._executionOrderLabel.style.top = `${top}px`;
 		}
 	}

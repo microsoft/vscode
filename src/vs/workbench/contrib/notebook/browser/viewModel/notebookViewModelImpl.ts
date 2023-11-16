@@ -1045,7 +1045,7 @@ export class NotebookViewModel extends Disposable implements EditorFoldingStateD
 	}
 }
 
-export type CellViewModel = CodeCellViewModel | MarkupCellViewModel;
+export type CellViewModel = (CodeCellViewModel | MarkupCellViewModel) & ICellViewModel;
 
 export function createCellViewModel(instantiationService: IInstantiationService, notebookViewModel: NotebookViewModel, cell: NotebookCellTextModel, viewContext: ViewContext) {
 	if (cell.cellKind === CellKind.Code) {

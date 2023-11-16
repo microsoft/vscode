@@ -81,5 +81,9 @@ export const terminalStrings = {
 	renameWithArgs: {
 		value: localize('workbench.action.terminal.renameWithArg', "Rename the Currently Active Terminal"),
 		original: 'Rename the Currently Active Terminal'
+	},
+	stickyScroll: {
+		value: localize('stickyScroll', "Sticky Scroll"),
+		original: 'Sticky Scroll'
 	}
 };
