@@ -62,7 +62,10 @@ import { editorForeground, inputBackground, editorBackground } from 'vs/platform
 import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { Lazy } from 'vs/base/common/lazy';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
-
+import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
+import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 export const _inputEditorOptions: IEditorConstructionOptions = {
@@ -149,6 +152,9 @@ export class InlineChatWidget {
 			h('div.previewDiff.hidden@previewDiff'),
 			h('div.previewCreateTitle.show-file-icons@previewCreateTitle'),
 			h('div.previewCreate.hidden@previewCreate'),
+			h('div.chatResponse.hidden@chatResponse', [
+				h('div.response@response')
+			]),
 			h('div.markdownMessage.hidden@markdownMessage', [
 				h('div.message@message'),
 				h('div.messageActions@messageActions')
@@ -203,6 +209,7 @@ export class InlineChatWidget {
 	private readonly _markdownRenderer: MarkdownRenderer;
 	private readonly _editorOptions: ChatEditorOptions;
 	private _codeBlockDisposables = this._store.add(new DisposableStore());
+	private _chatResponseDisposables = this._store.add(new DisposableStore());
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
@@ -216,7 +223,8 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ILogService private readonly _logService: ILogService
 	) {
 
 		// input editor logic
@@ -387,6 +395,8 @@ export class InlineChatWidget {
 
 		this._elements.message.tabIndex = 0;
 		this._elements.message.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._elements.response.tabIndex = 0;
+		this._elements.response.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 		this._elements.statusLabel.tabIndex = 0;
 		const markdownMessageToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.messageActions, MENU_INLINE_CHAT_WIDGET_MARKDOWN_MESSAGE, workbenchToolbarOptions);
 		this._store.add(markdownMessageToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
@@ -471,10 +481,11 @@ export class InlineChatWidget {
 		const base = getTotalHeight(this._elements.progress) + getTotalHeight(this._elements.status);
 		const editorHeight = this._inputEditor.getContentHeight() + 12 /* padding and border */;
 		const markdownMessageHeight = getTotalHeight(this._elements.markdownMessage);
+		const chatResponseHeight = getTotalHeight(this._elements.chatResponse);
 		const previewDiffHeight = this._previewDiffEditor.hasValue && this._previewDiffEditor.value.getModel() ? 12 + Math.min(300, Math.max(0, this._previewDiffEditor.value.getContentHeight())) : 0;
 		const previewCreateTitleHeight = getTotalHeight(this._elements.previewCreateTitle);
 		const previewCreateHeight = this._previewCreateEditor.hasValue && this._previewCreateEditor.value.getModel() ? 18 + Math.min(300, Math.max(0, this._previewCreateEditor.value.getContentHeight())) : 0;
-		return base + editorHeight + markdownMessageHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
+		return base + editorHeight + markdownMessageHeight + chatResponseHeight + previewDiffHeight + previewCreateTitleHeight + previewCreateHeight + 18 /* padding */ + 8 /*shadow*/;
 	}
 
 	updateProgress(show: boolean) {
@@ -538,6 +549,25 @@ export class InlineChatWidget {
 
 	get responseContent(): string | undefined {
 		return this._elements.markdownMessage.textContent ?? undefined;
+	}
+
+	updateChatResponse(response: IChatResponseModel | undefined) {
+		this._chatResponseDisposables.clear();
+		this._elements.chatResponse.classList.toggle('hidden', !response);
+		reset(this._elements.response);
+		if (response) {
+			const viewModel = this._chatResponseDisposables.add(new ChatResponseViewModel(response, this._logService));
+			const renderOptions: IChatListItemRendererOptions = { renderStyle: 'compact', noHeader: true, noPadding: true };
+			const chatRendererDelegate: IChatRendererDelegate = { getListLength() { return 1; } };
+			const renderer = this._chatResponseDisposables.add(this._instantiationService.createInstance(ChatListItemRenderer, this._editorOptions, renderOptions, chatRendererDelegate));
+			renderer.layout(this._elements.response.clientWidth - 4); // 2 for the padding used for the tab index border
+			this._chatResponseDisposables.add(this._onDidChangeLayout.event(() => {
+				renderer.layout(this._elements.response.clientWidth - 4);
+			}));
+			const template = renderer.renderTemplate(this._elements.response);
+			renderer.renderChatTreeItem(viewModel, 0, template);
+		}
+		this._onDidChangeHeight.fire();
 	}
 
 	updateMarkdownMessage(message: IMarkdownString | undefined) {
@@ -646,6 +676,7 @@ export class InlineChatWidget {
 
 		this.value = '';
 		this.updateMarkdownMessage(undefined);
+		this.updateChatResponse(undefined);
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);

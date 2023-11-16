@@ -31,6 +31,10 @@
 	justify-content: space-between;
 }
 
+.interactive-item-container .header.hidden {
+	display: none;
+}
+
 .interactive-item-container .header .user {
 	display: flex;
 	align-items: center;
@@ -268,6 +272,10 @@
 
 .interactive-item-container.interactive-item-compact {
 	padding: 8px 20px;
+}
+
+.interactive-item-container.interactive-item-compact.no-padding {
+	padding: unset;
 }
 
 .interactive-item-container.interactive-item-compact .header {

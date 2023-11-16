@@ -44,6 +44,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { ChatModel, ChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -671,6 +672,8 @@ export class InlineChatController implements IEditorContribution {
 		let response: ReplyResponse | ErrorResponse | EmptyResponse;
 		let reply: IInlineChatResponse | null | undefined;
 		try {
+			this._zone.value.widget.updateChatResponse(undefined);
+			this._zone.value.widget.updateMarkdownMessage(undefined);
 			this._zone.value.widget.updateProgress(true);
 			this._zone.value.widget.updateInfo(!this._activeSession.lastExchange ? localize('thinking', "Thinking\u2026") : '');
 			this._ctxHasActiveRequest.set(true);
@@ -822,7 +825,11 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof ReplyResponse) {
 			// real response -> complex...
 			this._zone.value.widget.updateStatus('');
-			this._zone.value.widget.updateMarkdownMessage(response.mdContent);
+			const session = new ChatModel(`inlinechat-provider-${this._activeSession.provider.debugName}`, undefined, this._logService, this._chatAgentService);
+			const responseModel = new ChatResponseModel(response.mdContent, session, undefined, `inlinechat-reply-${response.raw.id}`, true, false, undefined);
+			this._zone.value.widget.updateChatResponse(responseModel);
+
+			//this._zone.value.widget.updateMarkdownMessage(response.mdContent);
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 			this._zone.value.widget.updateToolbar(true);
 
