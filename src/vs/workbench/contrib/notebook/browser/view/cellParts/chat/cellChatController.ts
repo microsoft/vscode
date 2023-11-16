@@ -25,7 +25,7 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -69,6 +69,7 @@ export class NotebookCellChatController extends Disposable {
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@IInstantiationService private readonly _instaService: IInstantiationService,
 	) {
 		super();
 
@@ -239,7 +240,7 @@ export class NotebookCellChatController extends Disposable {
 		}
 
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const replyResponse = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits);
+		const replyResponse = this._instaService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits);
 		for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 			await this._makeChanges(editor, replyResponse.allLocalEdits[i], undefined);
 		}
