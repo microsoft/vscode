@@ -208,8 +208,11 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.handleTitleDoubleClick();
 	}
 
-	async getCursorScreenPoint(windowId: number | undefined): Promise<IPoint> {
-		return screen.getCursorScreenPoint();
+	async getCursorScreenPoint(windowId: number | undefined): Promise<{ readonly point: IPoint; readonly display: IRectangle }> {
+		const point = screen.getCursorScreenPoint();
+		const display = screen.getDisplayNearestPoint(point);
+
+		return { point, display: display.bounds };
 	}
 
 	async isMaximized(windowId: number | undefined): Promise<boolean> {

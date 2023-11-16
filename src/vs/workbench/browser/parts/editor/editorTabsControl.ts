@@ -331,27 +331,31 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		targetGroup.focus();
 	}
 
-	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
-		const cursorLocation = await this.hostService.getCursorScreenPoint() ?? { x: e.screenX, y: e.screenY };
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
 		const window = getWindow(e);
-		if (cursorLocation.x >= window.screenX && cursorLocation.x <= window.screenX + window.outerWidth && cursorLocation.y >= window.screenY && cursorLocation.y <= window.screenY + window.outerHeight) {
+		const windowBounds = { x: window.screenX, y: window.screenY, width: window.outerWidth, height: window.outerHeight };
+		const { point: cursorLocation, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY }, display: windowBounds };
+		if (cursorLocation.x >= windowBounds.x && cursorLocation.x <= windowBounds.x + windowBounds.width && cursorLocation.y >= windowBounds.y && cursorLocation.y <= windowBounds.y + windowBounds.height) {
 			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
 		}
 
-		let offsetX = 0;
-		let offsetY = 30; // take title bar height into account (approximation)
+		const offsetX = offsetElement.offsetWidth / 2;
+		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
 
-		if (offsetElement) {
-			offsetX += offsetElement.offsetWidth / 2;
-			offsetY += offsetElement.offsetHeight / 2;
+		const auxiliaryEditorPartBounds = {
+			x: cursorLocation.x - offsetX,
+			y: cursorLocation.y - offsetY
+		};
+
+		if (auxiliaryEditorPartBounds.x < display.x) {
+			auxiliaryEditorPartBounds.x = display.x; // prevent overflow to the left
 		}
 
-		return this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: {
-				x: cursorLocation.x - offsetX,
-				y: cursorLocation.y - offsetY
-			}
-		});
+		if (auxiliaryEditorPartBounds.y < display.y) {
+			auxiliaryEditorPartBounds.y = display.y; // prevent overflow to the top
+		}
+
+		return this.editorGroupService.createAuxiliaryEditorPart({ bounds: auxiliaryEditorPartBounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
