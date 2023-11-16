@@ -1390,8 +1390,8 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 
 	private static COUNTER = 1;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
 		editorPartsView: IEditorPartsView,
@@ -1435,6 +1435,6 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
 		}
 
-		this._onDidClose.fire();
+		this._onWillClose.fire();
 	}
 }

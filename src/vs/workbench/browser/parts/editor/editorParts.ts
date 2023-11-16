@@ -54,7 +54,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		editorPart.create(partContainer, { restorePreviousState: false });
 		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
 
-		const editorCloseListener = disposables.add(Event.once(editorPart.onDidClose)(() => auxiliaryWindow.window.close()));
+		const editorCloseListener = disposables.add(Event.once(editorPart.onWillClose)(() => auxiliaryWindow.window.close()));
 		disposables.add(Event.once(auxiliaryWindow.onWillClose)(() => {
 			if (disposables.isDisposed) {
 				return; // the close happened as part of an earlier dispose call
