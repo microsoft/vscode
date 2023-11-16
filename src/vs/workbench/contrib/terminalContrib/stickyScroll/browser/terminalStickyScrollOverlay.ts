@@ -7,15 +7,19 @@ import type { SerializeAddon as SerializeAddonType } from '@xterm/addon-serializ
 import type { IBufferLine, IMarker, ITerminalOptions, ITheme, Terminal as RawXtermTerminal, Terminal as XTermTerminal } from '@xterm/xterm';
 import { importAMDNodeModule } from 'vs/amdX';
 import { $, addDisposableListener, addStandardDisposableListener, getWindow } from 'vs/base/browser/dom';
+import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { CancelablePromise, createCancelablePromise } from 'vs/base/common/async';
 import { debounce, memoize, throttle } from 'vs/base/common/decorators';
 import { Event } from 'vs/base/common/event';
 import { Disposable, MutableDisposable, combinedDisposable, toDisposable } from 'vs/base/common/lifecycle';
+import { OS } from 'vs/base/common/platform';
 import 'vs/css!./media/stickyScroll';
+import { localize } from 'vs/nls';
 import { IMenu, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandDetectionCapability, ITerminalCommand } from 'vs/platform/terminal/common/capabilities/capabilities';
 import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 import { TerminalSettingId } from 'vs/platform/terminal/common/terminal';
@@ -62,6 +66,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IMenuService menuService: IMenuService,
 		@IThemeService private readonly _themeService: IThemeService,
 	) {
@@ -296,7 +301,7 @@ export class TerminalStickyScrollOverlay extends Disposable {
 				const termBox = xterm.element.getBoundingClientRect();
 				const rowHeight = termBox.height / xterm.rows;
 				const overlayHeight = stickyScrollLineCount * rowHeight;
-				this._element.style.bottom = `${termBox.height - overlayHeight}px`;
+				this._element.style.bottom = `${termBox.height - overlayHeight + 1}px`;
 			}
 		} else {
 			this._setVisible(false);
@@ -317,11 +322,33 @@ export class TerminalStickyScrollOverlay extends Disposable {
 
 		const overlay = this._stickyScrollOverlay;
 
-		this._element = $('.terminal-sticky-scroll');
 		const hoverOverlay = $('.hover-overlay');
-		this._element.append(hoverOverlay);
+		this._element = $('.terminal-sticky-scroll', undefined, hoverOverlay);
 		this._xterm.raw.element.parentElement.append(this._element);
 		this._register(toDisposable(() => this._element?.remove()));
+
+		// Create command navigation keybinding hint if appropriate
+		const scrollToPreviousCommandKeybinding = this._keybindingService.lookupKeybinding('workbench.action.terminal.scrollToPreviousCommand');
+		if (scrollToPreviousCommandKeybinding) {
+			const keybindingHint = $('.keybinding-hint');
+			const localizedText = localize({
+				key: 'command-navigation-hint',
+				comment: ['{0} is the localized keybinding to navigate commands']
+			}, '{0} to navigate commands', '{0}');
+			const localizedTextPrefix = localizedText.substring(0, localizedText.indexOf('{0}'));
+			const localizedTextSuffix = localizedText.substring(localizedText.indexOf('{0}') + 3);
+			const label = new KeybindingLabel(keybindingHint, OS);
+			label.set(scrollToPreviousCommandKeybinding);
+			// Insert and use a non-breaking space for boundaries to space out naturally
+			if (localizedTextPrefix) {
+				label.element.insertAdjacentText('beforebegin', localizedTextPrefix.replace(/ $/, '\u00A0'));
+			}
+			if (localizedTextSuffix) {
+				label.element.insertAdjacentText('afterend', localizedTextSuffix.replace(/^ /, '\u00A0'));
+			}
+
+			hoverOverlay.append(keybindingHint);
+		}
 
 		const scrollBarWidth = (this._xterm.raw as any as { _core: IXtermCore })._core.viewport?.scrollBarWidth;
 		if (scrollBarWidth !== undefined) {

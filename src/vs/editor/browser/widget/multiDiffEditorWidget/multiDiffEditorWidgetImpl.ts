@@ -19,6 +19,7 @@ import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { ObjectPool } from './objectPool';
 import { disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
+import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div', {
@@ -58,13 +59,27 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		},
 	}, {}));
 
+	private readonly _scrollable = this._register(new Scrollable({
+		forceIntegerValues: false,
+		scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(this._element), cb),
+		smoothScrollDuration: 100,
+	}));
+
+	private readonly _scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
+		vertical: ScrollbarVisibility.Auto,
+		horizontal: ScrollbarVisibility.Auto,
+		className: 'monaco-component',
+		useShadows: false,
+	}, this._scrollable));
+
+	private readonly _scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	private readonly _scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+
 	private readonly _viewItems = derivedWithStore<DiffEditorItem[]>(this,
-		(reader, store) => this._documents.read(reader).map(d => store.add(new DiffEditorItem(this._objectPool, d, this._editor)))
+		(reader, store) => this._documents.read(reader).map(d => store.add(new DiffEditorItem(this._objectPool, d, this._editor, this._scrollLeft)))
 	);
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader), 0));
-
-	private readonly _scrollTop: IObservable<number>;
 
 	constructor(
 		private readonly _element: HTMLElement,
@@ -75,29 +90,13 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	) {
 		super();
 
-		//this._sizeObserver.setAutomaticLayout(true);
-
 		this._register(autorun((reader) => {
 			/** @description Update widget dimension */
 			const dimension = this._dimension.read(reader);
 			this._sizeObserver.observe(dimension);
 		}));
 
-		const scrollable = this._register(new Scrollable({
-			forceIntegerValues: false,
-			scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(_element), cb),
-			smoothScrollDuration: 100,
-		}));
-
 		this._elements.content.style.position = 'relative';
-
-		const scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
-			vertical: ScrollbarVisibility.Auto,
-			className: 'monaco-component',
-			useShadows: false,
-		}, scrollable));
-
-		this._scrollTop = observableFromEvent(scrollableElement.onScroll, () => /** @description onScroll */ scrollableElement.getScrollPosition().scrollTop);
 
 		this._register(autorun((reader) => {
 			/** @description Update scroll dimensions */
@@ -105,15 +104,24 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._elements.root.style.height = `${height}px`;
 			const totalHeight = this._totalHeight.read(reader);
 			this._elements.content.style.height = `${totalHeight}px`;
-			scrollableElement.setScrollDimensions({
+
+			let scrollWidth = _element.clientWidth;
+			const viewItems = this._viewItems.read(reader);
+			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
+			if (max) {
+				const maxScroll = max.maxScroll.read(reader);
+				scrollWidth = _element.clientWidth + maxScroll.maxScroll;
+			}
+
+			this._scrollableElement.setScrollDimensions({
 				width: _element.clientWidth,
 				height: height,
 				scrollHeight: totalHeight,
-				scrollWidth: _element.clientWidth,
+				scrollWidth,
 			});
 		}));
 
-		_element.replaceChildren(scrollableElement.getDomNode());
+		_element.replaceChildren(this._scrollableElement.getDomNode());
 		this._register(toDisposable(() => {
 			_element.replaceChildren();
 		}));
@@ -163,24 +171,35 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 }
 
 class DiffEditorItem extends Disposable {
-	private readonly _lastTemplateHeight = observableValue(this, 500);
+	private readonly _lastTemplateData = observableValue<{ contentHeight: number; maxScroll: { maxScroll: number; width: number } }>(
+		this,
+		{ contentHeight: 500, maxScroll: { maxScroll: 0, width: 0 }, }
+	);
 	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
 	private _vm: IDiffEditorViewModel | undefined;
 
 	public readonly contentHeight = derived(this, reader =>
-		this._templateRef.read(reader)?.object.height?.read(reader) ?? this._lastTemplateHeight.read(reader)
+		this._templateRef.read(reader)?.object.height?.read(reader) ?? this._lastTemplateData.read(reader).contentHeight
 	);
+
+	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? this._lastTemplateData.read(reader).maxScroll);
 
 	constructor(
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
 		private readonly _entry: LazyPromise<IDiffEntry>,
 		baseDiffEditorWidget: DiffEditorWidget,
+		private readonly _scrollLeft: IObservable<number>,
 	) {
 		super();
 
 		this._vm = this._register(baseDiffEditorWidget.createViewModel({
 			original: _entry.value!.original!,
 			modified: _entry.value!.modified!,
+		}));
+
+		this._register(autorun((reader) => {
+			const scrollLeft = this._scrollLeft.read(reader);
+			this._templateRef.read(reader)?.object.setScrollLeft(scrollLeft);
 		}));
 	}
 
@@ -197,7 +216,10 @@ class DiffEditorItem extends Disposable {
 		const ref = this._templateRef.get();
 		transaction(tx => {
 			if (ref) {
-				this._lastTemplateHeight.set(ref.object.height.get(), tx);
+				this._lastTemplateData.set({
+					contentHeight: ref.object.height.get(),
+					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
+				}, tx);
 				ref.object.hide();
 			}
 			this._templateRef.set(undefined, tx);

@@ -31,11 +31,27 @@ export class TemplateData implements IObjectData {
 
 export class DiffEditorItemTemplate extends Disposable implements IPooledObject<TemplateData> {
 	private readonly _contentHeight = observableValue<number>(this, 500);
-	private readonly _collapsed = observableValue<boolean>(this, false);
 	public readonly height = derived(this, reader => {
 		const h = this._collapsed.read(reader) ? 0 : this._contentHeight.read(reader);
 		return h + this._outerEditorHeight;
 	});
+
+	private readonly _modifiedContentWidth = observableValue<number>(this, 0);
+	private readonly _modifiedWidth = observableValue<number>(this, 0);
+	private readonly _originalContentWidth = observableValue<number>(this, 0);
+	private readonly _originalWidth = observableValue<number>(this, 0);
+
+	public readonly maxScroll = derived(this, reader => {
+		const scroll1 = this._modifiedContentWidth.read(reader) - this._modifiedWidth.read(reader);
+		const scroll2 = this._originalContentWidth.read(reader) - this._originalWidth.read(reader);
+		if (scroll1 > scroll2) {
+			return { maxScroll: scroll1, width: this._modifiedWidth.read(reader) };
+		} else {
+			return { maxScroll: scroll2, width: this._originalWidth.read(reader) };
+		}
+	});
+
+	private readonly _collapsed = observableValue<boolean>(this, false);
 
 	private readonly _elements = h('div', {
 		style: {
@@ -109,16 +125,36 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			this._elements.editor.style.display = this._collapsed.get() ? 'none' : 'block';
 		}));
 
+		this._editor.getModifiedEditor().onDidLayoutChange(e => {
+			const width = this._editor.getModifiedEditor().getLayoutInfo().contentWidth;
+			this._modifiedWidth.set(width, undefined);
+		});
+
+		this._editor.getOriginalEditor().onDidLayoutChange(e => {
+			const width = this._editor.getOriginalEditor().getLayoutInfo().contentWidth;
+			this._originalWidth.set(width, undefined);
+		});
+
 		this._register(this._editor.onDidContentSizeChange(e => {
 			globalTransaction(tx => {
 				this._contentHeight.set(e.contentHeight, tx);
+				this._modifiedContentWidth.set(this._editor.getModifiedEditor().getContentWidth(), tx);
+				this._originalContentWidth.set(this._editor.getOriginalEditor().getContentWidth(), tx);
 			});
 		}));
 
+
 		this._container.appendChild(this._elements.root);
 
-		this._outerEditorHeight = 38; //this._elements.header.clientHeight; //this._elements.root.clientHeight - this._elements.editor.clientHeight;
-		//console.log('outerEditorHeight', this._outerEditorHeight);
+		this._outerEditorHeight = 38;
+	}
+
+	public setScrollLeft(left: number): void {
+		if (this._modifiedContentWidth.get() - this._modifiedWidth.get() > this._originalContentWidth.get() - this._originalWidth.get()) {
+			this._editor.getModifiedEditor().setScrollLeft(left);
+		} else {
+			this._editor.getOriginalEditor().setScrollLeft(left);
+		}
 	}
 
 	public setData(data: TemplateData) {
@@ -128,11 +164,6 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		});
 	}
 
-	public hide(): void {
-		this._elements.root.style.top = `-100000px`;
-		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
-	}
-
 	public render(verticalRange: OffsetRange, width: number, editorScroll: number, viewPort: OffsetRange): void {
 		this._elements.root.style.visibility = 'visible';
 		this._elements.root.style.top = `${verticalRange.start}px`;
@@ -140,7 +171,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		this._elements.root.style.width = `${width}px`;
 		this._elements.root.style.position = 'absolute';
 
-
+		// For sticky scroll
 		this._elements.header.style.transform = `translateY(${Math.max(0, Math.min(verticalRange.length - this._elements.header.clientHeight, viewPort.start - verticalRange.start))}px)`;
 
 		globalTransaction(tx => {
@@ -150,5 +181,10 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			});
 		});
 		this._editor.getOriginalEditor().setScrollTop(editorScroll);
+	}
+
+	public hide(): void {
+		this._elements.root.style.top = `-100000px`;
+		this._elements.root.style.visibility = 'hidden'; // Some editor parts are still visible
 	}
 }
