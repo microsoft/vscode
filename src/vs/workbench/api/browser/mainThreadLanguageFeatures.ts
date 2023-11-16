@@ -295,15 +295,15 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 	// --- occurrences
 
 	$registerDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.documentHighlightProvider.register(selector, <languages.DocumentHighlightProvider>{
 			provideDocumentHighlights: (model: ITextModel, position: EditorPosition, token: CancellationToken): Promise<languages.DocumentHighlight[] | undefined> => {
 				return this._proxy.$provideDocumentHighlights(handle, model.uri, position, token);
 			}
-		});
+		}));
 	}
 
 	$registerMultiDocumentHighlightProvider(handle: number, selector: IDocumentFilterDto[]): void {
-		this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
+		this._registrations.set(handle, this._languageFeaturesService.multiDocumentHighlightProvider.register(selector, <languages.MultiDocumentHighlightProvider>{
 			provideMultiDocumentHighlights: (model: ITextModel, position: EditorPosition, otherModels: ITextModel[], token: CancellationToken): Promise<Map<URI, languages.DocumentHighlight[]> | undefined> => {
 				return this._proxy.$provideMultiDocumentHighlights(handle, model.uri, position, otherModels.map(model => model.uri), token).then(dto => {
 					if (isFalsyOrEmpty(dto) || !dto) {
@@ -316,7 +316,7 @@ export class MainThreadLanguageFeatures extends Disposable implements MainThread
 					return result;
 				});
 			}
-		});
+		}));
 	}
 
 	// --- linked editing
