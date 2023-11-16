@@ -3103,7 +3103,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		}
 
 		const children: SCMHistoryItemGroupTreeElement[] = [];
-		const historyProviderCacheEntry = this.historyProviderCache.get(element)!;
+		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(element);
 		let historyItemGroupDetails = historyProviderCacheEntry?.historyItemGroupDetails;
 
 		if (!historyItemGroupDetails) {
@@ -3147,7 +3147,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.historyProviderCache.get(repository)!;
+		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemsMap = historyProviderCacheEntry.historyItems;
 		let historyItems = historyProviderCacheEntry.historyItems.get(element.id);
 
@@ -3174,7 +3174,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			return [];
 		}
 
-		const historyProviderCacheEntry = this.historyProviderCache.get(repository)!;
+		const historyProviderCacheEntry = this.getHistoryProviderCacheEntry(repository);
 		const historyItemChangesMap = historyProviderCacheEntry.historyItemChanges;
 		let historyItemChanges = historyItemChangesMap.get(element.id);
 
@@ -3249,11 +3249,6 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		for (const repository of added) {
 			const repositoryDisposables = new DisposableStore();
 
-			this.historyProviderCache.set(repository, {
-				historyItems: new Map<string, ISCMHistoryItem[]>(),
-				historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
-			});
-
 			if (repository.provider.historyProvider) {
 				repositoryDisposables.add(repository.provider.historyProvider.onDidChangeCurrentHistoryItemGroup(() => this.historyProviderCache.delete(repository)));
 			}
@@ -3266,6 +3261,14 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			this.repositoryDisposables.deleteAndDispose(repository);
 			this.historyProviderCache.delete(repository);
 		}
+	}
+
+	private getHistoryProviderCacheEntry(repository: ISCMRepository): ISCMHistoryProviderCacheEntry {
+		return this.historyProviderCache.get(repository) ?? {
+			historyItemGroupDetails: undefined,
+			historyItems: new Map<string, ISCMHistoryItem[]>(),
+			historyItemChanges: new Map<string, ISCMHistoryItemChange[]>()
+		};
 	}
 
 	dispose(): void {
