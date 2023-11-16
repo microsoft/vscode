@@ -119,6 +119,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 
 	private _xterm: IXtermTerminal & { raw: Terminal } | undefined;
 	private _activeDevModeDisposables = new MutableDisposable();
+	private _currentColor = 0;
 
 	constructor(
 		private readonly _instance: ITerminalInstance,
@@ -156,13 +157,14 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 		if (devMode) {
 			if (commandDetection) {
 				this._activeDevModeDisposables.value = commandDetection.onCommandFinished(command => {
+					const colorClass = `color-${this._currentColor}`;
 					if (command.promptStartMarker) {
 						const d = this._instance.xterm!.raw?.registerDecoration({
 							marker: command.promptStartMarker
 						});
 						d?.onRender(e => {
 							e.textContent = 'A';
-							e.classList.add('xterm-sequence-decoration', 'top', 'left');
+							e.classList.add('xterm-sequence-decoration', 'top', 'left', colorClass);
 						});
 					}
 					if (command.marker) {
@@ -172,7 +174,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						});
 						d?.onRender(e => {
 							e.textContent = 'B';
-							e.classList.add('xterm-sequence-decoration', 'top', 'right');
+							e.classList.add('xterm-sequence-decoration', 'top', 'right', colorClass);
 						});
 					}
 					if (command.executedMarker) {
@@ -182,7 +184,7 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						});
 						d?.onRender(e => {
 							e.textContent = 'C';
-							e.classList.add('xterm-sequence-decoration', 'bottom', 'left');
+							e.classList.add('xterm-sequence-decoration', 'bottom', 'left', colorClass);
 						});
 					}
 					if (command.endMarker) {
@@ -191,9 +193,10 @@ class DevModeContribution extends Disposable implements ITerminalContribution {
 						});
 						d?.onRender(e => {
 							e.textContent = 'D';
-							e.classList.add('xterm-sequence-decoration', 'bottom', 'right');
+							e.classList.add('xterm-sequence-decoration', 'bottom', 'right', colorClass);
 						});
 					}
+					this._currentColor = (this._currentColor + 1) % 2;
 				});
 			} else {
 				this._activeDevModeDisposables.value = this._instance.capabilities.onDidAddCapabilityType(e => {
