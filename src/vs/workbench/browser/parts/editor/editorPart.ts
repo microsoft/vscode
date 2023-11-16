@@ -208,8 +208,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		});
 	}
 
-	private _top = 0;
-	private _left = 0;
+	private top = 0;
+	private left = 0;
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
@@ -1292,8 +1292,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		this._top = top;
-		this._left = left;
+		this.top = top;
+		this.left = left;
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1302,7 +1302,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
 
-	private doLayout(dimension: Dimension, top = this._top, left = this._left): void {
+	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {
 		this._contentDimension = dimension;
 
 		// Layout Grid
