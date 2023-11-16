@@ -1241,7 +1241,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			this.focusPart(Parts.EDITOR_PART);
 		} else {
 			// auxiliary window
-			this.editorGroupService.getPart(activeContainer)?.activeGroup.focus();
+			this.editorGroupService.getPart(activeContainer).activeGroup.focus();
 		}
 	}
 
