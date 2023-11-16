@@ -11,7 +11,7 @@ import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IDiffEntry, IMultiDocumentDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -37,7 +37,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	]);
 
 	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
-	private readonly _documentsObs = this._model.map(this, m => !m ? constObservable([]) : observableFromEvent(m.onDidChange, /** @description Documents changed */() => m.diffs));
+	private readonly _documentsObs = this._model.map(this, m => !m ? constObservable([]) : observableFromEvent(m.onDidChange, /** @description Documents changed */() => m.documents));
 	private readonly _documents = this._documentsObs.map(this, (m, reader) => m.read(reader));
 
 	private readonly _objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
@@ -84,7 +84,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,
-		private readonly _model: IObservable<IMultiDocumentDiffEditorModel | undefined>,
+		private readonly _model: IObservable<IMultiDiffEditorModel | undefined>,
 		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -139,7 +139,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		let contentScrollOffsetToScrollOffset = 0;
 		let itemHeightSumBefore = 0;
 		let itemContentHeightSumBefore = 0;
-		const viewPortHeight = this._elements.root.clientHeight;
+		const viewPortHeight = this._sizeObserver.height.read(reader);
 		const contentViewPort = OffsetRange.ofStartAndLength(scrollTop, viewPortHeight);
 
 		const width = this._sizeObserver.width.read(reader);
@@ -186,7 +186,7 @@ class DiffEditorItem extends Disposable {
 
 	constructor(
 		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
-		private readonly _entry: LazyPromise<IDiffEntry>,
+		private readonly _entry: LazyPromise<IDocumentDiffItem>,
 		baseDiffEditorWidget: DiffEditorWidget,
 		private readonly _scrollLeft: IObservable<number>,
 	) {

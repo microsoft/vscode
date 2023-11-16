@@ -27,7 +27,7 @@ export class MultiDiffEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: InstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
 	) {
 		super(MultiDiffEditor.ID, telemetryService, themeService, storageService);
 	}
