@@ -32,6 +32,8 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Schemas } from 'vs/base/common/network';
 import { ResourceMap } from 'vs/base/common/map';
+import { TextualMultiDocumentHighlightFeature } from 'vs/editor/contrib/wordHighlighter/browser/textualHighlightProvider';
+import { registerEditorFeature } from 'vs/editor/common/editorFeatures';
 
 const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlights', false);
 
@@ -63,7 +65,7 @@ export function getOccurrencesAcrossMultipleModels(registry: LanguageFeatureRegi
 	return first<ResourceMap<DocumentHighlight[]> | null | undefined>(orderedByScore.map(provider => () => {
 		return Promise.resolve(provider.provideMultiDocumentHighlights(model, position, otherModels, token))
 			.then(undefined, onUnexpectedExternalError);
-	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof Map && t.size > 0);
+	}), (t: ResourceMap<DocumentHighlight[]> | null | undefined): t is ResourceMap<DocumentHighlight[]> => t instanceof ResourceMap && t.size > 0);
 }
 
 interface IOccurenceAtPositionRequest {
@@ -910,3 +912,4 @@ registerEditorContribution(WordHighlighterContribution.ID, WordHighlighterContri
 registerEditorAction(NextWordHighlightAction);
 registerEditorAction(PrevWordHighlightAction);
 registerEditorAction(TriggerWordHighlightAction);
+registerEditorFeature(TextualMultiDocumentHighlightFeature);

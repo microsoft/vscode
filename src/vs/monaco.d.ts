@@ -7149,6 +7149,20 @@ declare namespace monaco.languages {
 	}
 
 	/**
+	 * Represents a set of document highlights for a specific Uri.
+	 */
+	export interface MultiDocumentHighlight {
+		/**
+		 * The Uri of the document that the highlights belong to.
+		 */
+		uri: UriComponents;
+		/**
+		 * The set of highlights for the document.
+		 */
+		highlights: DocumentHighlight[];
+	}
+
+	/**
 	 * The document highlight provider interface defines the contract between extensions and
 	 * the word-highlight-feature.
 	 */
@@ -7160,6 +7174,9 @@ declare namespace monaco.languages {
 		provideDocumentHighlights(model: editor.ITextModel, position: Position, token: CancellationToken): ProviderResult<DocumentHighlight[]>;
 	}
 
+	/**
+	 * A provider that can provide document highlights across multiple documents.
+	 */
 	export interface MultiDocumentHighlightProvider {
 		/**
 		 * Provide a Map of Uri --> document highlights, like all occurrences of a variable or
@@ -7167,6 +7184,12 @@ declare namespace monaco.languages {
 		 *
 		 * Used in cases such as split view, notebooks, etc. where there can be multiple documents
 		 * with shared symbols.
+		 *
+		 * @param primaryModel The primary text model.
+		 * @param position The position at which to provide document highlights.
+		 * @param otherModels The other text models to search for document highlights.
+		 * @param token A cancellation token.
+		 * @returns A map of Uri to document highlights.
 		 */
 		provideMultiDocumentHighlights(primaryModel: editor.ITextModel, position: Position, otherModels: editor.ITextModel[], token: CancellationToken): ProviderResult<Map<Uri, DocumentHighlight[]>>;
 	}
