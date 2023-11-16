@@ -37,7 +37,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 	detail?: string;
 	supportedLanguages: string[];
 	implementsExecutionOrder: boolean;
-	providesVariables: boolean;
+	hasVariableProvider: boolean;
 	localResourceRoot: URI;
 
 	public get preloadUris() {
@@ -59,7 +59,7 @@ abstract class MainThreadKernel implements INotebookKernel {
 		this.detail = data.detail;
 		this.supportedLanguages = isNonEmptyArray(data.supportedLanguages) ? data.supportedLanguages : _languageService.getRegisteredLanguageIds();
 		this.implementsExecutionOrder = data.supportsExecutionOrder ?? false;
-		this.providesVariables = data.providesVariables ?? false;
+		this.hasVariableProvider = data.hasVariableProvider ?? false;
 		this.localResourceRoot = URI.revive(data.extensionLocation);
 		this.preloads = data.preloads?.map(u => ({ uri: URI.revive(u.uri), provides: u.provides })) ?? [];
 	}
@@ -92,8 +92,8 @@ abstract class MainThreadKernel implements INotebookKernel {
 			this.implementsInterrupt = data.supportsInterrupt;
 			event.hasInterruptHandler = true;
 		}
-		if (data.providesVariables !== undefined) {
-			this.providesVariables = data.providesVariables;
+		if (data.hasVariableProvider !== undefined) {
+			this.hasVariableProvider = data.hasVariableProvider;
 			event.hasVariableProvider = true;
 		}
 		this._onDidChange.fire(event);

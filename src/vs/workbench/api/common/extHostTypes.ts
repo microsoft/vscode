@@ -3798,8 +3798,6 @@ export class NotebookKernelSourceAction {
 	) { }
 }
 
-
-
 //#endregion
 
 //#region Timeline

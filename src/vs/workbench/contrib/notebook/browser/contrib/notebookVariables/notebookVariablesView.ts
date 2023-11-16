@@ -107,7 +107,7 @@ export class NotebookVariablesView extends ViewPane {
 
 	private async updateVariables(notebook: NotebookTextModel) {
 		const selectedKernel = this.notebookKernelService.getMatchingKernel(notebook).selected;
-		if (selectedKernel && selectedKernel.providesVariables) {
+		if (selectedKernel && selectedKernel.hasVariableProvider) {
 
 			const variables = selectedKernel.provideVariables(notebook.uri, undefined, 'named', 0, CancellationToken.None);
 			const treeData = await variables

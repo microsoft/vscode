@@ -210,7 +210,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			},
 			set variableProvider(value) {
 				_variableProvider = value;
-				data.providesVariables = !!value;
+				data.hasVariableProvider = !!value;
 				_update();
 			},
 			get variableProvider() {
@@ -425,10 +425,12 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 			return;
 		}
 
-
 		const parent = parentName ? { name: parentName, value: '' } : undefined;
 		const variables = variableProvider.provideVariables(document.apiNotebook, parent, kind, start, token);
 		for await (const variable of variables) {
+			if (token.isCancellationRequested) {
+				return;
+			}
 			this._proxy.$receiveVariable(requestId, variable);
 		}
 	}

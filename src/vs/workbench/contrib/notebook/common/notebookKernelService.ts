@@ -65,7 +65,7 @@ export interface INotebookKernel {
 	supportedLanguages: string[];
 	implementsInterrupt?: boolean;
 	implementsExecutionOrder?: boolean;
-	providesVariables?: boolean;
+	hasVariableProvider?: boolean;
 
 	executeNotebookCellsRequest(uri: URI, cellHandles: number[]): Promise<void>;
 	cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void>;
