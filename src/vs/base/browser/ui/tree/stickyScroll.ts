@@ -309,7 +309,6 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 
 			this._rootDomNode.appendChild(element);
 			state.addDisposable(disposable);
-			state.addDisposable(this.view.onDidChangeFocus(() => { }));
 		}
 
 		// Add shadow element to the end of the widget
