@@ -171,7 +171,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 					get isCommandStorageDisabled() { return that.__isCommandStorageDisabled; }
 					get commandMarkers() { return that._commandMarkers; }
 					set commandMarkers(value) { that._commandMarkers = value; }
-					get clearCommandsInViewport() { return that._clearCommandsInViewport; }
+					get clearCommandsInViewport() { return that._clearCommandsInViewport.bind(that); }
 				},
 				this._logService
 			);
@@ -504,7 +504,8 @@ const enum AdjustCommandStartMarkerConstants {
 class WindowsPtyHeuristics extends Disposable {
 
 	private _onCursorMoveListener = this._register(new MutableDisposable());
-	private _windowsPromptPollingInProcess: boolean = false;
+
+	private _recentlyPerformedCsiJ = false;
 
 	constructor(
 		private readonly _terminal: Terminal,
@@ -514,11 +515,27 @@ class WindowsPtyHeuristics extends Disposable {
 	) {
 		super();
 
+		this._register(_terminal.parser.registerCsiHandler({ final: 'J' }, params => {
+			if (params.length >= 1 && (params[0] === 2 || params[0] === 3)) {
+				this._recentlyPerformedCsiJ = true;
+				this._hooks.clearCommandsInViewport();
+			}
+			// We don't want to override xterm.js' default behavior, just augment it
+			return false;
+		}));
+
 		this._register(this._capability.onBeforeCommandFinished(command => {
-			// For a Windows backend we cannot listen to CSI J, instead we assume running clear or
-			// cls will clear all commands in the viewport. This is not perfect but it's right most
-			// of the time.
+			if (this._recentlyPerformedCsiJ) {
+				this._recentlyPerformedCsiJ = false;
+				return;
+			}
+
+			// For older Windows backends we cannot listen to CSI J, instead we assume running clear
+			// or cls will clear all commands in the viewport. This is not perfect but it's right
+			// most of the time.
 			if (command.command.trim().toLowerCase() === 'clear' || command.command.trim().toLowerCase() === 'cls') {
+				this._tryAdjustCommandStartMarkerScheduler?.cancel();
+				this._tryAdjustCommandStartMarkerScheduler = undefined;
 				this._hooks.clearCommandsInViewport();
 				this._capability.currentCommand.isInvalid = true;
 				this._hooks.onCurrentCommandInvalidatedEmitter.fire({ reason: CommandInvalidationReason.Windows });
@@ -580,10 +597,6 @@ class WindowsPtyHeuristics extends Disposable {
 	private _tryAdjustCommandStartMarkerPollCount: number = 0;
 
 	async handleCommandStart() {
-
-		if (this._windowsPromptPollingInProcess) {
-			this._windowsPromptPollingInProcess = false;
-		}
 		this._capability.currentCommand.commandStartX = this._terminal.buffer.active.cursorX;
 
 		// On Windows track all cursor movements after the command start sequence
