@@ -170,5 +170,4 @@
 	// Temporarily enabled for self-hosting
 	"scm.showIncomingChanges": "always",
 	"scm.showOutgoingChanges": "always",
-	"workbench.editor.showTabs": "multiple",
 }
