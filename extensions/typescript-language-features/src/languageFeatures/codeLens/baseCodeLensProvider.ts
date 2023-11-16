@@ -9,6 +9,7 @@ import type * as Proto from '../../tsServer/protocol/protocol';
 import * as typeConverters from '../../typeConverters';
 import { ITypeScriptServiceClient } from '../../typescriptService';
 import { escapeRegExp } from '../../utils/regexp';
+import { Disposable } from '../../utils/dispose';
 
 
 export class ReferencesCodeLens extends vscode.CodeLens {
@@ -21,9 +22,8 @@ export class ReferencesCodeLens extends vscode.CodeLens {
 	}
 }
 
-export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensProvider<ReferencesCodeLens> {
-	protected readonly subscriptions: vscode.Disposable[] = [];
-	protected changeEmitter = new vscode.EventEmitter<void>();
+export abstract class TypeScriptBaseCodeLensProvider extends Disposable implements vscode.CodeLensProvider<ReferencesCodeLens>{
+	protected changeEmitter = this._register(new vscode.EventEmitter<void>());
 	public onDidChangeCodeLenses = this.changeEmitter.event;
 
 	public static readonly cancelledCommand: vscode.Command = {
@@ -40,10 +40,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements vscode.CodeLensP
 	public constructor(
 		protected client: ITypeScriptServiceClient,
 		private readonly cachedResponse: CachedResponse<Proto.NavTreeResponse>
-	) { }
-
-	public dispose() {
-		this.subscriptions.forEach(s => s.dispose());
+	) {
+		super();
 	}
 
 	async provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): Promise<ReferencesCodeLens[]> {

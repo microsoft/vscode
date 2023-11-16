@@ -23,7 +23,7 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		private readonly language: LanguageDescription
 	) {
 		super(client, _cachedResponse);
-		this.subscriptions.push(
+		this._register(
 			vscode.workspace.onDidChangeConfiguration(evt => {
 				if (evt.affectsConfiguration(`${language.id}.implementationsCodeLens.showOnInterfaceMethods`)) {
 					this.changeEmitter.fire();
