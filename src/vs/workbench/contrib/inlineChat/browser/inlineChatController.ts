@@ -44,6 +44,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -141,6 +142,7 @@ export class InlineChatController implements IEditorContribution {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -737,9 +739,10 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		if (response instanceof ReplyResponse) {
-			// edit response -> complex...
-			this._zone.value.widget.updateMarkdownMessage(undefined);
+		if (response instanceof ReplyResponse && response.workspaceEdit) {
+			// this reply cannot be applied in the normal inline chat UI and needs to be handled off to workspace edit
+			this._bulkEditService.apply(response.workspaceEdit, { showPreview: true });
+			return State.CANCEL;
 		}
 		return State.SHOW_RESPONSE;
 	}
@@ -773,7 +776,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.CANCEL> {
+	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.CANCEL> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -824,7 +827,7 @@ export class InlineChatController implements IEditorContribution {
 		return State.WAIT_FOR_INPUT;
 	}
 
-	private async [State.PAUSE]() {
+	private async[State.PAUSE]() {
 
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
@@ -845,7 +848,7 @@ export class InlineChatController implements IEditorContribution {
 		this._activeSession = undefined;
 	}
 
-	private async [State.ACCEPT]() {
+	private async[State.ACCEPT]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
@@ -863,7 +866,7 @@ export class InlineChatController implements IEditorContribution {
 		this[State.PAUSE]();
 	}
 
-	private async [State.CANCEL]() {
+	private async[State.CANCEL]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();

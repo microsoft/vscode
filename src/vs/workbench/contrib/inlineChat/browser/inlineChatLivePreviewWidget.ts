@@ -32,18 +32,18 @@ import { IAccessibilityService } from 'vs/platform/accessibility/common/accessib
 import { generateUuid } from 'vs/base/common/uuid';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { ButtonBar } from 'vs/base/browser/ui/button/button';
-import { localize } from 'vs/nls';
+import { ButtonBar, IButton } from 'vs/base/browser/ui/button/button';
 import { defaultButtonStyles } from 'vs/platform/theme/browser/defaultStyles';
-import { Emitter, Event } from 'vs/base/common/event';
 import { SaveReason, SideBySideEditor } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { toAction } from 'vs/base/common/actions';
+import { IAction, toAction } from 'vs/base/common/actions';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
 import { renderIcon } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { Codicon } from 'vs/base/common/codicons';
 import { TAB_ACTIVE_MODIFIED_BORDER } from 'vs/workbench/common/theme';
+import { localize } from 'vs/nls';
+import { Event } from 'vs/base/common/event';
 
 export class InlineChatLivePreviewWidget extends ZoneWidget {
 
@@ -344,7 +344,7 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 			showFrame: true,
 			frameColor: colorRegistry.asCssVariable(TAB_ACTIVE_MODIFIED_BORDER),
 			frameWidth: 1,
-			isResizeable: false,
+			isResizeable: true,
 			isAccessible: true,
 			showInHiddenAreas: true,
 			ordinal: 10000 + 2
@@ -412,35 +412,31 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 			fileDecorations: { badges: true, colors: true }
 		});
 
-		store.add(untitledTextModel.onDidRevert(() => {
-			console.log('NUKED');
-			this.hide();
-		}));
-		store.add(untitledTextModel.onDidSave(() => {
-			console.log('SAVED');
-			this.hide();
-		}));
-		store.add(untitledTextModel.onDidChangeDirty(() => {
-			console.log('SAVED');
-			this.hide();
-		}));
-		store.add(untitledTextModel.onWillDispose(() => {
-			console.log('WILL NUKE');
-			this.hide();
-		}));
-
-		store.add(this._buttonBar.onDidSelectButton(async e => {
-			if (e === ButtonType.Discard) {
-				await untitledTextModel.revert();
-
-			} else if (e === ButtonType.Save) {
-				await untitledTextModel.save({ reason: SaveReason.EXPLICIT });
-
-			} else if (e === ButtonType.SaveAs) {
+		const actionSave = toAction({
+			id: '1',
+			label: localize('save', "Create"),
+			run: () => untitledTextModel.save({ reason: SaveReason.EXPLICIT })
+		});
+		const actionSaveAs = toAction({
+			id: '2',
+			label: localize('saveAs', "Create As"),
+			run: async () => {
 				const ids = this._editorService.findEditors(untitledTextModel.resource, { supportSideBySide: SideBySideEditor.ANY });
 				await this._editorService.save(ids.slice(), { saveAs: true, reason: SaveReason.EXPLICIT });
 			}
-		}));
+		});
+
+		this._buttonBar.update([
+			[actionSave, actionSaveAs],
+			[(toAction({ id: '3', label: localize('discard', "Discard"), run: () => untitledTextModel.revert() }))]
+		]);
+
+		store.add(Event.any(
+			untitledTextModel.onDidRevert,
+			untitledTextModel.onDidSave,
+			untitledTextModel.onDidChangeDirty,
+			untitledTextModel.onWillDispose
+		)(() => this.hide()));
 
 		await untitledTextModel.resolve();
 
@@ -457,8 +453,6 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 
 		const maxLines = Math.max(4, Math.floor((this.editor.getLayoutInfo().height / lineHeight) * .33));
 		const lines = Math.min(maxLines, model.getLineCount());
-
-		// const paddingInLines = 9 / lineHeight;  //padding-top/bottom
 
 		super.show(where, titleHightInLines + lines);
 	}
@@ -493,11 +487,6 @@ export class InlineChatFileCreatePreviewWidget extends ZoneWidget {
 	}
 }
 
-const enum ButtonType {
-	Save,
-	SaveAs,
-	Discard
-}
 
 class ButtonBarWidget {
 
@@ -505,35 +494,39 @@ class ButtonBarWidget {
 	private readonly _buttonBar: ButtonBar;
 	private readonly _store = new DisposableStore();
 
-	private readonly _onDidSelectButton = new Emitter<ButtonType>();
-	readonly onDidSelectButton: Event<ButtonType> = this._onDidSelectButton.event;
-
 	constructor(
-		@IContextMenuService contextMenuService: IContextMenuService,
+		@IContextMenuService private _contextMenuService: IContextMenuService,
 	) {
-
-		const actionSave = toAction({ id: '1', label: localize('save', "Save"), run: () => this._onDidSelectButton.fire(ButtonType.Save) });
-		const actionSaveAs = toAction({ id: '2', label: localize('saveAs', "Save As"), run: () => this._onDidSelectButton.fire(ButtonType.SaveAs) });
-		const actionDiscard = toAction({ id: '3', label: localize('discard', "Discard"), run: () => this._onDidSelectButton.fire(ButtonType.Discard) });
-
 		this._buttonBar = new ButtonBar(this.domNode);
-		const btnSave = this._buttonBar.addButtonWithDropdown({
-			...defaultButtonStyles,
-			addPrimaryActionToDropdown: false,
-			actions: [actionSave, actionSaveAs],
-			contextMenuProvider: contextMenuService
-		});
 
-		btnSave.label = actionSave.label;
-		this._store.add(btnSave.onDidClick(() => actionSave.run()));
+	}
 
-		const btnDiscard = this._buttonBar.addButton({ ...defaultButtonStyles, secondary: true });
-		btnDiscard.label = actionDiscard.label;
-		this._store.add(btnDiscard.onDidClick(() => actionDiscard.run()));
+	update(allActions: IAction[][]): void {
+		this._buttonBar.clear();
+		let secondary = false;
+		for (const actions of allActions) {
+			let btn: IButton;
+			const [first, ...rest] = actions;
+			if (!first) {
+				continue;
+			} else if (rest.length === 0) {
+				// single action
+				btn = this._buttonBar.addButton({ ...defaultButtonStyles, secondary });
+			} else {
+				btn = this._buttonBar.addButtonWithDropdown({
+					...defaultButtonStyles,
+					addPrimaryActionToDropdown: false,
+					actions: rest,
+					contextMenuProvider: this._contextMenuService
+				});
+			}
+			btn.label = first.label;
+			this._store.add(btn.onDidClick(() => first.run()));
+			secondary = true;
+		}
 	}
 
 	dispose(): void {
-		this._onDidSelectButton.dispose();
 		this._buttonBar.dispose();
 		this._store.dispose();
 	}

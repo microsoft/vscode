@@ -63,6 +63,7 @@ import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { Lazy } from 'vs/base/common/lazy';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
@@ -184,6 +185,8 @@ export class InlineChatWidget {
 
 	private readonly _previewCreateTitle: ResourceLabel;
 	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
+	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
+
 
 	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
@@ -215,7 +218,8 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
 
 		// input editor logic
@@ -720,22 +724,23 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	showCreatePreview(model: IUntitledTextEditorModel): void {
+	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
 		this._elements.previewCreateTitle.classList.remove('hidden');
 		this._elements.previewCreate.classList.remove('hidden');
 
+		const ref = await this._textModelResolverService.createModelReference(model.resource);
+		this._previewCreateDispoable.value = ref;
 		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
 
-		this._previewCreateEditor.value.setModel(model.textEditorModel);
+		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
 		this._onDidChangeHeight.fire();
 	}
 
 	hideCreatePreview() {
 		this._elements.previewCreateTitle.classList.add('hidden');
 		this._elements.previewCreate.classList.add('hidden');
-		if (this._previewCreateEditor.hasValue) {
-			this._previewCreateEditor.value.setModel(null);
-		}
+		this._previewCreateEditor.rawValue?.setModel(null);
+		this._previewCreateDispoable.clear();
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}

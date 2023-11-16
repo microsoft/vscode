@@ -6,7 +6,7 @@
 import { URI } from 'vs/base/common/uri';
 import { Emitter, Event } from 'vs/base/common/event';
 import { ResourceEdit, ResourceFileEdit, ResourceTextEdit } from 'vs/editor/browser/services/bulkEditService';
-import { TextEdit } from 'vs/editor/common/languages';
+import { IWorkspaceTextEdit, TextEdit, WorkspaceEdit } from 'vs/editor/common/languages';
 import { IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
 import { EditMode, IInlineChatSessionProvider, IInlineChatSession, IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatResponse, IInlineChatService, InlineChatResponseType, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IRange, Range } from 'vs/editor/common/core/range';
@@ -31,6 +31,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { ILanguageService } from 'vs/editor/common/languages/language';
 import { ResourceMap } from 'vs/base/common/map';
 import { Schemas } from 'vs/base/common/network';
+import { isEqual } from 'vs/base/common/resources';
 
 export type Recording = {
 	when: Date;
@@ -287,6 +288,7 @@ export class ReplyResponse {
 
 	readonly allLocalEdits: TextEdit[][] = [];
 	readonly untitledTextModel: IUntitledTextEditorModel | undefined;
+	readonly workspaceEdit: WorkspaceEdit | undefined;
 
 	readonly responseType: InlineChateResponseTypes;
 
@@ -341,8 +343,13 @@ export class ReplyResponse {
 			this.responseType = InlineChateResponseTypes.Mixed;
 		}
 
+		let needsWorkspaceEdit = false;
+
 		for (const [uri, edits] of editsMap) {
-			if (uri.scheme === Schemas.untitled) {
+
+			needsWorkspaceEdit = needsWorkspaceEdit || (uri.scheme !== Schemas.untitled && !isEqual(uri, localUri));
+
+			if (uri.scheme === Schemas.untitled && !this.untitledTextModel) { //TODO@jrieken the first untitled model WINS
 				const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
 				const untitledTextModel = this._textFileService.untitled.create({
 					associatedResource: uri,
@@ -354,13 +361,20 @@ export class ReplyResponse {
 					const model = untitledTextModel.textEditorModel!;
 					model.applyEdits(edits.flat().map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
 				});
-
-				//TODO@jrieken the first untitled model WINS
-				break;
 			}
 		}
 
 		this.allLocalEdits = editsMap.get(localUri) ?? [];
+
+		if (needsWorkspaceEdit) {
+			const workspaceEdits: IWorkspaceTextEdit[] = [];
+			for (const [uri, edits] of editsMap) {
+				for (const edit of edits.flat()) {
+					workspaceEdits.push({ resource: uri, textEdit: edit, versionId: undefined });
+				}
+			}
+			this.workspaceEdit = { edits: workspaceEdits };
+		}
 	}
 }
 
