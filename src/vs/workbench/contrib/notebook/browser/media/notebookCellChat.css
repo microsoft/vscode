@@ -1,0 +1,103 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay .cell-chat-part {
+	display: none;
+	color: inherit;
+	padding: 6px;
+	border-radius: 6px;
+	border: 1px solid var(--vscode-inlineChat-border);
+	background: var(--vscode-inlineChat-background);
+}
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container {
+	padding: 8px 8px 0px 8px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body {
+	display: flex;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content {
+	display: flex;
+	box-sizing: border-box;
+	outline: 1px solid var(--vscode-inlineChatInput-border);
+	outline-offset: -1px;
+	border-radius: 2px;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content.synthetic-focus {
+	outline: 1px solid var(--vscode-inlineChatInput-focusBorder);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content .input {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 2px 2px 2px 6px;
+	background-color: var(--vscode-inlineChatInput-background);
+	cursor: text;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content .input .monaco-editor-background {
+	background-color: var(--vscode-inlineChatInput-background);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content .input .editor-placeholder {
+	position: absolute;
+	z-index: 1;
+	color: var(--vscode-inlineChatInput-placeholderForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content .input .editor-placeholder.hidden {
+	display: none;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .content .input .editor-container {
+	vertical-align: middle;
+}
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .toolbar {
+	display: flex;
+	flex-direction: column;
+	align-self: stretch;
+	padding-right: 4px;
+	border-top-right-radius: 2px;
+	border-bottom-right-radius: 2px;
+	background: var(--vscode-inlineChatInput-background);
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .body .toolbar .actions-container {
+	display: flex;
+	flex-direction: row;
+	gap: 4px;
+}
+
+/* progress */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .progress {
+	position: relative;
+}
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .progress .monaco-progress-container {
+	top: 0;
+}
+
+/* status */
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .status {
+	height: 22px;
+	margin: 4px;
+}
+
+
+.monaco-workbench .notebookOverlay .cell-chat-part .cell-chat-container .status span {
+	overflow: hidden;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	align-self: baseline;
+	display: flex;
+}

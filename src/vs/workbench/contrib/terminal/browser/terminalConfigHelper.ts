@@ -20,7 +20,6 @@ import { IXtermCore } from 'vs/workbench/contrib/terminal/browser/xterm-private'
 import { IShellLaunchConfig } from 'vs/platform/terminal/common/terminal';
 import { isLinux, isWindows } from 'vs/base/common/platform';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { $window } from 'vs/base/browser/window';
 
 const enum FontConstants {
 	MinimumFontSize = 6,
@@ -119,7 +118,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 		return rect;
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
+	private _measureFont(w: Window, fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
 		const rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
@@ -143,10 +142,10 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 			if (this.config.gpuAcceleration === 'off') {
 				this._lastFontMeasurement.charWidth = rect.width;
 			} else {
-				const deviceCharWidth = Math.floor(rect.width * $window.devicePixelRatio);
+				const deviceCharWidth = Math.floor(rect.width * w.devicePixelRatio);
 				const deviceCellWidth = deviceCharWidth + Math.round(letterSpacing);
-				const cssCellWidth = deviceCellWidth / $window.devicePixelRatio;
-				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / $window.devicePixelRatio;
+				const cssCellWidth = deviceCellWidth / w.devicePixelRatio;
+				this._lastFontMeasurement.charWidth = cssCellWidth - Math.round(letterSpacing) / w.devicePixelRatio;
 			}
 		}
 
@@ -157,7 +156,7 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 	 * Gets the font information based on the terminal.integrated.fontFamily
 	 * terminal.integrated.fontSize, terminal.integrated.lineHeight configuration properties
 	 */
-	getFont(xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
+	getFont(w: Window, xtermCore?: IXtermCore, excludeDimensions?: boolean): ITerminalFont {
 		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
 
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily || EDITOR_FONT_DEFAULTS.fontFamily;
@@ -201,13 +200,13 @@ export class TerminalConfigHelper extends Disposable implements IBrowserTerminal
 					letterSpacing,
 					lineHeight,
 					charHeight: cellDims.height / lineHeight,
-					charWidth: cellDims.width - Math.round(letterSpacing) / $window.devicePixelRatio
+					charWidth: cellDims.width - Math.round(letterSpacing) / w.devicePixelRatio
 				};
 			}
 		}
 
 		// Fall back to measuring the font ourselves
-		return this._measureFont(fontFamily, fontSize, letterSpacing, lineHeight);
+		return this._measureFont(w, fontFamily, fontSize, letterSpacing, lineHeight);
 	}
 
 	private _clampInt<T>(source: any, minimum: number, maximum: number, fallback: T): number | T {
