@@ -9,7 +9,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ITerminalConfiguration, TERMINAL_CONFIG_SECTION, DEFAULT_LETTER_SPACING, DEFAULT_LINE_HEIGHT, MINIMUM_LETTER_SPACING, MINIMUM_FONT_WEIGHT, MAXIMUM_FONT_WEIGHT, DEFAULT_FONT_WEIGHT, DEFAULT_BOLD_FONT_WEIGHT, FontWeight, ITerminalFont } from 'vs/workbench/contrib/terminal/common/terminal';
 import Severity from 'vs/base/common/severity';
 import { INotificationService, NeverShowAgainScope } from 'vs/platform/notification/common/notification';
-import { IBrowserTerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { ITerminalConfigHelper, LinuxDistro } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { Emitter, Event } from 'vs/base/common/event';
 import { basename } from 'vs/base/common/path';
 import { IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
@@ -30,7 +30,7 @@ const enum FontConstants {
  * Encapsulates terminal configuration logic, the primary purpose of this file is so that platform
  * specific test cases can be written.
  */
-export class TerminalConfigHelper extends Disposable implements IBrowserTerminalConfigHelper {
+export class TerminalConfigHelper extends Disposable implements ITerminalConfigHelper {
 	panelContainer: HTMLElement | undefined;
 
 	private _charMeasureElement: HTMLElement | undefined;
