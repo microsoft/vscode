@@ -16,6 +16,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IAuxiliaryWindowOpenOptions, IAuxiliaryWindowService } from 'vs/workbench/services/auxiliaryWindow/browser/auxiliaryWindowService';
 import { ILifecycleService } from 'vs/workbench/services/lifecycle/common/lifecycle';
 import { WindowTitle } from 'vs/workbench/browser/parts/titlebar/windowTitle';
+import { distinct } from 'vs/base/common/arrays';
 
 export class EditorParts extends Disposable implements IEditorGroupsService, IEditorPartsView {
 
@@ -228,8 +229,14 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		if (this._parts.size > 1) {
-			// TODO@bpasero support non-creation-time group orders across parts
-			return [...this._parts].map(part => part.getGroups(order)).flat();
+			let parts: EditorPart[];
+			if (order === GroupsOrder.MOST_RECENTLY_ACTIVE) {
+				parts = distinct([this.activePart, ...this._parts]); // put active part first in this order
+			} else {
+				parts = this.parts;
+			}
+
+			return parts.map(part => part.getGroups(order)).flat();
 		}
 
 		return this.mainPart.getGroups(order);
@@ -260,15 +267,15 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		this.getPart(group).setSize(group, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView): void {
+	arrangeGroups(arrangement: GroupsArrangement, group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).arrangeGroups(arrangement, group);
 	}
 
-	toggleMaximizeGroup(group?: IEditorGroupView): void {
+	toggleMaximizeGroup(group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).toggleMaximizeGroup(group);
 	}
 
-	toggleExpandGroup(group?: IEditorGroupView): void {
+	toggleExpandGroup(group?: IEditorGroupView | GroupIdentifier): void {
 		(group !== undefined ? this.getPart(group) : this.activePart).toggleExpandGroup(group);
 	}
 
