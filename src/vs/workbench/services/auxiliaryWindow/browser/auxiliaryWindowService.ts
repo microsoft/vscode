@@ -6,7 +6,7 @@
 import { localize } from 'vs/nls';
 import { mark } from 'vs/base/common/performance';
 import { Emitter, Event } from 'vs/base/common/event';
-import { Dimension, EventHelper, EventType, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
+import { Dimension, EventHelper, EventType, ModifierKeyEmitter, addDisposableListener, cloneGlobalStylesheets, copyAttributes, createMetaElement, getActiveWindow, getClientArea, getWindowId, isGlobalStylesheet, position, registerWindow, sharedMutationObserver, size, trackAttributes } from 'vs/base/browser/dom';
 import { CodeWindow, ensureCodeWindow, mainWindow } from 'vs/base/browser/window';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -14,10 +14,11 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IWorkbenchLayoutService } from 'vs/workbench/services/layout/browser/layoutService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { isWeb } from 'vs/base/common/platform';
-import { IRectangle } from 'vs/platform/window/common/window';
+import { IRectangle, WindowMinimumSize } from 'vs/platform/window/common/window';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import Severity from 'vs/base/common/severity';
 import { BaseWindow } from 'vs/workbench/browser/window';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const IAuxiliaryWindowService = createDecorator<IAuxiliaryWindowService>('auxiliaryWindowService');
 
@@ -44,7 +45,7 @@ export interface IAuxiliaryWindowService {
 export interface IAuxiliaryWindow extends IDisposable {
 
 	readonly onDidLayout: Event<Dimension>;
-	readonly onDidClose: Event<void>;
+	readonly onWillClose: Event<void>;
 
 	readonly window: CodeWindow;
 	readonly container: HTMLElement;
@@ -52,27 +53,30 @@ export interface IAuxiliaryWindow extends IDisposable {
 	layout(): void;
 }
 
-class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
+export class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 
 	private readonly _onDidLayout = this._register(new Emitter<Dimension>());
 	readonly onDidLayout = this._onDidLayout.event;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	private readonly _onWillDispose = this._register(new Emitter<void>());
 	readonly onWillDispose = this._onWillDispose.event;
 
-	constructor(readonly window: CodeWindow, readonly container: HTMLElement) {
+	constructor(
+		readonly window: CodeWindow,
+		readonly container: HTMLElement,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+	) {
 		super(window);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
-		this._register(addDisposableListener(this.window, 'unload', () => {
-			this._onDidClose.fire();
-		}));
+		this._register(addDisposableListener(this.window, EventType.BEFORE_UNLOAD, (e: BeforeUnloadEvent) => this.onBeforeUnload(e)));
+		this._register(addDisposableListener(this.window, EventType.UNLOAD, () => this._onWillClose.fire()));
 
 		this._register(addDisposableListener(this.window, 'unhandledrejection', e => {
 			onUnexpectedError(e.reason);
@@ -97,6 +101,19 @@ class AuxiliaryWindow extends BaseWindow implements IAuxiliaryWindow {
 			this._register(addDisposableListener(this.window.document.body, EventType.DRAG_OVER, (e: DragEvent) => EventHelper.stop(e)));	// Prevent drag feedback on <body>
 			this._register(addDisposableListener(this.window.document.body, EventType.DROP, (e: DragEvent) => EventHelper.stop(e)));		// Prevent default navigation on drop
 		}
+	}
+
+	private onBeforeUnload(e: BeforeUnloadEvent): void {
+		const confirmBeforeCloseSetting = this.configurationService.getValue<'always' | 'never' | 'keyboardOnly'>('window.confirmBeforeClose');
+		const confirmBeforeClose = confirmBeforeCloseSetting === 'always' || (confirmBeforeCloseSetting === 'keyboardOnly' && ModifierKeyEmitter.getInstance().isModifierPressed);
+		if (confirmBeforeClose) {
+			this.confirmBeforeClose(e);
+		}
+	}
+
+	protected confirmBeforeClose(e: BeforeUnloadEvent): void {
+		e.preventDefault();
+		e.returnValue = localize('lifecycleVeto', "Changes that you made may not be saved. Please check press 'Cancel' and try again.");
 	}
 
 	layout(): void {
@@ -129,7 +146,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 
 	constructor(
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-		@IDialogService private readonly dialogService: IDialogService
+		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService
 	) {
 		super();
 	}
@@ -149,7 +167,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const containerDisposables = new DisposableStore();
 		const container = this.createContainer(targetWindow, containerDisposables);
 
-		const auxiliaryWindow = new AuxiliaryWindow(targetWindow, container);
+		const auxiliaryWindow = this.createAuxiliaryWindow(targetWindow, container);
 
 		const registryDisposables = new DisposableStore();
 		this.windows.set(targetWindow.vscodeWindowId, auxiliaryWindow);
@@ -173,6 +191,10 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		return auxiliaryWindow;
 	}
 
+	protected createAuxiliaryWindow(targetWindow: CodeWindow, container: HTMLElement): AuxiliaryWindow {
+		return new AuxiliaryWindow(targetWindow, container, this.configurationService);
+	}
+
 	private async openWindow(options?: IAuxiliaryWindowOpenOptions): Promise<Window | undefined> {
 		const activeWindow = getActiveWindow();
 
@@ -182,8 +204,8 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		const bounds: IRectangle = {
 			x: options?.bounds?.x ?? (activeWindow.screen.availWidth / 2 - width / 2),
 			y: options?.bounds?.y ?? (activeWindow.screen.availHeight / 2 - height / 2),
-			width,
-			height
+			width: Math.max(width, WindowMinimumSize.WIDTH),
+			height: Math.max(height, WindowMinimumSize.HEIGHT)
 		};
 
 		const auxiliaryWindow = mainWindow.open('about:blank', undefined, `popup=yes,left=${bounds.x},top=${bounds.y},width=${bounds.width},height=${bounds.height}`);
@@ -320,7 +342,7 @@ export class BrowserAuxiliaryWindowService extends Disposable implements IAuxili
 		// Track attributes
 		disposables.add(trackAttributes(mainWindow.document.documentElement, auxiliaryWindow.document.documentElement));
 		disposables.add(trackAttributes(mainWindow.document.body, auxiliaryWindow.document.body));
-		disposables.add(trackAttributes(this.layoutService.container, container, ['class'])); // only class attribute
+		disposables.add(trackAttributes(this.layoutService.mainContainer, container, ['class'])); // only class attribute
 
 		mark('code/auxiliaryWindow/didApplyHTML');
 

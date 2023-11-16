@@ -467,9 +467,10 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
-	 * Close this auxiliary editor part and free up associated resources.
+	 * Close this auxiliary editor part after moving all
+	 * editors of all groups back to the main editor part.
 	 */
-	close(): Promise<void>;
+	close(): void;
 }
 
 /**

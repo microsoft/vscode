@@ -20,7 +20,8 @@ declare module 'vscode' {
 		onDidChangeActionButton: Event<void>;
 
 		/**
-		 * Fires when the current history item group changes (ex: checkout)
+		 * Fires when the current history item group changes after
+		 * a user action (ex: commit, checkout, fetch, pull, push)
 		 */
 		onDidChangeCurrentHistoryItemGroup: Event<void>;
 

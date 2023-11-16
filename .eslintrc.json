@@ -128,7 +128,8 @@
 						{
 							"message": "Expression must be awaited",
 							"functions": [
-								"assertSnapshot"
+								"assertSnapshot",
+								"assertHeap"
 							]
 						}
 					]

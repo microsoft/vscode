@@ -404,7 +404,7 @@ export function addDisposableThrottledListener<R, E extends Event = Event>(node:
 }
 
 export function getComputedStyle(el: HTMLElement): CSSStyleDeclaration {
-	return el.ownerDocument.defaultView!.getComputedStyle(el, null);
+	return getWindow(el).getComputedStyle(el, null);
 }
 
 export function getClientArea(element: HTMLElement): Dimension {
@@ -622,9 +622,10 @@ export function position(element: HTMLElement, top: number, right?: number, bott
  */
 export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePosition {
 	const bb = domNode.getBoundingClientRect();
+	const window = getWindow(domNode);
 	return {
-		left: bb.left + (domNode.ownerDocument.defaultView?.scrollX ?? 0),
-		top: bb.top + (domNode.ownerDocument.defaultView?.scrollY ?? 0),
+		left: bb.left + window.scrollX,
+		top: bb.top + window.scrollY,
 		width: bb.width,
 		height: bb.height
 	};
@@ -847,6 +848,13 @@ export function getActiveDocument(): Document {
 
 	const documents = Array.from(getWindows()).map(({ window }) => window.document);
 	return documents.find(doc => doc.hasFocus()) ?? document;
+}
+
+export function getDocument(element: Node | undefined | null): Document;
+export function getDocument(event: UIEvent | undefined | null): Document;
+export function getDocument(e: unknown): Document {
+	const candidateNode = e as Node | undefined | null;
+	return getWindow(candidateNode).document;
 }
 
 export function getActiveWindow(): CodeWindow {

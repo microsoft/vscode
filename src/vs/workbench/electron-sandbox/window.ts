@@ -487,7 +487,7 @@ export class NativeWindow extends BaseWindow {
 		});
 
 		// Update setting if checkbox checked
-		if (res.checkboxChecked) {
+		if (res.confirmed && res.checkboxChecked) {
 			await configurationService.updateValue('window.confirmBeforeClose', 'never');
 		}
 

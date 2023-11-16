@@ -27,7 +27,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { ReplyResponse, EmptyResponse, ErrorResponse, ExpansionState, IInlineChatSessionService, Session, SessionExchange, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { EditModeStrategy, LivePreviewStrategy, LiveStrategy, PreviewStrategy, ProgressingEditsOptions } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatZoneWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
+import { CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST, CTX_INLINE_CHAT_LAST_FEEDBACK, IInlineChatRequest, IInlineChatResponse, INLINE_CHAT_ID, EditMode, InlineChatResponseFeedbackKind, CTX_INLINE_CHAT_LAST_RESPONSE_TYPE, InlineChatResponseType, CTX_INLINE_CHAT_DID_EDIT, CTX_INLINE_CHAT_HAS_STASHED_SESSION, InlineChateResponseTypes, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_USER_DID_EDIT, IInlineChatProgressItem, CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { IChatAccessibilityService, IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
 import { IChatService } from 'vs/workbench/contrib/chat/common/chatService';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -44,6 +44,7 @@ import { IModelDeltaDecoration } from 'vs/editor/common/model';
 import { IChatAgentService } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { chatAgentLeader, chatSubcommandLeader } from 'vs/workbench/contrib/chat/common/chatParserTypes';
 import { renderMarkdownAsPlaintext } from 'vs/base/browser/markdownRenderer';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 export const enum State {
 	CREATE_SESSION = 'CREATE_SESSION',
@@ -115,8 +116,12 @@ export class InlineChatController implements IEditorContribution {
 	private readonly _ctxDidEdit: IContextKey<boolean>;
 	private readonly _ctxUserDidEdit: IContextKey<boolean>;
 	private readonly _ctxLastFeedbackKind: IContextKey<'helpful' | 'unhelpful' | ''>;
+	private readonly _ctxSupportIssueReporting: IContextKey<boolean>;
 
 	private _messages = this._store.add(new Emitter<Message>());
+
+	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
+	readonly onWillStartSession = this._onWillStartSession.event;
 
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
@@ -140,6 +145,7 @@ export class InlineChatController implements IEditorContribution {
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IChatAccessibilityService private readonly _chatAccessibilityService: IChatAccessibilityService,
 		@IChatAgentService private readonly _chatAgentService: IChatAgentService,
+		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 	) {
 		this._ctxHasActiveRequest = CTX_INLINE_CHAT_HAS_ACTIVE_REQUEST.bindTo(contextKeyService);
 		this._ctxDidEdit = CTX_INLINE_CHAT_DID_EDIT.bindTo(contextKeyService);
@@ -147,6 +153,7 @@ export class InlineChatController implements IEditorContribution {
 		this._ctxResponseTypes = CTX_INLINE_CHAT_RESPONSE_TYPES.bindTo(contextKeyService);
 		this._ctxLastResponseType = CTX_INLINE_CHAT_LAST_RESPONSE_TYPE.bindTo(contextKeyService);
 		this._ctxLastFeedbackKind = CTX_INLINE_CHAT_LAST_FEEDBACK.bindTo(contextKeyService);
+		this._ctxSupportIssueReporting = CTX_INLINE_CHAT_SUPPORT_ISSUE_REPORTING.bindTo(contextKeyService);
 		this._zone = new Lazy(() => this._store.add(_instaService.createInstance(InlineChatZoneWidget, this._editor)));
 
 		this._store.add(this._editor.onDidChangeModel(async e => {
@@ -218,6 +225,7 @@ export class InlineChatController implements IEditorContribution {
 			if (options.initialSelection) {
 				this._editor.setSelection(options.initialSelection);
 			}
+			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
 
@@ -264,7 +272,7 @@ export class InlineChatController implements IEditorContribution {
 			this._zone.value.setContainerMargins();
 		}
 
-		if (this._activeSession && this._activeSession.hasChangedText) {
+		if (this._activeSession && (this._activeSession.hasChangedText || this._activeSession.lastExchange)) {
 			widgetPosition = this._activeSession.wholeRange.value.getStartPosition().delta(-1);
 		}
 		if (this._activeSession) {
@@ -429,6 +437,9 @@ export class InlineChatController implements IEditorContribution {
 				this.finishExistingSession();
 			}
 		}));
+
+		// Update context key
+		this._ctxSupportIssueReporting.set(this._activeSession.provider.supportIssueReporting ?? false);
 
 		if (!this._activeSession.lastExchange) {
 			return State.WAIT_FOR_INPUT;
@@ -679,7 +690,7 @@ export class InlineChatController implements IEditorContribution {
 				if (reply.message) {
 					markdownContents.appendMarkdown(reply.message.value);
 				}
-				const replyResponse = response = new ReplyResponse(reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
+				const replyResponse = response = this._instaService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
 
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
@@ -687,7 +698,7 @@ export class InlineChatController implements IEditorContribution {
 
 				const a11yMessageResponse = renderMarkdownAsPlaintext(replyResponse.mdContent);
 
-				a11yResponse = this._strategy.checkChanges(replyResponse) && a11yVerboseInlineChat
+				a11yResponse = a11yVerboseInlineChat
 					? a11yMessageResponse ? localize('editResponseMessage2', "{0}, also review proposed changes in the diff editor.", a11yMessageResponse) : localize('editResponseMessage', "Review proposed changes in the diff editor.")
 					: a11yMessageResponse;
 			}
@@ -732,14 +743,10 @@ export class InlineChatController implements IEditorContribution {
 		assertType(this._strategy);
 
 		const { response } = this._activeSession.lastExchange!;
-		if (response instanceof ReplyResponse) {
-			// edit response -> complex...
-			this._zone.value.widget.updateMarkdownMessage(undefined);
-
-			const canContinue = this._strategy.checkChanges(response);
-			if (!canContinue) {
-				return State.CANCEL;
-			}
+		if (response instanceof ReplyResponse && response.workspaceEdit) {
+			// this reply cannot be applied in the normal inline chat UI and needs to be handled off to workspace edit
+			this._bulkEditService.apply(response.workspaceEdit, { showPreview: true });
+			return State.CANCEL;
 		}
 		return State.SHOW_RESPONSE;
 	}
@@ -773,7 +780,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.CANCEL> {
+	private async[State.SHOW_RESPONSE](): Promise<State.WAIT_FOR_INPUT | State.CANCEL> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -817,10 +824,6 @@ export class InlineChatController implements IEditorContribution {
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
 			this._zone.value.widget.updateToolbar(true);
 
-			const canContinue = this._strategy.checkChanges(response);
-			if (!canContinue) {
-				return State.CANCEL;
-			}
 			await this._strategy.renderChanges(response);
 		}
 		this._showWidget(false);
@@ -828,12 +831,13 @@ export class InlineChatController implements IEditorContribution {
 		return State.WAIT_FOR_INPUT;
 	}
 
-	private async [State.PAUSE]() {
+	private async[State.PAUSE]() {
 
 		this._ctxDidEdit.reset();
 		this._ctxUserDidEdit.reset();
 		this._ctxLastResponseType.reset();
 		this._ctxLastFeedbackKind.reset();
+		this._ctxSupportIssueReporting.reset();
 
 		this._zone.value.hide();
 
@@ -848,7 +852,7 @@ export class InlineChatController implements IEditorContribution {
 		this._activeSession = undefined;
 	}
 
-	private async [State.ACCEPT]() {
+	private async[State.ACCEPT]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
@@ -866,7 +870,7 @@ export class InlineChatController implements IEditorContribution {
 		this[State.PAUSE]();
 	}
 
-	private async [State.CANCEL]() {
+	private async[State.CANCEL]() {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 		this._sessionStore.clear();
@@ -962,11 +966,19 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	feedbackLast(helpful: boolean) {
+	feedbackLast(kind: InlineChatResponseFeedbackKind) {
 		if (this._activeSession?.lastExchange && this._activeSession.lastExchange.response instanceof ReplyResponse) {
-			const kind = helpful ? InlineChatResponseFeedbackKind.Helpful : InlineChatResponseFeedbackKind.Unhelpful;
 			this._activeSession.provider.handleInlineChatResponseFeedback?.(this._activeSession.session, this._activeSession.lastExchange.response.raw, kind);
-			this._ctxLastFeedbackKind.set(helpful ? 'helpful' : 'unhelpful');
+			switch (kind) {
+				case InlineChatResponseFeedbackKind.Helpful:
+					this._ctxLastFeedbackKind.set('helpful');
+					break;
+				case InlineChatResponseFeedbackKind.Unhelpful:
+					this._ctxLastFeedbackKind.set('unhelpful');
+					break;
+				default:
+					break;
+			}
 			this._zone.value.widget.updateStatus('Thank you for your feedback!', { resetAfter: 1250 });
 		}
 	}
