@@ -8,6 +8,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -39,7 +40,10 @@ export class MultiDiffEditorInput extends EditorInput {
 		return DEFAULT_EDITOR_ASSOCIATION.id;
 	}
 
-	private _viewModel: IMultiDiffEditorModel | undefined;
+	private _model: IMultiDiffEditorModel | undefined;
+
+	// TODO dont make this public
+	public viewModel: MultiDiffEditorViewModel | undefined;
 
 	constructor(
 		readonly label: string | undefined,
@@ -50,11 +54,12 @@ export class MultiDiffEditorInput extends EditorInput {
 		super();
 	}
 
-	async getViewModel(): Promise<IMultiDiffEditorModel> {
-		if (!this._viewModel) {
-			this._viewModel = await this._createViewModel();
+	// TODO this should return the view model
+	async getModel(): Promise<IMultiDiffEditorModel> {
+		if (!this._model) {
+			this._model = await this._createViewModel();
 		}
-		return this._viewModel;
+		return this._model;
 	}
 
 	private async _createViewModel(): Promise<IMultiDiffEditorModel> {
