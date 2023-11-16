@@ -587,7 +587,13 @@ class WordHighlighter {
 		// multi-doc ON
 		for (const editor of currentEditors) {
 			const tempModel = editor.getModel();
-			if (tempModel && tempModel !== model) {
+
+			const isValidModel =
+				tempModel && tempModel !== model && (
+					tempModel?.uri.scheme === Schemas.file ||
+					tempModel?.uri.scheme === Schemas.untitled);
+
+			if (isValidModel) {
 				currentModels.push(tempModel);
 			}
 		}
