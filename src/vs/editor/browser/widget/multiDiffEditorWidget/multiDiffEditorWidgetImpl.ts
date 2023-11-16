@@ -6,7 +6,7 @@
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, constObservable, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, IReader, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
