@@ -43,7 +43,8 @@
 	display: none;
 }
 
-.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark {
+.monaco-workbench .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-watermark,
+.monaco-workbench .part.editor > .content.auxiliary .editor-group-container.empty > .editor-group-watermark {
 	max-width: 200px;
 	height: calc(100% - 70px);
 }
@@ -72,7 +73,7 @@
 
 .monaco-workbench .part.editor > .content:not(.empty) .editor-group-container > .editor-group-watermark > .shortcuts,
 .monaco-workbench .part.editor > .content.auxiliary .editor-group-container > .editor-group-watermark > .shortcuts,
-	.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
+.monaco-workbench .part.editor > .content .editor-group-container.max-height-478px > .editor-group-watermark > .shortcuts {
 	display: none;
 }
 
