@@ -817,17 +817,21 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration)
 	.registerConfigurationMigrations([{
 		key: 'workbench.editor.doubleClickTabToToggleEditorGroupSizes', migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? 'expand' : 'off';
+				results.push(['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value }]);
 			}
-			return [['workbench.editor.doubleClickTabToToggleEditorGroupSizes', { value: value }]];
+			return results;
 		}
 	}, {
 		key: LayoutSettings.EDITOR_TABS_MODE, migrateFn: (value: any) => {
+			const results: ConfigurationKeyValuePairs = [];
 			if (typeof value === 'boolean') {
 				value = value ? EditorTabsMode.MULTIPLE : EditorTabsMode.SINGLE;
+				results.push([LayoutSettings.EDITOR_TABS_MODE, { value }]);
 			}
-			return [[LayoutSettings.EDITOR_TABS_MODE, { value }]];
+			return results;
 		}
 	}, {
 		key: 'workbench.editor.tabCloseButton', migrateFn: (value: any) => {
