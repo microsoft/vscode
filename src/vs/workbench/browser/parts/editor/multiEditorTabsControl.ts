@@ -1123,7 +1123,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return; // drag to open in new window is disabled
 				}
 
-				const auxiliaryEditorPart = await this.createAuxiliaryEditorPartAt(e, tab);
+				const auxiliaryEditorPart = await this.maybeCreateAuxiliaryEditorPartAt(e, tab);
+				if (!auxiliaryEditorPart) {
+					return;
+				}
 
 				const targetGroup = auxiliaryEditorPart.activeGroup;
 				if (this.isMoveOperation(lastDragEvent ?? e, targetGroup.id, editor)) {

@@ -67,7 +67,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
-const _inputEditorOptions: IEditorConstructionOptions = {
+export const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 2, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,

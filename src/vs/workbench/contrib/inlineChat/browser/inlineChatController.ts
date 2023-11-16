@@ -120,6 +120,9 @@ export class InlineChatController implements IEditorContribution {
 
 	private _messages = this._store.add(new Emitter<Message>());
 
+	private readonly _onWillStartSession = this._store.add(new Emitter<void>());
+	readonly onWillStartSession = this._onWillStartSession.event;
+
 	readonly onDidAcceptInput = Event.filter(this._messages.event, m => m === Message.ACCEPT_INPUT, this._store);
 	readonly onDidCancelInput = Event.filter(this._messages.event, m => m === Message.CANCEL_INPUT || m === Message.CANCEL_SESSION, this._store);
 
@@ -222,6 +225,7 @@ export class InlineChatController implements IEditorContribution {
 			if (options.initialSelection) {
 				this._editor.setSelection(options.initialSelection);
 			}
+			this._onWillStartSession.fire();
 			this._currentRun = this._nextState(State.CREATE_SESSION, options);
 			await this._currentRun;
 

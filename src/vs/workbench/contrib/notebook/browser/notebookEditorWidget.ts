@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/notebook';
+import 'vs/css!./media/notebookCellChat';
 import 'vs/css!./media/notebookCellEditorHint';
 import 'vs/css!./media/notebookCellInsertToolbar';
 import 'vs/css!./media/notebookCellStatusBar';
@@ -402,7 +403,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.classList.add('notebook-editor');
 		this._overlayContainer.style.visibility = 'hidden';
 
-		this.layoutService.container.appendChild(this._overlayContainer);
+		this.layoutService.mainContainer.appendChild(this._overlayContainer);
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
 		this._isVisible = true;
@@ -856,6 +857,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 		.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row .output-collapse-container {
 			padding: ${OutputInnerContainerTopPadding}px 8px;
+		}
+		`);
+
+		// chat
+		styleSheets.push(`
+		.monaco-workbench .notebookOverlay .cell-chat-part {
+			margin: 0 ${cellRightMargin}px 8px 6px;
 		}
 		`);
 
@@ -2065,7 +2073,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	revealInView(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealType.Default);
+		return this._list.revealCell(cell, CellRevealType.Default);
 	}
 
 	revealInViewAtTop(cell: ICellViewModel) {
@@ -2076,8 +2084,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._list.revealCell(cell, CellRevealType.Center);
 	}
 
-	revealInCenterIfOutsideViewport(cell: ICellViewModel) {
-		this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
+	async revealInCenterIfOutsideViewport(cell: ICellViewModel) {
+		await this._list.revealCell(cell, CellRevealType.CenterIfOutsideViewport);
 	}
 
 	revealFirstLineIfOutsideViewport(cell: ICellViewModel) {
@@ -2346,7 +2354,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 						const firstSelectionPosition = selectionsStartPosition[0];
 						await this.revealRangeInViewAsync(cell, Range.fromPositions(firstSelectionPosition, firstSelectionPosition));
 					} else {
-						this.revealInView(cell);
+						await this.revealInView(cell);
 					}
 				}
 
@@ -2384,13 +2392,13 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			if (!options?.skipReveal) {
 				if (typeof options?.focusEditorLine === 'number') {
 					this._cursorNavMode.set(true);
-					this.revealInView(cell);
+					await this.revealInView(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.firstLine) {
 					this.revealFirstLineIfOutsideViewport(cell);
 				} else if (options?.revealBehavior === ScrollToRevealBehavior.fullCell) {
-					this.revealInView(cell);
+					await this.revealInView(cell);
 				} else {
-					this.revealInCenterIfOutsideViewport(cell);
+					await this.revealInCenterIfOutsideViewport(cell);
 				}
 			}
 			this._list.focusView();

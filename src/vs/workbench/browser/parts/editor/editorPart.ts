@@ -208,8 +208,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		});
 	}
 
-	private _top = 0;
-	private _left = 0;
+	private top = 0;
+	private left = 0;
 	private _contentDimension!: Dimension;
 	get contentDimension(): Dimension { return this._contentDimension; }
 
@@ -375,7 +375,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.gridWidget.resizeView(groupView, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, target = this.activeGroup): void {
+	arrangeGroups(arrangement: GroupsArrangement, target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.count < 2) {
 			return; // require at least 2 groups to show
 		}
@@ -383,6 +383,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		if (!this.gridWidget) {
 			return; // we have not been created yet
 		}
+
+		const groupView = this.assertGroupView(target);
 
 		switch (arrangement) {
 			case GroupsArrangement.EVEN:
@@ -392,16 +394,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.gridWidget.maximizeView(target);
-				target.focus();
+				this.gridWidget.maximizeView(groupView);
+				groupView.focus();
 				break;
 			case GroupsArrangement.EXPAND:
-				this.gridWidget.expandView(target);
+				this.gridWidget.expandView(groupView);
 				break;
 		}
 	}
 
-	toggleMaximizeGroup(target: IEditorGroupView = this.activeGroup): void {
+	toggleMaximizeGroup(target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.hasMaximizedGroup()) {
 			this.unmaximizeGroup();
 		} else {
@@ -409,7 +411,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 	}
 
-	toggleExpandGroup(target: IEditorGroupView = this.activeGroup): void {
+	toggleExpandGroup(target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.isGroupExpanded(this.activeGroup)) {
 			this.arrangeGroups(GroupsArrangement.EVEN);
 		} else {
@@ -419,8 +421,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private unmaximizeGroup(): void {
 		this.gridWidget.exitMaximizedView();
-		// When making views visible the focus can be affected, so restore it
-		this._activeGroup.focus();
+		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
 	private hasMaximizedGroup(): boolean {
@@ -974,6 +975,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.element = parent;
 		this.container = document.createElement('div');
 		this.container.classList.add('content');
+		if (this.isAuxiliary) {
+			this.container.classList.add('auxiliary');
+		}
 		parent.appendChild(this.container);
 
 		// Scoped instantiation service
@@ -1289,8 +1293,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
-		this._top = top;
-		this._left = left;
+		this.top = top;
+		this.left = left;
 
 		// Layout contents
 		const contentAreaSize = super.layoutContents(width, height).contentSize;
@@ -1299,7 +1303,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.doLayout(Dimension.lift(contentAreaSize), top, left);
 	}
 
-	private doLayout(dimension: Dimension, top = this._top, left = this._left): void {
+	private doLayout(dimension: Dimension, top = this.top, left = this.left): void {
 		this._contentDimension = dimension;
 
 		// Layout Grid
@@ -1390,8 +1394,8 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 
 	private static COUNTER = 1;
 
-	private readonly _onDidClose = this._register(new Emitter<void>());
-	readonly onDidClose = this._onDidClose.event;
+	private readonly _onWillClose = this._register(new Emitter<void>());
+	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
 		editorPartsView: IEditorPartsView,
@@ -1435,6 +1439,6 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 			this.mergeAllGroups(this.editorPartsView.mainPart.activeGroup);
 		}
 
-		this._onDidClose.fire();
+		this._onWillClose.fire();
 	}
 }
