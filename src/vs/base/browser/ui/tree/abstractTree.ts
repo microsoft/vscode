@@ -1393,15 +1393,17 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			expandOnlyOnTwistieClick = !!this.tree.expandOnlyOnTwistieClick;
 		}
 
-		if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2) {
-			return super.onViewPointer(e);
+		if (!isStickyElement) {
+			if (expandOnlyOnTwistieClick && !onTwistie && e.browserEvent.detail !== 2) {
+				return super.onViewPointer(e);
+			}
+
+			if (!this.tree.expandOnDoubleClick && e.browserEvent.detail === 2) {
+				return super.onViewPointer(e);
+			}
 		}
 
-		if (!this.tree.expandOnDoubleClick && e.browserEvent.detail === 2) {
-			return super.onViewPointer(e);
-		}
-
-		if (node.collapsible) {
+		if (node.collapsible && (!isStickyElement || onTwistie)) {
 			const location = this.tree.getNodeLocation(node);
 			const recursive = e.browserEvent.altKey;
 			this.tree.setFocus([location]);
@@ -1414,7 +1416,9 @@ class TreeNodeListMouseController<T, TFilterData, TRef> extends MouseController<
 			}
 		}
 
-		super.onViewPointer(e);
+		if (!isStickyElement) {
+			super.onViewPointer(e);
+		}
 	}
 
 	protected override onDoubleClick(e: IListMouseEvent<ITreeNode<T, TFilterData>>): void {
