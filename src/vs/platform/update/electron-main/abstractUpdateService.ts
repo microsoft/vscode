@@ -102,6 +102,13 @@ export abstract class AbstractUpdateService implements IUpdateService {
 			return;
 		}
 
+		// hidden setting
+		if (this.configurationService.getValue<boolean>('_update.prss')) {
+			const url = new URL(this.url);
+			url.searchParams.set('prss', 'true');
+			this.url = url.toString();
+		}
+
 		this.setState(State.Idle(this.getUpdateType()));
 
 		if (updateMode === 'manual') {
