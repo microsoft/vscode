@@ -467,6 +467,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 export interface IAuxiliaryEditorPart extends IEditorPart {
 
 	/**
+	 * The identifier of the window the auxiliary editor part is contained in.
+	 */
+	readonly windowId: number;
+
+	/**
 	 * Close this auxiliary editor part after moving all
 	 * editors of all groups back to the main editor part.
 	 */
@@ -479,6 +484,11 @@ export interface IAuxiliaryEditorPart extends IEditorPart {
 export interface IEditorGroupsService extends IEditorGroupsContainer {
 
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * An event for when a new auxiliary editor part is created.
+	 */
+	readonly onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }>;
 
 	/**
 	 * Provides access to the currently active editor part.
@@ -503,7 +513,7 @@ export interface IEditorGroupsService extends IEditorGroupsContainer {
 	/**
 	 * Get the editor part that is rooted in the provided container.
 	 */
-	getPart(container: unknown /* HTMLElement */): IEditorPart | undefined;
+	getPart(container: unknown /* HTMLElement */): IEditorPart;
 
 	/**
 	 * Opens a new window with a full editor part instantiated

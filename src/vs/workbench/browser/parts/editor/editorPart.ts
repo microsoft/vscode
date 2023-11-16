@@ -1398,6 +1398,7 @@ export class AuxiliaryEditorPart extends EditorPart implements IAuxiliaryEditorP
 	readonly onWillClose = this._onWillClose.event;
 
 	constructor(
+		readonly windowId: number,
 		editorPartsView: IEditorPartsView,
 		groupsLabel: string,
 		@IInstantiationService instantiationService: IInstantiationService,
