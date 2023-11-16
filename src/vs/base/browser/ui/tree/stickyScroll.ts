@@ -120,10 +120,13 @@ export class StickyScrollController<T, TFilterData, TRef> extends Disposable {
 		};
 
 		const addStickyNode = (node: ITreeNode<T, TFilterData>, currentNode: ITreeNode<T, TFilterData>) => {
-			const nextStickyNode = this.createStickyScrollNode(node, stickyNodesHeight());
+			const widgetHeight = stickyNodesHeight();
+			const nextStickyNode = this.createStickyScrollNode(node, widgetHeight);
 
-			if (nextStickyNode.position + nextStickyNode.height > maximumStickyWidgetHeight) {
-				return undefined; // Don't continue if sticky height limit reached
+			if (widgetHeight + nextStickyNode.height > maximumStickyWidgetHeight) {
+				// Don't continue if sticky height limit reached.
+				// Also takes into account the last node potentially being partially visible
+				return undefined;
 			}
 
 			stickyNodes.push(nextStickyNode);
