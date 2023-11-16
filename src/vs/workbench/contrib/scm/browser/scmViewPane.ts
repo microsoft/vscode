@@ -2995,13 +2995,13 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 		} else if (isSCMActionButton(inputOrElement)) {
 			return false;
 		} else if (isSCMResourceGroup(inputOrElement)) {
-			return inputOrElement.resources.length > 0;
+			return true;
 		} else if (isSCMResource(inputOrElement)) {
 			return false;
 		} else if (ResourceTree.isResourceNode(inputOrElement)) {
 			return inputOrElement.childrenCount > 0;
 		} else if (isSCMHistoryItemGroupTreeElement(inputOrElement)) {
-			return (inputOrElement.count ?? 0) > 0;
+			return true;
 		} else if (isSCMHistoryItemTreeElement(inputOrElement)) {
 			return true;
 		} else if (isSCMHistoryItemChangeTreeElement(inputOrElement)) {
@@ -3042,6 +3042,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			}
 
 			// ResourceGroups
+			const showWheEmpty = resourceGroups.some(group => !group.hideWhenEmpty);
 			const hasSomeChanges = resourceGroups.some(group => group.resources.length > 0);
 			if (hasSomeChanges || (repositoryCount === 1 && (!showActionButton || !actionButton))) {
 				children.push(...resourceGroups);
@@ -3051,7 +3052,7 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 			const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
 
 			// Incoming/Outgoing Separator
-			if (hasSomeChanges && historyItemGroups.length > 0) {
+			if (historyItemGroups.length > 0 && (hasSomeChanges || showWheEmpty)) {
 				children.push({
 					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
 					repository: inputOrElement,
