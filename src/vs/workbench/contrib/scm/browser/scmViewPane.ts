@@ -2294,7 +2294,6 @@ export class SCMViewPane extends ViewPane {
 	private treeScrollTop: number | undefined;
 	private treeContainer!: HTMLElement;
 	private tree!: WorkbenchCompressibleAsyncDataTree<ISCMViewService, TreeElement, FuzzyScore>;
-	private treeDataSource!: SCMTreeDataSource;
 
 	private listLabels!: ResourceLabels;
 	private inputRenderer!: InputRenderer;
@@ -2529,8 +2528,8 @@ export class SCMViewPane extends ViewPane {
 		actionRunner.onWillRun(() => this.tree.domFocus(), this, this.disposables);
 		this.disposables.add(actionRunner);
 
-		this.treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
-		this.disposables.add(this.treeDataSource);
+		const treeDataSource = this.instantiationService.createInstance(SCMTreeDataSource, () => this.viewMode, () => this.alwaysShowRepositories, () => this.showActionButton, () => this.showIncomingChanges, () => this.showOutgoingChanges);
+		this.disposables.add(treeDataSource);
 
 		this.tree = this.instantiationService.createInstance(
 			WorkbenchCompressibleAsyncDataTree,
@@ -2549,7 +2548,7 @@ export class SCMViewPane extends ViewPane {
 				this.instantiationService.createInstance(HistoryItemChangeRenderer, () => this.viewMode, this.listLabels),
 				this.instantiationService.createInstance(SeparatorRenderer)
 			],
-			this.treeDataSource,
+			treeDataSource,
 			{
 				horizontalScrolling: false,
 				setRowLineHeight: false,
