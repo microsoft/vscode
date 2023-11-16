@@ -332,30 +332,31 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 	}
 
 	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
 		const window = getWindow(e);
-		const windowBounds = { x: window.screenX, y: window.screenY, width: window.outerWidth, height: window.outerHeight };
-		const { point: cursorLocation, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY }, display: windowBounds };
-		if (cursorLocation.x >= windowBounds.x && cursorLocation.x <= windowBounds.x + windowBounds.width && cursorLocation.y >= windowBounds.y && cursorLocation.y <= windowBounds.y + windowBounds.height) {
+		if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
 			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
 		}
 
 		const offsetX = offsetElement.offsetWidth / 2;
 		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
 
-		const auxiliaryEditorPartBounds = {
-			x: cursorLocation.x - offsetX,
-			y: cursorLocation.y - offsetY
+		const bounds = {
+			x: point.x - offsetX,
+			y: point.y - offsetY
 		};
 
-		if (auxiliaryEditorPartBounds.x < display.x) {
-			auxiliaryEditorPartBounds.x = display.x; // prevent overflow to the left
+		if (display) {
+			if (bounds.x < display.x) {
+				bounds.x = display.x; // prevent overflow to the left
+			}
+
+			if (bounds.y < display.y) {
+				bounds.y = display.y; // prevent overflow to the top
+			}
 		}
 
-		if (auxiliaryEditorPartBounds.y < display.y) {
-			auxiliaryEditorPartBounds.y = display.y; // prevent overflow to the top
-		}
-
-		return this.editorGroupService.createAuxiliaryEditorPart({ bounds: auxiliaryEditorPartBounds });
+		return this.editorGroupService.createAuxiliaryEditorPart({ bounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
