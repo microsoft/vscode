@@ -5,8 +5,8 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import fetch, { RequestInit } from 'node-fetch';
 import { Readable } from 'stream';
+import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
 import * as yauzl from 'yauzl';
 import * as crypto from 'crypto';
@@ -413,19 +413,23 @@ class State {
 	}
 }
 
-const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` }, timeout: 60_000 };
+const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } };
 
 async function requestAZDOAPI<T>(path: string): Promise<T> {
-	const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, azdoFetchOptions);
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), 2 * 60 * 1000);
 
-	if (!res.ok) {
-		throw new Error(`Unexpected status code: ${res.status}`);
+	try {
+		const res = await fetch(`${e('BUILDS_API_URL')}${path}?api-version=6.0`, { ...azdoFetchOptions, signal: abortController.signal });
+
+		if (!res.ok) {
+			throw new Error(`Unexpected status code: ${res.status}`);
+		}
+
+		return await res.json();
+	} finally {
+		clearTimeout(timeout);
 	}
-
-	return await Promise.race([
-		res.json(),
-		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 60_000))
-	]);
 }
 
 interface Artifact {
@@ -456,16 +460,20 @@ async function getPipelineTimeline(): Promise<Timeline> {
 }
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
-	const res = await fetch(artifact.resource.downloadUrl, azdoFetchOptions);
+	const abortController = new AbortController();
+	const timeout = setTimeout(() => abortController.abort(), 6 * 60 * 1000);
 
-	if (!res.ok) {
-		throw new Error(`Unexpected status code: ${res.status}`);
+	try {
+		const res = await fetch(artifact.resource.downloadUrl, { ...azdoFetchOptions, signal: abortController.signal });
+
+		if (!res.ok) {
+			throw new Error(`Unexpected status code: ${res.status}`);
+		}
+
+		await pipeline(Readable.fromWeb(res.body as ReadableStream), fs.createWriteStream(downloadPath));
+	} finally {
+		clearTimeout(timeout);
 	}
-
-	await Promise.race([
-		pipeline(res.body, fs.createWriteStream(downloadPath)),
-		new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 5 * 60 * 1000))
-	]);
 }
 
 async function unzip(packagePath: string, outputPath: string): Promise<string> {

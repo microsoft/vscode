@@ -50,7 +50,6 @@
     "jsonc-parser": "^2.3.0",
     "mime": "^1.4.1",
     "mkdirp": "^1.0.4",
-    "node-fetch": "2",
     "source-map": "0.6.1",
     "ternary-stream": "^3.0.0",
     "through2": "^4.0.2",
