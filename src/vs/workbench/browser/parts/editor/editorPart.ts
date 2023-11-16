@@ -375,7 +375,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.gridWidget.resizeView(groupView, size);
 	}
 
-	arrangeGroups(arrangement: GroupsArrangement, target = this.activeGroup): void {
+	arrangeGroups(arrangement: GroupsArrangement, target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.count < 2) {
 			return; // require at least 2 groups to show
 		}
@@ -383,6 +383,8 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		if (!this.gridWidget) {
 			return; // we have not been created yet
 		}
+
+		const groupView = this.assertGroupView(target);
 
 		switch (arrangement) {
 			case GroupsArrangement.EVEN:
@@ -392,16 +394,16 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 				if (this.groups.length < 2) {
 					return; // need at least 2 groups to be maximized
 				}
-				this.gridWidget.maximizeView(target);
-				target.focus();
+				this.gridWidget.maximizeView(groupView);
+				groupView.focus();
 				break;
 			case GroupsArrangement.EXPAND:
-				this.gridWidget.expandView(target);
+				this.gridWidget.expandView(groupView);
 				break;
 		}
 	}
 
-	toggleMaximizeGroup(target: IEditorGroupView = this.activeGroup): void {
+	toggleMaximizeGroup(target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.hasMaximizedGroup()) {
 			this.unmaximizeGroup();
 		} else {
@@ -409,7 +411,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		}
 	}
 
-	toggleExpandGroup(target: IEditorGroupView = this.activeGroup): void {
+	toggleExpandGroup(target: IEditorGroupView | GroupIdentifier = this.activeGroup): void {
 		if (this.isGroupExpanded(this.activeGroup)) {
 			this.arrangeGroups(GroupsArrangement.EVEN);
 		} else {
@@ -419,8 +421,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 
 	private unmaximizeGroup(): void {
 		this.gridWidget.exitMaximizedView();
-		// When making views visible the focus can be affected, so restore it
-		this._activeGroup.focus();
+		this._activeGroup.focus(); // When making views visible the focus can be affected, so restore it
 	}
 
 	private hasMaximizedGroup(): boolean {
