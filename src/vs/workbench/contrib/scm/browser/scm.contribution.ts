@@ -307,7 +307,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.showIncomingChanges.auto', "Only show incoming changes in the Source Control view when any exist."),
 			],
 			description: localize('scm.showIncomingChanges', "Controls whether incoming changes are shown in the Source Control view."),
-			default: 'never'
+			default: 'auto'
 		},
 		'scm.showOutgoingChanges': {
 			type: 'string',
@@ -318,7 +318,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 				localize('scm.showOutgoingChanges.auto', "Only show outgoing changes in the Source Control view when any exist."),
 			],
 			description: localize('scm.showOutgoingChanges', "Controls whether outgoing changes are shown in the Source Control view."),
-			default: 'never'
+			default: 'auto'
 		},
 		'scm.experimental.showSyncView': {
 			type: 'boolean',
