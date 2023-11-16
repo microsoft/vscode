@@ -203,7 +203,7 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
 
 		// Iterate backwards through commands to find the right one
 		for (let i = this.commands.length - 1; i >= 0; i--) {
-			if ((this.commands[i].promptStartMarker ?? this.commands[i].marker!).line <= line - 1) {
+			if ((this.commands[i].promptStartMarker ?? this.commands[i].marker!).line <= line) {
 				return this.commands[i];
 			}
 		}
@@ -400,8 +400,8 @@ export class CommandDetectionCapability extends Disposable implements ICommandDe
  */
 interface ICommandDetectionHeuristicsHooks {
 	readonly onCurrentCommandInvalidatedEmitter: Emitter<ICommandInvalidationRequest>;
-	readonly onCommandExecutedEmitter: Emitter<void>;
 	readonly onCommandStartedEmitter: Emitter<ITerminalCommand>;
+	readonly onCommandExecutedEmitter: Emitter<void>;
 	readonly dimensions: ITerminalDimensions;
 	readonly isCommandStorageDisabled: boolean;
 
@@ -642,9 +642,15 @@ class WindowsPtyHeuristics extends Disposable {
 			if (this._cursorOnNextLine()) {
 				const prompt = this._getWindowsPrompt(start.line + scannedLineCount);
 				if (prompt) {
+					const adjustedPrompt = typeof prompt === 'string' ? prompt : prompt.prompt;
 					this._capability.currentCommand.commandStartMarker = this._terminal.registerMarker(0)!;
+					if (typeof prompt === 'object' && prompt.likelySingleLine) {
+						this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted promptStart', `${this._capability.currentCommand.promptStartMarker?.line} -> ${this._capability.currentCommand.commandStartMarker.line}`);
+						this._capability.currentCommand.promptStartMarker?.dispose();
+						this._capability.currentCommand.promptStartMarker = cloneMarker(this._terminal, this._capability.currentCommand.commandStartMarker);
+					}
 					// use the regex to set the position as it's possible input has occurred
-					this._capability.currentCommand.commandStartX = prompt.length;
+					this._capability.currentCommand.commandStartX = adjustedPrompt.length;
 					this._logService.debug('CommandDetectionCapability#_tryAdjustCommandStartMarker adjusted commandStart', `${start.line} -> ${this._capability.currentCommand.commandStartMarker.line}:${this._capability.currentCommand.commandStartX}`);
 					this._flushPendingHandleCommandStartTask();
 					return;
@@ -833,7 +839,7 @@ class WindowsPtyHeuristics extends Disposable {
 		});
 	}
 
-	private _getWindowsPrompt(y: number = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY): string | undefined {
+	private _getWindowsPrompt(y: number = this._terminal.buffer.active.baseY + this._terminal.buffer.active.cursorY): string | { prompt: string; likelySingleLine: true } | undefined {
 		const line = this._terminal.buffer.active.getLine(y);
 		if (!line) {
 			return;
@@ -849,7 +855,10 @@ class WindowsPtyHeuristics extends Disposable {
 		if (pwshPrompt) {
 			const adjustedPrompt = this._adjustPrompt(pwshPrompt, lineText, '>');
 			if (adjustedPrompt) {
-				return adjustedPrompt;
+				return {
+					prompt: adjustedPrompt,
+					likelySingleLine: true
+				};
 			}
 		}
 
@@ -864,7 +873,10 @@ class WindowsPtyHeuristics extends Disposable {
 
 		// Command Prompt
 		const cmdMatch = lineText.match(/^(?<prompt>(\(.+\)\s)?(?:[A-Z]:\\.*>))/);
-		return cmdMatch?.groups?.prompt;
+		return cmdMatch?.groups?.prompt ? {
+			prompt: cmdMatch.groups.prompt,
+			likelySingleLine: true
+		} : undefined;
 	}
 
 	private _adjustPrompt(prompt: string | undefined, lineText: string, char: string): string | undefined {
