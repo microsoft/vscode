@@ -974,6 +974,9 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupsView {
 		this.element = parent;
 		this.container = document.createElement('div');
 		this.container.classList.add('content');
+		if (this.isAuxiliary) {
+			this.container.classList.add('auxiliary');
+		}
 		parent.appendChild(this.container);
 
 		// Scoped instantiation service
