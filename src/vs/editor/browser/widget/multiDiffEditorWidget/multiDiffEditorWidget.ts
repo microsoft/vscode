@@ -7,7 +7,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { derivedWithStore, observableValue, recomputeInitiallyAndOnChange } from 'vs/base/common/observable';
 import { readHotReloadableExport } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IMultiDocumentDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { MultiDiffEditorWidgetImpl } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import './colors';
@@ -16,7 +16,7 @@ import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEd
 
 export class MultiDiffEditorWidget extends Disposable {
 	private readonly _dimension = observableValue<Dimension | undefined>(this, undefined);
-	private readonly _model = observableValue<IMultiDocumentDiffEditorModel | undefined>(this, undefined);
+	private readonly _model = observableValue<IMultiDiffEditorModel | undefined>(this, undefined);
 
 	private readonly widgetImpl = derivedWithStore(this, (reader, store) => {
 		readHotReloadableExport(DiffEditorItemTemplate, reader);
@@ -39,7 +39,7 @@ export class MultiDiffEditorWidget extends Disposable {
 		this._register(recomputeInitiallyAndOnChange(this.widgetImpl));
 	}
 
-	public setModel(model: IMultiDocumentDiffEditorModel | undefined): void {
+	public setModel(model: IMultiDiffEditorModel | undefined): void {
 		this._model.set(model, undefined);
 	}
 
