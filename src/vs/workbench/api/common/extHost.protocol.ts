@@ -1076,7 +1076,7 @@ export interface INotebookKernelDto2 {
 	supportsInterrupt?: boolean;
 	supportsExecutionOrder?: boolean;
 	preloads?: { uri: UriComponents; provides: readonly string[] }[];
-	providesVariables?: boolean;
+	hasVariableProvider?: boolean;
 }
 
 export interface INotebookProxyKernelDto {

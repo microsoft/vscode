@@ -9,7 +9,7 @@ declare module 'vscode' {
 		variableProvider?: NotebookVariableProvider;
 	}
 
-	export type VariablesRequestKind = 'named' | 'indexed';
+	type VariablesRequestKind = 'named' | 'indexed';
 
 	interface VariablesResult {
 		variable: Variable;
