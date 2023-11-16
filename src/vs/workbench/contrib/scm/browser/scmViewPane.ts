@@ -3049,8 +3049,9 @@ class SCMTreeDataSource implements IAsyncDataSource<ISCMViewService, TreeElement
 
 			// History item groups
 			const historyItemGroups = await this.getHistoryItemGroups(inputOrElement);
-			if (historyItemGroups.some(h => h.count ?? 0 > 0)) {
-				// Separator
+
+			// Incoming/Outgoing Separator
+			if (hasSomeChanges && historyItemGroups.length > 0) {
 				children.push({
 					label: localize('syncSeparatorHeader', "Incoming/Outgoing"),
 					repository: inputOrElement,
