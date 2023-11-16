@@ -79,7 +79,7 @@ export interface ICommonNativeHostService {
 
 	handleTitleDoubleClick(): Promise<void>;
 
-	getCursorScreenPoint(): Promise<IPoint>;
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }>;
 
 	isMaximized(): Promise<boolean>;
 	maximizeWindow(): Promise<void>;

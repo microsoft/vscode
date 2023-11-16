@@ -331,27 +331,32 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		targetGroup.focus();
 	}
 
-	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement?: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
-		const cursorLocation = await this.hostService.getCursorScreenPoint() ?? { x: e.screenX, y: e.screenY };
+	protected async maybeCreateAuxiliaryEditorPartAt(e: DragEvent, offsetElement: HTMLElement): Promise<IAuxiliaryEditorPart | undefined> {
+		const { point, display } = await this.hostService.getCursorScreenPoint() ?? { point: { x: e.screenX, y: e.screenY } };
 		const window = getWindow(e);
-		if (cursorLocation.x >= window.screenX && cursorLocation.x <= window.screenX + window.outerWidth && cursorLocation.y >= window.screenY && cursorLocation.y <= window.screenY + window.outerHeight) {
+		if (point.x >= window.screenX && point.x <= window.screenX + window.outerWidth && point.y >= window.screenY && point.y <= window.screenY + window.outerHeight) {
 			return; // refuse to create as long as the mouse was released over main window to reduce chance of opening by accident
 		}
 
-		let offsetX = 0;
-		let offsetY = 30; // take title bar height into account (approximation)
+		const offsetX = offsetElement.offsetWidth / 2;
+		const offsetY = 30/* take title bar height into account (approximation) */ + offsetElement.offsetHeight / 2;
 
-		if (offsetElement) {
-			offsetX += offsetElement.offsetWidth / 2;
-			offsetY += offsetElement.offsetHeight / 2;
+		const bounds = {
+			x: point.x - offsetX,
+			y: point.y - offsetY
+		};
+
+		if (display) {
+			if (bounds.x < display.x) {
+				bounds.x = display.x; // prevent overflow to the left
+			}
+
+			if (bounds.y < display.y) {
+				bounds.y = display.y; // prevent overflow to the top
+			}
 		}
 
-		return this.editorGroupService.createAuxiliaryEditorPart({
-			bounds: {
-				x: cursorLocation.x - offsetX,
-				y: cursorLocation.y - offsetY
-			}
-		});
+		return this.editorGroupService.createAuxiliaryEditorPart({ bounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
