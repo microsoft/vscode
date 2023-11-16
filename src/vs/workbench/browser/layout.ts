@@ -844,7 +844,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			// apply editor layout if any
 			if (this.state.initialization.layout?.editors) {
-				this.editorGroupService.applyLayout(this.state.initialization.layout.editors);
+				this.editorGroupService.mainPart.applyLayout(this.state.initialization.layout.editors);
 			}
 
 			// then see for editors to open as instructed
@@ -866,7 +866,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				// by the input. this is important to ensure that we open
 				// the editors in the groups they belong to.
 
-				const editorGroupsInVisualOrder = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+				const editorGroupsInVisualOrder = this.editorGroupService.mainPart.getGroups(GroupsOrder.GRID_APPEARANCE);
 				const mapEditorsToGroup = new Map<GroupIdentifier, Set<IUntypedEditorInput>>();
 
 				for (const editor of editors) {
@@ -1864,8 +1864,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			if (!skipLayout && isPanelMaximized !== panelOpensMaximized) {
 				this.toggleMaximizedPanel();
 			}
-		}
-		else {
+		} else {
 			// If in process of hiding, remember whether the panel is maximized or not
 			this.stateModel.setRuntimeValue(LayoutStateKeys.PANEL_WAS_LAST_MAXIMIZED, isPanelMaximized);
 		}
