@@ -40,7 +40,7 @@ import { IEditorResolverService } from 'vs/workbench/services/editor/common/edit
 import { IEditorTitleControlDimensions } from 'vs/workbench/browser/parts/editor/editorTitleControl';
 import { IReadonlyEditorGroupModel } from 'vs/workbench/common/editor/editorGroupModel';
 import { EDITOR_CORE_NAVIGATION_COMMANDS } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IAuxiliaryEditorPart, IEditorGroupsService, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
+import { IAuxiliaryEditorPart, MergeGroupMode } from 'vs/workbench/services/editor/common/editorGroupsService';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IHostService } from 'vs/workbench/services/host/browser/host';
 
@@ -133,7 +133,6 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 		@IQuickInputService protected quickInputService: IQuickInputService,
 		@IThemeService themeService: IThemeService,
 		@IEditorResolverService private readonly editorResolverService: IEditorResolverService,
-		@IEditorGroupsService protected readonly editorGroupService: IEditorGroupsService,
 		@IHostService private readonly hostService: IHostService
 	) {
 		super(themeService);
@@ -356,7 +355,7 @@ export abstract class EditorTabsControl extends Themable implements IEditorTabsC
 			}
 		}
 
-		return this.editorGroupService.createAuxiliaryEditorPart({ bounds });
+		return this.editorPartsView.createAuxiliaryEditorPart({ bounds });
 	}
 
 	protected isNewWindowOperation(e: DragEvent): boolean {
