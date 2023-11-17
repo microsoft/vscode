@@ -597,5 +597,10 @@
 .interactive-item-container .progress-steps .progress-step {
 	display: flex;
 	gap: 5px;
-	text-align: center;
+	align-items: center;
+	opacity: 0.7;
+}
+
+.interactive-item-container .progress-steps .progress-step .codicon-check {
+	color: var(--vscode-debugIcon-startForeground);
 }
