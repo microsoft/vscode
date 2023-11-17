@@ -26,9 +26,6 @@ export class NotebookVariables extends Disposable implements IWorkbenchContribut
 		@IConfigurationService configurationService: IConfigurationService,
 	) {
 		super();
-		if (this.initializeView()) {
-			return;
-		}
 
 		this.listener = this.editorService.onDidEditorsChange(() => {
 			if (configurationService.getValue('notebook.experimental.notebookVariablesView')
