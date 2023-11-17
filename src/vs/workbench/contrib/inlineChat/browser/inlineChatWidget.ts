@@ -28,9 +28,9 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -62,10 +62,12 @@ import { editorForeground, inputBackground, editorBackground } from 'vs/platform
 import { CodeBlockPart } from 'vs/workbench/contrib/chat/browser/codeBlockPart';
 import { Lazy } from 'vs/base/common/lazy';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
+import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
 
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
-const _inputEditorOptions: IEditorConstructionOptions = {
+export const _inputEditorOptions: IEditorConstructionOptions = {
 	padding: { top: 2, bottom: 2 },
 	overviewRulerLanes: 0,
 	glyphMargin: false,
@@ -183,7 +185,8 @@ export class InlineChatWidget {
 
 	private readonly _previewCreateTitle: ResourceLabel;
 	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
-	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
+	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
+
 
 	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
@@ -207,7 +210,6 @@ export class InlineChatWidget {
 	constructor(
 		private readonly parentEditor: ICodeEditor,
 		@IModelService private readonly _modelService: IModelService,
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -216,7 +218,8 @@ export class InlineChatWidget {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
-		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService
+		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
 
 		// input editor logic
@@ -721,26 +724,23 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	showCreatePreview(uri: URI, edits: TextEdit[]): void {
+	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
 		this._elements.previewCreateTitle.classList.remove('hidden');
 		this._elements.previewCreate.classList.remove('hidden');
 
-		this._previewCreateTitle.element.setFile(uri, { fileKind: FileKind.FILE });
+		const ref = await this._textModelResolverService.createModelReference(model.resource);
+		this._previewCreateDispoable.value = ref;
+		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
 
-		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
-		const model = this._modelService.createModel('', langSelection, undefined, true);
-		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-		this._previewCreateModel.value = model;
-		this._previewCreateEditor.value.setModel(model);
+		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
 		this._onDidChangeHeight.fire();
 	}
 
 	hideCreatePreview() {
 		this._elements.previewCreateTitle.classList.add('hidden');
 		this._elements.previewCreate.classList.add('hidden');
-		if (this._previewCreateEditor.hasValue) {
-			this._previewCreateEditor.value.setModel(null);
-		}
+		this._previewCreateEditor.rawValue?.setModel(null);
+		this._previewCreateDispoable.clear();
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}

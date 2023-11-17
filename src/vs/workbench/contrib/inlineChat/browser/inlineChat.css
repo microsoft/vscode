@@ -318,7 +318,6 @@
 /* create zone */
 
 .monaco-editor .inline-chat-newfile-widget {
-	padding: 3px 0 6px 0;
 	background-color: var(--vscode-inlineChat-regionHighlight);
 }
 
@@ -326,7 +325,22 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
-	padding: 3px 6px 3px 0;
+}
+
+.monaco-editor .inline-chat-newfile-widget .title .detail {
+	margin-left: 4px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget {
+	display: flex;
+	margin-left: auto;
+	margin-right: 8px;
+}
+
+.monaco-editor .inline-chat-newfile-widget .buttonbar-widget > .monaco-button {
+	display: inline-flex;
+	white-space: nowrap;
+	margin-left: 4px;
 }
 
 /* gutter decoration */
@@ -350,4 +364,3 @@
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
-

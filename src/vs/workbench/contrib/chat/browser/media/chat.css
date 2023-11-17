@@ -48,6 +48,11 @@
 	opacity: 0.7;
 }
 
+.interactive-item-container .chat-animated-ellipsis {
+	display: inline-block;
+	width: 11px;
+}
+
 .interactive-item-container:not(.show-progress) .chat-animated-ellipsis {
 	display: none;
 }
@@ -70,7 +75,7 @@
 	}
 }
 
-.chat-animated-ellipsis::after {
+.interactive-item-container .chat-animated-ellipsis::after {
 	content: '';
 	white-space: nowrap;
 	overflow: hidden;

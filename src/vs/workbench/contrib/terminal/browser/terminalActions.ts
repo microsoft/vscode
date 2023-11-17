@@ -31,10 +31,9 @@ import { ITerminalProfile, TerminalExitReason, TerminalIcon, TerminalLocation, T
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { ResourceContextKey } from 'vs/workbench/common/contextkeys';
-import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
+import { Direction, ICreateTerminalOptions, IDetachedTerminalInstance, ITerminalConfigHelper, ITerminalEditorService, ITerminalGroupService, ITerminalInstance, ITerminalInstanceService, ITerminalService, IXtermTerminal } from 'vs/workbench/contrib/terminal/browser/terminal';
 import { TerminalQuickAccessProvider } from 'vs/workbench/contrib/terminal/browser/terminalQuickAccess';
-import { IRemoteTerminalAttachTarget, ITerminalConfigHelper, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
+import { IRemoteTerminalAttachTarget, ITerminalProfileResolverService, ITerminalProfileService, TerminalCommandId } from 'vs/workbench/contrib/terminal/common/terminal';
 import { TerminalContextKeys } from 'vs/workbench/contrib/terminal/common/terminalContextKey';
 import { createProfileSchemaEnums } from 'vs/platform/terminal/common/terminalProfiles';
 import { terminalStrings } from 'vs/workbench/contrib/terminal/common/terminalStrings';
@@ -1352,7 +1351,7 @@ export function registerTerminalActions() {
 			primary: KeyMod.CtrlCmd | KeyCode.KeyW,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KeyW] },
 			weight: KeybindingWeight.WorkbenchContrib,
-			when: ContextKeyExpr.and(TerminalContextKeys.focus, ResourceContextKey.Scheme.isEqualTo(Schemas.vscodeTerminal), TerminalContextKeys.editorFocus)
+			when: ContextKeyExpr.and(TerminalContextKeys.focus, TerminalContextKeys.editorFocus)
 		},
 		run: (c, accessor) => accessor.get(ICommandService).executeCommand(CLOSE_EDITOR_COMMAND_ID)
 	});

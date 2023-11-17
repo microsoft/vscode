@@ -27,7 +27,7 @@ export class MultiDiffEditor extends EditorPane {
 		@IInstantiationService private readonly instantiationService: InstantiationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
-		@IStorageService storageService: IStorageService
+		@IStorageService storageService: IStorageService,
 	) {
 		super(MultiDiffEditor.ID, telemetryService, themeService, storageService);
 	}
@@ -42,13 +42,16 @@ export class MultiDiffEditor extends EditorPane {
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
 		await super.setInput(input, options, context, token);
-		const vm = await input.getViewModel();
-		this._multiDiffEditorWidget?.setModel(vm);
+		if (!input.viewModel) {
+			const vm = await input.getModel();
+			input.viewModel = this._multiDiffEditorWidget!.createViewModel(vm);
+		}
+		this._multiDiffEditorWidget!.setViewModel(input.viewModel);
 	}
 
 	override async clearInput(): Promise<void> {
 		await super.clearInput();
-		this._multiDiffEditorWidget?.setModel(undefined);
+		this._multiDiffEditorWidget?.setViewModel(undefined);
 	}
 
 	layout(dimension: DOM.Dimension): void {

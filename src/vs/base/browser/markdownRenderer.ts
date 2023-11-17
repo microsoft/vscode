@@ -12,7 +12,7 @@ import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { renderLabelWithIcons } from 'vs/base/browser/ui/iconLabel/iconLabels';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { Event } from 'vs/base/common/event';
-import { IMarkdownString, escapeDoubleQuotes, parseHrefAndDimensions, removeMarkdownEscapes, MarkdownStringTrustedOptions } from 'vs/base/common/htmlContent';
+import { escapeDoubleQuotes, IMarkdownString, MarkdownStringTrustedOptions, parseHrefAndDimensions, removeMarkdownEscapes } from 'vs/base/common/htmlContent';
 import { markdownEscapeEscapedIcons } from 'vs/base/common/iconLabels';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -80,7 +80,8 @@ const defaultMarkedRenderers = Object.freeze({
 			.replace(/>/g, '&gt;')
 			.replace(/"/g, '&quot;')
 			.replace(/'/g, '&#39;');
-		return `<a href="${href}" title="${title || href}">${text}</a>`;
+
+		return `<a href="${href}" title="${title || href}" draggable="false">${text}</a>`;
 	},
 });
 
@@ -408,6 +409,7 @@ export const allowedMarkdownAttr = [
 	'controls',
 	'data-code',
 	'data-href',
+	'draggable',
 	'height',
 	'href',
 	'loop',
