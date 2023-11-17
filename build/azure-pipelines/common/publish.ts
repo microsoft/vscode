@@ -447,7 +447,17 @@ class State {
 	}
 }
 
-const azdoFetchOptions = { headers: { Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}` } };
+const azdoFetchOptions = {
+	headers: {
+		// Pretend we're a web browser to avoid download rate limits
+		'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36 Edg/119.0.0.0',
+		'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+		'Accept-Encoding': 'gzip, deflate, br',
+		'Accept-Language': 'en-US,en;q=0.9',
+		'Referer': 'https://dev.azure.com',
+		Authorization: `Bearer ${e('SYSTEM_ACCESSTOKEN')}`
+	}
+};
 
 async function requestAZDOAPI<T>(path: string): Promise<T> {
 	const abortController = new AbortController();
