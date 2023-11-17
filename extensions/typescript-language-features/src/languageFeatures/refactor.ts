@@ -420,6 +420,7 @@ class InlinedCodeAction extends vscode.CodeAction {
 class MoveToFileCodeAction extends vscode.CodeAction {
 	constructor(
 		document: vscode.TextDocument,
+		documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[],
 		action: Proto.RefactorActionInfo,
 		range: vscode.Range,
 	) {
@@ -429,11 +430,29 @@ class MoveToFileCodeAction extends vscode.CodeAction {
 			this.disabled = { reason: action.notApplicableReason };
 		}
 
+		console.log('MoveToFileCodeAction');
+		console.log('range : ', range);
+		console.log('documentSymbols : : ', documentSymbols);
+
+		const smallestNodeContaining = this._findSmallestNodeContaining(documentSymbols, range);
+		console.log('smallestNodeContaining : ', smallestNodeContaining);
+
+		// check if the node is a scope in which case we move it
+
 		this.command = {
 			title: action.description,
 			command: MoveToFileRefactorCommand.ID,
 			arguments: [<MoveToFileRefactorCommand.Args>{ action, document, range }]
 		};
+	}
+
+	private _findSmallestNodeContaining(documentSymbols: (vscode.SymbolInformation & vscode.DocumentSymbol)[] | (vscode.DocumentSymbol[]), range: vscode.Range, smallestNodeSoFar?: vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined): vscode.SymbolInformation & vscode.DocumentSymbol | vscode.DocumentSymbol | undefined {
+		for (const symbol of documentSymbols) {
+			if (symbol.range.contains(range)) {
+				return this._findSmallestNodeContaining(symbol.children, range, symbol);
+			}
+		}
+		return smallestNodeSoFar;
 	}
 }
 
@@ -516,7 +535,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 			return undefined;
 		}
 
-		const actions = Array.from(this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
+		const actions = (await this.convertApplicableRefactors(document, response.body, rangeOrSelection)).filter(action => {
 			if (this.client.apiVersion.lt(API.v430)) {
 				// Don't show 'infer return type' refactoring unless it has been explicitly requested
 				// https://github.com/microsoft/TypeScript/issues/42993
@@ -547,32 +566,35 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider<TsCodeActi
 		return context.triggerKind === vscode.CodeActionTriggerKind.Invoke ? 'invoked' : 'implicit';
 	}
 
-	private *convertApplicableRefactors(
+	private async convertApplicableRefactors(
 		document: vscode.TextDocument,
 		refactors: readonly Proto.ApplicableRefactorInfo[],
 		rangeOrSelection: vscode.Range | vscode.Selection
-	): Iterable<TsCodeAction> {
+	): Promise<Array<TsCodeAction>> {
+		const actions: Array<TsCodeAction> = [];
 		for (const refactor of refactors) {
 			if (refactor.inlineable === false) {
-				yield new SelectCodeAction(refactor, document, rangeOrSelection);
+				actions.push(new SelectCodeAction(refactor, document, rangeOrSelection));
 			} else {
 				for (const action of refactor.actions) {
-					yield this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions);
+					actions.push(await this.refactorActionToCodeAction(document, refactor, action, rangeOrSelection, refactor.actions));
 				}
 			}
 		}
+		return actions;
 	}
 
-	private refactorActionToCodeAction(
+	private async refactorActionToCodeAction(
 		document: vscode.TextDocument,
 		refactor: Proto.ApplicableRefactorInfo,
 		action: Proto.RefactorActionInfo,
 		rangeOrSelection: vscode.Range | vscode.Selection,
 		allActions: readonly Proto.RefactorActionInfo[],
-	): TsCodeAction {
+	): Promise<TsCodeAction> {
 		let codeAction: TsCodeAction;
 		if (action.name === 'Move to file') {
-			codeAction = new MoveToFileCodeAction(document, action, rangeOrSelection);
+			const documentSymbols = await vscode.commands.executeCommand<(vscode.SymbolInformation & vscode.DocumentSymbol)[]>('vscode.executeDocumentSymbolProvider', document.uri);
+			codeAction = new MoveToFileCodeAction(document, documentSymbols, action, rangeOrSelection);
 		} else {
 			let copilotRename: ((info: Proto.RefactorEditInfo) => vscode.Command) | undefined;
 			if (vscode.workspace.getConfiguration('typescript', null).get('experimental.aiCodeActions')) {
