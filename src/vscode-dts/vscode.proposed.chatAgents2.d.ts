@@ -249,14 +249,21 @@ declare module 'vscode' {
 		variables: Record<string, ChatVariableValue[]>;
 	}
 
-	// TODO@API should these each be prefixed ChatAgentProgress*?
 	export type ChatAgentProgress =
 		| ChatAgentContent
 		| ChatAgentTask
 		| ChatAgentFileTree
 		| ChatAgentUsedContext
 		| ChatAgentContentReference
-		| ChatAgentInlineContentReference;
+		| ChatAgentInlineContentReference
+		| ChatAgentProgressMessage;
+
+	/**
+	 * Is displayed in the UI to communicate steps of progress to the user. Should be used when the agent may be slow to respond, e.g. due to doing extra work before sending the actual request to the LLM.
+	 */
+	export interface ChatAgentProgressMessage {
+		message: string;
+	}
 
 	/**
 	 * Indicates a piece of content that was used by the chat agent while processing the request. Will be displayed to the user.

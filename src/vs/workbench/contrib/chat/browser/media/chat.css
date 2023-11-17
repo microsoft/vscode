@@ -586,3 +586,21 @@
 .interactive-session .chat-used-context .chat-used-context-label .monaco-button .codicon {
 	margin: 0 0 0 4px;
 }
+
+.interactive-item-container .progress-steps {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	margin-left: 4px;
+}
+
+.interactive-item-container .progress-steps .progress-step {
+	display: flex;
+	gap: 5px;
+	align-items: center;
+	opacity: 0.7;
+}
+
+.interactive-item-container .progress-steps .progress-step .codicon-check {
+	color: var(--vscode-debugIcon-startForeground);
+}
