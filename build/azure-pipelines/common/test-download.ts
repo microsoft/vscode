@@ -8,6 +8,7 @@ import * as path from 'path';
 import { Readable } from 'stream';
 import type { ReadableStream } from 'stream/web';
 import { pipeline } from 'node:stream/promises';
+import { Worker, isMainThread, parentPort, workerData } from 'worker_threads';
 import { retry } from './retry';
 
 function e(name: string): string {
@@ -73,11 +74,9 @@ async function downloadArtifact(artifact: Artifact, downloadPath: string): Promi
 
 
 async function main() {
-	const artifacts = await retry(() => getPipelineArtifacts());
-
-	for (const artifact of artifacts) {
+	if (!isMainThread) {
+		const artifact = workerData as Artifact;
 		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-
 		console.log(`Downloading ${artifact.name}...`);
 		const start = Date.now();
 		await downloadArtifact(artifact, artifactZipPath);
@@ -85,7 +84,22 @@ async function main() {
 		const downloadDurationS = (Date.now() - start) / 1000;
 		const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
 		console.log(`Successfully downloaded ${artifact.name} in ${Math.floor(downloadDurationS)} seconds (${downloadSpeedKBS} KB/s).`);
+		parentPort!.postMessage(true);
+		return;
 	}
+
+	const artifacts = await retry(() => getPipelineArtifacts());
+
+	await Promise.all(artifacts.map(async artifact => new Promise((resolve, reject) => {
+		const worker = new Worker(__filename, { workerData: artifact });
+		worker.on('message', resolve);
+		worker.on('error', reject);
+		worker.on('exit', code => {
+			if (code !== 0) {
+				reject(new Error(`Worker stopped with exit code ${code}`));
+			}
+		});
+	})));
 }
 
 if (require.main === module) {
