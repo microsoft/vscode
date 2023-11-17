@@ -24,7 +24,7 @@ import { IInlineChatSessionService } from 'vs/workbench/contrib/inlineChat/brows
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineChat/browser/inlineChatActions';
-import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
+import { IBreakpoint, IDebugService, IDebugSession } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
 
@@ -37,6 +37,8 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private _hasInlineChatSession: boolean = false;
+	private _hasActiveDebugSession: boolean = false;
+	private _debugSessions: Set<IDebugSession> = new Set();
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
@@ -71,6 +73,20 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._register(this._inlineChatSessionService.onDidEndSession((e) => {
 			if (e === this._editor) {
 				this._hasInlineChatSession = false;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._debugService.onWillNewSession((session) => {
+			this._debugSessions.add(session);
+			if (!this._hasActiveDebugSession) {
+				this._hasActiveDebugSession = true;
+				this._onEnablementOrModelChanged();
+			}
+		}));
+		this._register(this._debugService.onDidEndSession((session) => {
+			this._debugSessions.delete(session);
+			if (this._debugSessions.size === 0) {
+				this._hasActiveDebugSession = false;
 				this._onEnablementOrModelChanged();
 			}
 		}));
@@ -111,7 +127,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _onEnablementOrModelChanged(): void {
 		// cancels the scheduler, removes editor listeners / removes decoration
 		this._localToDispose.clear();
-		if (!this._editor.hasModel() || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
+		if (!this._editor.hasModel() || this._hasActiveDebugSession || this._hasInlineChatSession || this._showGutterIconMode() === ShowGutterIcon.Never || !this._hasProvider()) {
 			return;
 		}
 		const editor = this._editor;
