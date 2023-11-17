@@ -265,7 +265,8 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			return;
 		}
 		if (!command) {
-			this._resetNavigationDecorations();
+			this._outputHighlights.clear();
+			this._highlightedCommand = undefined;
 			return;
 		}
 		if (this._highlightedCommand === command) {
@@ -316,7 +317,6 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		const color = this._themeService.getColorTheme().getColor(TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR);
 		const startLine = toLineIndex(marker);
 		const decorationCount = endMarker ? toLineIndex(endMarker) - startLine + 1 : 1;
-
 		for (let i = 0; i < decorationCount; i++) {
 			const decoration = this._terminal.registerDecoration({
 				marker: this._createMarkerForOffset(marker, i),

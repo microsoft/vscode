@@ -31,7 +31,6 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 	xtermOpen(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		const screenElement = xterm.raw.element!.querySelector('.xterm-screen')!;
 		this._register(addDisposableListener(screenElement, 'mousemove', (e: MouseEvent) => {
-			console.log(e.target);
 			if ((e.target as any).tagName !== 'CANVAS') {
 				return;
 			}
@@ -40,7 +39,6 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 				return;
 			}
 			const mouseCursorY = Math.floor(e.offsetY / (rect.height / xterm.raw.rows));
-			console.log(`@${mouseCursorY}`, e.offsetY);
 			const command = this._instance.capabilities.get(TerminalCapability.CommandDetection)?.getCommandForLine(xterm.raw.buffer.active.viewportY + mouseCursorY);
 			if (command && 'getOutput' in command) {
 				xterm.markTracker.showCommandGuide(command);
@@ -48,6 +46,8 @@ class TerminalHighlightContribution extends Disposable implements ITerminalContr
 				xterm.markTracker.showCommandGuide(undefined);
 			}
 		}));
+		this._register(addDisposableListener(screenElement, 'mouseout', () => xterm.markTracker.showCommandGuide(undefined)));
+		this._register(xterm.raw.onData(() => xterm.markTracker.showCommandGuide(undefined)));
 	}
 }
 
