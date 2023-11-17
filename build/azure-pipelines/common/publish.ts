@@ -817,21 +817,17 @@ async function main() {
 	while (true) {
 		const [timeline, artifacts] = await Promise.all([retry(() => getPipelineTimeline()), retry(() => getPipelineArtifacts())]);
 		const stagesCompleted = new Set<string>(timeline.records.filter(r => r.type === 'Stage' && r.state === 'completed' && stages.has(r.name)).map(r => r.name));
-
 		const stagesInProgress = [...stages].filter(s => !stagesCompleted.has(s));
-
-		if (stagesInProgress.length > 0) {
-			console.log('Stages in progress:', stagesInProgress.join(', '));
-		}
-
 		const artifactsInProgress = artifacts.filter(a => processing.has(a.name));
 
-		if (artifactsInProgress.length > 0) {
-			console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
-		}
-
-		if (stagesCompleted.size === stages.size && artifacts.length === done.size + processing.size) {
+		if (stagesInProgress.length === 0 && artifacts.length === done.size + processing.size) {
 			break;
+		} else if (stagesInProgress.length > 0) {
+			console.log('Stages in progress:', stagesInProgress.join(', '));
+		} else if (artifactsInProgress.length > 0) {
+			console.log('Artifacts in progress:', artifactsInProgress.map(a => a.name).join(', '));
+		} else {
+			console.log(`Waiting for a total of ${artifacts.length}, ${done.size} done, ${processing.size} in progress...`);
 		}
 
 		for (const artifact of artifacts) {
