@@ -2302,6 +2302,11 @@ export namespace ChatResponseProgress {
 			checkProposedApiEnabled(extension, 'chatAgents2Additions');
 			return { content: MarkdownString.from(progress.markdownContent), kind: 'markdownContent' };
 		} else if ('content' in progress) {
+			if ('vulnerability' in progress && progress.vulnerability) {
+				checkProposedApiEnabled(extension, 'chatAgents2Additions');
+				return { content: progress.content, title: progress.vulnerability.title, description: progress.vulnerability!.description, kind: 'vulnerability' };
+			}
+
 			if (typeof progress.content === 'string') {
 				return { content: progress.content, kind: 'content' };
 			}

@@ -44,11 +44,12 @@
 	margin: 16px 0;
 }
 
-.interactive-result-code-block .interactive-result-editor .monaco-editor {
+.interactive-result-code-block {
 	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-interactive-result-editor-background-color);
 }
 
-.interactive-result-code-block .interactive-result-editor .monaco-editor.focused {
+.interactive-result-code-block:has(.monaco-editor.focused) {
 	border-color: var(--vscode-focusBorder, transparent);
 }
 
@@ -56,4 +57,23 @@
 .interactive-result-code-block .monaco-editor,
 .interactive-result-code-block .monaco-editor .overflow-guard {
 	border-radius: 4px;
+}
+
+.interactive-result-code-block .interactive-result-vulns {
+	font-size: 0.9em;
+	padding-left: 8px;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header {
+	display: flex;
+}
+
+.interactive-result-code-block .interactive-result-vulns-header,
+.interactive-result-code-block .interactive-result-vulns-list {
+	opacity: 0.7;
+}
+
+.interactive-result-code-block .interactive-result-vulns-list {
+	margin: 0px;
+	padding-bottom: 3px;
 }

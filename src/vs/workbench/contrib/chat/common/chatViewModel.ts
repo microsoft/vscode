@@ -109,6 +109,7 @@ export interface IChatResponseViewModel {
 	currentRenderedHeight: number | undefined;
 	setVote(vote: InteractiveSessionVoteDirection): void;
 	usedReferencesExpanded?: boolean;
+	vulnerabilitiesListExpanded?: boolean;
 }
 
 export class ChatViewModel extends Disposable implements IChatViewModel {
@@ -335,7 +336,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	currentRenderedHeight: number | undefined;
 
 	private _usedReferencesExpanded: boolean | undefined;
-
 	get usedReferencesExpanded(): boolean | undefined {
 		if (typeof this._usedReferencesExpanded === 'boolean') {
 			return this._usedReferencesExpanded;
@@ -346,6 +346,19 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	set usedReferencesExpanded(v: boolean) {
 		this._usedReferencesExpanded = v;
+	}
+
+	private _vulnerabilitiesListExpanded: boolean | undefined;
+	get vulnerabilitiesListExpanded(): boolean | undefined {
+		if (typeof this._vulnerabilitiesListExpanded === 'boolean') {
+			return this._vulnerabilitiesListExpanded;
+		}
+
+		return this.response.value.length === 0;
+	}
+
+	set vulnerabilitiesListExpanded(v: boolean) {
+		this._vulnerabilitiesListExpanded = v;
 	}
 
 	private _contentUpdateTimings: IChatLiveUpdateData | undefined = undefined;

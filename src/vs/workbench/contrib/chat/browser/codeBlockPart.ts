@@ -31,13 +31,15 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { AccessibilityVerbositySettingId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
+import { IMarkdownVulnerability } from 'vs/workbench/contrib/chat/browser/chatMarkdownDecorationsRenderer';
 import { ChatEditorOptions } from 'vs/workbench/contrib/chat/browser/chatOptions';
 import { MenuPreventer } from 'vs/workbench/contrib/codeEditor/browser/menuPreventer';
 import { SelectionClipboardContributionID } from 'vs/workbench/contrib/codeEditor/browser/selectionClipboard';
 import { getSimpleEditorOptions } from 'vs/workbench/contrib/codeEditor/browser/simpleEditorOptions';
+import { ThemeIcon } from 'vs/base/common/themables';
+import { Codicon } from 'vs/base/common/codicons';
 
 const $ = dom.$;
-
 
 export interface ICodeBlockData {
 	text: string;
@@ -46,6 +48,7 @@ export interface ICodeBlockData {
 	element: unknown;
 	parentContextKeyService?: IContextKeyService;
 	hideToolbar?: boolean;
+	vulns?: IMarkdownVulnerability[];
 }
 
 export interface ICodeBlockActionContext {
@@ -75,6 +78,10 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 	private readonly editor: CodeEditorWidget;
 	private readonly toolbar: MenuWorkbenchToolBar;
 	private readonly contextKeyService: IContextKeyService;
+
+	private readonly vulnsContainer: HTMLElement;
+	private readonly vulnsTitleElement: HTMLElement;
+	private readonly vulnsListElement: HTMLElement;
 
 	public readonly textModel: ITextModel;
 	public readonly element: HTMLElement;
@@ -134,6 +141,13 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 				shouldForwardArgs: true
 			}
 		}));
+
+		this.vulnsContainer = dom.append(this.element, $('.interactive-result-vulns'));
+		const vulnsHeaderElement = dom.append(this.vulnsContainer, $('.interactive-result-vulns-header', undefined));
+		this.vulnsTitleElement = dom.append(vulnsHeaderElement, $('.interactive-result-vulns-title'));
+		dom.append(vulnsHeaderElement, $('.interactive-result-vulns-arrow', undefined, $(ThemeIcon.asCSSSelector(Codicon.chevronDown))));
+		this.vulnsListElement = dom.append(this.vulnsContainer, $('ul.interactive-result-vulns-list'));
+
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
 			toolbarElement.classList.toggle('force-visibility', e);
 		}));
@@ -249,6 +263,16 @@ export class CodeBlockPart extends Disposable implements ICodeBlockPart {
 			dom.hide(this.toolbar.getElement());
 		} else {
 			dom.show(this.toolbar.getElement());
+		}
+
+		if (data.vulns?.length) {
+			dom.clearNode(this.vulnsListElement);
+			dom.show(this.vulnsContainer);
+
+			dom.append(this.vulnsListElement, ...data.vulns.map(v => $('li', undefined, $('.chat-vuln-title', undefined, v.title), v.description)));
+			this.vulnsTitleElement.innerText = localize('chat.codeBlock.vulnsTitle', "{0} vulnerabilities", data.vulns.length);
+		} else {
+			dom.hide(this.vulnsContainer);
 		}
 	}
 
