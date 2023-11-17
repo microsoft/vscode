@@ -39,7 +39,7 @@ export function registerChatCopyActions() {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
 					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered))
-					.map(stringifyItem)
+					.map(item => stringifyItem(item))
 					.join('\n\n');
 				if (sessionAsText) {
 					clipboardService.writeText(sessionAsText);
@@ -73,13 +73,16 @@ export function registerChatCopyActions() {
 			}
 
 			const clipboardService = accessor.get(IClipboardService);
-			const text = stringifyItem(item);
+			const text = stringifyItem(item, false);
 			clipboardService.writeText(text);
 		}
 	});
 }
 
-function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel): string {
-	return isRequestVM(item) ?
-		`${item.username}: ${item.messageText}` : `${item.username}: ${item.response.asString()}`;
+function stringifyItem(item: IChatRequestViewModel | IChatResponseViewModel, includeName = true): string {
+	if (isRequestVM(item)) {
+		return (includeName ? `${item.username}: ` : '') + item.messageText;
+	} else {
+		return (includeName ? `${item.username}: ` : '') + item.response.asString();
+	}
 }
