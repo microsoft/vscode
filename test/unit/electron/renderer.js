@@ -67,6 +67,7 @@ const glob = require('glob');
 const util = require('util');
 const bootstrap = require('../../../src/bootstrap');
 const coverage = require('../coverage');
+const { takeSnapshotAndCountClasses } = require('../analyzeSnapshot');
 
 // Disabled custom inspect. See #38847
 if (util.inspect && util.inspect['defaultOptions']) {
@@ -82,6 +83,7 @@ globalThis._VSCODE_PACKAGE_JSON = (require.__$__nodeRequire ?? require)('../../.
 
 // Test file operations that are common across platforms. Used for test infra, namely snapshot tests
 Object.assign(globalThis, {
+	__analyzeSnapshotInTests: takeSnapshotAndCountClasses,
 	__readFileInTests: path => fs.promises.readFile(path, 'utf-8'),
 	__writeFileInTests: (path, contents) => fs.promises.writeFile(path, contents),
 	__readDirInTests: path => fs.promises.readdir(path),
