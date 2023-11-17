@@ -256,14 +256,14 @@ export interface IWorkbenchLayoutService extends ILayoutService {
 	toggleZenMode(): void;
 
 	/**
-	 * Returns whether the centered editor layout is active.
+	 * Returns whether the centered editor layout is active on the main editor part.
 	 */
-	isEditorLayoutCentered(): boolean;
+	isMainEditorLayoutCentered(): boolean;
 
 	/**
-	 * Sets the workbench in and out of centered editor layout.
+	 * Sets the main editor part in and out of centered layout.
 	 */
-	centerEditorLayout(active: boolean): void;
+	centerMainEditorLayout(active: boolean): void;
 
 	/**
 	 * Resizes currently focused part on main access

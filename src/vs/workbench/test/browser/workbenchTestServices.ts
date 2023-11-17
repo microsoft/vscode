@@ -649,8 +649,8 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	removeClass(_clazz: string): void { }
 	getMaximumEditorDimensions(): IDimension { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
-	isEditorLayoutCentered(): boolean { return false; }
-	centerEditorLayout(_active: boolean): void { }
+	isMainEditorLayoutCentered(): boolean { return false; }
+	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
 	registerPart(part: Part): void { }
 	isWindowMaximized() { return false; }
