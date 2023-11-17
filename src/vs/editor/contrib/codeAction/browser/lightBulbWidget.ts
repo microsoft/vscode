@@ -42,6 +42,12 @@ namespace LightBulbState {
 	export type State = typeof Hidden | Showing;
 }
 
+export enum LightBulbMenuIconMode {
+	Standard,
+	StandardAI,
+	AI
+}
+
 export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	public static readonly ID = 'editor.contrib.lightbulbWidget';
@@ -124,7 +130,7 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 			this._preferredKbLabel = keybindingService.lookupKeybinding(autoFixCommandId)?.getLabel() ?? undefined;
 			this._quickFixKbLabel = keybindingService.lookupKeybinding(quickFixCommandId)?.getLabel() ?? undefined;
 
-			this._updateLightBulbTitleAndIcon();
+			this.updateLightBulbTitleAndIcon();
 		}));
 	}
 
@@ -204,10 +210,24 @@ export class LightBulbWidget extends Disposable implements IContentWidget {
 
 	private set state(value) {
 		this._state = value;
-		this._updateLightBulbTitleAndIcon();
+		this.updateLightBulbTitleAndIcon();
 	}
 
-	private _updateLightBulbTitleAndIcon(): void {
+	public updateLightBulbTitleAndIcon(iconMode: LightBulbMenuIconMode = LightBulbMenuIconMode.Standard): void {
+
+		if (iconMode !== LightBulbMenuIconMode.Standard) {
+			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightbulbAutofix));
+			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));
+
+			if (iconMode === LightBulbMenuIconMode.StandardAI) {
+				this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.alert));
+			}
+			if (iconMode === LightBulbMenuIconMode.AI) {
+				this._domNode.classList.add(...ThemeIcon.asClassNameArray(Codicon.sparkle));
+			}
+			return;
+		}
+
 		if (this.state.type === LightBulbState.Type.Showing && this.state.actions.hasAutoFix) {
 			// update icon
 			this._domNode.classList.remove(...ThemeIcon.asClassNameArray(Codicon.lightBulb));

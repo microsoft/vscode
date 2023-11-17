@@ -22,7 +22,7 @@ import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeat
 import { ApplyCodeActionReason, applyCodeAction } from 'vs/editor/contrib/codeAction/browser/codeAction';
 import { CodeActionKeybindingResolver } from 'vs/editor/contrib/codeAction/browser/codeActionKeybindingResolver';
 import { toMenuItems } from 'vs/editor/contrib/codeAction/browser/codeActionMenu';
-import { LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
+import { LightBulbMenuIconMode, LightBulbWidget } from 'vs/editor/contrib/codeAction/browser/lightBulbWidget';
 import { MessageController } from 'vs/editor/contrib/message/browser/messageController';
 import { localize } from 'vs/nls';
 import { IActionListDelegate } from 'vs/platform/actionWidget/browser/actionList';
@@ -259,6 +259,19 @@ export class CodeActionController extends Disposable implements IEditorContribut
 		if (!actionsToShow.length) {
 			return;
 		}
+
+		console.log('actionsToShow : ', actionsToShow);
+		let lightbulbMode = LightBulbMenuIconMode.Standard;
+		actionsToShow.forEach(action => {
+			if (action.action.isAI && lightbulbMode === LightBulbMenuIconMode.Standard) {
+				lightbulbMode = LightBulbMenuIconMode.AI;
+			}
+			if (action.action.isAI && lightbulbMode === LightBulbMenuIconMode.AI) {
+				lightbulbMode = LightBulbMenuIconMode.StandardAI;
+			}
+		});
+		console.log('lightbulbMode : ', lightbulbMode);
+		this._lightBulbWidget.rawValue?.updateLightBulbTitleAndIcon(lightbulbMode);
 
 		const anchor = Position.isIPosition(at) ? this.toCoords(at) : at;
 
