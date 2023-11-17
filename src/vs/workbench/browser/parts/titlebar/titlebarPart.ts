@@ -23,7 +23,7 @@ import { EventType, EventHelper, Dimension, append, $, addDisposableListener, pr
 import { CustomMenubarControl } from 'vs/workbench/browser/parts/titlebar/menubarControl';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, StorageTarget } from 'vs/platform/storage/common/storage';
 import { Parts, IWorkbenchLayoutService, ActivityBarPosition, LayoutSettings } from 'vs/workbench/services/layout/browser/layoutService';
 import { createActionViewItem, createAndFillInActionBarActions } from 'vs/platform/actions/browser/menuEntryActionViewItem';
 import { Action2, IMenu, IMenuService, MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
@@ -609,7 +609,7 @@ export class TitlebarPart extends Part implements ITitleService {
 }
 
 
-class ToogleConfigAction extends Action2 {
+class ToggleConfigAction extends Action2 {
 
 	constructor(private readonly section: string, title: string, order: number) {
 		super({
@@ -627,15 +627,40 @@ class ToogleConfigAction extends Action2 {
 	}
 }
 
-registerAction2(class ToogleCommandCenter extends ToogleConfigAction {
+registerAction2(class ToggleCommandCenter extends ToggleConfigAction {
 	constructor() {
 		super(LayoutSettings.COMMAND_CENTER, localize('toggle.commandCenter', 'Command Center'), 1);
 	}
 });
 
-registerAction2(class ToogleLayoutControl extends ToogleConfigAction {
+registerAction2(class ToggleLayoutControl extends ToggleConfigAction {
 	constructor() {
 		super('workbench.layoutControl.enabled', localize('toggle.layout', 'Layout Controls'), 2);
+	}
+});
+
+registerAction2(class ToggleEditorActions extends Action2 {
+	static readonly settingsID = `workbench.editor.editorActionsLocation`;
+	constructor() {
+		super({
+			id: `toggle.${ToggleEditorActions.settingsID}`,
+			title: localize('toggle.editorActions', 'Editor Actions'),
+			toggled: ContextKeyExpr.equals(`config.${ToggleEditorActions.settingsID}`, 'hidden').negate(),
+			menu: { id: MenuId.TitleBarContext, order: 3, when: ContextKeyExpr.equals(`config.workbench.editor.showTabs`, 'none') }
+		});
+	}
+
+	run(accessor: ServicesAccessor, ...args: any[]): void {
+		const configService = accessor.get(IConfigurationService);
+		const storageService = accessor.get(IStorageService);
+		const value = configService.getValue<string>(ToggleEditorActions.settingsID);
+		if (value === 'hidden') {
+			const storedValue = storageService.get(ToggleEditorActions.settingsID, StorageScope.PROFILE);
+			configService.updateValue(ToggleEditorActions.settingsID, storedValue ?? 'default');
+		} else {
+			configService.updateValue(ToggleEditorActions.settingsID, 'hidden');
+			storageService.store(ToggleEditorActions.settingsID, value, StorageScope.PROFILE, StorageTarget.USER);
+		}
 	}
 });
 

@@ -633,8 +633,7 @@ stages:
 
   - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
     - stage: Publish
-      dependsOn:
-        - Compile
+      dependsOn: []
       pool: 1es-windows-2019-x64
       variables:
         - name: BUILDS_API_URL

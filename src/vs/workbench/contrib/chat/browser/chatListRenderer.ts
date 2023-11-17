@@ -73,6 +73,7 @@ interface IChatListItemTemplate {
 	readonly agentAvatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
+	readonly progressSteps: HTMLElement;
 	readonly value: HTMLElement;
 	readonly referencesListContainer: HTMLElement;
 	readonly contextKeyService: IContextKeyService;
@@ -235,6 +236,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const detailContainer = dom.append(user, $('span.detail-container'));
 		const detail = dom.append(detailContainer, $('span.detail'));
 		dom.append(detailContainer, $('span.chat-animated-ellipsis'));
+		const progressSteps = dom.append(rowContainer, $('.progress-steps'));
 		const referencesListContainer = dom.append(rowContainer, $('.referencesListContainer'));
 		const value = dom.append(rowContainer, $('.value'));
 		const elementDisposables = new DisposableStore();
@@ -258,7 +260,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 			}));
 		}
-		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
+		const template: IChatListItemTemplate = { avatarContainer, agentAvatarContainer, username, detail, progressSteps, referencesListContainer, value, rowContainer, elementDisposables, titleToolbar, templateDisposables, contextKeyService };
 		return template;
 	}
 
@@ -300,7 +302,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		dom.clearNode(templateData.detail);
 		if (isResponseVM(element)) {
-			this.renderProgressMessage(element, templateData);
+			this.renderDetail(element, templateData);
+			this.renderProgressSteps(element, templateData);
 		}
 
 		// Do a progressive render if
@@ -340,7 +343,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 	}
 
-	private renderProgressMessage(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+	private renderDetail(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
 		let progressMsg: string = '';
 		if (element.agent && !element.agent.metadata.isDefault) {
 			let usingMsg = chatAgentLeader + element.agent.id;
@@ -363,6 +366,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		} else {
 			templateData.detail.title = '';
 		}
+	}
+
+	private renderProgressSteps(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		dom.clearNode(templateData.progressSteps);
+		if (element.response.value.length) {
+			return;
+		}
+
+		element.progressMessages.forEach((msg, index) => {
+			const last = index === element.progressMessages.length - 1;
+			const icon = last ? ThemeIcon.modify(Codicon.sync, 'spin') : Codicon.check;
+			const step = dom.$('.progress-step', undefined, renderIcon(icon), dom.$('span.progress-step-message', undefined, msg.content));
+			templateData.progressSteps.appendChild(step);
+		});
 	}
 
 	private renderAvatar(element: ChatTreeItem, templateData: IChatListItemTemplate): void {
@@ -422,7 +439,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		dom.clearNode(templateData.referencesListContainer);
 
 		if (isResponseVM(element)) {
-			this.renderProgressMessage(element, templateData);
+			this.renderDetail(element, templateData);
 		}
 
 		this.renderContentReferencesIfNeeded(element, templateData, templateData.elementDisposables);

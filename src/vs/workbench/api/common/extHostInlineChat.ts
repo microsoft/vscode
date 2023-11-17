@@ -19,6 +19,7 @@ import { ApiCommand, ApiCommandArgument, ApiCommandResult, ExtHostCommands } fro
 import { IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { raceCancellation } from 'vs/base/common/async';
+import { IChatReplyFollowup } from 'vs/workbench/contrib/chat/common/chatService';
 
 class ProviderWrapper {
 
@@ -96,7 +97,7 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 	registerProvider(extension: Readonly<IRelaxedExtensionDescription>, provider: vscode.InteractiveEditorSessionProvider, metadata?: vscode.InteractiveEditorSessionProviderMetadata): vscode.Disposable {
 		const wrapper = new ProviderWrapper(extension, provider);
 		this._inputProvider.set(wrapper.handle, wrapper);
-		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata?.label ?? extension.displayName ?? extension.name, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', metadata?.supportReportIssue ?? false);
+		this._proxy.$registerInteractiveEditorProvider(wrapper.handle, metadata?.label ?? extension.displayName ?? extension.name, extension.identifier.value, typeof provider.handleInteractiveEditorResponseFeedback === 'function', typeof provider.provideFollowups === 'function', metadata?.supportReportIssue ?? false);
 		return toDisposable(() => {
 			this._proxy.$unregisterInteractiveEditorProvider(wrapper.handle);
 			this._inputProvider.delete(wrapper.handle);
@@ -222,6 +223,19 @@ export class ExtHostInteractiveEditor implements ExtHostInlineChatShape {
 			message: typeConvert.MarkdownString.from(res.contents),
 		};
 	}
+
+	async $provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined> {
+		const entry = this._inputProvider.get(handle);
+		const sessionData = this._inputSessions.get(sessionId);
+		const response = sessionData?.responses[responseId];
+		if (entry && response && entry.provider.provideFollowups) {
+			const task = Promise.resolve(entry.provider.provideFollowups(sessionData.session, response, token));
+			const followups = await raceCancellation(task, token);
+			return followups?.map(typeConvert.ChatReplyFollowup.from);
+		}
+		return undefined;
+	}
+
 
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void {
 		const entry = this._inputProvider.get(handle);

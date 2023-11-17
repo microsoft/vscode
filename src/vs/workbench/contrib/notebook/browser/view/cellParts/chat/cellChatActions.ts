@@ -148,7 +148,7 @@ registerAction2(class extends NotebookCellAction {
 	constructor() {
 		super(
 			{
-				id: 'OFF.inlineChat.discard',
+				id: 'notebook.cell.chat.discard',
 				title: localize('discard', 'Discard'),
 				icon: Codicon.discard,
 				menu: {

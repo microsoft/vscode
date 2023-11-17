@@ -8,7 +8,7 @@ import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement,
 import { Event, Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -40,6 +40,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	//#region Auxiliary Editor Parts
 
+	private readonly _onDidCreateAuxiliaryEditorPart = this._register(new Emitter<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }>());
+	readonly onDidCreateAuxiliaryEditorPart = this._onDidCreateAuxiliaryEditorPart.event;
+
 	async createAuxiliaryEditorPart(options?: IAuxiliaryWindowOpenOptions): Promise<IAuxiliaryEditorPart> {
 		const disposables = new DisposableStore();
 
@@ -50,7 +53,7 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		partContainer.setAttribute('role', 'main');
 		auxiliaryWindow.container.appendChild(partContainer);
 
-		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, this, this.getGroupsLabel(this._parts.size)));
+		const editorPart = disposables.add(this.instantiationService.createInstance(AuxiliaryEditorPart, auxiliaryWindow.window.vscodeWindowId, this, this.getGroupsLabel(this._parts.size)));
 		disposables.add(this.registerEditorPart(editorPart));
 		editorPart.create(partContainer, { restorePreviousState: false });
 		disposables.add(this.instantiationService.createInstance(WindowTitle, auxiliaryWindow.window, editorPart));
@@ -71,6 +74,9 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		auxiliaryWindow.layout();
 
 		this._onDidAddGroup.fire(editorPart.activeGroup);
+
+		const eventDisposables = disposables.add(new DisposableStore());
+		this._onDidCreateAuxiliaryEditorPart.fire({ part: editorPart, disposables: eventDisposables });
 
 		return editorPart;
 	}
@@ -291,14 +297,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 		return this.activePart.getLayout();
 	}
 
-	centerLayout(active: boolean): void {
-		this.activePart.centerLayout(active);
-	}
-
-	isLayoutCentered(): boolean {
-		return this.activePart.isLayoutCentered();
-	}
-
 	get orientation() {
 		return this.activePart.orientation;
 	}
@@ -349,10 +347,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
-
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		return this.mainPart.enforcePartOptions(options);
-	}
 
 	//#endregion
 }
