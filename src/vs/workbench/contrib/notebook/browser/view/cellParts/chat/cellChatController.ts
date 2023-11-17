@@ -6,10 +6,8 @@
 import { Dimension, h } from 'vs/base/browser/dom';
 import { CancelablePromise, Queue, createCancelablePromise, raceCancellationError } from 'vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
-import { Codicon } from 'vs/base/common/codicons';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
@@ -24,10 +22,9 @@ import { ICursorStateComputer } from 'vs/editor/common/model';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { localize } from 'vs/nls';
 import { MenuWorkbenchToolBar } from 'vs/platform/actions/browser/toolbar';
-import { MenuId, registerAction2 } from 'vs/platform/actions/common/actions';
-import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { KeybindingWeight } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { MenuId } from 'vs/platform/actions/common/actions';
+import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AsyncProgress } from 'vs/platform/progress/common/progress';
 import { SaveReason } from 'vs/workbench/common/editor';
 import { countWords } from 'vs/workbench/contrib/chat/common/chatWordCounter';
@@ -35,15 +32,11 @@ import { InlineChatController } from 'vs/workbench/contrib/inlineChat/browser/in
 import { IInlineChatSessionService, ReplyResponse, Session, SessionPrompt } from 'vs/workbench/contrib/inlineChat/browser/inlineChatSession';
 import { ProgressingEditsOptions, asProgressiveEdit, performAsyncTextEdit } from 'vs/workbench/contrib/inlineChat/browser/inlineChatStrategies';
 import { InlineChatWidget } from 'vs/workbench/contrib/inlineChat/browser/inlineChatWidget';
-import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_HAS_PROVIDER, CTX_INLINE_CHAT_RESPONSE_TYPES, CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest, InlineChateResponseTypes } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
-import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from 'vs/workbench/contrib/notebook/browser/controller/coreActions';
-import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
+import { CTX_INLINE_CHAT_VISIBLE, EditMode, IInlineChatProgressItem, IInlineChatRequest } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
-import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 export const CTX_NOTEBOOK_CELL_CHAT_FOCUSED = new RawContextKey<boolean>('notebookCellChatFocused', false, localize('notebookCellChatFocused', "Whether the cell chat editor is focused"));
-const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
+export const CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST = new RawContextKey<boolean>('notebookChatHasActiveRequest', false, localize('notebookChatHasActiveRequest', "Whether the cell chat editor has an active request"));
 export const MENU_CELL_CHAT_WIDGET = MenuId.for('cellChatWidget');
 export const MENU_CELL_CHAT_WIDGET_STATUS = MenuId.for('cellChatWidget.status');
 export const MENU_CELL_CHAT_WIDGET_FEEDBACK = MenuId.for('cellChatWidget.feedback');
@@ -442,204 +435,3 @@ class EditStrategy {
 		}
 	}
 }
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.chat.accept',
-				title: {
-					value: localize('notebook.cell.chat.accept', "Make Request"),
-					original: 'Make Request'
-				},
-				icon: Codicon.send,
-				keybinding: {
-					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED),
-					weight: KeybindingWeight.EditorCore + 7,
-					primary: KeyCode.Enter
-				},
-				menu: {
-					id: MENU_CELL_CHAT_WIDGET,
-					group: 'main',
-					order: 1,
-					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST.negate()
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.acceptInput();
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.chat.stop',
-				title: {
-					value: localize('notebook.cell.chat.stop', "Stop Request"),
-					original: 'Make Request'
-				},
-				icon: Codicon.debugStop,
-				menu: {
-					id: MENU_CELL_CHAT_WIDGET,
-					group: 'main',
-					order: 1,
-					when: CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.cancelCurrentRequest(false);
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.chat.close',
-				title: {
-					value: localize('notebook.cell.chat.close', "Close Chat"),
-					original: 'Close Chat'
-				},
-				icon: Codicon.close,
-				menu: {
-					id: MENU_CELL_CHAT_WIDGET_TOOLBAR,
-					group: 'main',
-					order: 2
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.dismiss(false);
-	}
-});
-
-registerAction2(class extends NotebookAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.chat.acceptChanges',
-				title: { value: localize('apply1', 'Accept Changes'), original: 'Accept Changes' },
-				shortTitle: localize('apply2', 'Accept'),
-				icon: Codicon.check,
-				tooltip: localize('apply1', 'Accept Changes'),
-				keybinding: {
-					weight: KeybindingWeight.EditorContrib + 10,
-					primary: KeyMod.CtrlCmd | KeyCode.Enter,
-				},
-				menu: [
-					{
-						id: MENU_CELL_CHAT_WIDGET_STATUS,
-						group: 'inline',
-						order: 0,
-						when: CTX_INLINE_CHAT_RESPONSE_TYPES.notEqualsTo(InlineChateResponseTypes.OnlyMessages),
-					}
-				]
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		ctrl.acceptSession();
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'inlineChat.discard',
-				title: localize('discard', 'Discard'),
-				icon: Codicon.discard,
-				menu: {
-					id: MENU_CELL_CHAT_WIDGET_STATUS,
-					group: 'main',
-					order: 1
-				}
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const ctrl = NotebookCellChatController.get(context.cell);
-		if (!ctrl) {
-			return;
-		}
-
-		// todo discard
-		ctrl.dismiss(true);
-	}
-});
-
-registerAction2(class extends NotebookCellAction {
-	constructor() {
-		super(
-			{
-				id: 'notebook.cell.insertCodeCellWithChat',
-				title: {
-					value: '$(sparkle) ' + localize('notebookActions.menu.insertCodeCellWithChat', "Generate"),
-					original: '$(sparkle) Generate',
-				},
-				tooltip: localize('notebookActions.menu.insertCodeCellWithChat.tooltip', "Generate Code Cell with Chat"),
-				menu: [
-					{
-						id: MenuId.NotebookCellBetween,
-						group: 'inline',
-						order: -1,
-						when: ContextKeyExpr.and(
-							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER,
-							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
-						)
-					},
-					{
-						id: MenuId.NotebookCellListTop,
-						group: 'inline',
-						order: -1,
-						when: ContextKeyExpr.and(
-							NOTEBOOK_EDITOR_EDITABLE.isEqualTo(true),
-							CTX_INLINE_CHAT_HAS_PROVIDER,
-							ContextKeyExpr.equals(`config.${NotebookSetting.cellChat}`, true)
-						)
-					},
-				]
-			});
-	}
-
-	async runWithContext(accessor: ServicesAccessor, context: INotebookCellActionContext) {
-		const newCell = await insertNewCell(accessor, context, CellKind.Code, 'below', true);
-
-		if (!newCell) {
-			return;
-		}
-		await context.notebookEditor.focusNotebookCell(newCell, 'container');
-		const ctrl = NotebookCellChatController.get(newCell);
-		if (!ctrl) {
-			return;
-		}
-		ctrl.show();
-	}
-});

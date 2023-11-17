@@ -8,6 +8,8 @@ import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/no
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 
+import 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatActions';
+
 export class CellChatPart extends CellContentPart {
 	private _controller: NotebookCellChatController | undefined;
 
