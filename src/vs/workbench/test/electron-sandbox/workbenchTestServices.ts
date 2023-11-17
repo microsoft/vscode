@@ -96,7 +96,7 @@ export class TestNativeHostService implements INativeHostService {
 	async unmaximizeWindow(): Promise<void> { }
 	async minimizeWindow(): Promise<void> { }
 	async moveWindowTop(options?: INativeOptions): Promise<void> { }
-	getCursorScreenPoint(): Promise<IPoint> { throw new Error('Method not implemented.'); }
+	getCursorScreenPoint(): Promise<{ readonly point: IPoint; readonly display: IRectangle }> { throw new Error('Method not implemented.'); }
 	async positionWindow(position: IRectangle, options?: INativeOptions): Promise<void> { }
 	async updateWindowControls(options: { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> { }
 	async setMinimumSize(width: number | undefined, height: number | undefined): Promise<void> { }

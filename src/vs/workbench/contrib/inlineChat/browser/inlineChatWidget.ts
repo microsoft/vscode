@@ -28,9 +28,9 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { SuggestController } from 'vs/editor/contrib/suggest/browser/suggestController';
 import { Position } from 'vs/editor/common/core/position';
 import { DEFAULT_FONT_FAMILY } from 'vs/workbench/browser/style';
-import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult, TextEdit } from 'vs/editor/common/languages';
-import { EditOperation, ISingleEditOperation } from 'vs/editor/common/core/editOperation';
-import { ILanguageSelection, ILanguageService } from 'vs/editor/common/languages/language';
+import { CompletionItem, CompletionItemInsertTextRule, CompletionItemKind, CompletionItemProvider, CompletionList, ProviderResult } from 'vs/editor/common/languages';
+import { ISingleEditOperation } from 'vs/editor/common/core/editOperation';
+import { ILanguageSelection } from 'vs/editor/common/languages/language';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ILanguageFeaturesService } from 'vs/editor/common/services/languageFeatures';
@@ -65,7 +65,9 @@ import { IEditorWorkerService } from 'vs/editor/common/services/editorWorker';
 import { ChatResponseViewModel } from 'vs/workbench/contrib/chat/common/chatViewModel';
 import { IChatResponseModel } from 'vs/workbench/contrib/chat/common/chatModel';
 import { ILogService } from 'vs/platform/log/common/log';
-import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer';
+import { ChatListItemRenderer, IChatListItemRendererOptions, IChatRendererDelegate } from 'vs/workbench/contrib/chat/browser/chatListRenderer'; import { IUntitledTextEditorModel } from 'vs/workbench/services/untitled/common/untitledTextEditorModel';
+import { ITextModelService } from 'vs/editor/common/services/resolverService';
+
 const defaultAriaLabel = localize('aria-label', "Inline Chat Input");
 
 export const _inputEditorOptions: IEditorConstructionOptions = {
@@ -132,6 +134,12 @@ export interface InlineChatWidgetViewState {
 	placeholder: string;
 }
 
+export interface IInlineChatWidgetConstructionOptions {
+	menuId: MenuId;
+	statusMenuId: MenuId;
+	feedbackMenuId: MenuId;
+}
+
 export class InlineChatWidget {
 
 	private static _modelPool: number = 1;
@@ -189,7 +197,8 @@ export class InlineChatWidget {
 
 	private readonly _previewCreateTitle: ResourceLabel;
 	private readonly _previewCreateEditor: Lazy<ICodeEditor>;
-	private readonly _previewCreateModel = this._store.add(new MutableDisposable());
+	private readonly _previewCreateDispoable = this._store.add(new MutableDisposable());
+
 
 	private readonly _onDidChangeHeight = this._store.add(new MicrotaskEmitter<void>());
 	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
@@ -213,8 +222,8 @@ export class InlineChatWidget {
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
+		_options: IInlineChatWidgetConstructionOptions,
 		@IModelService private readonly _modelService: IModelService,
-		@ILanguageService private readonly _languageService: ILanguageService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
@@ -224,7 +233,8 @@ export class InlineChatWidget {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
-		@ILogService private readonly _logService: ILogService
+		@ILogService private readonly _logService: ILogService,
+		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 	) {
 
 		// input editor logic
@@ -347,7 +357,7 @@ export class InlineChatWidget {
 
 		// toolbars
 
-		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, MENU_INLINE_CHAT_WIDGET, {
+		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		});
@@ -367,7 +377,7 @@ export class InlineChatWidget {
 				return undefined;
 			}
 		};
-		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, workbenchMenubarOptions);
+		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, _options.statusMenuId, workbenchMenubarOptions);
 		this._store.add(statusButtonBar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
@@ -380,7 +390,7 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, _options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(feedbackToolbar);
 
@@ -752,26 +762,23 @@ export class InlineChatWidget {
 		this._onDidChangeHeight.fire();
 	}
 
-	showCreatePreview(uri: URI, edits: TextEdit[]): void {
+	async showCreatePreview(model: IUntitledTextEditorModel): Promise<void> {
 		this._elements.previewCreateTitle.classList.remove('hidden');
 		this._elements.previewCreate.classList.remove('hidden');
 
-		this._previewCreateTitle.element.setFile(uri, { fileKind: FileKind.FILE });
+		const ref = await this._textModelResolverService.createModelReference(model.resource);
+		this._previewCreateDispoable.value = ref;
+		this._previewCreateTitle.element.setFile(model.resource, { fileKind: FileKind.FILE });
 
-		const langSelection = this._languageService.createByFilepathOrFirstLine(uri, undefined);
-		const model = this._modelService.createModel('', langSelection, undefined, true);
-		model.applyEdits(edits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-		this._previewCreateModel.value = model;
-		this._previewCreateEditor.value.setModel(model);
+		this._previewCreateEditor.value.setModel(ref.object.textEditorModel);
 		this._onDidChangeHeight.fire();
 	}
 
 	hideCreatePreview() {
 		this._elements.previewCreateTitle.classList.add('hidden');
 		this._elements.previewCreate.classList.add('hidden');
-		if (this._previewCreateEditor.hasValue) {
-			this._previewCreateEditor.value.setModel(null);
-		}
+		this._previewCreateEditor.rawValue?.setModel(null);
+		this._previewCreateDispoable.clear();
 		this._previewCreateTitle.element.clear();
 		this._onDidChangeHeight.fire();
 	}
@@ -895,7 +902,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			this._ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor);
+		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
+			menuId: MENU_INLINE_CHAT_WIDGET,
+			statusMenuId: MENU_INLINE_CHAT_WIDGET_STATUS,
+			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK
+		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => this._relayout()));
 		this._disposables.add(this.widget);
 		this.create();

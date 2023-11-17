@@ -109,6 +109,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private readonly windowTitle: WindowTitle;
 
+	private readonly editorService: IEditorService;
+
 	constructor(
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IConfigurationService protected readonly configurationService: IConfigurationService,
@@ -121,12 +123,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IHostService private readonly hostService: IHostService,
 		@IHoverService hoverService: IHoverService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService editorService: IEditorService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super(Parts.TITLEBAR_PART, { hasTitle: false }, themeService, storageService, layoutService);
 		this.windowTitle = this._register(instantiationService.createInstance(WindowTitle, mainWindow, 'main'));
+		this.editorService = editorService.createScoped('main', this._store);
 
 		this.titleBarStyle = getTitleBarStyle(this.configurationService);
 
@@ -371,7 +374,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		// --- Editor Actions
-		const activeEditorPane = this.editorGroupService.activeGroup?.activeEditorPane;
+		const activeEditorPane = this.editorGroupService.mainPart.activeGroup?.activeEditorPane;
 		if (activeEditorPane && activeEditorPane instanceof EditorPane) {
 			const result = activeEditorPane.getActionViewItem(action);
 
@@ -385,7 +388,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	protected getKeybinding(action: IAction): ResolvedKeybinding | undefined {
-		const editorPaneAwareContextKeyService = this.editorGroupService.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
+		const editorPaneAwareContextKeyService = this.editorGroupService.mainPart.activeGroup?.activeEditorPane?.scopedContextKeyService ?? this.contextKeyService;
 		return this.keybindingService.lookupKeybinding(action.id, editorPaneAwareContextKeyService);
 	}
 
@@ -410,7 +413,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.actionToolBarDisposable.add(this.actionToolBar);
 
 		if (this.editorActionsEnabled) {
-			this.actionToolBarDisposable.add(this.editorGroupService.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
+			this.actionToolBarDisposable.add(this.editorGroupService.mainPart.onDidChangeActiveGroup(() => this.createActionToolBarMenus({ editorActions: true })));
 		}
 	}
 
@@ -426,7 +429,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (this.editorActionsEnabled) {
 				this.editorActionsChangeDisposable.clear();
 
-				const activeGroup = this.editorGroupService.activeGroup;
+				const activeGroup = this.editorGroupService.mainPart.activeGroup;
 				if (activeGroup) { // Can be undefined on startup
 					const editorActions = activeGroup.createEditorActions(this.editorActionsChangeDisposable);
 
@@ -464,7 +467,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			// The editor toolbar menu is handled by the editor group so we do not need to manage it here.
 			// However, depending on the active editor, we need to update the context and action runner of the toolbar menu.
 			if (this.editorActionsEnabled && this.editorService.activeEditor !== undefined) {
-				const context: IEditorCommandsContext = { groupId: this.editorGroupService.activeGroup.id };
+				const context: IEditorCommandsContext = { groupId: this.editorGroupService.mainPart.activeGroup.id };
 
 				this.actionToolBar.actionRunner = new EditorCommandsContextActionRunner(context);
 				this.actionToolBar.context = context;

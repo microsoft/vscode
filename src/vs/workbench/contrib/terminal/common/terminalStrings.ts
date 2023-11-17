@@ -85,5 +85,13 @@ export const terminalStrings = {
 	stickyScroll: {
 		value: localize('stickyScroll', "Sticky Scroll"),
 		original: 'Sticky Scroll'
+	},
+	scrollToPreviousCommand: {
+		value: localize('workbench.action.terminal.scrollToPreviousCommand', "Scroll To Previous Command"),
+		original: 'Scroll To Previous Command'
+	},
+	scrollToNextCommand: {
+		value: localize('workbench.action.terminal.scrollToNextCommand', "Scroll To Next Command"),
+		original: 'Scroll To Next Command'
 	}
 };
