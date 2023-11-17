@@ -27,9 +27,12 @@ import { LOCALIZED_START_INLINE_CHAT_STRING } from 'vs/workbench/contrib/inlineC
 import { IBreakpoint, IDebugService } from 'vs/workbench/contrib/debug/common/debug';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { URI } from 'vs/base/common/uri';
+import { EditorOption, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 
 const GUTTER_INLINE_CHAT_OPAQUE_ICON = registerIcon('inline-chat-opaque', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
+const GUTTER_INLINE_CHAT_OPAQUE_ICON_SHIFTED = registerIcon('inline-chat-opaque-shifted', Codicon.sparkle, localize('startInlineChatOpaqueIcon', 'Icon which spawns the inline chat from the gutter. It is half opaque by default and becomes completely opaque on hover.'));
 const GUTTER_INLINE_CHAT_TRANSPARENT_ICON = registerIcon('inline-chat-transparent', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
+const GUTTER_INLINE_CHAT_TRANSPARENT_ICON_SHIFTED = registerIcon('inline-chat-transparent-shifted', Codicon.sparkle, localize('startInlineChatTransparentIcon', 'Icon which spawns the inline chat from the gutter. It is transparent by default and becomes opaque on hover.'));
 
 export class InlineChatDecorationsContribution extends Disposable implements IEditorContribution {
 
@@ -37,13 +40,14 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private _gutterDecorationID: string | undefined;
 	private _inlineChatKeybinding: string | undefined;
 	private _hasInlineChatSession: boolean = false;
+	private _gutterIconOpaqueClassName: string;
+	private _gutterIconTransparentClassName: string;
+
 	private readonly _localToDispose = new DisposableStore();
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
 
 	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
-	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat-opaque';
-	private static readonly GUTTER_ICON_TRANSPARENT_CLASSNAME = 'codicon-inline-chat-transparent';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
@@ -54,6 +58,7 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
+		this._updateClassNames();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
@@ -75,7 +80,10 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 			}
 		}));
 		this._register(this._inlineChatService.onDidChangeProviders(() => this._onEnablementOrModelChanged()));
-		this._register(this._editor.onDidChangeModel(() => this._onEnablementOrModelChanged()));
+		this._register(this._editor.onDidChangeModel((e) => {
+			this._updateClassNames();
+			this._onEnablementOrModelChanged();
+		}));
 		this._register(this._keybindingService.onDidUpdateKeybindings(() => {
 			this._updateDecorationHover();
 			this._onEnablementOrModelChanged();
@@ -85,12 +93,27 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	}
 
 	private _registerGutterDecoration(isTransparent: boolean): ModelDecorationOptions {
+		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
 		return ModelDecorationOptions.register({
 			description: 'inline-chat-decoration',
-			glyphMarginClassName: ThemeIcon.asClassName(isTransparent ? GUTTER_INLINE_CHAT_TRANSPARENT_ICON : GUTTER_INLINE_CHAT_OPAQUE_ICON),
+			glyphMarginClassName: ThemeIcon.asClassName(
+				lineNumberOption.renderType === RenderLineNumbersType.Off ?
+					(isTransparent ? GUTTER_INLINE_CHAT_TRANSPARENT_ICON_SHIFTED : GUTTER_INLINE_CHAT_OPAQUE_ICON_SHIFTED) :
+					(isTransparent ? GUTTER_INLINE_CHAT_TRANSPARENT_ICON : GUTTER_INLINE_CHAT_OPAQUE_ICON)),
 			glyphMargin: { position: GlyphMarginLane.Left },
 			stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		});
+	}
+
+	private _updateClassNames(): void {
+		const lineNumberOption = this._editor.getOption(EditorOption.lineNumbers);
+		if (lineNumberOption.renderType === RenderLineNumbersType.Off) {
+			this._gutterIconOpaqueClassName = 'codicon-inline-chat-opaque-shifted';
+			this._gutterIconTransparentClassName = 'codicon-inline-chat-transparent-shifted';
+		} else {
+			this._gutterIconOpaqueClassName = 'codicon-inline-chat-opaque';
+			this._gutterIconTransparentClassName = 'codicon-inline-chat-transparent';
+		}
 	}
 
 	private _updateDecorationHover(): void {
@@ -126,9 +149,9 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 		this._localToDispose.add(this._editor.onMouseDown(async (e: IEditorMouseEvent) => {
 			const showGutterIconMode = this._showGutterIconMode();
 			const gutterDecorationClassName = showGutterIconMode === ShowGutterIcon.Always ?
-				InlineChatDecorationsContribution.GUTTER_ICON_OPAQUE_CLASSNAME :
+				this._gutterDecorationOpaqueClassName :
 				(showGutterIconMode === ShowGutterIcon.MouseOver ?
-					InlineChatDecorationsContribution.GUTTER_ICON_TRANSPARENT_CLASSNAME : undefined);
+					this._gutterDecorationTransparentClassName : undefined);
 			if (!gutterDecorationClassName || !e.target.element?.classList.contains(gutterDecorationClassName)) {
 				return;
 			}
