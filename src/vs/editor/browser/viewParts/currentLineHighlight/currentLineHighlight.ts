@@ -133,8 +133,16 @@ export abstract class AbstractLineHighlightOverlay extends DynamicViewOverlay {
 			}
 			if (index < len && this._cursorLineNumbers[index] === lineNumber) {
 				renderData[lineIndex] = renderedLine;
+			} else if (lineIndex > 0 && ctx.viewportData.getViewLineRenderingData(lineNumber - 1).continuesWithWrappedLine) {
+				renderData[lineIndex] = renderData[lineIndex - 1];
 			} else {
 				renderData[lineIndex] = '';
+			}
+		}
+		for (let lineNumber = visibleEndLineNumber - 1; lineNumber >= visibleStartLineNumber; lineNumber--) {
+			const lineIndex = lineNumber - visibleStartLineNumber;
+			if (ctx.viewportData.getViewLineRenderingData(lineNumber).continuesWithWrappedLine) {
+				renderData[lineIndex] = renderData[lineIndex + 1];
 			}
 		}
 		this._renderData = renderData;
