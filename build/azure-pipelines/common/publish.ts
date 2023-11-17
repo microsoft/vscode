@@ -48,12 +48,46 @@ class Temp {
 	}
 }
 
-class Sequencer {
+export class Limiter {
 
-	private current: Promise<unknown> = Promise.resolve(null);
+	private _size = 0;
+	private runningPromises: number;
+	private readonly maxDegreeOfParalellism: number;
+	private readonly outstandingPromises: { factory: () => Promise<any>; c: (v: any) => void; e: (err: Error) => void }[];
 
-	queue<T>(promiseTask: () => Promise<T>): Promise<T> {
-		return this.current = this.current.then(() => promiseTask(), () => promiseTask());
+	constructor(maxDegreeOfParalellism: number) {
+		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+		this.outstandingPromises = [];
+		this.runningPromises = 0;
+	}
+
+	queue<T>(factory: () => Promise<T>): Promise<T> {
+		this._size++;
+
+		return new Promise<T>((c, e) => {
+			this.outstandingPromises.push({ factory, c, e });
+			this.consume();
+		});
+	}
+
+	private consume(): void {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+			const iLimitedTask = this.outstandingPromises.shift()!;
+			this.runningPromises++;
+
+			const promise = iLimitedTask.factory();
+			promise.then(iLimitedTask.c, iLimitedTask.e);
+			promise.then(() => this.consumed(), () => this.consumed());
+		}
+	}
+
+	private consumed(): void {
+		this._size--;
+		this.runningPromises--;
+
+		if (this.outstandingPromises.length > 0) {
+			this.consume();
+		}
 	}
 }
 
@@ -162,7 +196,7 @@ interface ReleaseDetailsResult {
 
 class ESRPClient {
 
-	private static Sequencer = new Sequencer();
+	private static Limiter = new Limiter(1);
 
 	private readonly authPath: string;
 
@@ -198,7 +232,7 @@ class ESRPClient {
 		version: string,
 		filePath: string
 	): Promise<Release> {
-		const submitReleaseResult = await ESRPClient.Sequencer.queue(async () => {
+		const submitReleaseResult = await ESRPClient.Limiter.queue(async () => {
 			this.log(`Submitting release for ${version}: ${filePath}`);
 			return await this.SubmitRelease(version, filePath);
 		});
@@ -461,7 +495,7 @@ async function getPipelineTimeline(): Promise<Timeline> {
 
 async function downloadArtifact(artifact: Artifact, downloadPath: string): Promise<void> {
 	const abortController = new AbortController();
-	const timeout = setTimeout(() => abortController.abort(), 6 * 60 * 1000);
+	const timeout = setTimeout(() => abortController.abort(), 4 * 60 * 1000);
 
 	try {
 		const res = await fetch(artifact.resource.downloadUrl, { ...azdoFetchOptions, signal: abortController.signal });
@@ -630,8 +664,8 @@ function getRealType(type: string) {
 	}
 }
 
-const azureSequencer = new Sequencer();
-const mooncakeSequencer = new Sequencer();
+const azureLimiter = new Limiter(1);
+const mooncakeLimiter = new Limiter(1);
 
 async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string, commit: string, filePath: string): Promise<{ assetUrl: string; mooncakeUrl: string }> {
 	const fileName = path.basename(filePath);
@@ -660,7 +694,7 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 		if (await retry(() => blobClient.exists())) {
 			throw new Error(`Blob ${quality}, ${blobName} already exists, not publishing again.`);
 		} else {
-			await retry(attempt => azureSequencer.queue(async () => {
+			await retry(attempt => azureLimiter.queue(async () => {
 				log(`Uploading blobs to Azure storage (attempt ${attempt})...`);
 				await blobClient.uploadFile(filePath, blobOptions);
 				log('Blob successfully uploaded to Azure storage.');
@@ -682,7 +716,7 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 			if (await retry(() => mooncakeBlobClient.exists())) {
 				throw new Error(`Mooncake Blob ${quality}, ${blobName} already exists, not publishing again.`);
 			} else {
-				await retry(attempt => mooncakeSequencer.queue(async () => {
+				await retry(attempt => mooncakeLimiter.queue(async () => {
 					log(`Uploading blobs to Mooncake Azure storage (attempt ${attempt})...`);
 					await mooncakeBlobClient.uploadFile(filePath, blobOptions);
 					log('Blob successfully uploaded to Mooncake Azure storage.');
@@ -711,7 +745,8 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	return { assetUrl, mooncakeUrl };
 }
 
-const cosmosSequencer = new Sequencer();
+const downloadLimiter = new Limiter(5);
+const cosmosLimiter = new Limiter(1);
 
 async function processArtifact(artifact: Artifact): Promise<void> {
 	const match = /^vscode_(?<product>[^_]+)_(?<os>[^_]+)_(?<arch>[^_]+)_(?<unprocessedType>[^_]+)$/.exec(artifact.name);
@@ -731,7 +766,7 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 		log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
 
 		try {
-			await downloadArtifact(artifact, artifactZipPath);
+			await downloadLimiter.queue(() => downloadArtifact(artifact, artifactZipPath));
 		} catch (err) {
 			log(`Download failed: ${err.message}`);
 			throw err;
@@ -785,7 +820,7 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 	log('Creating asset...', JSON.stringify(asset));
 
 	await retry(async (attempt) => {
-		await cosmosSequencer.queue(async () => {
+		await cosmosLimiter.queue(async () => {
 			log(`Creating asset in Cosmos DB (attempt ${attempt})...`);
 			const aadCredentials = new ClientSecretCredential(e('AZURE_TENANT_ID'), e('AZURE_CLIENT_ID'), e('AZURE_CLIENT_SECRET'));
 			const client = new CosmosClient({ endpoint: e('AZURE_DOCUMENTDB_ENDPOINT'), aadCredentials });
