@@ -755,6 +755,12 @@ async function processArtifact(artifact: Artifact, artifactFilePath: string): Pr
 	log('Asset successfully created');
 }
 
+// It is VERY important that we don't download artifacts too much too fast from AZDO.
+// AZDO throttles us SEVERELY if we do. Not just that, but they also close open
+// sockets, so the whole things turns to a grinding halt. So, downloading and extracting
+// happens serially in the main thread, making the downloads are spaced out
+// properly. For each extracted artifact, we spawn a worker thread to upload it to
+// the CDN and finally update the build in Cosmos DB.
 async function main() {
 	if (!isMainThread) {
 		const { artifact, artifactFilePath } = workerData;
