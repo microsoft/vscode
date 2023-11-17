@@ -340,6 +340,8 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 		const to = viewContainer;
 
 		if (from && to && from !== to) {
+			const fromContainerWillBeEmpty = this.getViewsByContainer(from).length === views.length;
+
 			// Move views
 			this.moveViewsWithoutSaving(views, from, to, visibilityState);
 			this.cleanUpGeneratedViewContainer(from.id);
@@ -349,6 +351,11 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 
 			// Log to telemetry
 			this.reportMovedViews(views, from, to);
+
+			// If all views have been moved from a container, clean up the container
+			if (fromContainerWillBeEmpty) {
+				this._onDidChangeContainerLocation.fire({ viewContainer: from, from: this.getViewContainerLocation(from), to: this.getViewContainerLocation(to) });
+			}
 		}
 	}
 
@@ -468,7 +475,6 @@ export class ViewDescriptorService extends Disposable implements IViewDescriptor
 			this._onDidChangeLocation.fire({ views, from, to });
 		}
 	}
-
 	private cleanUpGeneratedViewContainer(viewContainerId: string): void {
 		// Skip if container is not generated
 		if (!this.isGeneratedContainerId(viewContainerId)) {
