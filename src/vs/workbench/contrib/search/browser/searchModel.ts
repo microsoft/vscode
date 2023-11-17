@@ -90,13 +90,12 @@ export class Match {
 	}
 
 	@memoize
-	preview(): { before: string; inside: string; after: string } {
-		let before = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
-			inside = this.getMatchString(),
-			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
+	preview(): { before: string; fullBefore: string; inside: string; after: string } {
+		const fullBefore = this._oneLinePreviewText.substring(0, this._rangeInPreviewText.startColumn - 1),
+			before = lcut(fullBefore, 26, '…');
 
-		before = lcut(before, 26);
-		before = before.trimStart();
+		let inside = this.getMatchString(),
+			after = this._oneLinePreviewText.substring(this._rangeInPreviewText.endColumn - 1);
 
 		let charsRemaining = Match.MAX_PREVIEW_CHARS - before.length;
 		inside = inside.substr(0, charsRemaining);
@@ -105,6 +104,7 @@ export class Match {
 
 		return {
 			before,
+			fullBefore,
 			inside,
 			after,
 		};

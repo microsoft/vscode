@@ -133,6 +133,13 @@ suite('Strings', () => {
 		assert.strictEqual(strings.lcut('foo bar', 5), 'foo bar');
 		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3), '2.3');
 
+		assert.strictEqual(strings.lcut('foo bar', 0, '…'), '…');
+		assert.strictEqual(strings.lcut('foo bar', 1, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 3, '…'), '…bar');
+		assert.strictEqual(strings.lcut('foo bar', 4, '…'), '…bar'); // Leading whitespace trimmed
+		assert.strictEqual(strings.lcut('foo bar', 5, '…'), 'foo bar');
+		assert.strictEqual(strings.lcut('test string 0.1.2.3', 3, '…'), '…2.3');
+
 		assert.strictEqual(strings.lcut('', 10), '');
 		assert.strictEqual(strings.lcut('a', 10), 'a');
 	});

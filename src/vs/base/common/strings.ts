@@ -711,7 +711,7 @@ export function isEmojiImprecise(x: number): boolean {
  * Given a string and a max length returns a shorted version. Shorting
  * happens at favorable positions - such as whitespace or punctuation characters.
  */
-export function lcut(text: string, n: number) {
+export function lcut(text: string, n: number, prefix = '') {
 	if (text.length < n) {
 		return text;
 	}
@@ -727,7 +727,11 @@ export function lcut(text: string, n: number) {
 		re.lastIndex += 1;
 	}
 
-	return text.substring(i).replace(/^\s/, '');
+	if (i === 0) {
+		return text.trimStart();
+	}
+
+	return prefix + text.substring(i).trimStart();
 }
 
 // Escape codes, compiled from https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h3-Functions-using-CSI-_-ordered-by-the-final-character_s_
