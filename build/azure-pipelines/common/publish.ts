@@ -711,7 +711,6 @@ async function uploadAssetLegacy(log: (...args: any[]) => void, quality: string,
 	return { assetUrl, mooncakeUrl };
 }
 
-const downloadSequencer = new Sequencer();
 const cosmosSequencer = new Sequencer();
 
 async function processArtifact(artifact: Artifact): Promise<void> {
@@ -723,24 +722,38 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 
 	const { product, os, arch, unprocessedType } = match.groups!;
 	const log = (...args: any[]) => console.log(`[${product} ${os} ${arch} ${unprocessedType}]`, ...args);
+	const start = Date.now();
 
 	const filePath = await retry(async attempt => {
 		const artifactZipPath = path.join(e('AGENT_TEMPDIRECTORY'), `${artifact.name}.zip`);
-		await downloadSequencer.queue(async () => {
-			log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
-			await downloadArtifact(artifact, artifactZipPath);
-		});
 
-		log(`Extracting (attempt ${attempt}) ...`);
+		const start = Date.now();
+		log(`Downloading ${artifact.resource.downloadUrl} (attempt ${attempt})...`);
+
+		try {
+			await downloadArtifact(artifact, artifactZipPath);
+		} catch (err) {
+			log(`Download failed: ${err.message}`);
+			throw err;
+		}
+
+		const archiveSize = fs.statSync(artifactZipPath).size;
+		const downloadDurationS = (Date.now() - start) / 1000;
+		const downloadSpeedKBS = Math.round((archiveSize / 1024) / downloadDurationS);
+		log(`Successfully downloaded ${artifact.resource.downloadUrl} after ${Math.floor(downloadDurationS)} seconds (${downloadSpeedKBS} KB/s).`);
+
 		const filePath = await unzip(artifactZipPath, e('AGENT_TEMPDIRECTORY'));
 		const artifactSize = fs.statSync(filePath).size;
 
 		if (artifactSize !== Number(artifact.resource.properties.artifactsize)) {
-			throw new Error(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
+			log(`Artifact size mismatch. Expected ${artifact.resource.properties.artifactsize}. Actual ${artifactSize}`);
+			throw new Error(`Artifact size mismatch.`);
 		}
 
 		return filePath;
 	});
+
+	log(`Successfully downloaded and extracted after ${(Date.now() - start) / 1000} seconds.}`);
 
 	// getPlatform needs the unprocessedType
 	const quality = e('VSCODE_QUALITY');
@@ -750,8 +763,6 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 	const size = fs.statSync(filePath).size;
 	const stream = fs.createReadStream(filePath);
 	const [sha1hash, sha256hash] = await Promise.all([hashStream('sha1', stream), hashStream('sha256', stream)]);
-
-	log(`Publishing (size = ${size}, SHA1 = ${sha1hash}, SHA256 = ${sha256hash})...`);
 
 	const [{ assetUrl, mooncakeUrl }, prssUrl] = await Promise.all([
 		uploadAssetLegacy(log, quality, commit, filePath),
@@ -794,7 +805,7 @@ async function main() {
 		console.log(`\u2705 ${name}`);
 	}
 
-	const stages = new Set<string>();
+	const stages = new Set<string>(['Compile', 'CompileCLI']);
 	if (e('VSCODE_BUILD_STAGE_WINDOWS') === 'True') { stages.add('Windows'); }
 	if (e('VSCODE_BUILD_STAGE_LINUX') === 'True') { stages.add('Linux'); }
 	if (e('VSCODE_BUILD_STAGE_ALPINE') === 'True') { stages.add('Alpine'); }
