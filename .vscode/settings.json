@@ -165,14 +165,9 @@
 		"src/vs/workbench/workbench.web.main.ts",
 		"src/vs/workbench/api/common/extHostTypes.ts"
 	],
-
 	// Temporarily enabled for self-hosting
-	"terminal.integrated.enableStickyScroll": true,
 	"terminal.integrated.stickyScroll.enabled": true,
-
 	// Temporarily enabled for self-hosting
-	"scm.experimental.showSyncInformation": {
-		"incoming": true,
-		"outgoing": true
-	}
+	"scm.showIncomingChanges": "always",
+	"scm.showOutgoingChanges": "always",
 }

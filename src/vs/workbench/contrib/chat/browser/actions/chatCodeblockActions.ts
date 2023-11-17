@@ -51,7 +51,7 @@ function isResponseFiltered(context: ICodeBlockActionContext) {
 }
 
 function getUsedDocuments(context: ICodeBlockActionContext): IDocumentContext[] | undefined {
-	return isResponseVM(context.element) ? context.element.response.usedContext?.documents : undefined;
+	return isResponseVM(context.element) ? context.element.usedContext?.documents : undefined;
 }
 
 abstract class ChatCodeBlockAction extends Action2 {

@@ -573,8 +573,9 @@ export class CommentNode<T extends IRange | ICellRange> extends Disposable {
 		this._commentEditContainer!.remove();
 	}
 
-	layout() {
-		this._commentEditor?.layout({ width: this._commentEditor.getLayoutInfo().width, height: this._editorHeight });
+	layout(widthInPixel?: number) {
+		const editorWidth = widthInPixel !== undefined ? widthInPixel - 72 /* - margin and scrollbar*/ : (this._commentEditor?.getLayoutInfo().width ?? 0);
+		this._commentEditor?.layout({ width: editorWidth, height: this._editorHeight });
 		const scrollWidth = this._body.scrollWidth;
 		const width = dom.getContentWidth(this._body);
 		const scrollHeight = this._body.scrollHeight;

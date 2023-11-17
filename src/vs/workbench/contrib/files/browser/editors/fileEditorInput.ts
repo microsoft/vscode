@@ -217,6 +217,29 @@ export class FileEditorInput extends AbstractTextResourceEditorInput implements 
 		return this.preferredDescription;
 	}
 
+	override getTitle(verbosity?: Verbosity): string {
+		let title = super.getTitle(verbosity);
+
+		const preferredTitle = this.getPreferredTitle();
+		if (preferredTitle) {
+			title = `${preferredTitle} (${title})`;
+		}
+
+		return title;
+	}
+
+	protected getPreferredTitle(): string | undefined {
+		if (this.preferredName && this.preferredDescription) {
+			return `${this.preferredName} ${this.preferredDescription}`;
+		}
+
+		if (this.preferredName || this.preferredDescription) {
+			return this.preferredName ?? this.preferredDescription;
+		}
+
+		return undefined;
+	}
+
 	getEncoding(): string | undefined {
 		if (this.model) {
 			return this.model.getEncoding();

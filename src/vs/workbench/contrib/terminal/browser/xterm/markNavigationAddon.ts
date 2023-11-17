@@ -12,6 +12,7 @@ import { timeout } from 'vs/base/common/async';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TERMINAL_OVERVIEW_RULER_CURSOR_FOREGROUND_COLOR } from 'vs/workbench/contrib/terminal/common/terminalColorRegistry';
 import { getWindow } from 'vs/base/browser/dom';
+import { ICurrentPartialCommand } from 'vs/platform/terminal/common/capabilities/commandDetection/terminalCommand';
 
 enum Boundary {
 	Top,
@@ -51,6 +52,12 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		let markers: IMarker[] = [];
 		if (commandCapability) {
 			markers = coalesce(commandCapability.commands.filter(e => skipEmptyCommands ? e.exitCode !== undefined : true).map(e => e.promptStartMarker ?? e.marker));
+			// Allow navigating to the current command iff it has been executed, this ignores the
+			// skipEmptyCommands flag intenionally as chances are it's not going to be empty if an
+			// executed marker exists when this is requested.
+			if (commandCapability.currentCommand?.promptStartMarker && commandCapability.currentCommand.commandExecutedMarker) {
+				markers.push(commandCapability.currentCommand?.promptStartMarker);
+			}
 		} else if (partialCommandCapability) {
 			markers.push(...partialCommandCapability.commands);
 		}
@@ -67,10 +74,16 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		return markers;
 	}
 
-	private _findCommand(marker: IMarker): ITerminalCommand | undefined {
+	private _findCommand(marker: IMarker): ITerminalCommand | ICurrentPartialCommand | undefined {
 		const commandCapability = this._capabilities.get(TerminalCapability.CommandDetection);
 		if (commandCapability) {
-			return commandCapability.commands.find(e => e.marker?.line === marker.line || e.promptStartMarker?.line === marker.line);
+			const command = commandCapability.commands.find(e => e.marker?.line === marker.line || e.promptStartMarker?.line === marker.line);
+			if (command) {
+				return command;
+			}
+			if (commandCapability.currentCommand) {
+				return commandCapability.currentCommand;
+			}
 		}
 		return undefined;
 	}
@@ -229,17 +242,18 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		}
 	}
 
-	revealCommand(command: ITerminalCommand, position: ScrollPosition = ScrollPosition.Middle): void {
-		if (!this._terminal || !command.marker) {
+	revealCommand(command: ITerminalCommand | ICurrentPartialCommand, position: ScrollPosition = ScrollPosition.Middle): void {
+		const marker = 'getOutput' in command ? command.marker : command.commandStartMarker;
+		if (!this._terminal || !marker) {
 			return;
 		}
-
+		const line = toLineIndex(marker);
 		const promptRowCount = command.getPromptRowCount();
 		const commandRowCount = command.getCommandRowCount();
 		this._scrollToMarker(
-			command.marker.line - (promptRowCount - 1),
+			line - (promptRowCount - 1),
 			position,
-			command.marker.line + (commandRowCount - 1)
+			line + (commandRowCount - 1)
 		);
 	}
 
@@ -256,9 +270,9 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			const decoration = this._terminal.registerDecoration({
 				marker: this._createMarkerForOffset(marker, i),
 				width: this._terminal.cols,
-				overviewRulerOptions: {
+				overviewRulerOptions: i === 0 ? {
 					color: color?.toString() || '#a0a0a0cc'
-				}
+				} : undefined
 			});
 			if (decoration) {
 				this._navigationDecorations?.push(decoration);

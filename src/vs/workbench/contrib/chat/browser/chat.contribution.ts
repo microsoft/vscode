@@ -45,7 +45,7 @@ import { ChatAccessibilityService } from 'vs/workbench/contrib/chat/browser/chat
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { AccessibilityVerbositySettingId, AccessibleViewProviderId } from 'vs/workbench/contrib/accessibility/browser/accessibilityConfiguration';
 import { ChatWelcomeMessageModel } from 'vs/workbench/contrib/chat/common/chatModel';
-import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString, isMarkdownString } from 'vs/base/common/htmlContent';
 import { ChatProviderService, IChatProviderService } from 'vs/workbench/contrib/chat/common/chatProvider';
 import { ChatSlashCommandService, IChatSlashCommandService } from 'vs/workbench/contrib/chat/common/chatSlashCommands';
 import { alertFocusChange } from 'vs/workbench/contrib/accessibility/browser/accessibilityContributions';
@@ -243,8 +243,12 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 			const defaultAgent = chatAgentService.getDefaultAgent();
 			const agents = chatAgentService.getAgents();
 			if (defaultAgent?.metadata.helpTextPrefix) {
-				progress.report({ content: defaultAgent.metadata.helpTextPrefix });
-				progress.report({ content: '\n\n' });
+				if (isMarkdownString(defaultAgent.metadata.helpTextPrefix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: defaultAgent.metadata.helpTextPrefix, kind: 'content' });
+				}
+				progress.report({ content: '\n\n', kind: 'content' });
 			}
 
 			const agentText = (await Promise.all(agents
@@ -263,10 +267,14 @@ class ChatSlashStaticSlashCommandsContribution extends Disposable {
 
 					return agentLine + '\n' + commandText;
 				}))).join('\n');
-			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }) });
+			progress.report({ content: new MarkdownString(agentText, { isTrusted: { enabledCommands: [SubmitAction.ID] } }), kind: 'markdownContent' });
 			if (defaultAgent?.metadata.helpTextPostfix) {
-				progress.report({ content: '\n\n' });
-				progress.report({ content: defaultAgent.metadata.helpTextPostfix });
+				progress.report({ content: '\n\n', kind: 'content' });
+				if (isMarkdownString(defaultAgent.metadata.helpTextPostfix)) {
+					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'markdownContent' });
+				} else {
+					progress.report({ content: defaultAgent.metadata.helpTextPostfix, kind: 'content' });
+				}
 			}
 		}));
 	}

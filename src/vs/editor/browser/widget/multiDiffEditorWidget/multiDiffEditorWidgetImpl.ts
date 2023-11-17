@@ -6,17 +6,20 @@
 import { Dimension, getWindow, h, scheduleAtNextAnimationFrame } from 'vs/base/browser/dom';
 import { SmoothScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { Disposable, IReference, toDisposable } from 'vs/base/common/lifecycle';
-import { IObservable, IReader, autorun, constObservable, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
+import { IObservable, IReader, autorun, derived, derivedWithStore, observableFromEvent, observableValue } from 'vs/base/common/observable';
 import { Scrollable, ScrollbarVisibility } from 'vs/base/common/scrollable';
 import 'vs/css!./style';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
 import { ObservableElementSizeObserver } from 'vs/editor/browser/widget/diffEditor/utils';
-import { IDiffEntry, IMultiDocumentDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDocumentDiffItem, IMultiDiffEditorModel, LazyPromise } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { DiffEditorItemTemplate, TemplateData } from './diffEditorItemTemplate';
 import { ObjectPool } from './objectPool';
+import { disposableObservableValue, globalTransaction, transaction } from 'vs/base/common/observableInternal/base';
+import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
+import { findFirstMaxBy } from 'vs/base/common/arraysFind';
 
 export class MultiDiffEditorWidgetImpl extends Disposable {
 	private readonly _elements = h('div', {
@@ -33,15 +36,18 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		}),
 	]);
 
-	private readonly _sizeObserver = new ObservableElementSizeObserver(this._element, undefined);
-	private readonly _documentsObs = this._model.map(this, m => !m ? constObservable([]) : observableFromEvent(m.onDidChange, /** @description Documents changed */() => m.diffs));
-	private readonly _documents = this._documentsObs.map(this, (m, reader) => m.read(reader));
+	private readonly _sizeObserver = this._register(new ObservableElementSizeObserver(this._element, undefined));
 
-	private readonly _objectPool = new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
-		const template = this._instantiationService.createInstance(DiffEditorItemTemplate, this._elements.content, this._elements.overflowWidgetsDomNode);
+	private readonly _objectPool = this._register(new ObjectPool<TemplateData, DiffEditorItemTemplate>((data) => {
+		const template = this._instantiationService.createInstance(
+			DiffEditorItemTemplate,
+			this._elements.content,
+			this._elements.overflowWidgetsDomNode,
+			this._workbenchUIElementFactory
+		);
 		template.setData(data);
 		return template;
-	});
+	}));
 
 	private readonly _hiddenContainer = document.createElement('div');
 
@@ -51,23 +57,43 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 		},
 	}, {}));
 
-	private readonly _viewItems = derivedWithStore<DiffEditorItem[]>(this,
-		(reader, store) => this._documents.read(reader).map(d => store.add(new DiffEditorItem(this._objectPool, d, this._editor)))
+	private readonly _scrollable = this._register(new Scrollable({
+		forceIntegerValues: false,
+		scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(this._element), cb),
+		smoothScrollDuration: 100,
+	}));
+
+	private readonly _scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
+		vertical: ScrollbarVisibility.Auto,
+		horizontal: ScrollbarVisibility.Auto,
+		className: 'monaco-component',
+		useShadows: false,
+	}, this._scrollable));
+
+	private readonly _scrollTop = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollTop */ this._scrollableElement.getScrollPosition().scrollTop);
+	private readonly _scrollLeft = observableFromEvent(this._scrollableElement.onScroll, () => /** @description scrollLeft */ this._scrollableElement.getScrollPosition().scrollLeft);
+
+	private readonly _viewItems = derivedWithStore<readonly VirtualizedViewItem[]>(this,
+		(reader, store) => {
+			const vm = this._viewModel.read(reader);
+			if (!vm) {
+				return [];
+			}
+			const items = vm.items.read(reader);
+			return items.map(d => store.add(new VirtualizedViewItem(d, this._objectPool, this._scrollLeft)));
+		}
 	);
 
 	private readonly _totalHeight = this._viewItems.map(this, (items, reader) => items.reduce((r, i) => r + i.contentHeight.read(reader), 0));
 
-	private readonly scrollTop: IObservable<number>;
-
 	constructor(
 		private readonly _element: HTMLElement,
 		private readonly _dimension: IObservable<Dimension | undefined>,
-		private readonly _model: IObservable<IMultiDocumentDiffEditorModel | undefined>,
+		private readonly _viewModel: IObservable<MultiDiffEditorViewModel | undefined>,
+		private readonly _workbenchUIElementFactory: IWorkbenchUIElementFactory,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._sizeObserver.setAutomaticLayout(true);
 
 		this._register(autorun((reader) => {
 			/** @description Update widget dimension */
@@ -75,20 +101,7 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._sizeObserver.observe(dimension);
 		}));
 
-		const scrollable = this._register(new Scrollable({
-			forceIntegerValues: false,
-			scheduleAtNextAnimationFrame: (cb) => scheduleAtNextAnimationFrame(getWindow(_element), cb),
-			smoothScrollDuration: 100,
-		}));
-
 		this._elements.content.style.position = 'relative';
-
-		const scrollableElement = this._register(new SmoothScrollableElement(this._elements.root, {
-			vertical: ScrollbarVisibility.Auto,
-			className: 'monaco-component',
-		}, scrollable));
-
-		this.scrollTop = observableFromEvent(scrollableElement.onScroll, () => /** @description onScroll */ scrollableElement.getScrollPosition().scrollTop);
 
 		this._register(autorun((reader) => {
 			/** @description Update scroll dimensions */
@@ -96,31 +109,46 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 			this._elements.root.style.height = `${height}px`;
 			const totalHeight = this._totalHeight.read(reader);
 			this._elements.content.style.height = `${totalHeight}px`;
-			scrollableElement.setScrollDimensions({
+
+			let scrollWidth = _element.clientWidth;
+			const viewItems = this._viewItems.read(reader);
+			const max = findFirstMaxBy(viewItems, i => i.maxScroll.read(reader).maxScroll);
+			if (max) {
+				const maxScroll = max.maxScroll.read(reader);
+				scrollWidth = _element.clientWidth + maxScroll.maxScroll;
+			}
+
+			this._scrollableElement.setScrollDimensions({
 				width: _element.clientWidth,
 				height: height,
 				scrollHeight: totalHeight,
-				scrollWidth: _element.clientWidth,
+				scrollWidth,
 			});
 		}));
 
-		_element.replaceChildren(scrollableElement.getDomNode());
+		_element.replaceChildren(this._scrollableElement.getDomNode());
 		this._register(toDisposable(() => {
 			_element.replaceChildren();
 		}));
 
 		this._register(this._register(autorun(reader => {
 			/** @description Render all */
-			this.render(reader);
+			globalTransaction(tx => {
+				this.render(reader);
+			});
 		})));
 	}
 
+	public createViewModel(model: IMultiDiffEditorModel): MultiDiffEditorViewModel {
+		return new MultiDiffEditorViewModel(model, this._editor);
+	}
+
 	private render(reader: IReader | undefined) {
-		const scrollTop = this.scrollTop.read(reader);
+		const scrollTop = this._scrollTop.read(reader);
 		let contentScrollOffsetToScrollOffset = 0;
 		let itemHeightSumBefore = 0;
 		let itemContentHeightSumBefore = 0;
-		const viewPortHeight = this._elements.root.clientHeight;
+		const viewPortHeight = this._sizeObserver.height.read(reader);
 		const contentViewPort = OffsetRange.ofStartAndLength(scrollTop, viewPortHeight);
 
 		const width = this._sizeObserver.width.read(reader);
@@ -138,8 +166,9 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 				v.hide();
 			} else {
 				const scroll = Math.max(0, Math.min(contentViewPort.start - itemContentRange.start, itemContentHeight - itemHeight));
-				v.render(itemRange, scroll, width);
 				contentScrollOffsetToScrollOffset -= scroll;
+				const viewPort = OffsetRange.ofStartAndLength(scrollTop + contentScrollOffsetToScrollOffset, viewPortHeight);
+				v.render(itemRange, scroll, width, viewPort);
 			}
 
 			itemHeightSumBefore += itemHeight;
@@ -150,23 +179,61 @@ export class MultiDiffEditorWidgetImpl extends Disposable {
 	}
 }
 
-class DiffEditorItem extends Disposable {
-	private readonly _height = observableValue(this, 500);
-	public readonly contentHeight: IObservable<number> = this._height;
-	private _templateRef: IReference<DiffEditorItemTemplate> | undefined;
+export class MultiDiffEditorViewModel extends Disposable {
+	private readonly _documents = observableFromEvent(this._model.onDidChange, /** @description MultiDiffEditorViewModel.documents */() => this._model.documents);
 
-	private _vm: IDiffEditorViewModel | undefined;
+	public readonly items = derivedWithStore<readonly DocumentDiffItemViewModel[]>(this,
+		(reader, store) => this._documents.read(reader).map(d => store.add(new DocumentDiffItemViewModel(d, this._diffEditorViewModelFactory)))
+	).recomputeInitiallyAndOnChange(this._store);
 
 	constructor(
-		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
-		private readonly _entry: LazyPromise<IDiffEntry>,
-		baseDiffEditorWidget: DiffEditorWidget,
+		private readonly _model: IMultiDiffEditorModel,
+		private readonly _diffEditorViewModelFactory: DiffEditorWidget,
+	) {
+		super();
+	}
+}
+
+class DocumentDiffItemViewModel extends Disposable {
+	public readonly diffEditorViewModel: IDiffEditorViewModel;
+
+	constructor(
+		public readonly entry: LazyPromise<IDocumentDiffItem>,
+		diffEditorViewModelFactory: DiffEditorWidget,
 	) {
 		super();
 
-		this._vm = this._register(baseDiffEditorWidget.createViewModel({
-			original: _entry.value!.original!,
-			modified: _entry.value!.modified!,
+		this.diffEditorViewModel = this._register(diffEditorViewModelFactory.createViewModel({
+			original: entry.value!.original!,
+			modified: entry.value!.modified!,
+		}));
+	}
+}
+
+class VirtualizedViewItem extends Disposable {
+	// TODO this should be in the view model
+	private readonly _lastTemplateData = observableValue<{ contentHeight: number; maxScroll: { maxScroll: number; width: number } }>(
+		this,
+		{ contentHeight: 500, maxScroll: { maxScroll: 0, width: 0 }, }
+	);
+	private readonly _templateRef = this._register(disposableObservableValue<IReference<DiffEditorItemTemplate> | undefined>(this, undefined));
+
+	public readonly contentHeight = derived(this, reader =>
+		this._templateRef.read(reader)?.object.height?.read(reader) ?? this._lastTemplateData.read(reader).contentHeight
+	);
+
+	public readonly maxScroll = derived(this, reader => this._templateRef.read(reader)?.object.maxScroll.read(reader) ?? this._lastTemplateData.read(reader).maxScroll);
+
+	constructor(
+		private readonly _viewModel: DocumentDiffItemViewModel,
+		private readonly _objectPool: ObjectPool<TemplateData, DiffEditorItemTemplate>,
+		private readonly _scrollLeft: IObservable<number>,
+	) {
+		super();
+
+		this._register(autorun((reader) => {
+			const scrollLeft = this._scrollLeft.read(reader);
+			this._templateRef.read(reader)?.object.setScrollLeft(scrollLeft);
 		}));
 	}
 
@@ -176,19 +243,29 @@ class DiffEditorItem extends Disposable {
 	}
 
 	public override toString(): string {
-		return `ViewItem(${this._entry.value!.title})`;
+		return `VirtualViewItem(${this._viewModel.entry.value!.title})`;
 	}
 
 	public hide(): void {
-		this._templateRef?.object.hide();
-		this._templateRef?.dispose();
-		this._templateRef = undefined;
+		const ref = this._templateRef.get();
+		transaction(tx => {
+			if (ref) {
+				this._lastTemplateData.set({
+					contentHeight: ref.object.height.get(),
+					maxScroll: { maxScroll: 0, width: 0, } // Reset max scroll
+				}, tx);
+				ref.object.hide();
+			}
+			this._templateRef.set(undefined, tx);
+		});
 	}
 
-	public render(verticalSpace: OffsetRange, offset: number, width: number): void {
-		if (!this._templateRef) {
-			this._templateRef = this._objectPool.getUnusedObj(new TemplateData(this._height, this._vm!, this._entry.value!));
+	public render(verticalSpace: OffsetRange, offset: number, width: number, viewPort: OffsetRange): void {
+		let ref = this._templateRef.get();
+		if (!ref) {
+			ref = this._objectPool.getUnusedObj(new TemplateData(this._viewModel.diffEditorViewModel, this._viewModel.entry.value!));
+			this._templateRef.set(ref, undefined);
 		}
-		this._templateRef.object.render(verticalSpace, width, offset);
+		ref.object.render(verticalSpace, width, offset, viewPort);
 	}
 }
