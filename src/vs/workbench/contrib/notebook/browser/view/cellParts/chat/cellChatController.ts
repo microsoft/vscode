@@ -76,7 +76,7 @@ export class NotebookCellChatController extends Disposable {
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IEditorWorkerService private readonly _editorWorkerService: IEditorWorkerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INotebookExecutionStateService _notebookExecutionStateService: INotebookExecutionStateService,
+		@INotebookExecutionStateService private readonly _notebookExecutionStateService: INotebookExecutionStateService,
 	) {
 		super();
 
@@ -93,39 +93,8 @@ export class NotebookCellChatController extends Disposable {
 				return;
 			}
 
-			if (!this._widget) {
-				this._widget = this._instantiationService.createInstance(InlineChatWidget, editor, {
-					menuId: MENU_CELL_CHAT_WIDGET,
-					statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
-					feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
-				});
-
-				this._widgetDisposableStore.add(this._widget.onDidChangeHeight(() => {
-					this._updateHeight();
-				}));
-
-				this._widgetDisposableStore.add(_notebookExecutionStateService.onDidChangeExecution(e => {
-					if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
-						return;
-					}
-
-					if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri) && e.changed === undefined /** complete */) {
-						// check if execution is successfull
-						const { lastRunSuccess } = this._cell.internalMetadata;
-						if (lastRunSuccess) {
-							this._strategy?.createSnapshot();
-						}
-					}
-				}));
-
-
-				this._partContainer.appendChild(this._widget.domNode);
-				this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
-
-				this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarDOM.editorToolbar, MENU_CELL_CHAT_WIDGET_TOOLBAR, {
-					telemetrySource: 'interactiveEditorWidget-toolbar',
-					toolbarOptions: { primaryGroup: 'main' }
-				}));
+			if (!this._widget && this._isVisible) {
+				this._initialize(editor);
 			}
 
 			const inlineChatController = InlineChatController.get(editor);
@@ -134,6 +103,41 @@ export class NotebookCellChatController extends Disposable {
 					this.dismiss(false);
 				});
 			}
+		}));
+	}
+
+	private _initialize(editor: IActiveCodeEditor) {
+		this._widget = this._instantiationService.createInstance(InlineChatWidget, editor, {
+			menuId: MENU_CELL_CHAT_WIDGET,
+			statusMenuId: MENU_CELL_CHAT_WIDGET_STATUS,
+			feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
+		});
+
+		this._widgetDisposableStore.add(this._widget.onDidChangeHeight(() => {
+			this._updateHeight();
+		}));
+
+		this._widgetDisposableStore.add(this._notebookExecutionStateService.onDidChangeExecution(e => {
+			if (e.notebook.toString() !== this._notebookEditor.textModel?.uri.toString()) {
+				return;
+			}
+
+			if (e.type === NotebookExecutionType.cell && e.affectsCell(this._cell.uri) && e.changed === undefined /** complete */) {
+				// check if execution is successfull
+				const { lastRunSuccess } = this._cell.internalMetadata;
+				if (lastRunSuccess) {
+					this._strategy?.createSnapshot();
+				}
+			}
+		}));
+
+
+		this._partContainer.appendChild(this._widget.domNode);
+		this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
+
+		this._toolbar = this._register(this._instantiationService.createInstance(MenuWorkbenchToolBar, this._toolbarDOM.editorToolbar, MENU_CELL_CHAT_WIDGET_TOOLBAR, {
+			telemetrySource: 'interactiveEditorWidget-toolbar',
+			toolbarOptions: { primaryGroup: 'main' }
 		}));
 	}
 
@@ -189,6 +193,13 @@ export class NotebookCellChatController extends Disposable {
 
 	async show() {
 		this._isVisible = true;
+		if (!this._widget) {
+			const editor = this._getCellEditor();
+			if (editor) {
+				this._initialize(editor);
+			}
+		}
+
 		this._partContainer.style.display = 'flex';
 		this._widget?.focus();
 		this._widget?.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
