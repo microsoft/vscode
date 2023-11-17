@@ -576,6 +576,7 @@ export class InlineChatWidget {
 			}));
 			const template = renderer.renderTemplate(this._elements.response);
 			renderer.renderChatTreeItem(viewModel, 0, template);
+			this._chatResponseDisposables.add(renderer.onDidChangeItemHeight(() => this._onDidChangeHeight.fire()));
 		}
 		this._onDidChangeHeight.fire();
 	}

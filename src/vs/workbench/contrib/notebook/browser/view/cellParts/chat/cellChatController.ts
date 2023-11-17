@@ -292,7 +292,7 @@ export class NotebookCellChatController extends Disposable {
 		}
 
 		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
-		const replyResponse = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits);
+		const replyResponse = this._instantiationService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, this._activeSession.textModelN.getAlternativeVersionId(), progressEdits, request.requestId);
 		for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 			await this._makeChanges(editor, replyResponse.allLocalEdits[i], undefined);
 		}

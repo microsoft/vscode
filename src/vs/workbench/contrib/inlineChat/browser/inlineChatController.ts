@@ -37,7 +37,7 @@ import { generateUuid } from 'vs/base/common/uuid';
 import { TextEdit } from 'vs/editor/common/languages';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { MarkdownString } from 'vs/base/common/htmlContent';
+import { IMarkdownString, MarkdownString } from 'vs/base/common/htmlContent';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IModelDeltaDecoration } from 'vs/editor/common/model';
@@ -245,6 +245,12 @@ export class InlineChatController implements IEditorContribution {
 
 	joinCurrentRun(): Promise<void> | undefined {
 		return this._currentRun;
+	}
+
+
+	private _createChatResponse(session: Session, markdownString: IMarkdownString, requestId: string, isComplete: boolean = false): ChatResponseModel {
+		const sessionModel = new ChatModel(`inlinechat-provider-${session.provider.debugName}`, undefined, this._logService, this._chatAgentService);
+		return new ChatResponseModel(markdownString, sessionModel, undefined, requestId, isComplete, false, undefined);
 	}
 
 	// ---- state machine
@@ -607,12 +613,13 @@ export class InlineChatController implements IEditorContribution {
 
 		const modelAltVersionIdNow = this._activeSession.textModelN.getAlternativeVersionId();
 		const progressEdits: TextEdit[][] = [];
-		const markdownContents = new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
 
 		const progressiveEditsAvgDuration = new MovingAverage();
 		const progressiveEditsCts = new CancellationTokenSource(requestCts.token);
 		const progressiveEditsClock = StopWatch.create();
 		const progressiveEditsQueue = new Queue();
+
+		let progressiveChatResponse: ChatResponseModel | undefined;
 
 		const progress = new Progress<IInlineChatProgressItem>(data => {
 			this._log('received chunk', data, request);
@@ -659,8 +666,13 @@ export class InlineChatController implements IEditorContribution {
 				});
 			}
 			if (data.markdownFragment) {
-				markdownContents.appendMarkdown(data.markdownFragment);
-				this._zone.value.widget.updateMarkdownMessage(markdownContents);
+				if (!progressiveChatResponse) {
+					const markdownContents = new MarkdownString(data.markdownFragment, { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+					progressiveChatResponse = this._createChatResponse(this._activeSession!, markdownContents, request.requestId, false);
+					this._zone.value.widget.updateChatResponse(progressiveChatResponse);
+				} else {
+					progressiveChatResponse.updateContent({ kind: 'markdownContent', content: new MarkdownString(data.markdownFragment) });
+				}
 			}
 		});
 
@@ -690,10 +702,8 @@ export class InlineChatController implements IEditorContribution {
 				response = new EmptyResponse();
 				a11yResponse = localize('empty', "No results, please refine your input and try again");
 			} else {
-				if (reply.message) {
-					markdownContents.appendMarkdown(reply.message.value);
-				}
-				const replyResponse = response = this._instaService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits);
+				const markdownContents = reply.message ?? new MarkdownString('', { supportThemeIcons: true, supportHtml: true, isTrusted: false });
+				const replyResponse = response = this._instaService.createInstance(ReplyResponse, reply, markdownContents, this._activeSession.textModelN.uri, modelAltVersionIdNow, progressEdits, request.requestId);
 
 				for (let i = progressEdits.length; i < replyResponse.allLocalEdits.length; i++) {
 					await this._makeChanges(replyResponse.allLocalEdits[i], undefined);
@@ -741,7 +751,7 @@ export class InlineChatController implements IEditorContribution {
 		}
 	}
 
-	private async [State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.CANCEL> {
+	private async[State.APPLY_RESPONSE](): Promise<State.SHOW_RESPONSE | State.CANCEL> {
 		assertType(this._activeSession);
 		assertType(this._strategy);
 
@@ -823,9 +833,7 @@ export class InlineChatController implements IEditorContribution {
 		} else if (response instanceof ReplyResponse) {
 			// real response -> complex...
 			this._zone.value.widget.updateStatus('');
-			const session = new ChatModel(`inlinechat-provider-${this._activeSession.provider.debugName}`, undefined, this._logService, this._chatAgentService);
-			const responseModel = new ChatResponseModel(response.mdContent, session, undefined, `inlinechat-reply-${response.raw.id}`, true, false, undefined);
-			this._zone.value.widget.updateChatResponse(responseModel);
+			this._zone.value.widget.updateChatResponse(this._createChatResponse(this._activeSession, response.mdContent, response.requestId, true));
 
 			//this._zone.value.widget.updateMarkdownMessage(response.mdContent);
 			this._activeSession.lastExpansionState = this._zone.value.widget.expansionState;
