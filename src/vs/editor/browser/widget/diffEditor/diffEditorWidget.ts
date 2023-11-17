@@ -374,7 +374,9 @@ export class DiffEditorWidget extends DelegatingEditor implements IDiffEditor {
 		this._editors.modified.onHide();
 	}
 
-	override layout(dimension?: IDimension | undefined): void { this._rootSizeObserver.observe(dimension); }
+	override layout(dimension?: IDimension | undefined): void {
+		this._rootSizeObserver.observe(dimension);
+	}
 
 	override hasTextFocus(): boolean { return this._editors.original.hasTextFocus() || this._editors.modified.hasTextFocus(); }
 

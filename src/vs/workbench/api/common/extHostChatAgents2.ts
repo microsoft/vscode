@@ -170,7 +170,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 		return agent.provideFollowups(result, token);
 	}
 
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void {
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void {
 		const agent = this._agents.get(handle);
 		if (!agent) {
 			return;
@@ -189,7 +189,7 @@ export class ExtHostChatAgents2 implements ExtHostChatAgentsShape2 {
 				kind = extHostTypes.ChatAgentResultFeedbackKind.Helpful;
 				break;
 		}
-		agent.acceptFeedback(Object.freeze({ result, kind }));
+		agent.acceptFeedback(reportIssue ? Object.freeze({ result, kind, reportIssue }) : Object.freeze({ result, kind }));
 	}
 
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void {
@@ -224,6 +224,7 @@ class ExtHostChatAgent {
 	private _isSecondary: boolean | undefined;
 	private _onDidReceiveFeedback = new Emitter<vscode.ChatAgentResult2Feedback>();
 	private _onDidPerformAction = new Emitter<vscode.ChatAgentUserActionEvent>();
+	private _supportIssueReporting: boolean | undefined;
 
 	constructor(
 		public readonly extension: IExtensionDescription,
@@ -314,6 +315,7 @@ class ExtHostChatAgent {
 					helpTextPrefix: (!this._helpTextPrefix || typeof this._helpTextPrefix === 'string') ? this._helpTextPrefix : typeConvert.MarkdownString.from(this._helpTextPrefix),
 					helpTextPostfix: (!this._helpTextPostfix || typeof this._helpTextPostfix === 'string') ? this._helpTextPostfix : typeConvert.MarkdownString.from(this._helpTextPostfix),
 					sampleRequest: this._sampleRequest,
+					supportIssueReporting: this._supportIssueReporting
 				});
 				updateScheduled = false;
 			});
@@ -408,6 +410,15 @@ class ExtHostChatAgent {
 			},
 			set sampleRequest(v) {
 				that._sampleRequest = v;
+				updateMetadataSoon();
+			},
+			get supportIssueReporting() {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				return that._supportIssueReporting;
+			},
+			set supportIssueReporting(v) {
+				checkProposedApiEnabled(that.extension, 'chatAgents2Additions');
+				that._supportIssueReporting = v;
 				updateMetadataSoon();
 			},
 			get onDidReceiveFeedback() {

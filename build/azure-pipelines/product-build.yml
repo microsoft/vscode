@@ -126,6 +126,14 @@ variables:
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
     value: ${{ and(eq(parameters.VSCODE_BUILD_MACOS, true), eq(parameters.VSCODE_BUILD_MACOS_ARM64, true), eq(parameters.VSCODE_BUILD_MACOS_UNIVERSAL, true)) }}
+  - name: PRSS_CDN_URL
+    value: https://vscode.download.prss.microsoft.com/dbazure/download
+  - name: PRSS_RELEASE_TENANT_ID
+    value: 975f013f-7f24-47e8-a7d3-abc4752bf346
+  - name: PRSS_RELEASE_CLIENT_ID
+    value: c24324f7-e65f-4c45-8702-ed2d4c35df99
+  - name: PRSS_PROVISION_TENANT_ID
+    value: 72f988bf-86f1-41af-91ab-2d7cd011db47
   - name: AZURE_CDN_URL
     value: https://az764295.vo.msecnd.net
   - name: AZURE_DOCUMENTDB_ENDPOINT
@@ -625,9 +633,8 @@ stages:
 
   - ${{ if eq(variables['VSCODE_PUBLISH'], 'true') }}:
     - stage: Publish
-      dependsOn:
-        - Compile
-      pool: 1es-ubuntu-20.04-x64
+      dependsOn: []
+      pool: 1es-windows-2019-x64
       variables:
         - name: BUILDS_API_URL
           value: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/

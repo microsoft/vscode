@@ -7,11 +7,12 @@ declare module 'vscode' {
 
 	export interface ChatAgentUserActionEvent {
 		readonly result: ChatAgentResult2;
-		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction;
+		readonly action: InteractiveSessionCopyAction | InteractiveSessionInsertAction | InteractiveSessionTerminalAction | InteractiveSessionCommandAction | InteractiveSessionFollowupAction | InteractiveSessionBugReportAction;
 	}
 
 	export interface ChatAgent2 {
 		onDidPerformAction: Event<ChatAgentUserActionEvent>;
+		supportIssueReporting?: boolean;
 	}
 
 	/**

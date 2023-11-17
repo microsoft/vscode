@@ -52,7 +52,7 @@ import { IRevealOptions, ITreeItem, IViewBadge } from 'vs/workbench/common/views
 import { CallHierarchyItem } from 'vs/workbench/contrib/callHierarchy/common/callHierarchy';
 import { IChatAgentCommand, IChatAgentMetadata, IChatAgentRequest, IChatAgentResult } from 'vs/workbench/contrib/chat/common/chatAgents';
 import { IChatMessage, IChatResponseFragment, IChatResponseProviderMetadata } from 'vs/workbench/contrib/chat/common/chatProvider';
-import { IChatAgentDetection, IChatAsyncContent, IChatContent, IChatContentInlineReference, IChatContentReference, IChatDynamicRequest, IChatFollowup, IChatReplyFollowup, IChatResponseErrorDetails, IChatTreeData, IChatUsedContext, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
+import { IChatAsyncContent, IChatDynamicRequest, IChatFollowup, IChatProgress, IChatReplyFollowup, IChatResponseErrorDetails, IChatUserActionEvent, InteractiveSessionVoteDirection } from 'vs/workbench/contrib/chat/common/chatService';
 import { IChatRequestVariableValue, IChatVariableData } from 'vs/workbench/contrib/chat/common/chatVariables';
 import { DebugConfigurationProviderTriggerKind, IAdapterDescriptor, IConfig, IDebugSessionReplMode } from 'vs/workbench/contrib/debug/common/debug';
 import { IInlineChatBulkEditResponse, IInlineChatEditResponse, IInlineChatMessageResponse, IInlineChatProgressItem, IInlineChatRequest, IInlineChatSession, InlineChatResponseFeedbackKind } from 'vs/workbench/contrib/inlineChat/common/inlineChat';
@@ -1181,7 +1181,7 @@ export interface ExtHostChatAgentsShape2 {
 	$invokeAgent(handle: number, sessionId: string, requestId: string, request: IChatAgentRequest, context: { history: IChatMessage[] }, token: CancellationToken): Promise<IChatAgentResult | undefined>;
 	$provideSlashCommands(handle: number, token: CancellationToken): Promise<IChatAgentCommand[]>;
 	$provideFollowups(handle: number, sessionId: string, token: CancellationToken): Promise<IChatFollowup[]>;
-	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection): void;
+	$acceptFeedback(handle: number, sessionId: string, requestId: string, vote: InteractiveSessionVoteDirection, reportIssue?: boolean): void;
 	$acceptAction(handle: number, sessionId: string, requestId: string, action: IChatUserActionEvent): void;
 	$releaseSession(sessionId: string): void;
 }
@@ -1196,7 +1196,7 @@ export interface ExtHostChatVariablesShape {
 }
 
 export interface MainThreadInlineChatShape extends IDisposable {
-	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean): Promise<void>;
+	$registerInteractiveEditorProvider(handle: number, label: string, debugName: string, supportsFeedback: boolean, supportsFollowups: boolean, supportsIssueReporting: boolean): Promise<void>;
 	$handleProgressChunk(requestId: string, chunk: Dto<IInlineChatProgressItem>): Promise<void>;
 	$unregisterInteractiveEditorProvider(handle: number): Promise<void>;
 }
@@ -1206,6 +1206,7 @@ export type IInlineChatResponseDto = Dto<IInlineChatEditResponse | Omit<IInlineC
 export interface ExtHostInlineChatShape {
 	$prepareSession(handle: number, uri: UriComponents, range: ISelection, token: CancellationToken): Promise<IInlineChatSession | undefined>;
 	$provideResponse(handle: number, session: IInlineChatSession, request: IInlineChatRequest, token: CancellationToken): Promise<IInlineChatResponseDto | undefined>;
+	$provideFollowups(handle: number, sessionId: number, responseId: number, token: CancellationToken): Promise<IChatReplyFollowup[] | undefined>;
 	$handleFeedback(handle: number, sessionId: number, responseId: number, kind: InlineChatResponseFeedbackKind): void;
 	$releaseSession(handle: number, sessionId: number): void;
 }
@@ -1252,24 +1253,9 @@ export type IDocumentContextDto = {
 
 export type IChatAsyncContentDto = Dto<Omit<IChatAsyncContent, 'resolvedContent'>>;
 
-// TODO@some type ninja who can do this without the duplication (the async content case throws me off)
 export type IChatProgressDto =
-	| Dto<IChatContent>
-	| Dto<IChatTreeData>
-	| Dto<IChatAsyncContent>
-	| Dto<IChatUsedContext>
-	| Dto<IChatContentReference>
-	| Dto<IChatContentInlineReference>
-	| Dto<IChatAgentDetection>
+	| Dto<Exclude<IChatProgress, IChatAsyncContent>>
 	| IChatAsyncContentDto;
-
-// | { content: string | IMarkdownString }
-// | { placeholder: string }
-// | { treeData: IChatResponseProgressFileTreeData }
-// | { documents: IDocumentContextDto[] }
-// | { reference: UriComponents | ILocationDto }
-// | { inlineReference: UriComponents | ILocationDto; title?: string }
-// | IChatAgentDetection;
 
 export interface MainThreadChatShape extends IDisposable {
 	$registerChatProvider(handle: number, id: string): Promise<void>;
@@ -1500,6 +1486,9 @@ export interface MainThreadSCMShape extends IDisposable {
 
 	$onDidChangeHistoryProviderActionButton(sourceControlHandle: number, actionButton?: SCMActionButtonDto | null): void;
 	$onDidChangeHistoryProviderCurrentHistoryItemGroup(sourceControlHandle: number, historyItemGroup: SCMHistoryItemGroupDto | undefined): void;
+
+	$registerSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number, label: string, icon?: ThemeIcon | UriComponents | { light: UriComponents; dark: UriComponents }): void;
+	$unregisterSourceControlInputBoxValueProvider(inputBoxValueProviderHandle: number): void;
 }
 
 export interface MainThreadQuickDiffShape extends IDisposable {
@@ -2212,6 +2201,7 @@ export interface ExtHostTerminalServiceShape {
 
 export interface ExtHostSCMShape {
 	$provideOriginalResource(sourceControlHandle: number, uri: UriComponents, token: CancellationToken): Promise<UriComponents | null>;
+	$provideInputBoxValue(inputBoxValueProviderHandle: number, sourceControlId: string, context: any): Promise<string | undefined>;
 	$onInputBoxValueChange(sourceControlHandle: number, value: string): void;
 	$executeResourceCommand(sourceControlHandle: number, groupHandle: number, handle: number, preserveFocus: boolean): Promise<void>;
 	$validateInput(sourceControlHandle: number, value: string, cursorPosition: number): Promise<[string | IMarkdownString, number] | undefined>;

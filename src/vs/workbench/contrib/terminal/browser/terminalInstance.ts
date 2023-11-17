@@ -637,8 +637,8 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			return null;
 		}
 
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
-		const newRC = getXtermScaledDimensions(font, dimension.width, dimension.height);
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
+		const newRC = getXtermScaledDimensions(dom.getWindow(this.domElement), font, dimension.width, dimension.height);
 		if (!newRC) {
 			this._setLastKnownColsAndRows();
 			return null;
@@ -667,7 +667,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 
 	private _getDimension(width: number, height: number): ICanvasDimensions | undefined {
 		// The font needs to have been initialized
-		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont();
+		const font = this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement));
 		if (!font || !font.charWidth || !font.charHeight) {
 			return undefined;
 		}
@@ -2031,7 +2031,7 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 	}
 
 	private async _addScrollbar(): Promise<void> {
-		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont()).charWidth;
+		const charWidth = (this.xterm ? this.xterm.getFont() : this._configHelper.getFont(dom.getWindow(this.domElement))).charWidth;
 		if (!this.xterm?.raw.element || !this._container || !charWidth || !this._fixedCols) {
 			return;
 		}

@@ -246,7 +246,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 							// be re-rendered so progressive rendering is restarted, even if the model wasn't updated.
 							`${isResponseVM(element) && element.renderData ? `_${this.visibleChangeCount}` : ''}` +
 							// Re-render once content references are loaded
-							(isResponseVM(element) ? `_${element.response.contentReferences.length}` : '');
+							(isResponseVM(element) ? `_${element.contentReferences.length}` : '');
 					},
 				}
 			});
@@ -439,7 +439,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel = undefined;
 			this.onDidChangeItems();
 		}));
-		this.inputPart.setState(model.providerId, viewState.inputValue ?? '');
+		this.inputPart.setState(model.providerId, viewState.inputValue);
 
 		if (this.tree) {
 			this.onDidChangeItems();

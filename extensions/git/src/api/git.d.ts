@@ -36,6 +36,7 @@ export interface Ref {
 export interface UpstreamRef {
 	readonly remote: string;
 	readonly name: string;
+	readonly commit?: string;
 }
 
 export interface Branch extends Ref {
@@ -233,7 +234,7 @@ export interface Repository {
 
 	getRefs(query: RefQuery, cancellationToken?: CancellationToken): Promise<Ref[]>;
 
-	getMergeBase(ref1: string, ref2: string): Promise<string>;
+	getMergeBase(ref1: string, ref2: string): Promise<string | undefined>;
 
 	tag(name: string, upstream: string): Promise<void>;
 	deleteTag(name: string): Promise<void>;

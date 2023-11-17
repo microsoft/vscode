@@ -594,8 +594,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	mainContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 	activeContainerOffset: ILayoutOffsetInfo = { top: 0, quickPickTop: 0 };
 
-	hasContainer = true;
-	container: HTMLElement = mainWindow.document.body;
+	mainContainer: HTMLElement = mainWindow.document.body;
 	containers = [mainWindow.document.body];
 	activeContainer: HTMLElement = mainWindow.document.body;
 
@@ -608,9 +607,9 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	onDidChangePartVisibility: Event<void> = Event.None;
 	onDidLayoutMainContainer = Event.None;
 	onDidLayoutActiveContainer = Event.None;
+	onDidLayoutContainer = Event.None;
 	onDidChangeNotificationsVisibility = Event.None;
 	onDidAddContainer = Event.None;
-	onDidRemoveContainer = Event.None;
 	onDidChangeActiveContainer = Event.None;
 
 	layout(): void { }
@@ -623,7 +622,7 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	getWindowBorderWidth(): number { return 0; }
 	getWindowBorderRadius(): string | undefined { return undefined; }
 	isVisible(_part: Parts): boolean { return true; }
-	getDimension(_part: Parts): Dimension { return new Dimension(0, 0); }
+	getDimension(_part: Parts): IDimension { return new Dimension(0, 0); }
 	getContainer(): HTMLElement { return null!; }
 	isTitleBarHidden(): boolean { return false; }
 	isStatusBarHidden(): boolean { return false; }
@@ -648,10 +647,10 @@ export class TestLayoutService implements IWorkbenchLayoutService {
 	async setPanelAlignment(_alignment: PanelAlignment): Promise<void> { }
 	addClass(_clazz: string): void { }
 	removeClass(_clazz: string): void { }
-	getMaximumEditorDimensions(): Dimension { throw new Error('not implemented'); }
+	getMaximumEditorDimensions(): IDimension { throw new Error('not implemented'); }
 	toggleZenMode(): void { }
-	isEditorLayoutCentered(): boolean { return false; }
-	centerEditorLayout(_active: boolean): void { }
+	isMainEditorLayoutCentered(): boolean { return false; }
+	centerMainEditorLayout(_active: boolean): void { }
 	resizePart(_part: Parts, _sizeChangeWidth: number, _sizeChangeHeight: number): void { }
 	registerPart(part: Part): void { }
 	isWindowMaximized() { return false; }
@@ -826,6 +825,7 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 
 	readonly parts: readonly IEditorPart[] = [this];
 
+	onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }> = Event.None;
 	onDidChangeActiveGroup: Event<IEditorGroup> = Event.None;
 	onDidActivateGroup: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -1757,6 +1757,8 @@ export class TestEditorPart extends MainEditorPart implements IEditorGroupsServi
 	readonly activePart = this;
 	readonly mainPart = this;
 	readonly parts: readonly IEditorPart[] = [this];
+
+	readonly onDidCreateAuxiliaryEditorPart: Event<{ readonly part: IAuxiliaryEditorPart; readonly disposables: DisposableStore }> = Event.None;
 
 	testSaveState(): void {
 		return super.saveState();

@@ -14,6 +14,7 @@ import { ViewContainerLocation, IViewDescriptorService } from 'vs/workbench/comm
 import { IShellLaunchConfig, ITerminalTabLayoutInfoById, TerminalLocation } from 'vs/platform/terminal/common/terminal';
 import { TerminalStatus } from 'vs/workbench/contrib/terminal/browser/terminalStatusList';
 import { getPartByLocation } from 'vs/workbench/browser/parts/views/viewsService';
+import { getWindow } from 'vs/base/browser/dom';
 
 const enum Constants {
 	/**
@@ -572,7 +573,7 @@ export class TerminalGroup extends Disposable implements ITerminalGroup {
 		}
 
 		const isHorizontal = (direction === Direction.Left || direction === Direction.Right);
-		const font = this._terminalService.configHelper.getFont();
+		const font = this._terminalService.configHelper.getFont(getWindow(this._groupElement));
 		// TODO: Support letter spacing and line height
 		const charSize = (isHorizontal ? font.charWidth : font.charHeight);
 		if (charSize) {

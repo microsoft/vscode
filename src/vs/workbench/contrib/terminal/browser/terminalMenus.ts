@@ -515,7 +515,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.clearLong', "Clear Terminal"),
 						icon: Codicon.clearAll
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 4,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
@@ -529,7 +529,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.runActiveFile', "Run Active File"),
 						icon: Codicon.run
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 5,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true
@@ -543,7 +543,7 @@ export function setupTerminalMenus(): void {
 						title: localize('workbench.action.terminal.runSelectedText', "Run Selected Text"),
 						icon: Codicon.selection
 					},
-					group: 'navigation',
+					group: 'execute',
 					order: 6,
 					when: ContextKeyExpr.equals('view', TERMINAL_VIEW_ID),
 					isHiddenByDefault: true

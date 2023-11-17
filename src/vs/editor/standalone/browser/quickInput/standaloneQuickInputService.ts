@@ -39,8 +39,7 @@ class EditorScopedQuickInputService extends QuickInputService {
 			const widget = contribution.widget;
 			this.host = {
 				_serviceBrand: undefined,
-				get hasContainer() { return true; },
-				get container() { return widget.getDomNode(); },
+				get mainContainer() { return widget.getDomNode(); },
 				getContainer() { return widget.getDomNode(); },
 				get containers() { return [widget.getDomNode()]; },
 				get activeContainer() { return widget.getDomNode(); },
@@ -48,7 +47,9 @@ class EditorScopedQuickInputService extends QuickInputService {
 				get activeContainerDimension() { return editor.getLayoutInfo(); },
 				get onDidLayoutMainContainer() { return editor.onDidLayoutChange; },
 				get onDidLayoutActiveContainer() { return editor.onDidLayoutChange; },
+				get onDidLayoutContainer() { return Event.map(editor.onDidLayoutChange, dimension => ({ container: widget.getDomNode(), dimension })); },
 				get onDidChangeActiveContainer() { return Event.None; },
+				get onDidAddContainer() { return Event.None; },
 				get mainContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				get activeContainerOffset() { return { top: 0, quickPickTop: 0 }; },
 				focus: () => editor.focus()
