@@ -209,6 +209,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			set variableProvider(value) {
+				checkProposedApiEnabled(extension, 'notebookVariableProvider');
 				_variableProvider = value;
 				data.hasVariableProvider = !!value;
 				_update();
@@ -426,7 +427,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		const parent = parentName ? { name: parentName, value: '' } : undefined;
-		const variables = variableProvider.provideVariables(document.apiNotebook, parent, kind, start, token);
+		const requestKind = kind === 'named' ? vscode.VariablesRequestKind.Named : vscode.VariablesRequestKind.Indexed;
+		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
 		for await (const variable of variables) {
 			if (token.isCancellationRequested) {
 				return;
