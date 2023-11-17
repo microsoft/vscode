@@ -8,7 +8,7 @@ import { CancelablePromise, Queue, createCancelablePromise, raceCancellationErro
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Event } from 'vs/base/common/event';
 import { MarkdownString } from 'vs/base/common/htmlContent';
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore, IDisposable } from 'vs/base/common/lifecycle';
 import { MovingAverage } from 'vs/base/common/numbers';
 import { StopWatch } from 'vs/base/common/stopwatch';
 import { assertType } from 'vs/base/common/types';
@@ -65,6 +65,7 @@ export class NotebookCellChatController extends Disposable {
 	private _toolbar: MenuWorkbenchToolBar | undefined;
 	private readonly _ctxVisible: IContextKey<boolean>;
 	private readonly _ctxCellWidgetFocused: IContextKey<boolean>;
+	private _widgetDisposableStore: DisposableStore = this._register(new DisposableStore());
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
 		private readonly _chatPart: ICellChatPart,
@@ -97,6 +98,10 @@ export class NotebookCellChatController extends Disposable {
 					feedbackMenuId: MENU_CELL_CHAT_WIDGET_FEEDBACK
 				});
 
+				this._widgetDisposableStore.add(this._widget.onDidChangeHeight(() => {
+					this._updateHeight();
+				}));
+
 				this._partContainer.appendChild(this._widget.domNode);
 				this._partContainer.appendChild(this._toolbarDOM.editorToolbar);
 
@@ -123,11 +128,15 @@ export class NotebookCellChatController extends Disposable {
 			this._sessionCtor = undefined;
 		}
 
-		if (this._widget) {
-			this._partContainer.removeChild(this._widget.domNode);
-		}
+		try {
+			if (this._widget) {
+				this._partContainer.removeChild(this._widget.domNode);
+			}
 
-		this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
+			this._partContainer.removeChild(this._toolbarDOM.editorToolbar);
+		} catch (_ex) {
+			// might not be attached
+		}
 
 		this._inlineChatListener?.dispose();
 		this._toolbar?.dispose();
@@ -141,10 +150,23 @@ export class NotebookCellChatController extends Disposable {
 	layout() {
 		if (this._isVisible && this._widget) {
 			const innerEditorWidth = this._cell.layoutInfo.editorWidth;
-			const height = 82 + 8 * 2 /* vertical margin*/;
-
+			const height = this._widget.getHeight();
 			this._widget.layout(new Dimension(innerEditorWidth, height));
 		}
+	}
+
+	private _updateHeight() {
+		const margin = 6;
+		const heightWithMargin = this._isVisible && this._widget
+			? (this._widget.getHeight() - 8 /** shadow */ - 18 /** padding */ + margin /** bottom margin for the cell part */)
+			: 0;
+
+		if (this._cell.chatHeight === heightWithMargin) {
+			return;
+		}
+
+		this._cell.chatHeight = heightWithMargin;
+		this._partContainer.style.height = `${heightWithMargin - margin}px`;
 	}
 
 	async show() {
@@ -154,7 +176,7 @@ export class NotebookCellChatController extends Disposable {
 		this._widget?.updateInfo(localize('welcome.1', "AI-generated code may be incorrect"));
 		this._ctxVisible.set(true);
 		this._ctxCellWidgetFocused.set(true);
-		this._cell.chatHeight = 82 + 8 * 2 /* vertical margin*/;
+		this._updateHeight();
 
 		this._sessionCtor = createCancelablePromise<void>(async token => {
 			if (this._cell.editorAttached) {
@@ -336,7 +358,7 @@ export class NotebookCellChatController extends Disposable {
 		this._ctxCellWidgetFocused.set(false);
 		this._ctxVisible.set(false);
 		this._widget?.reset();
-		this._cell.chatHeight = 0;
+		this._updateHeight();
 	}
 
 	private async _makeChanges(editor: IActiveCodeEditor, edits: TextEdit[], opts: ProgressingEditsOptions | undefined) {
