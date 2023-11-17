@@ -154,6 +154,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 		this._register(model.original.onDidChangeContent((e) => {
@@ -172,6 +173,7 @@ export class DiffEditorViewModel extends Disposable implements IDiffEditorViewMo
 				}
 			}
 
+			this._isDiffUpToDate.set(false, undefined);
 			debouncer.schedule();
 		}));
 
