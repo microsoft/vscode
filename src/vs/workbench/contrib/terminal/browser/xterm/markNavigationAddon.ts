@@ -31,6 +31,9 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 	protected _terminal: Terminal | undefined;
 	private _navigationDecorations: IDecoration[] | undefined;
 
+	private _activeCommandGuide?: ITerminalCommand;
+	private _commandGuideDecorations = this._register(new MutableDisposable<DisposableStore>());
+
 	activate(terminal: Terminal): void {
 		this._terminal = terminal;
 		this._register(this._terminal.onData(() => {
@@ -257,26 +260,23 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 		);
 	}
 
-	private _highlightedCommand?: ITerminalCommand;
-	private _outputHighlights = this._register(new MutableDisposable<DisposableStore>());
-
 	showCommandGuide(command: ITerminalCommand | undefined): void {
 		if (!this._terminal) {
 			return;
 		}
 		if (!command) {
-			this._outputHighlights.clear();
-			this._highlightedCommand = undefined;
+			this._commandGuideDecorations.clear();
+			this._activeCommandGuide = undefined;
 			return;
 		}
-		if (this._highlightedCommand === command) {
+		if (this._activeCommandGuide === command) {
 			return;
 		}
 		if (command.marker) {
-			this._highlightedCommand = command;
+			this._activeCommandGuide = command;
 
 			// Highlight output
-			const store = this._outputHighlights.value = new DisposableStore();
+			const store = this._commandGuideDecorations.value = new DisposableStore();
 			if (!command.executedMarker || !command.endMarker) {
 				return;
 			}
