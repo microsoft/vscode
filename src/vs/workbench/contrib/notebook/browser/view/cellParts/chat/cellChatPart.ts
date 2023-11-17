@@ -3,12 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Lazy } from 'vs/base/common/lazy';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ICellViewModel, INotebookEditorDelegate } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { CellContentPart } from 'vs/workbench/contrib/notebook/browser/view/cellPart';
 import { NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
-import { CellChatWidget } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatWidget';
+
+import 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatActions';
 
 export class CellChatPart extends CellContentPart {
 	private _controller: NotebookCellChatController | undefined;
@@ -17,25 +17,17 @@ export class CellChatPart extends CellContentPart {
 		return this.currentCell;
 	}
 
-	private _widget: Lazy<CellChatWidget>;
-
 	constructor(
 		private readonly _notebookEditor: INotebookEditorDelegate,
-		partContainer: HTMLElement,
+		private readonly _partContainer: HTMLElement,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super();
-
-		this._widget = new Lazy(() => this._instantiationService.createInstance(CellChatWidget, this._notebookEditor, partContainer));
-	}
-
-	getWidget() {
-		return this._widget.value;
 	}
 
 	override didRenderCell(element: ICellViewModel): void {
 		this._controller?.dispose();
-		this._controller = this._instantiationService.createInstance(NotebookCellChatController, this._notebookEditor, this, element);
+		this._controller = this._instantiationService.createInstance(NotebookCellChatController, this._notebookEditor, this, element, this._partContainer);
 
 		super.didRenderCell(element);
 	}

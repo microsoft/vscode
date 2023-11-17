@@ -131,6 +131,12 @@ export interface InlineChatWidgetViewState {
 	placeholder: string;
 }
 
+export interface IInlineChatWidgetConstructionOptions {
+	menuId: MenuId;
+	statusMenuId: MenuId;
+	feedbackMenuId: MenuId;
+}
+
 export class InlineChatWidget {
 
 	private static _modelPool: number = 1;
@@ -209,6 +215,7 @@ export class InlineChatWidget {
 
 	constructor(
 		private readonly parentEditor: ICodeEditor,
+		_options: IInlineChatWidgetConstructionOptions,
 		@IModelService private readonly _modelService: IModelService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
@@ -342,7 +349,7 @@ export class InlineChatWidget {
 
 		// toolbars
 
-		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, MENU_INLINE_CHAT_WIDGET, {
+		const toolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.editorToolbar, _options.menuId, {
 			telemetrySource: 'interactiveEditorWidget-toolbar',
 			toolbarOptions: { primaryGroup: 'main' }
 		});
@@ -362,7 +369,7 @@ export class InlineChatWidget {
 				return undefined;
 			}
 		};
-		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, MENU_INLINE_CHAT_WIDGET_STATUS, workbenchMenubarOptions);
+		const statusButtonBar = this._instantiationService.createInstance(MenuWorkbenchButtonBar, this._elements.statusToolbar, _options.statusMenuId, workbenchMenubarOptions);
 		this._store.add(statusButtonBar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(statusButtonBar);
 
@@ -375,7 +382,7 @@ export class InlineChatWidget {
 			}
 		};
 
-		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, MENU_INLINE_CHAT_WIDGET_FEEDBACK, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
+		const feedbackToolbar = this._instantiationService.createInstance(MenuWorkbenchToolBar, this._elements.feedbackToolbar, _options.feedbackMenuId, { ...workbenchToolbarOptions, hiddenItemStrategy: HiddenItemStrategy.Ignore });
 		this._store.add(feedbackToolbar.onDidChangeMenuItems(() => this._onDidChangeHeight.fire()));
 		this._store.add(feedbackToolbar);
 
@@ -864,7 +871,11 @@ export class InlineChatZoneWidget extends ZoneWidget {
 			this._ctxCursorPosition.reset();
 		}));
 
-		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor);
+		this.widget = this._instaService.createInstance(InlineChatWidget, this.editor, {
+			menuId: MENU_INLINE_CHAT_WIDGET,
+			statusMenuId: MENU_INLINE_CHAT_WIDGET_STATUS,
+			feedbackMenuId: MENU_INLINE_CHAT_WIDGET_FEEDBACK
+		});
 		this._disposables.add(this.widget.onDidChangeHeight(() => this._relayout()));
 		this._disposables.add(this.widget);
 		this.create();
