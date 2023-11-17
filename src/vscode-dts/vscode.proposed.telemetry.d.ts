@@ -28,11 +28,6 @@ declare module 'vscode' {
 		export const telemetryConfiguration: TelemetryConfiguration;
 
 		/**
-		 * sqm (Software Quality Metric) is an id used on Windows devices.
-		 */
-		export const sqmId: string;
-
-		/**
 		 * An {@link Event} which fires when the collectable state of telemetry changes
 		 * Returns a {@link TelemetryConfiguration} object
 		 */

@@ -335,7 +335,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 		const env: typeof vscode.env = {
 			get machineId() { return initData.telemetryInfo.machineId; },
 			get sessionId() { return initData.telemetryInfo.sessionId; },
-			get sqmId() { return initData.telemetryInfo.sqmId; },
 			get language() { return initData.environment.appLanguage; },
 			get appName() { return initData.environment.appName; },
 			get appRoot() { return initData.environment.appRoot?.fsPath ?? ''; },
