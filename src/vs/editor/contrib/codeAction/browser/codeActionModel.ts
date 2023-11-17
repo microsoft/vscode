@@ -68,7 +68,6 @@ class CodeActionOracle extends Disposable {
 			return undefined;
 		}
 
-		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
 
 		return selection;
