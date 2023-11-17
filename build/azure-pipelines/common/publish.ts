@@ -426,7 +426,7 @@ class State {
 		const stageAttempt = e('SYSTEM_STAGEATTEMPT');
 		this.statePath = path.join(pipelineWorkspacePath, `artifacts_processed_${stageAttempt}`, `artifacts_processed_${stageAttempt}.txt`);
 		fs.mkdirSync(path.dirname(this.statePath), { recursive: true });
-		fs.writeFileSync(this.statePath, [...this.set.values()].join('\n'));
+		fs.writeFileSync(this.statePath, [...this.set.values()].map(name => `${name}\n`).join(''));
 	}
 
 	get size(): number {
@@ -798,7 +798,7 @@ async function processArtifact(artifact: Artifact): Promise<void> {
 		return filePath;
 	});
 
-	log(`Successfully downloaded and extracted after ${(Date.now() - start) / 1000} seconds.}`);
+	log(`Successfully downloaded and extracted after ${(Date.now() - start) / 1000} seconds.`);
 
 	// getPlatform needs the unprocessedType
 	const quality = e('VSCODE_QUALITY');
