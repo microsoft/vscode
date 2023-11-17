@@ -461,7 +461,6 @@
 
 .interactive-item-container.filtered-response .value > .rendered-markdown {
 	pointer-events: none;
-	filter: blur(1.8px);
 	-webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 	mask-image: linear-gradient(rgba(0, 0, 0, 0.75), rgba(0, 0, 0, 0.05) 60%, rgba(0, 0, 0, 0.00) 80%);
 }
