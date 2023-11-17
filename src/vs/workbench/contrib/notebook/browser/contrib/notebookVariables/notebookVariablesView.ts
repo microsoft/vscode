@@ -20,7 +20,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewPaneOptions, ViewPane } from 'vs/workbench/browser/parts/views/viewPane';
 import { IViewDescriptorService } from 'vs/workbench/common/views';
-import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, INotebookVariableElement, NotebookVariablesDelegate, NotebookVariablesTree } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
+import { NotebookVariableAccessibilityProvider, NotebookVariableRenderer, INotebookVariableElement, NotebookVariablesDelegate } from 'vs/workbench/contrib/notebook/browser/contrib/notebookVariables/notebookVariablesTree';
 import { getNotebookEditorFromEditorPane } from 'vs/workbench/contrib/notebook/browser/notebookBrowser';
 import { NotebookTextModel } from 'vs/workbench/contrib/notebook/common/model/notebookTextModel';
 import { ICellExecutionStateChangedEvent, IExecutionStateChangedEvent, INotebookExecutionStateService } from 'vs/workbench/contrib/notebook/common/notebookExecutionStateService';
@@ -32,7 +32,7 @@ export class NotebookVariablesView extends ViewPane {
 	static readonly ID = 'notebookVariablesView';
 	static readonly TITLE: ILocalizedString = nls.localize2('notebook.notebookVariables', "Notebook Variables");
 
-	private tree: NotebookVariablesTree | undefined;
+	private tree: WorkbenchObjectTree<INotebookVariableElement> | undefined;
 	private activeNotebook: NotebookTextModel | undefined;
 
 	constructor(
@@ -61,7 +61,7 @@ export class NotebookVariablesView extends ViewPane {
 	protected override renderBody(container: HTMLElement): void {
 		super.renderBody(container);
 
-		this.tree = <NotebookVariablesTree>this.instantiationService.createInstance(
+		this.tree = <WorkbenchObjectTree<INotebookVariableElement>>this.instantiationService.createInstance(
 			WorkbenchObjectTree,
 			'notebookVariablesTree',
 			container,

@@ -1574,6 +1574,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			NotebookControllerAffinity2: extHostTypes.NotebookControllerAffinity2,
 			NotebookEdit: extHostTypes.NotebookEdit,
 			NotebookKernelSourceAction: extHostTypes.NotebookKernelSourceAction,
+			NotebookVariablesRequestKind: extHostTypes.NotebookVariablesRequestKind,
 			PortAttributes: extHostTypes.PortAttributes,
 			LinkedEditingRanges: extHostTypes.LinkedEditingRanges,
 			TestResultState: extHostTypes.TestResultState,

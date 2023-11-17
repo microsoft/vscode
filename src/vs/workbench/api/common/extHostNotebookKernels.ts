@@ -18,7 +18,7 @@ import { IExtHostInitDataService } from 'vs/workbench/api/common/extHostInitData
 import { ExtHostNotebookController } from 'vs/workbench/api/common/extHostNotebook';
 import { ExtHostCell, ExtHostNotebookDocument } from 'vs/workbench/api/common/extHostNotebookDocument';
 import * as extHostTypeConverters from 'vs/workbench/api/common/extHostTypeConverters';
-import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2 } from 'vs/workbench/api/common/extHostTypes';
+import { NotebookCellExecutionState as ExtHostNotebookCellExecutionState, NotebookCellOutput, NotebookControllerAffinity2, NotebookVariablesRequestKind } from 'vs/workbench/api/common/extHostTypes';
 import { asWebviewUri } from 'vs/workbench/contrib/webview/common/webview';
 import { INotebookKernelSourceAction, NotebookCellExecutionState } from 'vs/workbench/contrib/notebook/common/notebookCommon';
 import { CellExecutionUpdateType } from 'vs/workbench/contrib/notebook/common/notebookExecutionService';
@@ -209,6 +209,7 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 				_update();
 			},
 			set variableProvider(value) {
+				checkProposedApiEnabled(extension, 'notebookVariableProvider');
 				_variableProvider = value;
 				data.hasVariableProvider = !!value;
 				_update();
@@ -426,7 +427,8 @@ export class ExtHostNotebookKernels implements ExtHostNotebookKernelsShape {
 		}
 
 		const parent = parentName ? { name: parentName, value: '' } : undefined;
-		const variables = variableProvider.provideVariables(document.apiNotebook, parent, kind, start, token);
+		const requestKind = kind === 'named' ? NotebookVariablesRequestKind.Named : NotebookVariablesRequestKind.Indexed;
+		const variables = variableProvider.provideVariables(document.apiNotebook, parent, requestKind, start, token);
 		for await (const variable of variables) {
 			if (token.isCancellationRequested) {
 				return;
