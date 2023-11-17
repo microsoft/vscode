@@ -15,6 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { EditorPane } from 'vs/workbench/browser/parts/editor/editorPane';
+import { ICompositeControl } from 'vs/workbench/common/composite';
 import { IEditorOpenContext } from 'vs/workbench/common/editor';
 import { MultiDiffEditorInput } from 'vs/workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput';
 
@@ -38,6 +39,10 @@ export class MultiDiffEditor extends EditorPane {
 			parent,
 			this.instantiationService.createInstance(WorkbenchUIElementFactory),
 		));
+
+		this._register(this._multiDiffEditorWidget.onDidChangeActiveControl(() => {
+			this._onDidChangeControl.fire();
+		}));
 	}
 
 	override async setInput(input: MultiDiffEditorInput, options: IEditorOptions | undefined, context: IEditorOpenContext, token: CancellationToken): Promise<void> {
@@ -51,11 +56,15 @@ export class MultiDiffEditor extends EditorPane {
 
 	override async clearInput(): Promise<void> {
 		await super.clearInput();
-		this._multiDiffEditorWidget?.setViewModel(undefined);
+		this._multiDiffEditorWidget!.setViewModel(undefined);
 	}
 
 	layout(dimension: DOM.Dimension): void {
-		this._multiDiffEditorWidget?.layout(dimension);
+		this._multiDiffEditorWidget!.layout(dimension);
+	}
+
+	override getControl(): ICompositeControl | undefined {
+		return this._multiDiffEditorWidget!.getActiveControl();
 	}
 }
 

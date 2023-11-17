@@ -8,7 +8,7 @@ import { deepClone } from 'vs/base/common/objects';
 import { isObject } from 'vs/base/common/types';
 import { URI } from 'vs/base/common/uri';
 import { ConstLazyPromise, IDocumentDiffItem, IMultiDiffEditorModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
-import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorWidgetImpl';
+import { MultiDiffEditorViewModel } from 'vs/editor/browser/widget/multiDiffEditorWidget/multiDiffEditorViewModel';
 import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/textResourceConfiguration';
@@ -16,8 +16,9 @@ import { localize } from 'vs/nls';
 import { IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { DEFAULT_EDITOR_ASSOCIATION, EditorInputCapabilities } from 'vs/workbench/common/editor';
 import { EditorInput } from 'vs/workbench/common/editor/editorInput';
+import { ILanguageSupport } from 'vs/workbench/services/textfile/common/textfiles';
 
-export class MultiDiffEditorInput extends EditorInput {
+export class MultiDiffEditorInput extends EditorInput implements ILanguageSupport {
 	static readonly ID: string = 'workbench.input.multiDiffEditor';
 
 	get resource(): URI | undefined {
@@ -52,6 +53,15 @@ export class MultiDiffEditorInput extends EditorInput {
 		@ITextResourceConfigurationService private readonly _textResourceConfigurationService: ITextResourceConfigurationService,
 	) {
 		super();
+	}
+
+	setLanguageId(languageId: string, source?: string | undefined): void {
+		const activeDiffItem = this.viewModel?.activeDiffItem.get();
+		const value = activeDiffItem?.entry?.value;
+		if (!value) { return; }
+		const target = value.modified ?? value.original;
+		if (!target) { return; }
+		target.setLanguage(languageId, source);
 	}
 
 	// TODO this should return the view model
