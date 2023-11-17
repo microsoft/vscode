@@ -1283,7 +1283,6 @@ class TreeRenderer extends Disposable implements ITreeRenderer<ITreeItem, FuzzyS
 				this.disposeElement(value.original, 0, value.rendered);
 				this.renderElement(value.original, 0, value.rendered);
 			}
-
 		}
 	}
 
