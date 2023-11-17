@@ -10,7 +10,7 @@ import { IEditorFactoryRegistry, EditorExtensions } from 'vs/workbench/common/ed
 import {
 	TextCompareEditorActiveContext, ActiveEditorPinnedContext, EditorGroupEditorsCountContext, ActiveEditorStickyContext, ActiveEditorAvailableEditorIdsContext,
 	EditorPartMultipleEditorGroupsContext, ActiveEditorDirtyContext, ActiveEditorGroupLockedContext, ActiveEditorCanSplitInGroupContext, SideBySideEditorActiveContext,
-	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext
+	EditorTabsVisibleContext, ActiveEditorLastInGroupContext, EditorPartMaximizedEditorGroupContext, MultipleEditorGroupsContext, InEditorZenModeContext, IsAuxiliaryEditorPartContext
 } from 'vs/workbench/common/contextkeys';
 import { SideBySideEditorInput, SideBySideEditorInputSerializer } from 'vs/workbench/common/editor/sideBySideEditorInput';
 import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
@@ -336,7 +336,7 @@ if (isMacintosh) {
 }
 
 // Empty Editor Group Toolbar
-MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext.toNegated() });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: LOCK_GROUP_COMMAND_ID, title: localize('lockGroupAction', "Lock Group"), icon: Codicon.unlock }, group: 'navigation', order: 10, when: ContextKeyExpr.and(IsAuxiliaryEditorPartContext, ActiveEditorGroupLockedContext.toNegated()) });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: UNLOCK_GROUP_COMMAND_ID, title: localize('unlockGroupAction', "Unlock Group"), icon: Codicon.lock, toggled: ContextKeyExpr.true() }, group: 'navigation', order: 10, when: ActiveEditorGroupLockedContext });
 MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroup, { command: { id: CLOSE_EDITOR_GROUP_COMMAND_ID, title: localize('closeGroupAction', "Close Group"), icon: Codicon.close }, group: 'navigation', order: 20 });
 
@@ -524,14 +524,14 @@ appendEditorToolItem(
 	}
 );
 
-// Lock Group: only when group is unlocked
+// Lock Group: only on auxiliary window and when group is unlocked
 appendEditorToolItem(
 	{
 		id: LOCK_GROUP_COMMAND_ID,
 		title: localize('lockEditorGroup', "Lock Group"),
 		icon: Codicon.unlock
 	},
-	ContextKeyAndExpr.create([ActiveEditorGroupLockedContext.toNegated(), MultipleEditorGroupsContext], null, false),
+	ContextKeyAndExpr.create([IsAuxiliaryEditorPartContext, ActiveEditorGroupLockedContext.toNegated()], null, false),
 	CLOSE_ORDER - 1, // immediately to the left of close action
 );
 
