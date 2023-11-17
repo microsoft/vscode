@@ -43,24 +43,24 @@ export class InlineChatDecorationsContribution extends Disposable implements IEd
 	private readonly _gutterDecorationOpaque: IModelDecorationOptions;
 	private readonly _gutterDecorationTransparent: IModelDecorationOptions;
 
-	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	public static readonly TOOLBAR_SETTING_ID = 'inlineChat.showToolbarIcon';
+	public static readonly GUTTER_SETTING_ID = 'inlineChat.showGutterIcon';
 	private static readonly GUTTER_ICON_OPAQUE_CLASSNAME = 'codicon-inline-chat-opaque';
 	private static readonly GUTTER_ICON_TRANSPARENT_CLASSNAME = 'codicon-inline-chat-transparent';
 
 	constructor(
 		private readonly _editor: ICodeEditor,
+		@IContextKeyService _contextKeyService: IContextKeyService,
 		@IInlineChatService private readonly _inlineChatService: IInlineChatService,
 		@IInlineChatSessionService private readonly _inlineChatSessionService: IInlineChatSessionService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IDebugService private readonly _debugService: IDebugService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IDebugService private readonly _debugService: IDebugService
 	) {
 		super();
 		this._gutterDecorationTransparent = this._registerGutterDecoration(true);
 		this._gutterDecorationOpaque = this._registerGutterDecoration(false);
-		this._ctxToolbarIconEnabled = CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED.bindTo(this._contextKeyService);
+		this._ctxToolbarIconEnabled = CTX_INLINE_CHAT_TOOLBAR_ICON_ENABLED.bindTo(_contextKeyService);
 		this._setToolbarIconEnablementToSetting();
 		this._register(this._configurationService.onDidChangeConfiguration((e: IConfigurationChangeEvent) => {
 			if (e.affectsConfiguration(InlineChatDecorationsContribution.TOOLBAR_SETTING_ID)) {
