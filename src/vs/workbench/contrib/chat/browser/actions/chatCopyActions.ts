@@ -9,6 +9,7 @@ import { Action2, MenuId, registerAction2 } from 'vs/platform/actions/common/act
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { CHAT_CATEGORY } from 'vs/workbench/contrib/chat/browser/actions/chatActions';
 import { IChatWidgetService } from 'vs/workbench/contrib/chat/browser/chat';
+import { CONTEXT_RESPONSE_FILTERED } from 'vs/workbench/contrib/chat/common/chatContextKeys';
 import { IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from 'vs/workbench/contrib/chat/common/chatViewModel';
 
 export function registerChatCopyActions() {
@@ -24,6 +25,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
+					when: CONTEXT_RESPONSE_FILTERED.toNegated(),
 					group: 'copy',
 				}
 			});
@@ -36,7 +38,7 @@ export function registerChatCopyActions() {
 			if (widget) {
 				const viewModel = widget.viewModel;
 				const sessionAsText = viewModel?.getItems()
-					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || isResponseVM(item))
+					.filter((item): item is (IChatRequestViewModel | IChatResponseViewModel) => isRequestVM(item) || (isResponseVM(item) && !item.errorDetails?.responseIsFiltered))
 					.map(stringifyItem)
 					.join('\n\n');
 				if (sessionAsText) {
@@ -58,6 +60,7 @@ export function registerChatCopyActions() {
 				category: CHAT_CATEGORY,
 				menu: {
 					id: MenuId.ChatContext,
+					when: CONTEXT_RESPONSE_FILTERED.toNegated(),
 					group: 'copy',
 				}
 			});
