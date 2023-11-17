@@ -1,0 +1,11 @@
+pool: 1es-windows-2019-x64
+
+trigger: none
+pr: none
+
+steps:
+  - powershell: node build/azure-pipelines/common/test-download
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/244624/
+
