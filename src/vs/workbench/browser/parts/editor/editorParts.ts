@@ -8,7 +8,7 @@ import { EditorGroupLayout, GroupDirection, GroupOrientation, GroupsArrangement,
 import { Event, Emitter } from 'vs/base/common/event';
 import { getActiveDocument } from 'vs/base/browser/dom';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { GroupIdentifier, IEditorPartOptions } from 'vs/workbench/common/editor';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { AuxiliaryEditorPart, EditorPart, MainEditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { IEditorGroupView, IEditorPartsView } from 'vs/workbench/browser/parts/editor/editor';
 import { InstantiationType, registerSingleton } from 'vs/platform/instantiation/common/extensions';
@@ -347,10 +347,6 @@ export class EditorParts extends Disposable implements IEditorGroupsService, IEd
 
 	get partOptions() { return this.mainPart.partOptions; }
 	get onDidChangeEditorPartOptions() { return this.mainPart.onDidChangeEditorPartOptions; }
-
-	enforcePartOptions(options: IEditorPartOptions): IDisposable {
-		return this.mainPart.enforcePartOptions(options);
-	}
 
 	//#endregion
 }

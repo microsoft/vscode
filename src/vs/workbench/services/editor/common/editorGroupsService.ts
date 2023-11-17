@@ -385,11 +385,6 @@ export interface IEditorGroupsContainer {
 	readonly onDidChangeEditorPartOptions: Event<IEditorPartOptionsChangeEvent>;
 
 	/**
-	 * Enforce editor part options temporarily.
-	 */
-	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
-
-	/**
 	 * Allows to register a drag and drop target for editors
 	 * on the provided `container`.
 	 */
@@ -462,6 +457,11 @@ export interface IEditorPart extends IEditorGroupsContainer {
 	 * Find out if the editor layout is currently centered.
 	 */
 	isLayoutCentered(): boolean;
+
+	/**
+	 * Enforce editor part options temporarily.
+	 */
+	enforcePartOptions(options: DeepPartial<IEditorPartOptions>): IDisposable;
 }
 
 export interface IAuxiliaryEditorPart extends IEditorPart {

@@ -1296,12 +1296,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			};
 
 			if (!lineNumbers) {
-				// Reset line numbers on all editors visible and non-visible
-				for (const editorControl of this.editorService.visibleTextEditorControls) {
+				for (const editorControl of this.mainPartEditorService.visibleTextEditorControls) {
 					setEditorLineNumbers(editorControl);
 				}
 			} else {
-				for (const editorControl of this.editorService.visibleTextEditorControls) {
+				for (const editorControl of this.mainPartEditorService.visibleTextEditorControls) {
 					setEditorLineNumbers(editorControl);
 				}
 			}
@@ -1342,11 +1341,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 			if (config.hideLineNumbers) {
 				setLineNumbers('off');
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
+				this.state.runtime.zenMode.transitionDisposables.add(this.mainPartEditorService.onDidVisibleEditorsChange(() => setLineNumbers('off')));
 			}
 
 			if (config.showTabs !== this.editorGroupService.partOptions.showTabs) {
-				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.enforcePartOptions({ showTabs: config.showTabs }));
+				this.state.runtime.zenMode.transitionDisposables.add(this.editorGroupService.mainPart.enforcePartOptions({ showTabs: config.showTabs }));
 			}
 
 			if (config.silentNotifications && zenModeExitInfo.handleNotificationsDoNotDisturbMode) {
