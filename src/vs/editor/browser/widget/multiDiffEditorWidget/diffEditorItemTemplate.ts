@@ -5,22 +5,22 @@
 import { h } from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Codicon } from 'vs/base/common/codicons';
-import { Disposable } from 'vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from 'vs/base/common/lifecycle';
 import { autorun, derived } from 'vs/base/common/observable';
 import { globalTransaction, observableValue } from 'vs/base/common/observableInternal/base';
 import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditor/diffEditorWidget';
-import { IDiffEntry } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
+import { IDocumentDiffItem } from 'vs/editor/browser/widget/multiDiffEditorWidget/model';
 import { IWorkbenchUIElementFactory } from 'vs/editor/browser/widget/multiDiffEditorWidget/workbenchUIElementFactory';
 import { OffsetRange } from 'vs/editor/common/core/offsetRange';
 import { IDiffEditorViewModel } from 'vs/editor/common/editorCommon';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IObjectData, IPooledObject } from './objectPool';
-
+import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 
 export class TemplateData implements IObjectData {
 	constructor(
 		public readonly viewModel: IDiffEditorViewModel,
-		public readonly entry: IDiffEntry
+		public readonly entry: IDocumentDiffItem,
 	) { }
 
 
@@ -86,17 +86,6 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 	]);
 
 	private readonly _editor = this._register(this._instantiationService.createInstance(DiffEditorWidget, this._elements.editor, {
-		scrollBeyondLastLine: false,
-		hideUnchangedRegions: {
-			enabled: true,
-		},
-		scrollbar: {
-			vertical: 'hidden',
-			horizontal: 'hidden',
-			handleMouseWheel: false,
-		},
-		renderOverviewRuler: false,
-		fixedOverflowWidgets: true,
 		overflowWidgetsDomNode: this._overflowWidgetsDomNode,
 	}, {}));
 
@@ -143,9 +132,7 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 			});
 		}));
 
-
 		this._container.appendChild(this._elements.root);
-
 		this._outerEditorHeight = 38;
 	}
 
@@ -157,10 +144,37 @@ export class DiffEditorItemTemplate extends Disposable implements IPooledObject<
 		}
 	}
 
-	public setData(data: TemplateData) {
+	private readonly _dataStore = new DisposableStore();
+
+	public setData(data: TemplateData): void {
 		this._resourceLabel?.setUri(data.viewModel.model.modified.uri);
+		this._dataStore.clear();
+
+		function updateOptions(options: IDiffEditorOptions): IDiffEditorOptions {
+			return {
+				...options,
+				scrollBeyondLastLine: false,
+				hideUnchangedRegions: {
+					enabled: true,
+				},
+				scrollbar: {
+					vertical: 'hidden',
+					horizontal: 'hidden',
+					handleMouseWheel: false,
+				},
+				renderOverviewRuler: false,
+				fixedOverflowWidgets: true,
+			};
+		}
+
+		if (data.entry.onOptionsDidChange) {
+			this._dataStore.add(data.entry.onOptionsDidChange(() => {
+				this._editor.updateOptions(updateOptions(data.entry.options ?? {}));
+			}));
+		}
 		globalTransaction(tx => {
 			this._editor.setModel(data.viewModel, tx);
+			this._editor.updateOptions(updateOptions(data.entry.options ?? {}));
 		});
 	}
 

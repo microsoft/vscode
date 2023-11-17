@@ -270,9 +270,9 @@ export class MarkNavigationAddon extends Disposable implements IMarkTracker, ITe
 			const decoration = this._terminal.registerDecoration({
 				marker: this._createMarkerForOffset(marker, i),
 				width: this._terminal.cols,
-				overviewRulerOptions: {
+				overviewRulerOptions: i === 0 ? {
 					color: color?.toString() || '#a0a0a0cc'
-				}
+				} : undefined
 			});
 			if (decoration) {
 				this._navigationDecorations?.push(decoration);
