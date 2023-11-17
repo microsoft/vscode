@@ -15,7 +15,7 @@ import { INotebookCellActionContext, NotebookAction, NotebookCellAction } from '
 import { insertNewCell } from 'vs/workbench/contrib/notebook/browser/controller/insertCellActions';
 import { CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_NOTEBOOK_CHAT_HAS_ACTIVE_REQUEST, MENU_CELL_CHAT_WIDGET, MENU_CELL_CHAT_WIDGET_STATUS, MENU_CELL_CHAT_WIDGET_TOOLBAR, NotebookCellChatController } from 'vs/workbench/contrib/notebook/browser/view/cellParts/chat/cellChatController';
 import { CellKind, NotebookSetting } from 'vs/workbench/contrib/notebook/common/notebookCommon';
-import { NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
+import { NOTEBOOK_CELL_LIST_FOCUSED, NOTEBOOK_EDITOR_EDITABLE } from 'vs/workbench/contrib/notebook/common/notebookContextKeys';
 
 
 registerAction2(class extends NotebookCellAction {
@@ -151,6 +151,11 @@ registerAction2(class extends NotebookCellAction {
 				id: 'notebook.cell.chat.discard',
 				title: localize('discard', 'Discard'),
 				icon: Codicon.discard,
+				keybinding: {
+					when: ContextKeyExpr.and(CTX_NOTEBOOK_CELL_CHAT_FOCUSED, CTX_INLINE_CHAT_FOCUSED, NOTEBOOK_CELL_LIST_FOCUSED),
+					weight: KeybindingWeight.EditorContrib,
+					primary: KeyCode.Escape
+				},
 				menu: {
 					id: MENU_CELL_CHAT_WIDGET_STATUS,
 					group: 'main',
