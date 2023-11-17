@@ -761,6 +761,7 @@
 		"--vscode-hover-whiteSpace",
 		"--vscode-inline-chat-cropped",
 		"--vscode-inline-chat-expanded",
+		"--vscode-inline-chat-decoration-marginLeft",
 		"--vscode-interactive-session-foreground",
 		"--vscode-interactive-result-editor-background-color",
 		"--vscode-repl-font-family",

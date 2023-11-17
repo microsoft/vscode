@@ -346,32 +346,22 @@
 /* gutter decoration */
 
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque-shifted,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent-shifted {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
 	display: block;
 	cursor: pointer;
 	transition: opacity .2s ease-in-out;
+	margin-left: var(--vscode-inline-chat-decoration-marginLeft, 0px);
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque-shifted,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent-shifted {
-	margin-left: 5px;
-}
-
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque-shifted {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque {
 	opacity: 0.5;
 }
 
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent-shifted {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent {
 	opacity: 0;
 }
 
 .monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque:hover,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-opaque-shifted:hover,
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover
-.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent-shifted:hover {
+.monaco-editor .glyph-margin-widgets .cgmr.codicon-inline-chat-transparent:hover {
 	opacity: 1;
 }
