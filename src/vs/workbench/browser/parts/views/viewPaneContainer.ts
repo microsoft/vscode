@@ -308,7 +308,7 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 
 	readonly viewContainer: ViewContainer;
 	private lastFocusedPane: ViewPane | undefined;
-	private lastMergedCollapsedPane: ViewPane | undefined;
+	private autoExpandedPane: ViewPane | undefined;
 	private paneItems: IViewPaneItem[] = [];
 	private paneview?: PaneView;
 
@@ -1058,30 +1058,34 @@ export class ViewPaneContainer extends Component implements IViewPaneContainer {
 	}
 
 	private updateViewHeaders(): void {
+		const firstPane = this.paneItems[0].pane;
 		if (this.isViewMergedWithContainer()) {
-			if (this.paneItems[0].pane.isExpanded()) {
-				this.lastMergedCollapsedPane = undefined;
+			if (firstPane.isExpanded()) {
+				this.autoExpandedPane = undefined;
 			} else {
-				this.lastMergedCollapsedPane = this.paneItems[0].pane;
-				this.paneItems[0].pane.setExpanded(true);
+				this.autoExpandedPane = firstPane;
+				firstPane.setExpanded(true);
 			}
-			this.paneItems[0].pane.headerVisible = false;
-			this.paneItems[0].pane.collapsible = true;
+			firstPane.headerVisible = false;
+			firstPane.collapsible = true;
 		} else {
 			if (this.paneItems.length === 1) {
-				this.paneItems[0].pane.headerVisible = true;
-				this.paneItems[0].pane.setExpanded(true);
-				this.paneItems[0].pane.collapsible = false;
+				if (!firstPane.isExpanded()) {
+					this.autoExpandedPane = firstPane;
+					firstPane.setExpanded(true);
+				}
+				firstPane.headerVisible = true;
+				firstPane.collapsible = false;
 			} else {
 				this.paneItems.forEach(i => {
 					i.pane.headerVisible = true;
 					i.pane.collapsible = true;
-					if (i.pane === this.lastMergedCollapsedPane) {
+					if (i.pane === this.autoExpandedPane) {
 						i.pane.setExpanded(false);
 					}
 				});
+				this.autoExpandedPane = undefined;
 			}
-			this.lastMergedCollapsedPane = undefined;
 		}
 	}
 
