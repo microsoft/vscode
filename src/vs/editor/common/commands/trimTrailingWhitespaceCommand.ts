@@ -17,15 +17,17 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 	private readonly _selection: Selection;
 	private _selectionId: string | null;
 	private readonly _cursors: Position[];
+	private readonly _trimInRegexesAndStrings: boolean;
 
-	constructor(selection: Selection, cursors: Position[]) {
+	constructor(selection: Selection, cursors: Position[], trimInRegexesAndStrings: boolean) {
 		this._selection = selection;
 		this._cursors = cursors;
 		this._selectionId = null;
+		this._trimInRegexesAndStrings = trimInRegexesAndStrings;
 	}
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
-		const ops = trimTrailingWhitespace(model, this._cursors);
+		const ops = trimTrailingWhitespace(model, this._cursors, this._trimInRegexesAndStrings);
 		for (let i = 0, len = ops.length; i < len; i++) {
 			const op = ops[i];
 
@@ -43,7 +45,7 @@ export class TrimTrailingWhitespaceCommand implements ICommand {
 /**
  * Generate commands for trimming trailing whitespace on a model and ignore lines on which cursors are sitting.
  */
-export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): ISingleEditOperation[] {
+export function trimTrailingWhitespace(model: ITextModel, cursors: Position[], trimInRegexesAndStrings: boolean): ISingleEditOperation[] {
 	// Sort cursors ascending
 	cursors.sort((a, b) => {
 		if (a.lineNumber === b.lineNumber) {
@@ -97,12 +99,15 @@ export function trimTrailingWhitespace(model: ITextModel, cursors: Position[]): 
 			continue;
 		}
 
-		const lineTokens = model.tokenization.getLineTokens(lineNumber);
-		const fromColumnType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(fromColumn));
+		if (!trimInRegexesAndStrings) {
+			model.tokenization.forceTokenization(lineNumber);
+			const lineTokens = model.tokenization.getLineTokens(lineNumber);
+			const fromColumnType = lineTokens.getStandardTokenType(lineTokens.findTokenIndexAtOffset(fromColumn));
 
-		if (fromColumnType === StandardTokenType.String || fromColumnType === StandardTokenType.RegEx) {
-			// Never trim trailing whitespace from strings and regexes, as they're likely intentional
-			continue;
+			if (fromColumnType === StandardTokenType.String || fromColumnType === StandardTokenType.RegEx) {
+				// Never trim trailing whitespace from strings and regexes, as they're likely intentional
+				continue;
+			}
 		}
 
 		fromColumn = Math.max(minEditColumn, fromColumn);
